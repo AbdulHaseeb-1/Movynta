@@ -9,8 +9,8 @@
     "build:desktop": "pnpm --filter movynta-desktop build",
     "build:backend": "pnpm --filter movynta-backend build",
     "typecheck": "pnpm --filter movynta-desktop typecheck && pnpm --filter movynta-backend typecheck",
-    "lint": "oxlint --type-aware apps/desktop/src apps/desktop/vite.config.ts apps/backend/src",
-    "check": "pnpm run typecheck && pnpm run lint",
+    "lint": "pnpm --filter movynta-desktop lint && pnpm --filter movynta-backend lint",
+    "check": "pnpm --filter movynta-desktop check && pnpm --filter movynta-backend check",
     "tauri": "pnpm --filter movynta-desktop tauri",
     "lint:fix": "oxlint --fix apps/desktop/src apps/desktop/vite.config.ts apps/backend/src"
   },

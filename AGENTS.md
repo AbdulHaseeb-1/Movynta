@@ -6,7 +6,7 @@
 - State: Redux Toolkit and react-redux in the desktop app.
 - Routing: react-router with hash routing in the desktop app.
 - UI: shadcn/ui, Tailwind CSS, and Lucide icons.
-- Backend: NestJS and TypeScript.
+- Backend: NestJS and TypeScript, with the OpenAI Agents SDK (`@openai/agents`) and Zod v4 schemas for agent tools.
 - Package manager: pnpm workspace with a single root lockfile.
 
 ## Structure
@@ -17,7 +17,8 @@
   - `src/features/`: feature-specific UI and logic, grouped by capability. Keep each feature's Redux slice in its folder and register it in `src/app/store.ts`.
   - `src/components/`: reusable components; `src/components/ui/` contains shadcn/ui components.
   - `src/lib/`: utilities and integrations; `src/styles/`: global styles.
-- `apps/backend/`: NestJS application. Group features in `src/modules/` and backend-wide utilities in `src/common/`.
+- `apps/backend/`: NestJS AI backend. Group features in `src/modules/`, backend-wide utilities in `src/common/`, and shared schemas in `src/shared/`. See `apps/backend/README.md` for the architecture.
+- `skills/`: agent skill packages, one folder per skill with a `SKILL.md` file. The backend loads them at startup.
 - `packages/`: code shared by multiple apps. Create packages only when needed.
 - `designs/`: design references and assets.
 
@@ -35,6 +36,13 @@
 - Define clear types for data, inputs, outputs, and component props in each TypeScript file as applicable. Provide an `index.ts` in each TypeScript source folder to define its public exports.
 - Consider established design patterns, including Gang of Four patterns, for each feature. Apply them where they improve clarity or maintainability.
 - Follow existing conventions and preserve unrelated changes.
+
+### Backend and agents
+
+- Keep controllers thin and put business logic in services. Keep agent instructions in agent definitions and tools in `src/modules/tools/`.
+- Agents change the editor only through `editor.propose_commands` and `editor.apply_proposal`. Never send code, shell commands, or raw scene access from an agent to the editor.
+- Never expose `OPENAI_API_KEY` or other server secrets to the React or Tauri frontend.
+- Mock the model in automated tests (`@openai/agents/testing`). Tests must not call OpenAI.
 
 ### Types and checks
 
