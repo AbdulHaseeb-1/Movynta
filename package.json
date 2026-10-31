@@ -1,0 +1,21 @@
+{
+  "name": "movynta",
+  "private": true,
+  "packageManager": "pnpm@12.9.1",
+  "scripts": {
+    "dev": "pnpm --filter movynta-desktop dev",
+    "dev:backend": "pnpm --filter movynta-backend start:dev",
+    "build": "pnpm -r build",
+    "build:desktop": "pnpm --filter movynta-desktop build",
+    "build:backend": "pnpm --filter movynta-backend build",
+    "typecheck": "pnpm --filter movynta-desktop typecheck && pnpm --filter movynta-backend typecheck",
+    "lint": "oxlint --type-aware apps/desktop/src apps/desktop/vite.config.ts apps/backend/src",
+    "check": "pnpm run typecheck && pnpm run lint",
+    "tauri": "pnpm --filter movynta-desktop tauri",
+    "lint:fix": "oxlint --fix apps/desktop/src apps/desktop/vite.config.ts apps/backend/src"
+  },
+  "devDependencies": {
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005"
+  }
+}

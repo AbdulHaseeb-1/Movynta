@@ -1,0 +1,49 @@
+# Agent guide
+
+## Tech stack
+
+- Desktop: Tauri 2, Rust, React, TypeScript, and Vite.
+- State: Redux Toolkit and react-redux in the desktop app.
+- Routing: react-router with hash routing in the desktop app.
+- UI: shadcn/ui, Tailwind CSS, and Lucide icons.
+- Backend: NestJS and TypeScript.
+- Package manager: pnpm workspace with a single root lockfile.
+
+## Structure
+
+- `apps/desktop/`: React frontend and `src-tauri/` desktop application.
+  - `src/app/`: app setup, including routes (`router.tsx`), the Redux store (`store.ts`), and typed hooks (`hooks.ts`).
+  - `src/pages/`: page-level components.
+  - `src/features/`: feature-specific UI and logic, grouped by capability. Keep each feature's Redux slice in its folder and register it in `src/app/store.ts`.
+  - `src/components/`: reusable components; `src/components/ui/` contains shadcn/ui components.
+  - `src/lib/`: utilities and integrations; `src/styles/`: global styles.
+- `apps/backend/`: NestJS application. Group features in `src/modules/` and backend-wide utilities in `src/common/`.
+- `packages/`: code shared by multiple apps. Create packages only when needed.
+- `designs/`: design references and assets.
+
+## Working rules
+
+### UI and state
+
+- Use shadcn/ui components and adapt their styling to the existing design.
+- Define routes in `src/app/router.tsx`. Move between pages with `useNavigate` or `<Link>`, not with local page state.
+- Manage shared client state with Redux Toolkit slices created with `createSlice`. Access the store through `useAppSelector` and `useAppDispatch` from `src/app/hooks.ts`.
+
+### Code organization and design
+
+- Organize code by feature and responsibility. Keep files focused, reuse shared logic, and avoid duplication.
+- Define clear types for data, inputs, outputs, and component props in each TypeScript file as applicable. Provide an `index.ts` in each TypeScript source folder to define its public exports.
+- Consider established design patterns, including Gang of Four patterns, for each feature. Apply them where they improve clarity or maintainability.
+- Follow existing conventions and preserve unrelated changes.
+
+### Types and checks
+
+- Keep TypeScript strict. The compiler options in `apps/desktop/tsconfig.json` and `apps/desktop/tsconfig.node.json` must stay enabled; do not weaken them.
+- Do not use `any`, `@ts-ignore`, or non-null assertions (`!`). Narrow types or validate values instead.
+- Run `pnpm check` (typecheck and oxlint) from the repo root before finishing a change, and fix every error it reports.
+
+### Performance and validation
+
+- Choose appropriate data structures and algorithms for complex or performance-critical work.
+- Benchmark computationally heavy functions when adding or changing them, and optimize measured bottlenecks.
+- Run checks relevant to the changes, and report any checks or benchmarks that could not be run.
