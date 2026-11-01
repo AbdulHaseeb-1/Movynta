@@ -3,9 +3,15 @@ import App from "./App";
 import { Assistant, Home } from "@/pages";
 
 // Hash routing keeps deep links working when the desktop app loads local files.
+/** Shown while a lazily loaded route (the animation lab) is being fetched on first load. */
+function RouteFallback() {
+  return <div className="h-full bg-background" aria-busy="true" />;
+}
+
 export const router = createHashRouter([
   {
     Component: App,
+    HydrateFallback: RouteFallback,
     children: [
       { index: true, Component: Home },
       { path: "studio", Component: Assistant },
