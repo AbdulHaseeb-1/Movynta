@@ -1,5 +1,6 @@
 import { RunContext } from "@openai/agents";
 import { z } from "zod";
+import { ValidationFailedError } from "../../common/errors/app-error.js";
 import type { AgentRunContext } from "../agent-runs/agent-runs.types.js";
 import { ALL_TOOL_NAMES, isToolName, MODELING_TOOLSET, TOOL_NAMES, TOOLSETS } from "./catalog/index.js";
 import { createEditorTools } from "./editor/editor.tools.js";
@@ -199,6 +200,27 @@ describe("tool execution through the SDK adapter", () => {
     expect(output).not.toContain("secret");
     expect(JSON.parse(output)).toMatchObject({ error: "Tool execution failed" });
     expect(emitted.map((event) => event.type)).toEqual(["tool.started", "tool.failed"]);
+  });
+
+  it("passes domain error details, such as conflicting commands, to the model", async () => {
+    const conflicting = toSdkTool(
+      defineTool({
+        name: "sample.conflict",
+        description: "A tool that fails with a domain error that has details",
+        permission: "read",
+        parameters: z.object({}).strict(),
+        execute: () => {
+          throw new ValidationFailedError("Proposal conflicts with the current scene", {
+            issues: [{ commandId: "c2", message: "objectId already exists" }],
+          });
+        },
+      }),
+    );
+    const failure = JSON.parse(String(await conflicting.invoke(runContext(), "{}")));
+    expect(failure).toMatchObject({
+      error: "Proposal conflicts with the current scene",
+      details: { issues: [{ commandId: "c2", message: "objectId already exists" }] },
+    });
   });
 
   it("replaces oversized results with a short error", async () => {

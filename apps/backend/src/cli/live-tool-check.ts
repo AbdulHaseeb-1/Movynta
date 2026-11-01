@@ -47,6 +47,12 @@ function gatewayModelProvider(model: string, apiKey: string, baseURL: string): M
   return { getModel: () => provider.getModel(model) };
 }
 
+function failureOf(event: StreamedEvent): string {
+  const payload: unknown = event.envelope.payload;
+  const message = typeof payload === "object" && payload !== null && "message" in payload ? String(payload.message) : "";
+  return `${toolNameOf(event)} (${message})`;
+}
+
 function toolNameOf(event: StreamedEvent): string {
   const payload: unknown = event.envelope.payload;
   return typeof payload === "object" && payload !== null && "toolName" in payload ? String(payload.toolName) : "";
@@ -71,7 +77,7 @@ async function checkModel(model: string, apiKey: string, baseURL: string): Promi
     stream.stop();
 
     const toolCalls = stream.events.filter((e) => e.envelope.type === "tool.started").map(toolNameOf);
-    const failedCalls = stream.events.filter((e) => e.envelope.type === "tool.failed").map(toolNameOf);
+    const failedCalls = stream.events.filter((e) => e.envelope.type === "tool.failed").map(failureOf);
     const finalEvent = stream.events.find((e) => e.envelope.type === "agent.message.completed");
     const payload: unknown = finalEvent?.envelope.payload;
     const finalMessage = typeof payload === "object" && payload !== null && "text" in payload ? String(payload.text) : "";

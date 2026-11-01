@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AppError } from "../../common/errors/app-error.js";
 
 export const MAX_REPORTED_ISSUES = 8;
+const MAX_DETAILS_CHARS = 2_000;
 const MAX_ISSUE_MESSAGE_LENGTH = 200;
 
 export interface ToolIssue {
@@ -18,6 +19,8 @@ export interface ToolIssue {
 export interface ToolFailure {
   readonly error: string;
   readonly issues?: readonly ToolIssue[];
+  /** Structured detail from domain errors, for example which commands conflict with the scene. */
+  readonly details?: Readonly<Record<string, unknown>>;
   readonly hint: string;
 }
 
@@ -44,6 +47,11 @@ function isInvalidToolInputError(error: unknown): boolean {
 const INVALID_INPUT_HINT =
   "Check every argument against the types and limits in the tool description. Send only the fields the schema lists for that item (do not add extra fields), then call the tool again.";
 
+/** Domain error details are already shown to API clients; they are passed on only when small. */
+function hasUsableDetails(details: Readonly<Record<string, unknown>> | undefined): details is Readonly<Record<string, unknown>> {
+  return details !== undefined && JSON.stringify(details).length <= MAX_DETAILS_CHARS;
+}
+
 export function toToolFailure(error: unknown): ToolFailure {
   if (isInvalidToolInputError(error)) {
     return { error: "Tool input did not match its schema", hint: INVALID_INPUT_HINT };
@@ -58,7 +66,8 @@ export function toToolFailure(error: unknown): ToolFailure {
   if (error instanceof AppError) {
     return {
       error: error.message,
-      hint: "Read the message, adjust your approach, and only retry if it explains how.",
+      ...(hasUsableDetails(error.details) ? { details: error.details } : {}),
+      hint: "Read the message and details, fix what they name, and only retry if they explain how.",
     };
   }
   return {
