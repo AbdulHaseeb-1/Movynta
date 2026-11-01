@@ -33,3 +33,6 @@ target-check/
 .env.*
 !.env.example
 
+
+# Generated demo recordings
+apps/desktop/artifacts/
