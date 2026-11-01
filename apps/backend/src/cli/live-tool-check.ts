@@ -37,6 +37,7 @@ interface ModelReport {
   readonly failedCalls: readonly string[];
   readonly objectCount: number;
   readonly finalMessage: string;
+  readonly seconds: number;
 }
 
 /** Same transport as the app's "OpenAI-compatible" provider: Chat Completions, no redirects. */
@@ -59,6 +60,7 @@ function toolNameOf(event: StreamedEvent): string {
 }
 
 async function checkModel(model: string, apiKey: string, baseURL: string): Promise<ModelReport> {
+  const startedAt = Date.now();
   const server = await startTestServer(0, gatewayModelProvider(model, apiKey, baseURL));
   try {
     const token = server.token("live-check");
@@ -78,7 +80,7 @@ async function checkModel(model: string, apiKey: string, baseURL: string): Promi
 
     const toolCalls = stream.events.filter((e) => e.envelope.type === "tool.started").map(toolNameOf);
     const failedCalls = stream.events.filter((e) => e.envelope.type === "tool.failed").map(failureOf);
-    const finalEvent = stream.events.find((e) => e.envelope.type === "agent.message.completed");
+    const finalEvent = stream.events.filter((e) => e.envelope.type === "agent.message.completed").at(-1);
     const payload: unknown = finalEvent?.envelope.payload;
     const finalMessage = typeof payload === "object" && payload !== null && "text" in payload ? String(payload.text) : "";
 
@@ -100,6 +102,7 @@ async function checkModel(model: string, apiKey: string, baseURL: string): Promi
       failedCalls,
       objectCount: editor.scene.objects.length,
       finalMessage: finalMessage.slice(0, 300),
+      seconds: Math.round((Date.now() - startedAt) / 1000),
     };
     editor.close();
     return report;
@@ -128,7 +131,7 @@ async function main(): Promise<void> {
       process.stdout.write(`${report.ok ? "PASS" : "FAIL"}\n`);
       process.stdout.write(`tool calls : ${report.toolCalls.join(" -> ")}\n`);
       process.stdout.write(`failed     : ${report.failedCalls.length === 0 ? "none" : report.failedCalls.join(", ")}\n`);
-      process.stdout.write(`scene      : ${report.objectCount} objects\n`);
+      process.stdout.write(`scene      : ${report.objectCount} objects in ${report.seconds}s\n`);
       if (report.problems.length > 0) process.stdout.write(`problems   : ${report.problems.join("; ")}\n`);
       process.stdout.write(`reply      : ${report.finalMessage}\n`);
     } catch (error) {

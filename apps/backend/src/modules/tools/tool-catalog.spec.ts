@@ -247,6 +247,10 @@ describe("tool execution through the SDK adapter", () => {
     expect(context.context.plans[0]?.steps[0]?.toolName).toBe("editor.propose_commands");
 
     const rejected = await plan.invoke(context, JSON.stringify({ goal: "g", dimension: "3d", steps: [step("shell.exec")] }));
-    expect(JSON.parse(String(rejected))).toMatchObject({ status: "rejected", unknownTools: ["shell.exec"] });
+    expect(JSON.parse(String(rejected))).toMatchObject({
+      status: "rejected",
+      unknownTools: ["shell.exec"],
+      validToolNames: expect.arrayContaining([TOOL_NAMES.editorProposeCommands]),
+    });
   });
 });
