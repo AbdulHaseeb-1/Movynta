@@ -10,7 +10,10 @@
     "tauri": "tauri",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "lint": "oxlint --type-aware src vite.config.ts",
-    "check": "pnpm run typecheck && pnpm run lint"
+    "check": "pnpm run typecheck && pnpm run lint",
+    "test": "vitest run src",
+    "test:soak": "vitest run tests/engine.soak.test.ts",
+    "test:e2e": "vitest run tests/animation-lab.e2e.test.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
