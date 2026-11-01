@@ -1,18 +1,10 @@
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
-import type { AppConfig } from "../../config/configuration.js";
+import type { AppConfig } from "../../config/config.types.js";
 import { RateLimitedError } from "../errors/app-error.js";
-
-interface RateWindow {
-  count: number;
-  resetAt: number;
-}
+import type { RateWindow, SocketRequest } from "./rate-limit.types.js";
 
 const MAX_TRACKED_CLIENTS = 10_000;
-
-interface SocketRequest {
-  readonly socket?: { readonly remoteAddress?: string | undefined } | undefined;
-}
 
 /**
  * Fixed-window limit per client address, applied to every route. It is a

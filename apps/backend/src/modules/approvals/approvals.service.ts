@@ -1,23 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { NotFoundError } from "../../common/errors/app-error.js";
-import { AgentRunRepository, type AgentRunRecord } from "../agent-runs/agent-run.repository.js";
-import type { ApprovalPreview } from "./approval.preview.js";
-import { ApprovalsRepository, type ApprovalRecord } from "./approvals.repository.js";
+import { AgentRunRepository } from "../agent-runs/agent-run.repository.js";
+import type { AgentRunRecord } from "../agent-runs/agent-runs.types.js";
+import { ApprovalsRepository } from "./approvals.repository.js";
+import type { ApprovalDecision, ApprovalRecord, NewApproval } from "./approvals.types.js";
 
 export const APPROVAL_TTL_MS = 10 * 60 * 1000;
-
-export interface ApprovalDecision {
-  readonly callId: string;
-  readonly approved: boolean;
-  readonly reason: string | undefined;
-}
-
-export interface NewApproval {
-  readonly callId: string;
-  readonly toolName: string;
-  readonly preview: ApprovalPreview;
-}
 
 /** Creates approval requests and exposes ownership-checked reads. Decisions run in AgentRunsService. */
 @Injectable()

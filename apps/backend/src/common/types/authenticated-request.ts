@@ -1,4 +1,4 @@
-import type { AuthUser } from "../../modules/auth/auth.service.js";
+import type { AuthUser } from "../../modules/auth/auth.types.js";
 
 /** The subset of the incoming request that shared guards and decorators read or write. */
 export interface AuthenticatedRequest {

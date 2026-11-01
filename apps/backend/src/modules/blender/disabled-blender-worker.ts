@@ -1,5 +1,5 @@
 import { ServiceUnavailableError } from "../../common/errors/app-error.js";
-import type { BlenderJobRequest, BlenderJobResult, BlenderWorker } from "./blender-worker.js";
+import type { BlenderJobRequest, BlenderJobResult, BlenderWorker } from "./blender.types.js";
 
 /**
  * Used whenever Blender is not configured or not installed. It reports that the

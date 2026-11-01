@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Movynta</title>
     <link rel="icon" type="image/x-icon" href="/logo/favicon.ico" />
     <style>
-      body { margin: 0; background: #191919; }
-      .startup-splash { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #191919; opacity: 1; transition: opacity 400ms ease; }
+      body { margin: 0; background: #111111; }
+      .startup-splash { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #111111; opacity: 1; transition: opacity 400ms ease; }
       .startup-splash.is-exiting { opacity: 0; pointer-events: none; }
       .startup-mark { position: relative; width: min(128px, 32vw); animation: splash-appear 500ms ease both; }
       .startup-mark img { display: block; width: 100%; height: auto; }
@@ -26,8 +26,8 @@
   <body>
     <div id="startup-splash" class="startup-splash" role="status" aria-label="Loading Movynta">
       <div class="startup-mark">
-        <img class="startup-mark-base" src="/logo/movynta.svg" alt="" />
-        <img class="startup-mark-loader" src="/logo/movynta-loader.svg" alt="" />
+        <img class="startup-mark-base" src="/logo/movynta-silver.svg" alt="" />
+        <img class="startup-mark-loader" src="/logo/movynta-silver-loader.svg" alt="" />
       </div>
     </div>
     <div id="root" inert></div>

@@ -2,7 +2,8 @@ import { tool } from "@openai/agents";
 import { Logger } from "@nestjs/common";
 import { z } from "zod";
 import { AppError } from "../../common/errors/app-error.js";
-import { isAgentRunContext, type AgentRunContext } from "../agent-runs/agent-run.context.js";
+import { isAgentRunContext } from "../agent-runs/agent-run.context.js";
+import type { AgentRunContext } from "../agent-runs/agent-runs.types.js";
 import { toProviderToolName, type ToolDefinition } from "./tool.types.js";
 
 const logger = new Logger("ToolExecution");

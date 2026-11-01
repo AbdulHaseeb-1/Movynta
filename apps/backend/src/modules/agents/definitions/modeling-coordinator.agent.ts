@@ -1,21 +1,13 @@
 import { Agent, type AgentOutputType } from "@openai/agents";
-import type { AgentRunContext } from "../../agent-runs/agent-run.context.js";
+import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
 import { toProviderToolName } from "../../tools/tool.types.js";
 import { toSdkTool } from "../../tools/tool.factory.js";
-import { ToolRegistry } from "../../tools/tool.registry.js";
 import { requestPolicyGuardrail } from "../guardrails/request-policy.guardrail.js";
-import { SkillsRegistry } from "../../skills/skills.registry.js";
-import type { AgentDefinition, AppAgent } from "./agent-definition.js";
+import type { AgentDefinition, AppAgent, ModelingCoordinatorDependencies } from "./definitions.types.js";
 import { buildModelingInstructions } from "./modeling-coordinator.instructions.js";
 
 export const MODELING_COORDINATOR_ID = "modeling-coordinator";
 export const MODELING_COORDINATOR_VERSION = "1.0.0";
-
-export interface ModelingCoordinatorDependencies {
-  readonly model: string | undefined;
-  readonly tools: ToolRegistry;
-  readonly skills: SkillsRegistry;
-}
 
 /**
  * Definition of the coordinator that understands 2D, 2.5D and 3D requests and
@@ -32,10 +24,9 @@ export function createModelingCoordinatorDefinition(deps: ModelingCoordinatorDep
     description: "Plans and applies 2D, 2.5D and 3D modeling work in the Movynta editor through approved commands.",
     version: MODELING_COORDINATOR_VERSION,
     createAgent(): AppAgent {
-      if (!deps.model) throw new Error("OPENAI_MODEL is required to create agents");
       return new Agent<AgentRunContext, AgentOutputType>({
         name: "ModelingCoordinatorAgent",
-        model: deps.model,
+        model: deps.model ?? "configured-provider",
         instructions: (runContext: { context: AgentRunContext }) =>
           buildModelingInstructions({
             skills: skills.list().filter((skill) => runContext.context.selectedSkillIds.includes(skill.id)),

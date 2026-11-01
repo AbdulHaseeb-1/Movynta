@@ -1,0 +1,309 @@
+import {
+  AmbientLight,
+  Color,
+  DirectionalLight,
+  Line,
+  MathUtils,
+  Mesh,
+  MOUSE,
+  PerspectiveCamera,
+  Points,
+  Scene,
+  Timer,
+  Vector3,
+  WebGLRenderer,
+  type ColorRepresentation,
+  type Object3D,
+} from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+
+export type FrameListener = (deltaSeconds: number) => void;
+
+export interface ViewportOptions {
+  // Omit to keep the canvas transparent so the page behind it shows through.
+  background?: ColorRepresentation;
+  maxPixelRatio?: number;
+}
+
+// "select" is the default tool: dragging orbits the camera. "pan" makes dragging move the view instead.
+export type NavigationTool = "select" | "pan";
+
+export type NavigationScope = "rotate" | "full";
+
+export interface Viewport {
+  scene: Scene;
+  camera: PerspectiveCamera;
+  renderer: WebGLRenderer;
+  controls: OrbitControls;
+  setNavigationTool: (tool: NavigationTool) => void;
+  // "rotate" limits the view to orbiting; "full" also allows pan, zoom, and Space + drag. Defaults to "full".
+  setNavigationScope: (scope: NavigationScope) => void;
+  // Moves the camera toward (factor > 1) or away from (factor < 1) the orbit target, with a short ease.
+  zoomBy: (factor: number) => void;
+  // Eases the camera back to its starting view.
+  resetView: () => void;
+  // Runs before each frame renders. Returns a function that removes the listener.
+  addFrameListener: (listener: FrameListener) => () => void;
+  dispose: () => void;
+}
+
+const DEFAULT_MAX_PIXEL_RATIO = 2;
+const CAMERA_FOV = 45;
+const CAMERA_NEAR = 0.1;
+const CAMERA_FAR = 1000;
+const CAMERA_START = new Vector3(5, 4, 7);
+const ORBIT_MIN_DISTANCE = 2;
+const ORBIT_MAX_DISTANCE = 60;
+const ORBIT_DAMPING = 0.08;
+const EASE_SECONDS = 0.35;
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+  );
+}
+
+interface SpacePanCallbacks {
+  // Called when Space is pressed or released outside a text field.
+  onHeldChange: (held: boolean) => void;
+  // Called when a drag starts or ends on the canvas.
+  onDragChange: (dragging: boolean) => void;
+}
+
+// Holding Space temporarily switches dragging from orbit to pan, so the view can be moved in every direction.
+// Space is ignored while typing in a field. Returns a function that removes the listeners.
+function enableSpacePan(
+  element: HTMLElement,
+  { onHeldChange, onDragChange }: SpacePanCallbacks,
+): () => void {
+  let held = false;
+
+  const release = () => {
+    if (!held) return;
+    held = false;
+    onHeldChange(false);
+  };
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.code !== "Space" || isTypingTarget(event.target)) return;
+    if (event.target === document.body || event.target === element)
+      event.preventDefault();
+    if (held) return;
+    held = true;
+    onHeldChange(true);
+  };
+  const onKeyUp = (event: KeyboardEvent) => {
+    if (event.code === "Space") release();
+  };
+  const onPointerDown = () => onDragChange(true);
+  const onPointerUp = () => onDragChange(false);
+
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", release);
+  element.addEventListener("pointerdown", onPointerDown);
+  window.addEventListener("pointerup", onPointerUp);
+  return () => {
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+    window.removeEventListener("blur", release);
+    element.removeEventListener("pointerdown", onPointerDown);
+    window.removeEventListener("pointerup", onPointerUp);
+    release();
+  };
+}
+
+type GeometryObject = Mesh | Line | Points;
+
+// `instanceof` narrows generic classes to `Mesh<any>`, so a typed predicate keeps the types strict.
+function hasGeometry(object: Object3D): object is GeometryObject {
+  return (
+    object instanceof Mesh || object instanceof Line || object instanceof Points
+  );
+}
+
+// Creates a Three.js renderer, scene, camera, lights, and orbit controls inside `container`,
+// and keeps the canvas sized to the container. Call `dispose` to stop the loop and release GPU resources.
+export function createViewport(
+  container: HTMLElement,
+  options: ViewportOptions = {},
+): Viewport {
+  const { background, maxPixelRatio = DEFAULT_MAX_PIXEL_RATIO } = options;
+
+  const renderer = new WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
+  container.appendChild(renderer.domElement);
+
+  const scene = new Scene();
+  if (background !== undefined) scene.background = new Color(background);
+  scene.add(new AmbientLight(0xffffff, 0.6));
+
+  const keyLight = new DirectionalLight(0xffffff, 2);
+  keyLight.position.set(3, 5, 4);
+  scene.add(keyLight);
+
+  const camera = new PerspectiveCamera(CAMERA_FOV, 1, CAMERA_NEAR, CAMERA_FAR);
+  camera.position.copy(CAMERA_START);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0, 0);
+  controls.enableDamping = true;
+  controls.dampingFactor = ORBIT_DAMPING;
+  controls.minDistance = ORBIT_MIN_DISTANCE;
+  controls.maxDistance = ORBIT_MAX_DISTANCE;
+  controls.screenSpacePanning = true;
+  controls.update();
+
+  // Dragging pans when the Hand tool is active or Space is held; otherwise it orbits.
+  let tool: NavigationTool = "select";
+  let spaceHeld = false;
+  let dragging = false;
+  let fullNavigation = true;
+  const applyNavigation = () => {
+    controls.enablePan = fullNavigation;
+    controls.enableZoom = fullNavigation;
+    const panning = fullNavigation && (tool === "pan" || spaceHeld);
+    controls.mouseButtons.LEFT = panning ? MOUSE.PAN : MOUSE.ROTATE;
+    renderer.domElement.style.cursor = panning
+      ? dragging
+        ? "grabbing"
+        : "grab"
+      : "";
+  };
+  const disableSpacePan = enableSpacePan(renderer.domElement, {
+    onHeldChange: (held) => {
+      spaceHeld = held;
+      if (!held) dragging = false;
+      applyNavigation();
+    },
+    onDragChange: (next) => {
+      dragging = next;
+      applyNavigation();
+    },
+  });
+
+  const resize = () => {
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    if (width === 0 || height === 0) return;
+
+    renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  };
+
+  const resizeObserver = new ResizeObserver(resize);
+  resize();
+  resizeObserver.observe(container);
+
+  const frameListeners = new Set<FrameListener>();
+  const addFrameListener = (listener: FrameListener) => {
+    frameListeners.add(listener);
+    return () => {
+      frameListeners.delete(listener);
+    };
+  };
+
+  // Eases the camera to a new position and target. Grabbing the view with the mouse cancels the move.
+  let stopEase: (() => void) | undefined;
+  const easeTo = (position: Vector3, target: Vector3) => {
+    stopEase?.();
+    const fromPosition = camera.position.clone();
+    const fromTarget = controls.target.clone();
+    let elapsed = 0;
+    const removeListener = addFrameListener((delta) => {
+      elapsed += delta;
+      const progress = Math.min(elapsed / EASE_SECONDS, 1);
+      const eased = 1 - (1 - progress) ** 3;
+      camera.position.lerpVectors(fromPosition, position, eased);
+      controls.target.lerpVectors(fromTarget, target, eased);
+      if (progress >= 1) stopEase?.();
+    });
+    stopEase = () => {
+      removeListener();
+      stopEase = undefined;
+    };
+  };
+  controls.addEventListener("start", () => stopEase?.());
+
+  const zoomBy = (factor: number) => {
+    if (!(factor > 0)) return;
+    if (!fullNavigation) return;
+    const offset = camera.position.clone().sub(controls.target);
+    const distance = MathUtils.clamp(
+      offset.length() / factor,
+      ORBIT_MIN_DISTANCE,
+      ORBIT_MAX_DISTANCE,
+    );
+    easeTo(
+      controls.target.clone().add(offset.setLength(distance)),
+      controls.target.clone(),
+    );
+  };
+  const resetView = () => {
+    if (!fullNavigation) return;
+    easeTo(CAMERA_START.clone(), new Vector3(0, 0, 0));
+  };
+  const setNavigationTool = (next: NavigationTool) => {
+    tool = next;
+    applyNavigation();
+  };
+  const setNavigationScope = (scope: NavigationScope) => {
+    fullNavigation = scope === "full";
+    if (!fullNavigation) {
+      // A rotate-only view always starts from the default framing.
+      stopEase?.();
+      camera.position.copy(CAMERA_START);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+    applyNavigation();
+  };
+
+  const timer = new Timer();
+  timer.connect(document);
+  renderer.setAnimationLoop((timestamp) => {
+    timer.update(timestamp);
+    const delta = timer.getDelta();
+    controls.update(delta);
+    frameListeners.forEach((listener) => listener(delta));
+    renderer.render(scene, camera);
+  });
+
+  const dispose = () => {
+    renderer.setAnimationLoop(null);
+    timer.disconnect();
+    resizeObserver.disconnect();
+    stopEase?.();
+    disableSpacePan();
+    controls.dispose();
+    frameListeners.clear();
+
+    scene.traverse((object) => {
+      if (!hasGeometry(object)) return;
+      object.geometry.dispose();
+      const materials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+      materials.forEach((material) => material.dispose());
+    });
+
+    renderer.dispose();
+    renderer.forceContextLoss();
+    renderer.domElement.remove();
+  };
+
+  return {
+    scene,
+    camera,
+    renderer,
+    controls,
+    setNavigationTool,
+    setNavigationScope,
+    zoomBy,
+    resetView,
+    addFrameListener,
+    dispose,
+  };
+}

@@ -2,30 +2,12 @@ import { randomUUID } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import { ApprovalPolicy } from "../../approvals/approval.policy.js";
-import type { EditorCommand } from "../../../shared/schemas/editor-command.schema.js";
-import type { EditorContext } from "../../../shared/schemas/editor-context.schema.js";
-import { EDITOR_BRIDGE, type CommandExecutionResult, type EditorBridge } from "../editor-bridge.interface.js";
-import {
-  CommandProposalRepository,
-  type CommandProposalRecord,
-} from "./command-proposal.repository.js";
-
-export interface ProposalRun {
-  readonly id: string;
-  readonly userId: string;
-  readonly projectId: string;
-  readonly clientId: string;
-}
-
-export interface ProposalInput {
-  readonly summary: string;
-  readonly commands: readonly EditorCommand[];
-}
-
-export interface ProposalIssue {
-  readonly commandId: string;
-  readonly message: string;
-}
+import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
+import type { EditorContext } from "../../../shared/types/editor-context.types.js";
+import { EDITOR_BRIDGE } from "../editor-bridge.tokens.js";
+import type { CommandExecutionResult, EditorBridge } from "../editor-bridge.types.js";
+import { CommandProposalRepository } from "./command-proposal.repository.js";
+import type { CommandProposalRecord, ProposalInput, ProposalIssue, ProposalRun } from "./proposals.types.js";
 
 /**
  * Validates command batches against the editor's latest scene before anyone is

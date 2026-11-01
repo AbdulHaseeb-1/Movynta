@@ -1,8 +1,4 @@
-export interface Migration {
-  readonly version: number;
-  readonly name: string;
-  readonly statements: readonly string[];
-}
+import type { Migration } from "./persistence.types.js";
 
 /** Append-only schema history. Never edit a shipped migration; add a new version instead. */
 export const MIGRATIONS: readonly Migration[] = [
@@ -93,5 +89,27 @@ export const MIGRATIONS: readonly Migration[] = [
       `ALTER TABLE agent_runs ADD COLUMN dimension TEXT`,
       `ALTER TABLE agent_runs ADD COLUMN selected_skill_ids_json TEXT NOT NULL DEFAULT '[]'`,
     ],
+  },
+  {
+    version: 3,
+    name: "model_providers",
+    statements: [
+      `CREATE TABLE model_providers (user_id TEXT NOT NULL, provider_id TEXT NOT NULL, model TEXT NOT NULL, encrypted_key TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, provider_id))`,
+      `ALTER TABLE agent_runs ADD COLUMN provider_id TEXT`,
+      `ALTER TABLE agent_runs ADD COLUMN provider_model TEXT`,
+    ],
+  },
+  {
+    version: 4,
+    name: "compatible_provider_endpoints",
+    statements: [
+      `ALTER TABLE model_providers ADD COLUMN base_url TEXT`,
+      `ALTER TABLE agent_runs ADD COLUMN provider_base_url TEXT`,
+    ],
+  },
+  {
+    version: 5,
+    name: "run_reasoning_effort",
+    statements: [`ALTER TABLE agent_runs ADD COLUMN reasoning_effort TEXT`],
   },
 ];

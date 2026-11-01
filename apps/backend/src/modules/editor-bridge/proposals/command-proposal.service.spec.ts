@@ -4,17 +4,18 @@ import { ApprovalPolicy } from "../../approvals/approval.policy.js";
 import { AgentRunRepository } from "../../agent-runs/agent-run.repository.js";
 import { SessionsRepository } from "../../sessions/sessions.repository.js";
 import { openInMemoryDatabase } from "../../../testing/in-memory-database.js";
-import type { EditorCommand } from "../../../shared/schemas/editor-command.schema.js";
-import type { EditorContext } from "../../../shared/schemas/editor-context.schema.js";
+import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
+import type { EditorContext } from "../../../shared/types/editor-context.types.js";
 import type {
   CommandExecutionRequest,
   CommandExecutionResult,
   CommandProposalView,
   EditorBridge,
   EditorConnectionScope,
-} from "../editor-bridge.interface.js";
+} from "../editor-bridge.types.js";
 import { CommandProposalRepository } from "./command-proposal.repository.js";
-import { CommandProposalService, type ProposalRun } from "./command-proposal.service.js";
+import { CommandProposalService } from "./command-proposal.service.js";
+import type { ProposalRun } from "./proposals.types.js";
 
 /** Scripted bridge: counts executions so tests can prove a batch ran exactly once. */
 class FakeBridge implements EditorBridge {

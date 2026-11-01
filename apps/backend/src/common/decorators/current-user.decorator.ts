@@ -1,6 +1,6 @@
 import { createParamDecorator, type ExecutionContext } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../types/authenticated-request.js";
-import type { AuthUser } from "../../modules/auth/auth.service.js";
+import type { AuthUser } from "../../modules/auth/auth.types.js";
 import { UnauthorizedError } from "../errors/app-error.js";
 
 /** Injects the authenticated user set by `AuthGuard`. */

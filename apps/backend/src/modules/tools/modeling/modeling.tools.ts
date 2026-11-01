@@ -1,12 +1,8 @@
 import { modelingPlanSchema } from "../../../shared/schemas/modeling-plan.schema.js";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
+import type { ModelingToolDependencies } from "./modeling.types.js";
 
 export const MODELING_PLAN_TOOL_NAME = "modeling.generate_model_plan";
-
-export interface ModelingToolDependencies {
-  /** Tool names a plan step may reference. Unknown names are rejected so plans stay executable. */
-  readonly knownToolNames: readonly string[];
-}
 
 export function createModelingTools({ knownToolNames }: ModelingToolDependencies): ToolDefinition[] {
   return [

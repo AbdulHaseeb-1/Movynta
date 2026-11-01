@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { EditorCommand } from "../../shared/schemas/editor-command.schema.js";
+import type { EditorCommand } from "../../shared/types/editor-command.types.js";
 
 /** Batches larger than this always need a human decision. */
 export const LARGE_BATCH_THRESHOLD = 20;

@@ -1,8 +1,9 @@
 import type { AgentInputItem } from "@openai/agents";
 import { assistantMessage, functionCall, modelResponder } from "@openai/agents/testing";
-import { startTestServer, type TestServer } from "../testing/test-app.js";
-import { openEventStream, type EventStream, type StreamedEvent } from "../testing/event-stream.js";
+import { startTestServer } from "../testing/test-app.js";
+import { openEventStream } from "../testing/event-stream.js";
 import { EditorSimulator } from "../testing/editor-simulator.js";
+import type { EventStream, StreamedEvent, TestServer } from "../testing/testing.types.js";
 
 interface HttpResult<T = unknown> {
   readonly status: number;

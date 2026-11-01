@@ -1,40 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import { z } from "zod";
 import { DatabaseService } from "../../persistence/database.service.js";
-import { optionalTextColumn, textColumn, type SqlRow } from "../../persistence/row.js";
-import { editorCommandListSchema, type EditorCommand } from "../../../shared/schemas/editor-command.schema.js";
+import { optionalTextColumn, textColumn } from "../../persistence/row.js";
+import type { SqlRow } from "../../persistence/persistence.types.js";
+import { editorCommandListSchema } from "../../../shared/schemas/editor-command.schema.js";
 import { requireOneOf } from "../../../shared/guards/enum.guard.js";
-import type { CommandExecutionResult } from "../editor-bridge.interface.js";
+import type { CommandExecutionResult } from "../editor-bridge.types.js";
+import type { CommandProposalRecord, NewProposal, ProposalStatus } from "./proposals.types.js";
 
 export const PROPOSAL_STATUSES = ["proposed", "applying", "applied", "failed", "rejected"] as const;
-export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
-
-export interface CommandProposalRecord {
-  readonly id: string;
-  readonly runId: string;
-  readonly projectId: string;
-  readonly clientId: string;
-  readonly baseRevision: number;
-  readonly summary: string;
-  readonly commands: readonly EditorCommand[];
-  readonly requiresApproval: boolean;
-  readonly status: ProposalStatus;
-  readonly result: CommandExecutionResult | undefined;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-export interface NewProposal {
-  readonly id: string;
-  readonly runId: string;
-  readonly projectId: string;
-  readonly clientId: string;
-  readonly baseRevision: number;
-  readonly summary: string;
-  readonly commands: readonly EditorCommand[];
-  readonly requiresApproval: boolean;
-  readonly now: string;
-}
 
 // JSON storage drops undefined fields, so optional values may be absent or null.
 const storedResultSchema = z.object({

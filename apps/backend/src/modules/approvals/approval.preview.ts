@@ -13,5 +13,3 @@ export const approvalPreviewSchema = z.object({
   commandCount: z.number().int().nonnegative().optional(),
   commands: editorCommandListSchema.optional(),
 });
-
-export type ApprovalPreview = z.infer<typeof approvalPreviewSchema>;

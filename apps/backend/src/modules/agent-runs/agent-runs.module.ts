@@ -9,10 +9,12 @@ import { AgentRunsController } from "./agent-runs.controller.js";
 import { AgentRunsService } from "./agent-runs.service.js";
 import { AgentRunProcessor } from "./agent-run.processor.js";
 import { AgentRunStorageModule } from "./agent-run-storage.module.js";
+import { ProvidersModule } from "../providers/providers.module.js";
 
 @Module({
   imports: [
     AgentRunStorageModule,
+    ProvidersModule,
     AgentsModule,
     ApprovalsModule,
     EditorBridgeModule,

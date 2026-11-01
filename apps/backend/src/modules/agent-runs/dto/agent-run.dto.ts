@@ -1,12 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsIn, IsOptional, IsString, IsUUID, Length, Matches } from "class-validator";
 import { PROJECT_ID_PATTERN } from "../../sessions/dto/create-session.dto.js";
-import { MODELING_DIMENSIONS, type ModelingDimension } from "../../../shared/schemas/modeling-plan.schema.js";
+import { MODELING_DIMENSIONS } from "../../../shared/schemas/modeling-plan.schema.js";
+import type { ModelingDimension } from "../../../shared/types/modeling-plan.types.js";
+import { REASONING_EFFORTS, type ReasoningEffort } from "../../providers/model-capabilities.js";
+import { PROVIDER_IDS, type ProviderId } from "../../providers/providers.types.js";
 
 export const AGENT_ID_PATTERN = /^[a-z][a-z0-9-]{1,63}$/;
 export const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 export class CreateAgentRunDto {
+  @IsOptional() @IsIn(PROVIDER_IDS) providerId?: ProviderId;
+  @IsOptional() @IsString() @Length(1, 160) @Matches(/^[A-Za-z0-9._:/-]+$/) model?: string;
+  @IsOptional() @IsIn([true, false]) useConfiguredProvider?: boolean;
+  @ApiPropertyOptional({ enum: REASONING_EFFORTS, description: "Reasoning effort; must be one the selected model supports." })
+  @IsOptional()
+  @IsIn([...REASONING_EFFORTS])
+  reasoningEffort?: ReasoningEffort;
   @ApiProperty({ example: "project-1", maxLength: 128 })
   @IsString()
   @Length(1, 128)

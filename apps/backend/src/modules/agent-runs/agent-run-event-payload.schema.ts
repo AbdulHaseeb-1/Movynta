@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentRunEventPayloads, AgentRunEventType } from "./agent-run.events.js";
+import type { AgentRunEventPayloads, AgentRunEventType } from "./agent-runs.types.js";
 
 /**
  * One schema per event type. The mapped type forces an entry for every type in

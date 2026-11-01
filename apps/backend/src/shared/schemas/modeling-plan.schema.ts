@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export const MODELING_DIMENSIONS = ["2d", "2.5d", "3d"] as const;
-export type ModelingDimension = (typeof MODELING_DIMENSIONS)[number];
 
 export const modelingPlanStepSchema = z
   .object({
@@ -20,5 +19,3 @@ export const modelingPlanSchema = z
     steps: z.array(modelingPlanStepSchema).min(1).max(30),
   })
   .strict();
-
-export type ModelingPlan = z.infer<typeof modelingPlanSchema>;

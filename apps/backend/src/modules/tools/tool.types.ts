@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { AgentRunContext } from "../agent-runs/agent-run.context.js";
+import type { AgentRunContext } from "../agent-runs/agent-runs.types.js";
 
 export const TOOL_PERMISSIONS = ["read", "plan", "propose", "apply", "skill"] as const;
 export type ToolPermission = (typeof TOOL_PERMISSIONS)[number];

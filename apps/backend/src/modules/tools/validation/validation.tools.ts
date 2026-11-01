@@ -1,21 +1,10 @@
 import { z } from "zod";
-import type { EditorBridge } from "../../editor-bridge/editor-bridge.interface.js";
-import type { EditorContext } from "../../../shared/schemas/editor-context.schema.js";
+import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
+import type { EditorContext } from "../../../shared/types/editor-context.types.js";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
+import type { SceneCheckResult, SceneIssue } from "./validation.types.js";
 
 export const LARGE_SCENE_WARNING_THRESHOLD = 500;
-
-export interface SceneIssue {
-  readonly severity: "error" | "warning";
-  readonly objectId: string | null;
-  readonly message: string;
-}
-
-export interface SceneCheckResult {
-  readonly ok: boolean;
-  readonly objectCount: number;
-  readonly issues: readonly SceneIssue[];
-}
 
 /** Pure checks over an editor snapshot. Used by the tool and by unit tests. */
 export function checkScene(scene: EditorContext): SceneCheckResult {

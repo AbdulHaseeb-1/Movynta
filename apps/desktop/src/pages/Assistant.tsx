@@ -1,39 +1,137 @@
-import { useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowUp } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { House } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import {
+  CoordinateViewport,
+  ViewportToolbar,
+  type Viewport,
+} from "@/features/viewport3d";
+import {
+  ASSISTANT_NAME,
+  AssistantPanel,
+  Composer,
+  EditorScene,
+  LOGO_SRC,
+  PromptSuggestions,
+  useAssistantRun,
+} from "@/features/assistant";
 
 export default function Assistant() {
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [viewport, setViewport] = useState<Viewport | null>(null);
+  const editorRef = useRef<EditorScene | null>(null);
+  const projectId = useRef(`studio-${crypto.randomUUID()}`);
+  const run = useAssistantRun(editorRef);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (prompt.trim()) setSubmitted(true);
+  // Before the first prompt the view can only rotate; pan, zoom and the toolbar come after it.
+  useEffect(() => {
+    viewport?.setNavigationScope(submitted ? "full" : "rotate");
+  }, [viewport, submitted]);
+
+  function handleSubmit() {
+    const message = prompt.trim();
+    if (!message || run.busy) return;
+    setSubmitted(true);
+    setPrompt("");
+    // Mount the launcher first, then open on the next frame so the pane grows out of it.
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() => setPanelOpen(true)),
+    );
+    void run.submit(message);
   }
 
-  return (
-    <main className="flex min-h-screen flex-col bg-[#191919] px-5 py-24 font-sans text-[#ededed]">
-      <Button type="button" variant="ghost" className="absolute top-10 left-[44px] z-20 h-9 cursor-pointer gap-2 border-0 bg-transparent p-0 text-[13px] text-[#b8b7bf] hover:bg-transparent hover:text-white focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-[#b4a0ff]" onClick={() => void navigate("/")}><ArrowLeft size={16} /> Home</Button>
+  function handleNewChat() {
+    run.reset();
+    setSubmitted(false);
+    setPanelOpen(false);
+  }
 
-      <section className="relative m-auto w-full max-w-[620px] text-center" aria-labelledby="home-heading">
-        <div className="mb-[38px] max-[600px]:mb-7">
-          <h1 id="home-heading" className="text-[clamp(24px,3vw,29px)] leading-[1.2] font-[750] tracking-[-1.2px]">What do you want to design?</h1>
-          <p className="mt-1.5 text-[13px] leading-[1.5] text-[#b9b9b9]">Describe a character or an object and watch it take shape in 3D.</p>
+  function handleSuggestion(suggestion: string) {
+    setPrompt(suggestion);
+    document.getElementById("design-prompt")?.focus();
+  }
+
+  const composer = (variant: "hero" | "panel") => (
+    <Composer
+      variant={variant}
+      value={prompt}
+      onChange={setPrompt}
+      onSubmit={handleSubmit}
+      onStop={() => void run.cancel()}
+      busy={run.busy}
+      ready={run.ready}
+    />
+  );
+
+  return (
+    <main className="relative h-full overflow-hidden bg-background font-sans text-foreground">
+      <CoordinateViewport
+        className="absolute inset-0"
+        onReady={(ready) => {
+          editorRef.current = new EditorScene(ready.scene, projectId.current);
+          setViewport(ready);
+        }}
+      >
+        {!submitted && (
+          <section
+            className="pointer-events-none relative w-[min(620px,calc(100vw-40px))] text-center"
+            aria-label="Design prompt"
+          >
+            <div className="absolute right-0 bottom-full left-0 mb-[34px] flex flex-col items-center max-[600px]:mb-7">
+              <img
+                src={LOGO_SRC}
+                alt=""
+                draggable={false}
+                className="mb-5 h-12 w-auto select-none max-[600px]:h-10"
+              />
+              <h1 className="text-[clamp(24px,3vw,30px)] leading-[1.2] font-[750] tracking-[-0.045em]">
+                What do you want to design?
+              </h1>
+              <p className="mt-2 text-[13px] leading-[1.5] text-muted-foreground">
+                Describe a character or an object and {ASSISTANT_NAME} will
+                shape it in 3D.
+              </p>
+            </div>
+            {composer("hero")}
+            <div className="absolute top-full right-0 left-0 mt-4">
+              <PromptSuggestions onPick={handleSuggestion} />
+            </div>
+          </section>
+        )}
+      </CoordinateViewport>
+      {submitted && (
+        <div className="pointer-events-none absolute top-1/2 right-4 z-10 -translate-y-1/2">
+          <ViewportToolbar
+            viewport={viewport}
+            className="animate-in fade-in slide-in-from-right-4 duration-500 motion-reduce:animate-none"
+          />
         </div>
-        <Card className="gap-0 rounded-full border-[#383838] bg-[#292929] p-0 text-inherit shadow-[0_8px_26px_#00000020] focus-within:border-[#77706d]">
-          <form className="flex min-h-[58px] items-center gap-3 py-2 pr-[9px] pl-5" onSubmit={handleSubmit}>
-            <label className="sr-only" htmlFor="design-prompt">Describe your design</label>
-            <Input id="design-prompt" className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-[14px] text-[#f1f1f1] shadow-none outline-0 placeholder:text-[#a5a5a5] focus-visible:ring-0 md:text-[14px]" value={prompt} onChange={(event) => { setPrompt(event.target.value); setSubmitted(false); }} placeholder="A friendly robot with a glowing orange antenna..." autoComplete="off" />
-            <Button size="icon" className="grid size-[39px] flex-none cursor-pointer place-items-center rounded-full border-0 bg-[#ed805f] p-0 text-[#28201d] hover:bg-[#f49375] focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#ed805f] disabled:cursor-default disabled:opacity-[.8]" type="submit" aria-label="Submit design prompt" disabled={!prompt.trim()}><ArrowUp size={20} strokeWidth={1.8} /></Button>
-          </form>
-        </Card>
-        {submitted && <output className="absolute inset-x-0 top-[calc(100%+18px)] text-[12px] text-[#aaa]">Design generation is coming soon.</output>}
-      </section>
+      )}
+      {submitted && (
+        <AssistantPanel
+          run={run}
+          onNewChat={handleNewChat}
+          open={panelOpen}
+          onOpenChange={setPanelOpen}
+          composer={composer("panel")}
+          className="absolute top-[64px] bottom-4 left-4 z-20 animate-in fade-in zoom-in-95 duration-300 motion-reduce:animate-none"
+        />
+      )}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="absolute top-4 left-4 z-20 size-10 rounded-xl bg-black/60 text-muted-foreground shadow-2xl backdrop-blur-2xl backdrop-saturate-150 hover:bg-foreground/10 hover:text-foreground"
+        onClick={() => void navigate("/")}
+        aria-label="Home"
+        title="Home"
+      >
+        <House className="size-[18px]" />
+      </Button>
     </main>
   );
 }
-

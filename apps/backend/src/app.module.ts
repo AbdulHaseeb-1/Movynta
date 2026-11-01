@@ -18,6 +18,7 @@ import { ProjectsModule } from "./modules/projects/projects.module.js";
 import { SessionsModule } from "./modules/sessions/sessions.module.js";
 import { SkillsModule } from "./modules/skills/skills.module.js";
 import { ToolsModule } from "./modules/tools/tools.module.js";
+import { ProvidersModule } from "./modules/providers/providers.module.js";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ToolsModule } from "./modules/tools/tools.module.js";
     SessionsModule,
     SkillsModule,
     ToolsModule,
+    ProvidersModule,
     AgentsModule,
     ApprovalsModule,
     EditorBridgeModule,

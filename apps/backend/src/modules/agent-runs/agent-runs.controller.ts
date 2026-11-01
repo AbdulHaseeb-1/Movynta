@@ -15,8 +15,9 @@ import type { Observable } from "rxjs";
 import { CurrentUser } from "../../common/decorators/current-user.decorator.js";
 import { ResourceIdPipe } from "../../common/pipes/resource-id.pipe.js";
 import { APPROVAL_ID_PATTERN, RUN_ID_PATTERN } from "../../shared/constants/resource-ids.js";
-import type { AuthUser } from "../auth/auth.service.js";
-import { AgentRunsService, type AgentRunAccepted, type AgentRunView, type ApprovalDecisionResult, type ApprovalView } from "./agent-runs.service.js";
+import type { AuthUser } from "../auth/auth.types.js";
+import { AgentRunsService } from "./agent-runs.service.js";
+import type { AgentRunAccepted, AgentRunView, ApprovalDecisionResult, ApprovalView } from "./agent-runs.types.js";
 import { AgentRunAcceptedDto, CreateAgentRunDto, DecideApprovalDto } from "./dto/agent-run.dto.js";
 
 const runIdPipe = new ResourceIdPipe(RUN_ID_PATTERN);

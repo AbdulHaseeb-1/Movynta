@@ -1,14 +1,9 @@
 import { z } from "zod";
-import type { AgentRunContext } from "../../agent-runs/agent-run.context.js";
-import type { EditorBridge } from "../../editor-bridge/editor-bridge.interface.js";
-import type { CommandProposalService } from "../../editor-bridge/proposals/command-proposal.service.js";
+import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
+import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import { editorCommandListSchema } from "../../../shared/schemas/editor-command.schema.js";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
-
-export interface EditorToolDependencies {
-  readonly bridge: EditorBridge;
-  readonly proposals: CommandProposalService;
-}
+import type { EditorToolDependencies } from "./editor.types.js";
 
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const noInput = z.object({}).strict();

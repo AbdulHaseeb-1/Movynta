@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { NotFoundError } from "../../common/errors/app-error.js";
 import { AGENT_DEFINITIONS } from "./agent.tokens.js";
-import type { AgentDefinition, AgentSummary, AppAgent } from "./definitions/agent-definition.js";
+import type { AgentDefinition, AgentSummary, AppAgent } from "./definitions/definitions.types.js";
 
 /**
  * Registers agent definitions and creates each SDK agent on first use, so a

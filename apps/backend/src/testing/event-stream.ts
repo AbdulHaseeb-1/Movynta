@@ -1,24 +1,13 @@
 import { z } from "zod";
+import type { EventStream, StreamedEvent } from "./testing.types.js";
 
-const envelopeSchema = z.object({
+export const envelopeSchema = z.object({
   id: z.string(),
   runId: z.string(),
   type: z.string(),
   timestamp: z.string(),
   payload: z.record(z.string(), z.unknown()),
 });
-
-export interface StreamedEvent {
-  readonly id: string | undefined;
-  readonly type: string | undefined;
-  readonly envelope: z.infer<typeof envelopeSchema>;
-}
-
-export interface EventStream {
-  readonly events: StreamedEvent[];
-  waitFor(predicate: (event: StreamedEvent) => boolean, timeoutMs?: number): Promise<StreamedEvent>;
-  stop(): void;
-}
 
 /** Reads a server-sent event stream with optional `Last-Event-ID` resume. */
 export function openEventStream(url: string, token: string, lastEventId?: string): EventStream {

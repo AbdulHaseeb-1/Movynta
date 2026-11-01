@@ -1,14 +1,8 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
-import type { AppConfig } from "../../config/configuration.js";
-import type { ModelingDimension } from "../../shared/schemas/modeling-plan.schema.js";
+import type { AppConfig } from "../../config/config.types.js";
 import { SkillsLoader } from "./skills.loader.js";
-import { toSkillSummary, type SkillManifest, type SkillSummary } from "./skills.types.js";
-
-export interface SkillRequest {
-  readonly message: string;
-  readonly dimension?: ModelingDimension | undefined;
-}
+import { toSkillSummary, type SkillManifest, type SkillRequest, type SkillSummary } from "./skills.types.js";
 
 const MAX_SELECTED_SKILLS = 2;
 

@@ -9,3 +9,4 @@ export * from "./agent-run.stream-mapper.js";
 export * from "./agent-runs.controller.js";
 export * from "./agent-runs.module.js";
 export * from "./agent-runs.service.js";
+export * from "./agent-runs.types.js";

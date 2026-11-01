@@ -1,6 +1,7 @@
 import type { AgentInputItem, Session } from "@openai/agents";
 import { DatabaseService } from "../persistence/database.service.js";
-import { integerColumn, textColumn, type SqlRow } from "../persistence/row.js";
+import { integerColumn, textColumn } from "../persistence/row.js";
+import type { SqlRow } from "../persistence/persistence.types.js";
 
 /**
  * Stored items are JSON written by this service from SDK items. A cheap shape

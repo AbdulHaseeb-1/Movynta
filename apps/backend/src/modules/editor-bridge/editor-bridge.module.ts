@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { ApprovalsModule } from "../approvals/approvals.module.js";
 import { AuthModule } from "../auth/auth.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
-import { EDITOR_BRIDGE } from "./editor-bridge.interface.js";
+import { EDITOR_BRIDGE } from "./editor-bridge.tokens.js";
 import { EditorBridgeGateway } from "./editor-bridge.gateway.js";
 import { EditorBridgeService } from "./editor-bridge.service.js";
 import { CommandProposalRepository } from "./proposals/command-proposal.repository.js";

@@ -1,6 +1,6 @@
 import { Injectable, Module, type OnModuleInit } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
-import type { AppConfig } from "../../config/configuration.js";
+import type { AppConfig } from "../../config/config.types.js";
 import { SkillsModule } from "../skills/skills.module.js";
 import { SkillsRegistry } from "../skills/skills.registry.js";
 import { ToolRegistry } from "../tools/tool.registry.js";
@@ -9,7 +9,7 @@ import { AgentRegistry } from "./agent.registry.js";
 import { AGENT_DEFINITIONS, AGENT_RUNNER } from "./agent.tokens.js";
 import { agentRuntimeProviders } from "./agent-runtime.providers.js";
 import { AgentsController } from "./agents.controller.js";
-import type { AgentDefinition } from "./definitions/agent-definition.js";
+import type { AgentDefinition } from "./definitions/definitions.types.js";
 import { createModelingCoordinatorDefinition } from "./definitions/modeling-coordinator.agent.js";
 
 /**

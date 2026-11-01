@@ -1,4 +1,5 @@
 import { ConflictError } from "../../common/errors/app-error.js";
+import type { AgentRunStatus } from "./agent-runs.types.js";
 
 export const AGENT_RUN_STATUSES = [
   "created",
@@ -8,8 +9,6 @@ export const AGENT_RUN_STATUSES = [
   "failed",
   "cancelled",
 ] as const;
-
-export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 
 export const TERMINAL_RUN_STATUSES: readonly AgentRunStatus[] = ["completed", "failed", "cancelled"];
 

@@ -1,5 +1,6 @@
 import { Global, Module } from "@nestjs/common";
-import { loadAppConfig, type AppConfig } from "./configuration.js";
+import type { AppConfig } from "./config.types.js";
+import { loadAppConfig } from "./configuration.js";
 
 export const APP_CONFIG = Symbol("APP_CONFIG");
 

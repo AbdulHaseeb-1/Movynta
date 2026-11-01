@@ -1,6 +1,4 @@
-import type { SQLOutputValue } from "node:sqlite";
-
-export type SqlRow = Readonly<Record<string, SQLOutputValue>>;
+import type { SqlRow } from "./persistence.types.js";
 
 /** Reads a required text column, failing loudly if the schema and code disagree. */
 export function textColumn(row: SqlRow, column: string): string {

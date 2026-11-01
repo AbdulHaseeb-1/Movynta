@@ -1,4 +1,4 @@
-import type { ModelingDimension } from "../../shared/schemas/modeling-plan.schema.js";
+import type { ModelingDimension } from "../../shared/types/modeling-plan.types.js";
 
 /** Full skill, including the workflow instructions loaded from SKILL.md. */
 export interface SkillManifest {
@@ -18,6 +18,14 @@ export interface SkillManifest {
 
 /** Metadata-only view used in lists and in the coordinator prompt. */
 export type SkillSummary = Omit<SkillManifest, "instructions" | "tags" | "validation" | "errorHandling">;
+
+export interface SkillRequest {
+  readonly message: string;
+  readonly dimension?: ModelingDimension | undefined;
+}
+
+/** Frontmatter values as read from SKILL.md, before validation. */
+export type RawFrontmatter = Record<string, string | string[]>;
 
 export function toSkillSummary(manifest: SkillManifest): SkillSummary {
   return {

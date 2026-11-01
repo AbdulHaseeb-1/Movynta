@@ -2,7 +2,7 @@ import { ValidationPipe, VersioningType, type INestApplication } from "@nestjs/c
 import type { NodeAdapter } from "@nestjs/platform-node";
 import { WsAdapter } from "@nestjs/platform-ws";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import type { AppConfig } from "../../config/configuration.js";
+import type { AppConfig } from "../../config/config.types.js";
 
 const HEALTH_ROUTES = ["health/live", "health/ready"];
 
@@ -15,7 +15,7 @@ export function configureApplication(app: INestApplication, adapter: NodeAdapter
   adapter.useBodyParser("json", false, { limit: config.requestBodyLimit });
   app.setGlobalPrefix("api", { exclude: HEALTH_ROUTES });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: "1" });
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true, validationError: { target: false, value: false } }));
   app.enableCors({
     origin: config.corsOrigins.length > 0 ? [...config.corsOrigins] : false,
     methods: ["GET", "POST", "DELETE", "OPTIONS"],

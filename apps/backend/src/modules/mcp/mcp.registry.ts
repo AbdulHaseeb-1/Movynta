@@ -1,12 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
-import type { AppConfig, McpServerConfig } from "../../config/configuration.js";
-
-export interface McpServerStatus {
-  readonly name: string;
-  readonly state: "disabled" | "configured";
-  readonly allowedTools: readonly string[];
-}
+import type { AppConfig, McpServerConfig } from "../../config/config.types.js";
+import type { McpServerStatus } from "./mcp.types.js";
 
 /**
  * Registry of MCP servers the operator explicitly configured. Nothing is

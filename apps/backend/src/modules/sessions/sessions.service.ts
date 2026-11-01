@@ -4,7 +4,8 @@ import { NotFoundError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../persistence/database.service.js";
 import { ProjectAccessService } from "../projects/project-access.service.js";
 import { SqliteSession } from "./sqlite-session.js";
-import { SessionsRepository, type SessionRecord } from "./sessions.repository.js";
+import { SessionsRepository } from "./sessions.repository.js";
+import type { SessionRecord } from "./sessions.types.js";
 
 /** Sessions are private to the user who created them; other users get 404. */
 @Injectable()

@@ -3,7 +3,8 @@ import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
-import { MEMORY_DATABASE, type AppConfig } from "../../config/configuration.js";
+import { MEMORY_DATABASE } from "../../config/configuration.js";
+import type { AppConfig } from "../../config/config.types.js";
 import { MIGRATIONS } from "./migrations.js";
 
 /**

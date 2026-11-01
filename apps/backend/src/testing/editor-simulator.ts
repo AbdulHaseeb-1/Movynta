@@ -1,15 +1,12 @@
 import { z } from "zod";
-import type { EditorContext, EditorObject } from "../shared/schemas/editor-context.schema.js";
+import type { EditorContext, EditorObject } from "../shared/types/editor-context.types.js";
 import { editorCommandListSchema } from "../shared/schemas/editor-command.schema.js";
+import type { EditorCommand, EditorCommandList, OutboundMessage } from "./testing.types.js";
 
-const outboundSchema = z.object({
+export const outboundSchema = z.object({
   event: z.string(),
   data: z.record(z.string(), z.unknown()),
 });
-
-type OutboundMessage = z.infer<typeof outboundSchema>;
-type EditorCommandList = z.infer<typeof editorCommandListSchema>;
-type EditorCommand = EditorCommandList[number];
 
 /** Test double for the Tauri/React editor. It speaks the real WebSocket protocol and keeps a scene in memory. */
 export class EditorSimulator {

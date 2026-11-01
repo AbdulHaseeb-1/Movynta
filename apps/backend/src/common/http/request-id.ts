@@ -1,11 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Injectable, type NestMiddleware } from "@nestjs/common";
+import type { HeaderRequest, HeaderResponse, RequestWithId } from "./http.types.js";
 
 const REQUEST_ID_HEADER = "x-request-id";
 const VALID_REQUEST_ID = /^[A-Za-z0-9._-]{1,128}$/;
-
-type HeaderRequest = { headers: Record<string, string | string[] | undefined>; requestId?: string };
-type HeaderResponse = { setHeader(name: string, value: string): void };
 
 /** Reuses a safe incoming `x-request-id` or generates one, then echoes it back. */
 @Injectable()
@@ -18,11 +16,6 @@ export class RequestIdMiddleware implements NestMiddleware {
     res.setHeader(REQUEST_ID_HEADER, requestId);
     next();
   }
-}
-
-/** The part of a request that RequestIdMiddleware fills in. */
-export interface RequestWithId {
-  readonly requestId?: unknown;
 }
 
 export function getRequestId(request: RequestWithId): string {

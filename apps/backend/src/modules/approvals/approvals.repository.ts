@@ -1,25 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { DatabaseService } from "../persistence/database.service.js";
-import { optionalTextColumn, textColumn, type SqlRow } from "../persistence/row.js";
+import { optionalTextColumn, textColumn } from "../persistence/row.js";
+import type { SqlRow } from "../persistence/persistence.types.js";
 import { requireOneOf } from "../../shared/guards/enum.guard.js";
-import { approvalPreviewSchema, type ApprovalPreview } from "./approval.preview.js";
+import { approvalPreviewSchema } from "./approval.preview.js";
+import type { ApprovalRecord } from "./approvals.types.js";
 
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "expired"] as const;
-export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
-
-export interface ApprovalRecord {
-  readonly id: string;
-  readonly runId: string;
-  readonly userId: string;
-  readonly callId: string;
-  readonly toolName: string;
-  readonly status: ApprovalStatus;
-  readonly preview: ApprovalPreview;
-  readonly reason: string | undefined;
-  readonly createdAt: string;
-  readonly expiresAt: string;
-  readonly decidedAt: string | undefined;
-}
 
 function toRecord(row: SqlRow): ApprovalRecord {
   return {

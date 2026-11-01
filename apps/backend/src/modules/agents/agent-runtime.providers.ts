@@ -1,7 +1,7 @@
 import { OpenAIProvider, Runner, type Model, type ModelProvider } from "@openai/agents";
 import { ServiceUnavailableError } from "../../common/errors/app-error.js";
 import { APP_CONFIG } from "../../config/config.module.js";
-import type { AppConfig } from "../../config/configuration.js";
+import type { AppConfig } from "../../config/config.types.js";
 import { AGENT_RUNNER, MODEL_PROVIDER } from "./agent.tokens.js";
 
 const disabledProvider: ModelProvider = {

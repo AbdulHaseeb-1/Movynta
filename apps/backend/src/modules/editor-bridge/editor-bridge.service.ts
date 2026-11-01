@@ -1,48 +1,23 @@
 import { randomBytes } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
-import type { AppConfig } from "../../config/configuration.js";
+import type { AppConfig } from "../../config/config.types.js";
 import { ForbiddenError, ServiceUnavailableError } from "../../common/errors/app-error.js";
-import type { EditorContext } from "../../shared/schemas/editor-context.schema.js";
+import type { EditorContext } from "../../shared/types/editor-context.types.js";
 import {
   type CommandExecutionRequest,
   type CommandExecutionResult,
   type CommandProposalView,
+  type CommandResultMessage,
   type EditorBridge,
   type EditorCommandResult,
+  type EditorConnection,
   type EditorConnectionScope,
-} from "./editor-bridge.interface.js";
-import type { CommandResultMessage, EditorOutboundMessage } from "./editor-protocol.js";
-
-/** The subset of a WebSocket the bridge needs. Keeps the transport swappable and testable. */
-export interface EditorSocket {
-  readonly readyState: number;
-  send(data: string): void;
-  close(code?: number, reason?: string): void;
-}
+  type EditorOutboundMessage,
+  type PendingRequest,
+} from "./editor-bridge.types.js";
 
 const SOCKET_OPEN = 1;
-
-export interface EditorConnection extends EditorConnectionScope {
-  readonly socket: EditorSocket;
-}
-
-type PendingRequest =
-  | {
-      readonly kind: "context";
-      readonly clientId: string;
-      readonly timer: NodeJS.Timeout;
-      readonly resolve: (context: EditorContext) => void;
-      readonly reject: (error: Error) => void;
-    }
-  | {
-      readonly kind: "execute";
-      readonly clientId: string;
-      readonly proposalId: string;
-      readonly timer: NodeJS.Timeout;
-      readonly resolve: (result: CommandExecutionResult) => void;
-      readonly reject: (error: Error) => void;
-    };
 
 /**
  * Request/response bridge to the connected editors. Each request gets a random

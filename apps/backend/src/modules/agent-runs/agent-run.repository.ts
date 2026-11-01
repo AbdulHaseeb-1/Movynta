@@ -1,54 +1,31 @@
 import { Injectable } from "@nestjs/common";
 import { z } from "zod";
 import { DatabaseService } from "../persistence/database.service.js";
-import { integerColumn, optionalTextColumn, textColumn, type SqlRow } from "../persistence/row.js";
-import { MODELING_DIMENSIONS, type ModelingDimension } from "../../shared/schemas/modeling-plan.schema.js";
+import {
+  integerColumn,
+  optionalTextColumn,
+  textColumn,
+} from "../persistence/row.js";
+import type { SqlRow } from "../persistence/persistence.types.js";
+import { MODELING_DIMENSIONS } from "../../shared/schemas/modeling-plan.schema.js";
 import { requireOneOf } from "../../shared/guards/enum.guard.js";
 import { NotFoundError } from "../../common/errors/app-error.js";
-import { AGENT_RUN_STATUSES, transitionRun, type AgentRunStatus } from "./agent-run.state-machine.js";
-import { AGENT_RUN_EVENT_TYPES, type AgentRunEvent, type AgentRunEventType } from "./agent-run.events.js";
+import {
+  AGENT_RUN_STATUSES,
+  transitionRun,
+} from "./agent-run.state-machine.js";
+import { AGENT_RUN_EVENT_TYPES } from "./agent-run.events.js";
+import type {
+  AgentRunEvent,
+  AgentRunEventType,
+  AgentRunRecord,
+  AgentRunStatus,
+  NewAgentRun,
+  RunUpdate,
+} from "./agent-runs.types.js";
 import { parseEventPayload } from "./agent-run-event-payload.schema.js";
-
-export interface AgentRunRecord {
-  readonly id: string;
-  readonly sessionId: string;
-  readonly userId: string;
-  readonly projectId: string;
-  readonly agentId: string;
-  readonly editorClientId: string | undefined;
-  readonly dimension: ModelingDimension | undefined;
-  readonly selectedSkillIds: readonly string[];
-  readonly status: AgentRunStatus;
-  readonly input: string;
-  readonly finalOutput: string | undefined;
-  readonly errorCode: string | undefined;
-  readonly errorMessage: string | undefined;
-  readonly usage: Readonly<Record<string, number>> | undefined;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-export interface NewAgentRun {
-  readonly id: string;
-  readonly sessionId: string;
-  readonly userId: string;
-  readonly projectId: string;
-  readonly agentId: string;
-  readonly editorClientId: string | undefined;
-  readonly dimension: ModelingDimension | undefined;
-  readonly selectedSkillIds: readonly string[];
-  readonly input: string;
-  readonly now: string;
-}
-
-export interface RunUpdate {
-  readonly status?: AgentRunStatus;
-  readonly finalOutput?: string;
-  readonly errorCode?: string;
-  readonly errorMessage?: string;
-  readonly usage?: Readonly<Record<string, number>>;
-  readonly runState?: string | null;
-}
+import { REASONING_EFFORTS } from "../providers/model-capabilities.js";
+import { PROVIDER_IDS } from "../providers/providers.types.js";
 
 const usageSchema = z.record(z.string(), z.number());
 const skillIdsSchema = z.array(z.string());
@@ -56,21 +33,45 @@ const skillIdsSchema = z.array(z.string());
 function toRecord(row: SqlRow): AgentRunRecord {
   const usageJson = optionalTextColumn(row, "usage_json");
   const dimension = optionalTextColumn(row, "dimension");
+  const providerId = optionalTextColumn(row, "provider_id");
+  const reasoningEffort = optionalTextColumn(row, "reasoning_effort");
   return {
+    providerBaseUrl: optionalTextColumn(row, "provider_base_url"),
+    providerId:
+      providerId === undefined
+        ? undefined
+        : requireOneOf(PROVIDER_IDS, providerId, "provider"),
+    providerModel: optionalTextColumn(row, "provider_model"),
+    reasoningEffort:
+      reasoningEffort === undefined
+        ? undefined
+        : requireOneOf(REASONING_EFFORTS, reasoningEffort, "reasoning effort"),
     id: textColumn(row, "id"),
     sessionId: textColumn(row, "session_id"),
     userId: textColumn(row, "user_id"),
     projectId: textColumn(row, "project_id"),
     agentId: textColumn(row, "agent_id"),
     editorClientId: optionalTextColumn(row, "editor_client_id"),
-    dimension: dimension === undefined ? undefined : requireOneOf(MODELING_DIMENSIONS, dimension, "dimension"),
-    selectedSkillIds: skillIdsSchema.parse(JSON.parse(textColumn(row, "selected_skill_ids_json"))),
-    status: requireOneOf(AGENT_RUN_STATUSES, textColumn(row, "status"), "run status"),
+    dimension:
+      dimension === undefined
+        ? undefined
+        : requireOneOf(MODELING_DIMENSIONS, dimension, "dimension"),
+    selectedSkillIds: skillIdsSchema.parse(
+      JSON.parse(textColumn(row, "selected_skill_ids_json")),
+    ),
+    status: requireOneOf(
+      AGENT_RUN_STATUSES,
+      textColumn(row, "status"),
+      "run status",
+    ),
     input: textColumn(row, "input"),
     finalOutput: optionalTextColumn(row, "final_output"),
     errorCode: optionalTextColumn(row, "error_code"),
     errorMessage: optionalTextColumn(row, "error_message"),
-    usage: usageJson === undefined ? undefined : usageSchema.parse(JSON.parse(usageJson)),
+    usage:
+      usageJson === undefined
+        ? undefined
+        : usageSchema.parse(JSON.parse(usageJson)),
     createdAt: textColumn(row, "created_at"),
     updatedAt: textColumn(row, "updated_at"),
   };
@@ -82,10 +83,10 @@ export class AgentRunRepository {
   constructor(private readonly database: DatabaseService) {}
 
   insert(run: NewAgentRun): void {
-    this.database
-      .db.prepare(
-        `INSERT INTO agent_runs (id, session_id, user_id, project_id, agent_id, editor_client_id, dimension, selected_skill_ids_json, status, input, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?)`,
+    this.database.db
+      .prepare(
+        `INSERT INTO agent_runs (id, session_id, user_id, project_id, agent_id, editor_client_id, dimension, selected_skill_ids_json, status, input, created_at, updated_at, provider_id, provider_model, provider_base_url, reasoning_effort)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         run.id,
@@ -99,16 +100,27 @@ export class AgentRunRepository {
         run.input,
         run.now,
         run.now,
+        run.providerId ?? null,
+        run.providerModel ?? null,
+        run.providerBaseUrl ?? null,
+        run.reasoningEffort ?? null,
       );
   }
 
   find(runId: string): AgentRunRecord | undefined {
-    const row = this.database.db.prepare("SELECT * FROM agent_runs WHERE id = ?").get(runId);
+    const row = this.database.db
+      .prepare("SELECT * FROM agent_runs WHERE id = ?")
+      .get(runId);
     return row ? toRecord(row) : undefined;
   }
 
   /** Moves a run to `to` after validating the transition, then applies the update. */
-  transition(runId: string, to: AgentRunStatus, update: RunUpdate, now: string): void {
+  transition(
+    runId: string,
+    to: AgentRunStatus,
+    update: RunUpdate,
+    now: string,
+  ): void {
     const current = this.find(runId);
     if (!current) throw new NotFoundError("Agent run not found");
     transitionRun(current.status, to);
@@ -144,18 +156,24 @@ export class AgentRunRepository {
       values.push(update.runState);
     }
     values.push(runId);
-    this.database.db.prepare(`UPDATE agent_runs SET ${assignments.join(", ")} WHERE id = ?`).run(...values);
+    this.database.db
+      .prepare(`UPDATE agent_runs SET ${assignments.join(", ")} WHERE id = ?`)
+      .run(...values);
   }
 
   /** Stores the serialized SDK run state. Read only by the server when resuming. */
   readRunState(runId: string): string | undefined {
-    const row = this.database.db.prepare("SELECT run_state FROM agent_runs WHERE id = ?").get(runId);
+    const row = this.database.db
+      .prepare("SELECT run_state FROM agent_runs WHERE id = ?")
+      .get(runId);
     return row ? optionalTextColumn(row, "run_state") : undefined;
   }
 
   listRunningOrWaiting(): AgentRunRecord[] {
     return this.database.db
-      .prepare("SELECT * FROM agent_runs WHERE status IN ('created', 'running')")
+      .prepare(
+        "SELECT * FROM agent_runs WHERE status IN ('created', 'running')",
+      )
       .all()
       .map(toRecord);
   }
@@ -169,29 +187,49 @@ export class AgentRunRepository {
     payloadJson: string,
   ): AgentRunEvent {
     return this.database.transaction((db) => {
-      const current = db.prepare("SELECT COALESCE(MAX(seq), 0) AS max_seq FROM agent_run_events WHERE run_id = ?").get(runId);
+      const current = db
+        .prepare(
+          "SELECT COALESCE(MAX(seq), 0) AS max_seq FROM agent_run_events WHERE run_id = ?",
+        )
+        .get(runId);
       if (!current) throw new Error("Failed to read event sequence");
       const seq = integerColumn(current, "max_seq") + 1;
       db.prepare(
         "INSERT INTO agent_run_events (run_id, seq, event_id, type, timestamp, payload_json) VALUES (?, ?, ?, ?, ?, ?)",
       ).run(runId, seq, eventId, type, timestamp, payloadJson);
-      return { id: eventId, runId, seq, type, timestamp, payload: parseEventPayload(type, JSON.parse(payloadJson)) };
+      return {
+        id: eventId,
+        runId,
+        seq,
+        type,
+        timestamp,
+        payload: parseEventPayload(type, JSON.parse(payloadJson)),
+      };
     });
   }
 
   listEvents(runId: string, afterSeq: number): AgentRunEvent[] {
     return this.database.db
-      .prepare("SELECT * FROM agent_run_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC")
+      .prepare(
+        "SELECT * FROM agent_run_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC",
+      )
       .all(runId, afterSeq)
       .map((row): AgentRunEvent => {
-        const type = requireOneOf(AGENT_RUN_EVENT_TYPES, textColumn(row, "type"), "event type");
+        const type = requireOneOf(
+          AGENT_RUN_EVENT_TYPES,
+          textColumn(row, "type"),
+          "event type",
+        );
         return {
           id: textColumn(row, "event_id"),
           runId,
           seq: integerColumn(row, "seq"),
           type,
           timestamp: textColumn(row, "timestamp"),
-          payload: parseEventPayload(type, JSON.parse(textColumn(row, "payload_json"))),
+          payload: parseEventPayload(
+            type,
+            JSON.parse(textColumn(row, "payload_json")),
+          ),
         };
       });
   }

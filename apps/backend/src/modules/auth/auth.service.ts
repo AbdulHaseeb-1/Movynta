@@ -1,11 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
-import type { AppConfig } from "../../config/configuration.js";
+import type { AppConfig } from "../../config/config.types.js";
+import type { AuthUser } from "./auth.types.js";
 import { verifyToken } from "./token.js";
-
-export interface AuthUser {
-  readonly id: string;
-}
 
 /** Verifies bearer tokens for HTTP and WebSocket clients. */
 @Injectable()

@@ -1,7 +1,7 @@
 import { Controller, Get, Param } from "@nestjs/common";
 import { ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import { AgentRegistry } from "./agent.registry.js";
-import type { AgentSummary } from "./definitions/agent-definition.js";
+import type { AgentSummary } from "./definitions/definitions.types.js";
 
 @ApiTags("agents")
 @ApiBearerAuth()

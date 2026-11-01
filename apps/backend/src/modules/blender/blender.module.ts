@@ -1,7 +1,8 @@
 import { Logger, Module } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
-import type { AppConfig } from "../../config/configuration.js";
-import { BLENDER_WORKER, type BlenderWorker } from "./blender-worker.js";
+import type { AppConfig } from "../../config/config.types.js";
+import { BLENDER_WORKER } from "./blender-worker.js";
+import type { BlenderWorker } from "./blender.types.js";
 import { DisabledBlenderWorker } from "./disabled-blender-worker.js";
 
 /**

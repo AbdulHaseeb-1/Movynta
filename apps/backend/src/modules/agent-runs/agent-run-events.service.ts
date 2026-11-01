@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { Injectable } from "@nestjs/common";
 import { AgentRunRepository } from "./agent-run.repository.js";
-import type { AgentRunEvent, AgentRunEventPayloads, AgentRunEventSink, AgentRunEventType } from "./agent-run.events.js";
+import type { AgentRunEvent, AgentRunEventPayloads, AgentRunEventSink, AgentRunEventType } from "./agent-runs.types.js";
 
 /**
  * Persists every run event (for replay after reconnects) and publishes it to

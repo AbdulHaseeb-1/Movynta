@@ -1,5 +1,4 @@
 import { resolve } from "node:path";
-import type { INestApplication } from "@nestjs/common";
 import { NodeAdapter } from "@nestjs/platform-node";
 import { Test } from "@nestjs/testing";
 import { ScriptedModel } from "@openai/agents/testing";
@@ -10,6 +9,7 @@ import { loadAppConfig } from "../config/configuration.js";
 import { MODEL_PROVIDER } from "../modules/agents/agent.tokens.js";
 import { signToken } from "../modules/auth/token.js";
 import { TEST_AUTH_SECRET } from "./constants.js";
+import type { TestServer } from "./testing.types.js";
 
 export { TEST_AUTH_SECRET };
 
@@ -17,21 +17,11 @@ function isListeningServer(value: unknown): value is { address(): AddressInfo | 
   return typeof value === "object" && value !== null && "address" in value && typeof value.address === "function";
 }
 
-export interface TestServer {
-  readonly app: INestApplication;
-  readonly baseUrl: string;
-  readonly wsUrl: string;
-  readonly model: ScriptedModel;
-  /** Bearer token for a user id, valid for one hour. */
-  token(userId: string): string;
-  close(): Promise<void>;
-}
-
 /**
  * Boots the real application against an in-memory database. Only the model
  * provider is replaced, with the SDK's scripted model, so no network calls happen.
  */
-export async function startTestServer(): Promise<TestServer> {
+export async function startTestServer(port = 0): Promise<TestServer> {
   process.env["NODE_ENV"] = "test";
   process.env["AUTH_SECRET"] = TEST_AUTH_SECRET;
   process.env["DATABASE_URL"] = ":memory:";
@@ -53,7 +43,7 @@ export async function startTestServer(): Promise<TestServer> {
   const adapter = new NodeAdapter();
   const app = moduleRef.createNestApplication(adapter);
   configureApplication(app, adapter, config);
-  await app.listen(0, "127.0.0.1");
+  await app.listen(port, "127.0.0.1");
 
   const httpServer: unknown = app.getHttpServer();
   if (!isListeningServer(httpServer)) throw new Error("Test server is not a Node HTTP server");

@@ -1,15 +1,8 @@
 import { Catch, HttpException, Logger, type ArgumentsHost, type ExceptionFilter } from "@nestjs/common";
 import { AppError } from "./app-error.js";
-import { getRequestId, type RequestWithId } from "../http/request-id.js";
-
-export interface ErrorResponseBody {
-  readonly error: {
-    readonly code: string;
-    readonly message: string;
-    readonly requestId: string;
-    readonly details?: Readonly<Record<string, unknown>>;
-  };
-}
+import { getRequestId } from "../http/request-id.js";
+import type { RequestWithId } from "../http/http.types.js";
+import type { ErrorResponseBody } from "./errors.types.js";
 
 /** Converts every thrown error into the structured `{ error: {...} }` body. */
 @Catch()

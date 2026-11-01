@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isOneOf } from "../../shared/guards/enum.guard.js";
 import { MODELING_DIMENSIONS } from "../../shared/schemas/modeling-plan.schema.js";
-import type { SkillManifest } from "./skills.types.js";
+import type { RawFrontmatter, SkillManifest } from "./skills.types.js";
 
 const SCALAR_KEYS = ["name", "version", "description"] as const;
 const LIST_KEYS = [
@@ -32,8 +32,6 @@ const frontmatterSchema = z
 const FENCE = "---";
 const KEY_LINE = /^([a-z_]+):\s*(.*)$/;
 const LIST_ITEM = /^\s+-\s+(.+)$/;
-
-type RawFrontmatter = Record<string, string | string[]>;
 
 /**
  * Reads the restricted frontmatter subset used by SKILL.md:

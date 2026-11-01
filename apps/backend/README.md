@@ -2,24 +2,15 @@
 
 NestJS orchestration layer for Movynta's AI modeling features. It runs OpenAI Agents SDK agents for 2D, 2.5D and 3D work, and brokers every change to the editor through validated, approved commands. The desktop app never receives keys, code, or raw scene access from the agent.
 
-## Setup
+## Setup (Windows desktop)
 
-```bash
-cp apps/backend/.env.example apps/backend/.env   # then fill in the values
-pnpm --filter movynta-backend build
-pnpm --filter movynta-backend start              # http://127.0.0.1:3001/api/docs
-```
+From the repository root, run `pnpm dev:backend` and then `pnpm tauri dev` in another terminal. The desktop automatically authenticates with the running local backend; there is no access-token field. The backend listens only on `127.0.0.1:3001`.
 
-Required environment (validated at startup, which fails with a readable message):
+Open Settings > Providers to configure OpenAI, Anthropic, Google, OpenAI-compatible, or Anthropic-compatible providers. Enter a key, load models using the plus button, select or type a model ID, test access, and save. Select the provider's radio button to make it active. All provider requests originate on the backend. Compatible providers accept an HTTPS API base URL (or HTTP on localhost), usually ending in `/v1`. OpenAI compatibility uses Chat Completions; Anthropic compatibility uses Messages. Model loading uses the endpoint's `/models` resource; you can enter a model ID manually if the service does not expose it. Re-enter the key when changing a saved endpoint.
 
-- `AUTH_SECRET` (32+ characters) signs bearer tokens.
-- `OPENAI_API_KEY` and `OPENAI_MODEL` while `AGENTS_ENABLED=true`, except in `NODE_ENV=test`.
+A `.env` file is optional. By default the backend creates its authentication signing secret and database under `%LOCALAPPDATA%/Movynta`. The signing secret and desktop connection record use Windows DPAPI CurrentUser encryption. Provider keys are stored only as DPAPI ciphertext in SQLite, scoped to the API user and provider. `DATABASE_URL` can override the database path. The old token CLI remains available for advanced authenticated API clients.
 
-Issue a token for the trusted local client:
-
-```bash
-AUTH_SECRET=... pnpm --filter movynta-backend token alice
-```
+See [the integration and security report](../../docs/assistant-integration-report.md) for verification and limitations.
 
 ## Checks
 
@@ -47,6 +38,7 @@ src/
     skills/                       SKILL.md parser, safe loader, relevance selection
     tools/                        ToolRegistry, Zod-typed tools, SDK tool() adapter
     agents/                       AgentRegistry, Runner provider, ModelingCoordinatorAgent
+    providers/                    provider configuration, DPAPI vault, vendor model adapters
     agent-runs/                   run state machine, processor, events, SSE, service
     approvals/                    approval policy, one-time decisions
     editor-bridge/                EditorBridge, WebSocket gateway, command proposals
@@ -100,6 +92,7 @@ All routes are under `/api/v1` and need `Authorization: Bearer <token>` except t
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health/live`, `/health/ready` | probes (no auth) |
+| GET / POST / DELETE | `/api/v1/providers` and provider subroutes | encrypted provider configuration, selection, models, testing |
 | GET | `/api/v1/agents`, `/api/v1/agents/:agentId` | registered agents |
 | POST | `/api/v1/agent-runs` | start a run (202) |
 | GET | `/api/v1/agent-runs/:runId` | run status and output |
@@ -116,11 +109,11 @@ Errors use one shape: `{ "error": { "code", "message", "requestId", "details?" }
 
 ## Known limitations
 
-- **Real model runs are not verified.** The automated tests use the SDK's scripted model. A run against OpenAI needs an `OPENAI_API_KEY` and a model name, and has not been run in this environment.
-- **The Tauri and React editor side is not built.** The repository has no scene engine, no Zustand store, and no Three.js. The protocol and a simulated client are implemented and tested, but the desktop app does not yet connect to the editor bridge.
+- **Live inference is not verified with real provider credentials.** Tests mock inference for every vendor and exercise the real HTTP/SSE/WebSocket/editor pipeline. The Test connection action verifies key access and model listing; it does not bill a generation request.
+- **Automatic authentication and credential persistence currently require Windows.** DPAPI fails closed on other platforms. The backend is a separate process and must be started before use; the desktop retries its connection automatically.
 - **Scene commands cover only creation, transforms, deletion, and primitives.** Rigging, animation, and mesh-modifier tools are not implemented. The skills that mention them describe the intended workflow and are limited to the tools that exist.
 - **Persistence is a single SQLite file.** It suits one local desktop process. Several backend processes would need a different store.
-- **Auth is a development-grade token scheme.** Tokens are issued by a local CLI. A real login flow is not part of this backend.
+- **Local desktop authentication is not a remote login system.** The desktop discovers a DPAPI-protected bearer token through native IPC. Anyone able to run code as the same Windows account can access that account's credentials; DPAPI does not protect against a compromised user session.
 - **Run recovery is conservative.** Runs active at shutdown are marked failed. Runs waiting for approval survive a restart, and their approvals can still be decided.
 - **Plans are not persisted.** A plan recorded with `modeling.generate_model_plan` lives in the run's memory. A run that resumes after an approval loses earlier plan records, but the conversation history keeps the plan text.
 - **Input guardrails are heuristic.** They block obvious requests to run code. Approval and command validation remain the real protection against unwanted scene changes.

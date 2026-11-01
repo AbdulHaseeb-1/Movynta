@@ -7,10 +7,8 @@ describe("loadAppConfig", () => {
     expect(() => loadAppConfig({ ...validEnv, AUTH_SECRET: "short" })).toThrow(/AUTH_SECRET/);
   });
 
-  it("requires the OpenAI key and model outside tests when agents are enabled", () => {
-    expect(() => loadAppConfig({ NODE_ENV: "production", AUTH_SECRET: "x".repeat(32), AGENTS_ENABLED: "true" })).toThrow(
-      /OPENAI_API_KEY/,
-    );
+  it("starts without environment provider keys so providers can be configured securely later", () => {
+    expect(loadAppConfig({ NODE_ENV: "production", AUTH_SECRET: "x".repeat(32), AGENTS_ENABLED: "true" }).agents.apiKey).toBeUndefined();
   });
 
   it("does not require the OpenAI key when agents are disabled", () => {

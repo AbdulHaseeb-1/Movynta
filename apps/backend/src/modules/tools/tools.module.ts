@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
-import { EDITOR_BRIDGE, type EditorBridge } from "../editor-bridge/editor-bridge.interface.js";
+import { EDITOR_BRIDGE } from "../editor-bridge/editor-bridge.tokens.js";
+import type { EditorBridge } from "../editor-bridge/editor-bridge.types.js";
 import { EditorBridgeModule } from "../editor-bridge/editor-bridge.module.js";
 import { CommandProposalService } from "../editor-bridge/proposals/command-proposal.service.js";
 import { SkillsModule } from "../skills/skills.module.js";

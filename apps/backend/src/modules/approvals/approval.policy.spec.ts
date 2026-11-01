@@ -1,4 +1,4 @@
-import type { EditorCommand } from "../../shared/schemas/editor-command.schema.js";
+import type { EditorCommand } from "../../shared/types/editor-command.types.js";
 import { ApprovalPolicy, LARGE_BATCH_THRESHOLD } from "./approval.policy.js";
 
 const policy = new ApprovalPolicy();

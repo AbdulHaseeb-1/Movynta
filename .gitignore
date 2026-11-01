@@ -26,6 +26,8 @@ dist-ssr
 # pnpm cache and generated outputs
 .pnpm-store/
 coverage/
+.test-output/
+target-check/
 *.tsbuildinfo
 .env
 .env.*

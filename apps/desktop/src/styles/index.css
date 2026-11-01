@@ -20,6 +20,9 @@
   --color-destructive: var(--destructive);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-brand: var(--brand);
+  --color-success: var(--success);
+  --color-brand-foreground: var(--brand-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --radius-sm: calc(var(--radius) - 4px);
@@ -42,50 +45,124 @@
   }
 }
 
+/*
+ * App color palette: the single source of truth. Movynta is dark-only and monochrome: near-black
+ * surfaces with white and silver for everything that is interactive. Components use the tokens
+ * (bg-card, text-muted-foreground, bg-primary, ...) and never raw hex values. To retheme the app,
+ * change the values here.
+ *
+ *   Surfaces   background #111111  canvas, behind everything
+ *              card       #181818  panels and cards
+ *              popover    #1a1a1a  menus and dialogs
+ *              muted      #202020  quiet fills (code, table headers)
+ *              secondary  #242424  secondary buttons
+ *              accent     #2a2a2a  hover and selected fills
+ *   Text       foreground #f2f2f2  primary text
+ *              muted-foreground #9a9a9a  secondary text, placeholders
+ *   Lines      border (white 8%), input (white 10%): used sparingly
+ *   Emphasis   brand #f2f2f2 white: primary actions, active states (text on it: #111111)
+ *   Status     success and destructive are silver; state is shown with icons and wording, not hue
+ */
 :root {
+  color-scheme: dark;
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: #111111;
+  --foreground: #f2f2f2;
+  --card: #181818;
+  --card-foreground: #f2f2f2;
+  --popover: #1a1a1a;
+  --popover-foreground: #f2f2f2;
+  --muted: #202020;
+  --muted-foreground: #9a9a9a;
+  --secondary: #242424;
+  --secondary-foreground: #f2f2f2;
+  --accent: #2a2a2a;
+  --accent-foreground: #f2f2f2;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 10%);
+  --brand: #f2f2f2;
+  --brand-foreground: #111111;
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --ring: #c8c8c8;
+  --success: #d4d4d4;
+  --destructive: #d4d4d4;
 }
 
 @layer base {
-  * { @apply border-border outline-ring/50; }
-  body { @apply bg-background text-foreground; }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Scrollbars are hidden everywhere; content still scrolls with wheel, touch and keyboard. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+@layer components {
+  /* Silver hero surface used by the Home studio card. */
+  .surface-brand {
+    background:
+      radial-gradient(
+        circle at 88% 0%,
+        color-mix(in oklab, var(--brand) 14%, transparent),
+        transparent 52%
+      ),
+      linear-gradient(
+        120deg,
+        var(--card) 0%,
+        color-mix(in oklab, var(--brand) 12%, var(--card)) 100%
+      );
+  }
+  .surface-brand:hover {
+    background:
+      radial-gradient(
+        circle at 88% 0%,
+        color-mix(in oklab, var(--brand) 20%, transparent),
+        transparent 52%
+      ),
+      linear-gradient(
+        120deg,
+        var(--card) 0%,
+        color-mix(in oklab, var(--brand) 18%, var(--card)) 100%
+      );
+  }
+
+  /* Moving highlight on text that stands for work in progress, e.g. "Thinking". */
+  .text-shimmer {
+    background-image: linear-gradient(
+      100deg,
+      var(--muted-foreground) 35%,
+      var(--foreground) 50%,
+      var(--muted-foreground) 65%
+    );
+    background-size: 250% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: text-shimmer 1.8s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .text-shimmer {
+      animation: none;
+      color: var(--muted-foreground);
+      background-image: none;
+    }
+  }
+}
+
+@keyframes text-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
 }

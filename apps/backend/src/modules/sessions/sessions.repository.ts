@@ -1,14 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { DatabaseService } from "../persistence/database.service.js";
 import { optionalTextColumn, textColumn } from "../persistence/row.js";
-
-export interface SessionRecord {
-  readonly id: string;
-  readonly userId: string;
-  readonly projectId: string;
-  readonly createdAt: string;
-  readonly deletedAt: string | undefined;
-}
+import type { SessionRecord } from "./sessions.types.js";
 
 @Injectable()
 export class SessionsRepository {

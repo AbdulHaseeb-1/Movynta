@@ -11,22 +11,17 @@ import {
 import { ForbiddenError, UnauthorizedError } from "../../common/errors/app-error.js";
 import { AuthService } from "../auth/auth.service.js";
 import { ProjectAccessService } from "../projects/project-access.service.js";
-import { EDITOR_WS_PATH } from "./editor-bridge.interface.js";
-import { EditorBridgeService, type EditorSocket } from "./editor-bridge.service.js";
+import { EditorBridgeService } from "./editor-bridge.service.js";
+import type { EditorSocket, SocketState } from "./editor-bridge.types.js";
 import {
   authMessageSchema,
   commandResultSchema,
   contextErrorSchema,
   contextResponseSchema,
+  EDITOR_WS_PATH,
 } from "./editor-protocol.js";
 
 const AUTH_TIMEOUT_MS = 10_000;
-
-interface SocketState {
-  authenticated: boolean;
-  clientId: string | undefined;
-  authTimer: NodeJS.Timeout | undefined;
-}
 
 /**
  * Editor connections. A client must authenticate with its first message, and

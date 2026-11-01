@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiCreatedResponse, ApiNotFoundResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator.js";
-import type { AuthUser } from "../auth/auth.service.js";
+import type { AuthUser } from "../auth/auth.types.js";
 import { CreateSessionDto, SessionResponseDto } from "./dto/create-session.dto.js";
 import { SessionsService } from "./sessions.service.js";
-import type { SessionRecord } from "./sessions.repository.js";
+import type { SessionRecord } from "./sessions.types.js";
 
 function toResponse(record: SessionRecord): SessionResponseDto {
   return { id: record.id, projectId: record.projectId, createdAt: record.createdAt };

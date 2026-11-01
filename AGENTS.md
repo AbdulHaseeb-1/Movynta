@@ -27,6 +27,7 @@
 ### UI and state
 
 - Use shadcn/ui components and adapt their styling to the existing design.
+- Colors come from the fixed palette in `apps/desktop/src/styles/index.css` (documented at the top of that file). Use theme tokens such as `bg-card`, `text-muted-foreground`, `bg-brand`, and Button/Badge variants; do not add raw hex colors.
 - Define routes in `src/app/router.tsx`. Move between pages with `useNavigate` or `<Link>`, not with local page state.
 - Manage shared client state with Redux Toolkit slices created with `createSlice`. Access the store through `useAppSelector` and `useAppDispatch` from `src/app/hooks.ts`.
 
