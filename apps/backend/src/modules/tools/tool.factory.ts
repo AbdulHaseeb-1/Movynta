@@ -50,7 +50,14 @@ export function toSdkTool(definition: ToolDefinition) {
     parameters: definition.parameters,
     // Invalid arguments are rejected by the SDK before `execute` runs; without this the model
     // only sees a generic "try again" and cannot tell which argument was wrong.
-    errorFunction: (_runContext, error) => JSON.stringify(toToolFailure(error)),
+    errorFunction: (runContext, error) => {
+      const failure = toToolFailure(error);
+      // These failures never reach `runTool`, so report them here to keep the event stream complete.
+      const context: unknown = runContext.context;
+      if (isAgentRunContext(context)) context.events.emit("tool.failed", { toolName: definition.name, message: failure.error });
+      logger.warn(`${definition.name} failed: ${failure.error}`);
+      return JSON.stringify(failure);
+    },
     needsApproval: (runContext, input: unknown) => {
       const context: unknown = runContext.context;
       if (!isAgentRunContext(context)) return Promise.reject(new Error("Missing agent run context"));

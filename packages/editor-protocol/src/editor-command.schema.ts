@@ -56,7 +56,7 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
     .object({
       ...commandBase,
       type: z.literal("geometry.create_primitive"),
-      objectId: objectId("Id of the shape object. It creates the object, so the id must be new, unless replaceExisting is true, which needs an existing id"),
+      objectId: objectId("Id of the shape object (its only identifier: shapes have no name field). It creates the object, so the id must be new, unless replaceExisting is true, which needs an existing id"),
       primitive: z.enum(["box", "sphere", "cylinder", "plane"]).describe("Shape to create"),
       size: z.number().positive().max(100).describe("Edge length or diameter in scene units, above 0 and at most 100"),
       replaceExisting: z

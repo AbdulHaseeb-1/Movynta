@@ -31,8 +31,9 @@ export async function startTestServer(port = 0, modelProvider?: ModelProvider): 
   process.env["CORS_ORIGINS"] = "http://localhost:1420";
   process.env["AGENTS_ENABLED"] = "true";
   process.env["OPENAI_MODEL"] = "test-model";
-  process.env["EDITOR_REQUEST_TIMEOUT_MS"] = "3000";
-  process.env["AGENT_RUN_TIMEOUT_MS"] = "20000";
+  // Defaults suit scripted models; the live check sets longer limits first.
+  process.env["EDITOR_REQUEST_TIMEOUT_MS"] ??= "3000";
+  process.env["AGENT_RUN_TIMEOUT_MS"] ??= "20000";
   process.env["RATE_LIMIT_PER_MINUTE"] = "10000";
   const config = loadAppConfig(process.env);
 

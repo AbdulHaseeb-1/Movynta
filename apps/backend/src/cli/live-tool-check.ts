@@ -103,6 +103,8 @@ async function checkModel(model: string, apiKey: string, baseURL: string): Promi
 }
 
 async function main(): Promise<void> {
+  process.env["AGENT_RUN_TIMEOUT_MS"] = String(RUN_TIMEOUT_MS - 10_000);
+  process.env["EDITOR_REQUEST_TIMEOUT_MS"] = "15000";
   const apiKey = process.env["RESPAN_API_KEY"];
   if (apiKey === undefined || apiKey.length === 0) {
     process.stderr.write("Set RESPAN_API_KEY (and optionally RESPAN_BASE_URL, LIVE_MODELS).\n");

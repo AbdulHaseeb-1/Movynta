@@ -42,7 +42,7 @@ function isInvalidToolInputError(error: unknown): boolean {
 }
 
 const INVALID_INPUT_HINT =
-  "Check every argument against the types and limits in the tool description, then call the tool again with valid input.";
+  "Check every argument against the types and limits in the tool description. Send only the fields the schema lists for that item (do not add extra fields), then call the tool again.";
 
 export function toToolFailure(error: unknown): ToolFailure {
   if (isInvalidToolInputError(error)) {

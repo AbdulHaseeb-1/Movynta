@@ -151,6 +151,8 @@ describe("agent tool access", () => {
     stream.stop();
     expect(terminal.envelope).toMatchObject({ type: "run.completed" });
     expect(sawRecoveryHint).toBe(true);
+    const failures = stream.events.filter((event) => event.envelope.type === "tool.failed");
+    expect(failures.map((event) => (event.envelope.payload as { toolName?: string }).toolName)).toEqual([TOOL_NAMES.editorApplyProposal]);
     editor.close();
   }, 30_000);
 });
