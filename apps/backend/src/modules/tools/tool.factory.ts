@@ -1,24 +1,29 @@
 import { tool } from "@openai/agents";
 import { Logger } from "@nestjs/common";
 import { z } from "zod";
-import { AppError } from "../../common/errors/app-error.js";
 import { isAgentRunContext } from "../agent-runs/agent-run.context.js";
 import type { AgentRunContext } from "../agent-runs/agent-runs.types.js";
+import { toToolFailure } from "./tool-errors.js";
 import { toProviderToolName, type ToolDefinition } from "./tool.types.js";
 
 const logger = new Logger("ToolExecution");
 
-/** Messages safe to show the model. Anything unexpected is reduced to a generic message. */
-function describeError(error: unknown): string {
-  if (error instanceof AppError) return error.message;
-  if (error instanceof z.ZodError) return "Tool input did not match its schema";
-  return "Tool execution failed";
+/** Results above this size are replaced by a short error so one call cannot flood the model's context. */
+export const MAX_TOOL_OUTPUT_CHARS = 60_000;
+
+function serializeResult(toolName: string, result: unknown): string {
+  const json = JSON.stringify(result ?? null);
+  if (json.length <= MAX_TOOL_OUTPUT_CHARS) return json;
+  return JSON.stringify({
+    error: `Result of ${toolName} is too large (${json.length} characters; limit ${MAX_TOOL_OUTPUT_CHARS}).`,
+    hint: "Ask for something narrower, or use a summary tool instead of reading everything.",
+  });
 }
 
 /**
  * Runs one tool with progress events and timing. Failures are returned to the
- * model as `{ error }` so it can recover; the run itself keeps going. Arguments
- * are never logged.
+ * model as a structured `{ error, issues?, hint }` so it can recover; the run
+ * itself keeps going. Arguments are never logged.
  */
 async function runTool(definition: ToolDefinition, input: unknown, context: AgentRunContext): Promise<string> {
   const startedAt = Date.now();
@@ -28,12 +33,12 @@ async function runTool(definition: ToolDefinition, input: unknown, context: Agen
     const durationMs = Date.now() - startedAt;
     context.events.emit("tool.completed", { toolName: definition.name, durationMs });
     logger.log(`${definition.name} completed in ${durationMs}ms`);
-    return JSON.stringify(result ?? null);
+    return serializeResult(definition.name, result);
   } catch (error) {
-    const message = describeError(error);
-    context.events.emit("tool.failed", { toolName: definition.name, message });
-    logger.warn(`${definition.name} failed: ${message}`);
-    return JSON.stringify({ error: message });
+    const failure = toToolFailure(error);
+    context.events.emit("tool.failed", { toolName: definition.name, message: failure.error });
+    logger.warn(`${definition.name} failed: ${failure.error}`);
+    return JSON.stringify(failure);
   }
 }
 
@@ -43,6 +48,9 @@ export function toSdkTool(definition: ToolDefinition) {
     name: toProviderToolName(definition.name),
     description: definition.description,
     parameters: definition.parameters,
+    // Invalid arguments are rejected by the SDK before `execute` runs; without this the model
+    // only sees a generic "try again" and cannot tell which argument was wrong.
+    errorFunction: (_runContext, error) => JSON.stringify(toToolFailure(error)),
     needsApproval: (runContext, input: unknown) => {
       const context: unknown = runContext.context;
       if (!isAgentRunContext(context)) return Promise.reject(new Error("Missing agent run context"));

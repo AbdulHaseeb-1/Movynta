@@ -11,7 +11,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "start": "node dist/main.js",
     "start:dev": "tsc-watch -p tsconfig.json --onSuccess \"node dist/main.js\"",
-    "token": "node dist/cli/issue-token.js"
+    "token": "node dist/cli/issue-token.js",
+    "live:tools": "node dist/cli/live-tool-check.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.94",

@@ -36,7 +36,7 @@ src/
     projects/                     project ownership (claim on first use)
     sessions/                     private sessions; SQLite-backed SDK Session
     skills/                       SKILL.md parser, safe loader, relevance selection
-    tools/                        ToolRegistry, Zod-typed tools, SDK tool() adapter
+    tools/                        tool catalog, toolsets, ToolRegistry, Zod-typed tools, SDK tool() adapter
     agents/                       AgentRegistry, Runner provider, ModelingCoordinatorAgent
     providers/                    provider configuration, DPAPI vault, vendor model adapters
     agent-runs/                   run state machine, processor, events, SSE, service
@@ -61,6 +61,38 @@ skills/                           repository skills: character-modeling, mesh-ed
 7. `POST /agent-runs/:runId/approvals/:approvalId` records the decision once. When every pending approval is decided, the run resumes from the stored state with those decisions.
 8. The editor executes the approved commands and reports results. Each proposal runs at most once, keyed by its id and checked against the base revision.
 9. The agent validates the scene with `validation.check_scene` and responds. The full history is stored in the session.
+
+### Tools
+
+Every tool the agents can call is defined in one place, `src/modules/tools/`:
+
+```
+tools/
+  catalog/tool-names.ts     TOOL_NAMES: the one list of tools (namespace.tool_name)
+  catalog/toolsets.ts       named allowlists; agents get exactly their toolset
+  editor/ modeling/ skills/ validation/   one folder per namespace, each exports createXTools()
+  tool.types.ts             defineTool(): Zod-typed spec -> ToolDefinition
+  tool.registry.ts          registry; startup fails if it and the catalog disagree
+  tool.factory.ts           adapts a definition to the Agents SDK tool()
+  tool-errors.ts            model-safe failures: { error, hint }
+  tools.controller.ts       GET /api/v1/tools (read-only catalog with JSON Schemas)
+```
+
+To add a tool: write a `createXTools()` factory with `defineTool`, add its name to `TOOL_NAMES`, add it to the toolsets that need it, and register the factory in `tools.module.ts`. The registry refuses to start if a catalog tool has no implementation, an implementation is not in the catalog, or a toolset names a missing tool. Skills may only reference tools the coordinator can call.
+
+Conventions, based on the OpenAI Agents SDK and Anthropic's tool-writing guidance:
+
+- Names are `namespace.tool_name`; the model sees `namespace__tool_name` (provider names cannot contain dots). Plans accept either form.
+- Descriptions say what the tool does, when to use it, and what it returns. Every argument has a `.describe()`.
+- Strict mode is always on. The SDK sends optional fields as required-and-nullable and removes them again before validation, and it drops length, range and pattern limits from the schema the model sees, so each limit is repeated in the field description.
+- Handlers receive validated input only. Failures return `{ error, hint }` to the model, never stack traces or argument values. Results over 60,000 characters are replaced by a short error.
+- Tools never expose raw scene access or code. Scene changes go through `editor.propose_commands` and `editor.apply_proposal`.
+
+`tool-catalog.spec.ts` checks strict-schema compatibility and documentation for every tool, and `agent-tools.integration.spec.ts` runs a scripted model through all seven tools over the real HTTP, WebSocket and run pipeline.
+
+### Live tool check (opt-in)
+
+`pnpm build && RESPAN_API_KEY=... LIVE_MODELS=claude-haiku-5-5,deepseek-chat pnpm live:tools` boots the backend with a simulated editor and a real model behind an OpenAI-compatible gateway (`RESPAN_BASE_URL`, default `https://api.respan.ai/api`). It reports the tools each model called, failed calls, and the resulting scene. It is not part of `pnpm test`.
 
 ### Streaming
 
@@ -104,6 +136,7 @@ All routes are under `/api/v1` and need `Authorization: Bearer <token>` except t
 | GET | `/api/v1/sessions/:sessionId` | read a session |
 | DELETE | `/api/v1/sessions/:sessionId` | delete a session and its history |
 | GET | `/api/v1/skills`, `/api/v1/skills/:skillId` | skills |
+| GET | `/api/v1/tools` | tool catalog with JSON Schemas, and toolsets |
 
 Errors use one shape: `{ "error": { "code", "message", "requestId", "details?" } }`. The `x-request-id` header is echoed back.
 
@@ -120,7 +153,8 @@ Errors use one shape: `{ "error": { "code", "message", "requestId", "details?" }
 - **MCP servers are not connected.** The registry reads the configuration and enforces the tool allowlist. Connecting MCP servers and exposing their tools to agents is not wired up yet.
 - **Blender is an interface only.** The disabled worker reports itself unavailable. No Blender process is started or managed.
 - **Projects use claim-on-first-use ownership.** Real project membership and sharing do not exist yet.
-- **Provider schema compatibility is unverified.** Tools use Zod schemas with the SDK's default strict mode. Optional fields may need adjusting to the provider's strict JSON schema rules before a real run.
+- **Provider schema compatibility is checked offline only.** Tests verify that every tool schema meets strict-mode rules (all properties required, no additional properties, no tuples) and that the nulls a strict-mode model sends are accepted. Use `pnpm live:tools` to confirm a particular provider and model.
+- **Argument errors from the SDK carry no field details.** The SDK redacts validation details before the error callback, so the model is told its input did not match and to check the limits in the tool description.
 - **Rate limiting is per process.** `RateLimitGuard` uses a fixed window per client address in memory. It is not a shared limiter.
 - **Body-limit errors have no request id.** An oversized body is rejected by the body parser before the request-id middleware runs, so the 413 response uses `requestId: "unknown"`.
 - **Startup prints one harmless warning.** Nest's adapter reports a legacy `path-to-regexp` route for `/api/*` while it sets up the prefix and CORS handling.

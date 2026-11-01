@@ -1,5 +1,6 @@
 import { Agent, type AgentOutputType } from "@openai/agents";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
+import { MODELING_TOOLSET } from "../../tools/catalog/index.js";
 import { toProviderToolName } from "../../tools/tool.types.js";
 import { toSdkTool } from "../../tools/tool.factory.js";
 import { requestPolicyGuardrail } from "../guardrails/request-policy.guardrail.js";
@@ -16,7 +17,9 @@ export const MODELING_COORDINATOR_VERSION = "1.0.0";
  */
 export function createModelingCoordinatorDefinition(deps: ModelingCoordinatorDependencies): AgentDefinition {
   const { tools, skills } = deps;
-  const toolNameMap = tools.list().map((tool) => ({ name: tool.name, providerName: toProviderToolName(tool.name) }));
+  // Resolved once at construction: an unregistered tool in the toolset fails startup, not a run.
+  const toolDefinitions = tools.resolveToolset(MODELING_TOOLSET);
+  const toolNameMap = toolDefinitions.map((tool) => ({ name: tool.name, providerName: toProviderToolName(tool.name) }));
 
   return {
     id: MODELING_COORDINATOR_ID,
@@ -32,7 +35,7 @@ export function createModelingCoordinatorDefinition(deps: ModelingCoordinatorDep
             skills: skills.list().filter((skill) => runContext.context.selectedSkillIds.includes(skill.id)),
             toolNameMap,
           }),
-        tools: tools.list().map((tool) => toSdkTool(tool)),
+        tools: toolDefinitions.map((tool) => toSdkTool(tool)),
         inputGuardrails: [requestPolicyGuardrail],
       });
     },

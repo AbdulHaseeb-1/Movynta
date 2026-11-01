@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import type { EditorContext } from "../../../shared/types/editor-context.types.js";
+import { TOOL_NAMES } from "../catalog/index.js";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 import type { SceneCheckResult, SceneIssue } from "./validation.types.js";
 
@@ -61,8 +62,9 @@ function hasParentCycle(startId: string, byId: ReadonlyMap<string, EditorContext
 export function createValidationTools({ bridge }: { readonly bridge: EditorBridge }): ToolDefinition[] {
   return [
     defineTool({
-      name: "validation.check_scene",
-      description: "Check the current scene for duplicate ids, missing parents, parent cycles, and invalid scale.",
+      name: TOOL_NAMES.validationCheckScene,
+      description:
+        "Check the current scene for duplicate ids, missing parents, parent cycles and non-positive scale. Call it after applying changes. Returns ok, the object count and a list of issues, each with a severity of error or warning.",
       permission: "read",
       parameters: z.object({}).strict(),
       execute: async (_input, context) => {

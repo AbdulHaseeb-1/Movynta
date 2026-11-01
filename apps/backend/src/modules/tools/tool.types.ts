@@ -1,4 +1,5 @@
-import type { z } from "zod";
+import { z } from "zod";
+import type { ToolsetDefinition } from "./catalog/toolsets.js";
 import type { AgentRunContext } from "../agent-runs/agent-runs.types.js";
 
 export const TOOL_PERMISSIONS = ["read", "plan", "propose", "apply", "skill"] as const;
@@ -56,6 +57,40 @@ export function defineTool<S extends z.ZodObject>(spec: ToolSpec<S>): ToolDefini
 }
 
 /** Model-facing names cannot contain dots, so `editor.get_context` becomes `editor__get_context`. */
+export const PROVIDER_NAME_SEPARATOR = "__";
+
 export function toProviderToolName(name: string): string {
-  return name.replace(".", "__");
+  return name.replace(".", PROVIDER_NAME_SEPARATOR);
+}
+
+/** Reverses `toProviderToolName`. Names without the separator are returned unchanged. */
+export function fromProviderToolName(name: string): string {
+  return name.replace(PROVIDER_NAME_SEPARATOR, ".");
+}
+
+/** Public, serialisable view of a tool: what an agent sees, without handlers. */
+export interface ToolDescriptor {
+  readonly name: string;
+  readonly providerName: string;
+  readonly namespace: string;
+  readonly description: string;
+  readonly permission: ToolPermission;
+  /** JSON Schema of the arguments, as documentation. The SDK derives the strict provider schema itself. */
+  readonly inputSchema: Record<string, unknown>;
+}
+
+export function describeTool(definition: ToolDefinition): ToolDescriptor {
+  return {
+    name: definition.name,
+    providerName: toProviderToolName(definition.name),
+    namespace: definition.namespace,
+    description: definition.description,
+    permission: definition.permission,
+    inputSchema: z.toJSONSchema(definition.parameters, { io: "input", unrepresentable: "any" }),
+  };
+}
+
+export interface ToolCatalogView {
+  readonly tools: readonly ToolDescriptor[];
+  readonly toolsets: readonly ToolsetDefinition[];
 }

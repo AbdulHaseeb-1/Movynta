@@ -3,6 +3,7 @@ import { APP_CONFIG } from "../../config/config.module.js";
 import type { AppConfig } from "../../config/config.types.js";
 import { SkillsModule } from "../skills/skills.module.js";
 import { SkillsRegistry } from "../skills/skills.registry.js";
+import { MODELING_TOOLSET } from "../tools/catalog/index.js";
 import { ToolRegistry } from "../tools/tool.registry.js";
 import { ToolsModule } from "../tools/tools.module.js";
 import { AgentRegistry } from "./agent.registry.js";
@@ -13,8 +14,9 @@ import type { AgentDefinition } from "./definitions/definitions.types.js";
 import { createModelingCoordinatorDefinition } from "./definitions/modeling-coordinator.agent.js";
 
 /**
- * Startup check: every tool a skill references must exist, otherwise the
- * server refuses to start rather than letting an agent fail mid-run.
+ * Startup check: every tool a skill references must exist and be available to
+ * the coordinator that runs skills, otherwise the server refuses to start
+ * rather than letting an agent fail mid-run.
  */
 @Injectable()
 export class SkillToolReferenceValidator implements OnModuleInit {
@@ -28,6 +30,9 @@ export class SkillToolReferenceValidator implements OnModuleInit {
       for (const toolName of skill.toolNames) {
         if (!this.tools.has(toolName)) {
           throw new Error(`Skill "${skill.id}" references unknown tool "${toolName}"`);
+        }
+        if (!MODELING_TOOLSET.toolNames.some((name) => name === toolName)) {
+          throw new Error(`Skill "${skill.id}" uses tool "${toolName}", which the modeling coordinator cannot call`);
         }
       }
     }

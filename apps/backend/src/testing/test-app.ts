@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { NodeAdapter } from "@nestjs/platform-node";
 import { Test } from "@nestjs/testing";
+import type { ModelProvider } from "@openai/agents";
 import { ScriptedModel } from "@openai/agents/testing";
 import type { AddressInfo } from "node:net";
 import { AppModule } from "../app.module.js";
@@ -20,8 +21,9 @@ function isListeningServer(value: unknown): value is { address(): AddressInfo | 
 /**
  * Boots the real application against an in-memory database. Only the model
  * provider is replaced, with the SDK's scripted model, so no network calls happen.
+ * `modelProvider` is for the opt-in live check (`pnpm live:tools`); automated tests never pass it.
  */
-export async function startTestServer(port = 0): Promise<TestServer> {
+export async function startTestServer(port = 0, modelProvider?: ModelProvider): Promise<TestServer> {
   process.env["NODE_ENV"] = "test";
   process.env["AUTH_SECRET"] = TEST_AUTH_SECRET;
   process.env["DATABASE_URL"] = ":memory:";
@@ -37,7 +39,7 @@ export async function startTestServer(port = 0): Promise<TestServer> {
   const model = new ScriptedModel();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(MODEL_PROVIDER)
-    .useValue({ getModel: () => model })
+    .useValue(modelProvider ?? { getModel: () => model })
     .compile();
 
   const adapter = new NodeAdapter();
