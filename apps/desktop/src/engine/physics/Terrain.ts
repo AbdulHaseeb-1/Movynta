@@ -10,6 +10,10 @@ export interface TerrainPiece {
 export const TERRAIN_PRESETS = ["flat", "slope", "platform", "step", "course"] as const;
 export type TerrainPreset = (typeof TERRAIN_PRESETS)[number];
 
+export function isTerrainPreset(value: string): value is TerrainPreset {
+  return TERRAIN_PRESETS.some((preset) => preset === value);
+}
+
 export const SLOPE_ANGLE_DEG = 6;
 export const STEP_HEIGHT = 0.12;
 export const PLATFORM_HEIGHT = 0.4;

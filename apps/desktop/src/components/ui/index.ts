@@ -9,5 +9,6 @@ export * from "./dropdown-menu";
 export * from "./scroll-area";
 export * from "./select";
 export * from "./separator";
+export { Slider } from "./slider";
 export * from "./textarea";
 export * from "./tooltip";

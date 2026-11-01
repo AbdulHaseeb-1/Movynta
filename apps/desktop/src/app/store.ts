@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { providersReducer } from "@/features/providers";
 import { viewportReducer } from "@/features/viewport3d/viewportSlice";
+import { labReducer } from "@/features/animation-lab/labSlice";
 import { assistantSelectionReducer } from "@/features/assistant/selectionSlice";
 import { saveSelection } from "@/features/assistant/selectionStorage";
 
@@ -8,6 +9,7 @@ export const store = configureStore({
   reducer: {
     providers: providersReducer,
     viewport: viewportReducer,
+    animationLab: labReducer,
     assistantSelection: assistantSelectionReducer,
   },
 });

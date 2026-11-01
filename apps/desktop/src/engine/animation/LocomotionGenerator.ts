@@ -205,7 +205,7 @@ export class LocomotionGenerator {
     toWorld(yaw, localX, localZ, pelvisWorld).add(root);
     pelvisWorld.y = root.y + pelvisY;
     if (airborne > 0.001) {
-      for (const side of ["l", "r"] as const) this.mixAirborne(side, jump, pelvisWorld, yaw, airborne, ctx.dt);
+      for (const side of ["l", "r"] as const) this.mixAirborne(side, jump, pelvisWorld, yaw, airborne, ctx.rig.thighLength + ctx.rig.shinLength);
     }
     for (const side of ["l", "r"] as const) {
       this.holdAfterLanding(ctx, side);
@@ -330,15 +330,15 @@ export class LocomotionGenerator {
     }
   }
 
-  private mixAirborne(side: Side, jump: JumpSequence, pelvis: Vector3, yaw: number, weight: number, dt: number): void {
-    void dt;
+  private mixAirborne(side: Side, jump: JumpSequence, pelvis: Vector3, yaw: number, weight: number, legLength: number): void {
     const sign = sideSign(side);
     const extension = jump.legExtension;
     const air = this.legTargets[side];
     // Legs hang below the pelvis; tucked legs lift the feet and bend the knees forward.
     toWorld(yaw, sign * 0.11, 0.05 + 0.2 * (1 - extension) + (side === "l" ? 0.04 : -0.02) * (1 - extension), tmpA);
     tmpA.add(pelvis);
-    tmpA.y = pelvis.y - (0.46 + 0.4 * extension);
+    // Scaled by the leg: a fully reaching leg (extension 1) hangs the foot just short of straight, whatever the body.
+    tmpA.y = pelvis.y - legLength * (0.5 + 0.47 * extension);
     // Toes point down in the air and level off as the feet reach for the ground.
     quatFromEuler(tmpQ, 0.55 * (1 - extension) + 0.1, 0, 0);
     tmpQ2.setFromAxisAngle(new Vector3(0, 1, 0), yaw + sign * 0.08).multiply(tmpQ);

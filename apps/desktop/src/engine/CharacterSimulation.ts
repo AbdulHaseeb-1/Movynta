@@ -109,17 +109,18 @@ export class CharacterSimulation {
   readonly placementTarget = new Vector3();
   private readonly scratchPoint = new Vector3();
   private readonly scratchGround = createGroundHit();
-  private readonly capsule: CapsuleSpec;
+  /** Collision capsule of the character (also drawn by the debug view). */
+  readonly capsuleSpec: CapsuleSpec;
 
   private constructor(physics: PhysicsWorld, options: SimulationOptions) {
     const config = options.config ?? DEFAULT_CHARACTER_CONFIG;
-    this.capsule = options.capsule ?? DEFAULT_CAPSULE;
+    this.capsuleSpec = options.capsule ?? DEFAULT_CAPSULE;
     this.physics = physics;
     this.clock = new SimulationClock(options.fixedDt ?? FIXED_DT);
     this.tuning = { ...DEFAULT_TUNING, ...options.tuning };
     this.rig = new CharacterRig(config);
     this.pose = new Pose(this.rig.restPelvisPosition);
-    this.controller = new CharacterController(physics.createCharacter(this.capsule));
+    this.controller = new CharacterController(physics.createCharacter(this.capsuleSpec));
     this.gait = new GaitController({ geometry: this.rig.foot, ankleHeight: config.proportions.ankleHeight });
     this.reset();
   }

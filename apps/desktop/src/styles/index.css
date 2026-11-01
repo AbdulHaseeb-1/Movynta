@@ -62,6 +62,7 @@
  *   Lines      border (white 8%), input (white 10%): used sparingly
  *   Emphasis   brand #f2f2f2 white: primary actions, active states (text on it: #111111)
  *   Status     success and destructive are silver; state is shown with icons and wording, not hue
+ *   Character  character #33ccff  the cyan stickman in the Animation Lab (the one place color is used)
  */
 :root {
   color-scheme: dark;
@@ -87,6 +88,7 @@
   --ring: #c8c8c8;
   --success: #d4d4d4;
   --destructive: #d4d4d4;
+  --character: #33ccff;
 }
 
 @layer base {

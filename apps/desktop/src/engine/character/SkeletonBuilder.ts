@@ -38,6 +38,36 @@ export const DEFAULT_CHARACTER_CONFIG: CharacterConfig = {
   limbRadius: 0.035,
 };
 
+/**
+ * A drawn stick figure: a big head, narrow shoulders and hips, and long thin limbs, so the legs and arms start
+ * close to the body's center line. Same rig, different numbers: every algorithm reads these values.
+ */
+export const STICKMAN_PROPORTIONS: BodyProportions = {
+  hipHalfWidth: 0.045,
+  thigh: 0.46,
+  shin: 0.46,
+  ankleHeight: 0.06,
+  heelBack: 0.05,
+  ballForward: 0.12,
+  toeLength: 0.05,
+  pelvisToLowerSpine: 0.07,
+  lowerSpine: 0.12,
+  midSpine: 0.13,
+  upperSpine: 0.17,
+  neck: 0.06,
+  headRadius: 0.17,
+  shoulderHalfWidth: 0.08,
+  clavicleHeight: 0.15,
+  upperArm: 0.3,
+  forearm: 0.28,
+  hand: 0.04,
+};
+
+export const STICKMAN_CHARACTER_CONFIG: CharacterConfig = {
+  proportions: STICKMAN_PROPORTIONS,
+  limbRadius: 0.045,
+};
+
 export function scaleProportions(base: BodyProportions, k: number): BodyProportions {
   return {
     hipHalfWidth: base.hipHalfWidth * k,

@@ -1,6 +1,7 @@
 export * from "./AnimationBlender";
 export * from "./AnimationStateMachine";
 export * from "./AnimationTimeline";
+export * from "./clips";
 export * from "./GaitController";
 export * from "./GaitProfiles";
 export * from "./JumpSequence";

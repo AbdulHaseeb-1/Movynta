@@ -1,4 +1,4 @@
-import { ArrowUpRight, Box, Sparkles } from "lucide-react";
+import { ArrowUpRight, Box, PersonStanding, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -67,6 +67,30 @@ export default function Home() {
               size={17}
               aria-hidden="true"
             />
+          </Button>
+        </Card>
+        <Card className="border-0 bg-transparent p-0 text-inherit shadow-none">
+          <Button
+            type="button"
+            variant="ghost"
+            className="group relative block h-[184px] w-[min(100%,420px)] cursor-pointer overflow-hidden rounded-[14px] border border-border bg-card p-0 text-left whitespace-normal text-foreground shadow-[0_18px_45px_#00000040] transition-[transform,border-color] duration-[220ms] ease-[ease] hover:-translate-y-[3px] hover:border-brand/40 hover:bg-card hover:text-foreground focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring motion-reduce:transition-none"
+            onClick={() => void navigate("/lab")}
+            data-testid="open-animation-lab"
+          >
+            <span className="relative z-1 flex h-full flex-col items-start justify-between px-6 py-5">
+              <span className="grid size-10 flex-none place-items-center rounded-xl border border-foreground/20 bg-foreground/10 text-foreground">
+                <PersonStanding size={20} strokeWidth={1.7} />
+              </span>
+              <span className="flex max-w-[210px] flex-col items-start">
+                <span className="text-[18px] leading-[1.2] font-bold tracking-[-0.025em]">Animation Lab</span>
+                <span className="mt-[7px] text-[12px] leading-[1.45] text-foreground/80">
+                  Test and tune the 3D stickman: walking, running, sprinting, jumping and foot IK.
+                </span>
+                <span className="mt-2.5 inline-flex items-center gap-[5px] font-[650] text-[11px] text-foreground">
+                  Open lab <ArrowUpRight size={14} />
+                </span>
+              </span>
+            </span>
           </Button>
         </Card>
       </div>

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { CharacterSimulation } from "../src/engine/CharacterSimulation";
 import { FIXED_DT } from "../src/engine/core/SimulationClock";
 import { SPEED_FAST_RUN, SPEED_RUN, SPEED_SPRINT, SPEED_WALK } from "../src/engine/animation/types";
+import { STICKMAN_CHARACTER_CONFIG } from "../src/engine/character/SkeletonBuilder";
 import { MotionDiagnostics } from "../src/engine/testing/MotionDiagnostics";
 
 /** Heap size after a full garbage collection, so growth means retained objects rather than pending garbage. */
@@ -16,7 +17,7 @@ function collectedHeapBytes(): number {
 
 describe("Test H: long-running stability", () => {
   it("survives five minutes of mixed movement without drift, NaN, teleports or leaks", async () => {
-    const sim = await CharacterSimulation.create({ terrain: "flat" });
+    const sim = await CharacterSimulation.create({ terrain: "flat", config: STICKMAN_CHARACTER_CONFIG });
     const diagnostics = new MotionDiagnostics();
     diagnostics.settleSeconds = 1;
     diagnostics.heapSampler = collectedHeapBytes;

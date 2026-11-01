@@ -1,4 +1,5 @@
 import { Quaternion, Vector3 } from "three";
+import { z } from "zod";
 import { Pose, type BoneMask } from "../character/Pose";
 import { BONE_NAMES, type BoneName } from "../character/types";
 import { DEG, clamp, eulerFromQuat, quatFromEuler } from "../core/math";
@@ -37,6 +38,38 @@ export interface AnimationClip {
 
 export function createClip(name = "Untitled", duration = 2): AnimationClip {
   return { version: 1, name, duration, loop: true, tracks: {} };
+}
+
+const keyframeSchema = z.object({
+  time: z.number().min(0),
+  rotation: z.tuple([z.number().finite(), z.number().finite(), z.number().finite(), z.number().finite()]),
+});
+
+const clipSchema = z.object({
+  version: z.literal(1),
+  name: z.string().max(80),
+  duration: z.number().positive().max(600),
+  loop: z.boolean(),
+  tracks: z.partialRecord(z.enum(BONE_NAMES), z.array(keyframeSchema)),
+});
+
+/**
+ * Validates untrusted clip data (an imported file, pasted JSON). Returns the clip with its keys sorted and clamped
+ * to the clip duration, or `null` if the data does not match the documented format.
+ */
+export function parseClip(data: unknown): AnimationClip | null {
+  const parsed = clipSchema.safeParse(data);
+  if (!parsed.success) return null;
+  const clip = createClip(parsed.data.name, parsed.data.duration);
+  clip.loop = parsed.data.loop;
+  for (const name of BONE_NAMES) {
+    const keys = parsed.data.tracks[name];
+    if (!keys || keys.length === 0) continue;
+    clip.tracks[name] = keys
+      .map((key) => ({ time: Math.min(key.time, parsed.data.duration), rotation: key.rotation }))
+      .sort((p, q) => p.time - q.time);
+  }
+  return clip;
 }
 
 const a = new Quaternion();

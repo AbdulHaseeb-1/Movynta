@@ -2,6 +2,8 @@ import { Vector3 } from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { CharacterSimulation } from "./CharacterSimulation";
 import { isWithinLimits } from "./character/JointLimits";
+import { DEFAULT_CHARACTER_CONFIG, STICKMAN_CHARACTER_CONFIG } from "./character/SkeletonBuilder";
+import type { CharacterConfig } from "./character/types";
 import { BONE_NAMES } from "./character/types";
 import { DEG, eulerFromQuat } from "./core/math";
 import { FIXED_DT } from "./core/SimulationClock";
@@ -13,9 +15,17 @@ import type { TerrainPreset } from "./physics/Terrain";
 const MAX_STANCE_DRIFT = 0.02;
 const MAX_PENETRATION = -0.01;
 
+/** The body under test. The whole suite runs once for the default human and once for the drawn stick figure. */
+let body: CharacterConfig = DEFAULT_CHARACTER_CONFIG;
+
 async function create(terrain: TerrainPreset = "flat"): Promise<CharacterSimulation> {
-  return CharacterSimulation.create({ terrain });
+  return CharacterSimulation.create({ terrain, config: body });
 }
+
+const BODIES = [
+  ["default human", DEFAULT_CHARACTER_CONFIG],
+  ["stick figure", STICKMAN_CHARACTER_CONFIG],
+] as const;
 
 function record(sim: CharacterSimulation, settleSeconds = 0): MotionDiagnostics {
   const diagnostics = new MotionDiagnostics().attach(sim);
@@ -61,11 +71,13 @@ function pitchOf(sim: CharacterSimulation, bone: (typeof BONE_NAMES)[number]): n
   return eulerFromQuat(sim.pose.rotations[bone], euler).x / DEG;
 }
 
-beforeAll(async () => {
-  // Warm up the WebAssembly module once so individual tests do not each pay for it.
-  const sim = await create();
-  sim.dispose();
-}, 60_000);
+describe.each(BODIES)("%s", (_name, config) => {
+  beforeAll(async () => {
+    body = config;
+    // Warm up the WebAssembly module once so individual tests do not each pay for it.
+    const sim = await create();
+    sim.dispose();
+  }, 60_000);
 
 describe("Test B: walking for 20 seconds", () => {
   it("steps in alternation, plants the support foot, and keeps arms opposite the legs", async () => {
@@ -622,4 +634,5 @@ describe("tuning sliders change behavior", () => {
     expect(on).toBeGreaterThan(0.01);
     expect(await response(2)).toBeGreaterThan(on);
   }, 60_000);
+});
 });
