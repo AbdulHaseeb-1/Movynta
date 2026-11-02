@@ -112,4 +112,81 @@ export const MIGRATIONS: readonly Migration[] = [
     name: "run_reasoning_effort",
     statements: [`ALTER TABLE agent_runs ADD COLUMN reasoning_effort TEXT`],
   },
+  {
+    version: 6,
+    name: "chatgpt_subscription_logins",
+    statements: [
+      `CREATE TABLE chatgpt_logins (
+         user_id TEXT PRIMARY KEY,
+         encrypted_tokens TEXT NOT NULL,
+         email TEXT,
+         plan TEXT,
+         connected_at TEXT NOT NULL,
+         expires_at TEXT NOT NULL
+       )`,
+    ],
+  },
+  {
+    version: 7,
+    name: "projects",
+    statements: [
+      `CREATE TABLE projects (
+         id TEXT PRIMARY KEY,
+         user_id TEXT NOT NULL,
+         name TEXT NOT NULL DEFAULT '',
+         category TEXT NOT NULL,
+         starred INTEGER NOT NULL DEFAULT 0,
+         archived_at TEXT,
+         created_at TEXT NOT NULL,
+         updated_at TEXT NOT NULL
+       )`,
+      `CREATE INDEX projects_user_idx ON projects (user_id, updated_at DESC)`,
+      `CREATE TABLE project_scene_batches (
+         project_id TEXT NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
+         seq INTEGER NOT NULL,
+         proposal_id TEXT NOT NULL,
+         commands_json TEXT NOT NULL,
+         applied_at TEXT NOT NULL,
+         PRIMARY KEY (project_id, seq)
+       )`,
+    ],
+  },
+  {
+    version: 8,
+    name: "project_assets",
+    statements: [
+      // Imported models share the numbering of scene batches, so a replay keeps the order things happened in.
+      `CREATE TABLE project_assets (
+         id TEXT PRIMARY KEY,
+         project_id TEXT NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
+         seq INTEGER NOT NULL,
+         object_id TEXT NOT NULL,
+         name TEXT NOT NULL,
+         format TEXT NOT NULL,
+         size INTEGER NOT NULL,
+         content BLOB NOT NULL,
+         created_at TEXT NOT NULL,
+         UNIQUE (project_id, seq)
+       )`,
+    ],
+  },
+  {
+    version: 9,
+    name: "project_lookup_indexes",
+    statements: [
+      // Listing projects counts and reads the first run of each one; without these every project scans every run.
+      `CREATE INDEX agent_runs_project_idx ON agent_runs (project_id, created_at)`,
+      `CREATE INDEX agent_runs_session_idx ON agent_runs (session_id, created_at)`,
+      `CREATE INDEX sessions_project_idx ON sessions (project_id)`,
+      `CREATE INDEX editor_proposals_project_idx ON editor_proposals (project_id)`,
+      // The objects a project currently holds, kept up to date as its history grows, so checking that an
+      // object exists never has to replay the history. Older projects are indexed the first time they are used.
+      `ALTER TABLE projects ADD COLUMN objects_indexed INTEGER NOT NULL DEFAULT 0`,
+      `CREATE TABLE project_objects (
+         project_id TEXT NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
+         object_id TEXT NOT NULL,
+         PRIMARY KEY (project_id, object_id)
+       ) WITHOUT ROWID`,
+    ],
+  },
 ];

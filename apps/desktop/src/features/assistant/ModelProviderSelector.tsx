@@ -22,6 +22,7 @@ import { ProviderIcon, providerNames } from "@/features/providers";
 import { backendRequest, errorMessage } from "@/lib/backend";
 import { formatModelName } from "./modelNames";
 import { useAssistantSelection } from "./useAssistantSelection";
+import { useChatgptModelSync } from "./useChatgptModelSync";
 import {
   selectAssistantModel,
   selectAssistantProvider,
@@ -33,6 +34,7 @@ export function ModelProviderSelector({ disabled }: { disabled: boolean }) {
 function SelectorControls({ disabled }: { disabled: boolean }) {
   const dispatch = useAppDispatch();
   const { provider, model, connected, providers } = useAssistantSelection();
+  useChatgptModelSync(provider?.id, connected);
   const [models, setModels] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);

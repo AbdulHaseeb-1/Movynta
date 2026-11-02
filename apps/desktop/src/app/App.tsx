@@ -1,23 +1,34 @@
 import { useEffect } from "react";
-import { Outlet, useLocation } from "react-router";
+import { Outlet, useMatches } from "react-router";
 import { TitleBar } from "./TitleBar";
 import { useAppDispatch } from "./hooks";
 import {
   backendDisconnected,
+  chatgptSessionLoaded,
+  chatgptSessionSchema,
   providersLoaded,
   providersSchema,
 } from "@/features/providers";
 import { backendRequest } from "@/lib/backend";
 
 function App() {
-  const { pathname } = useLocation();
+  // The page fades in when the route changes, not when only its parameters do.
+  const matches = useMatches();
+  const routeId = matches[matches.length - 1]?.id ?? "";
   const dispatch = useAppDispatch();
   useEffect(() => {
     let stopped = false;
     const connect = () => {
       void backendRequest("/providers", providersSchema)
         .then((providers) => {
-          if (!stopped) dispatch(providersLoaded(providers));
+          if (stopped) return;
+          dispatch(providersLoaded(providers));
+          // Keeps the ChatGPT sign-in summary and its 30-day countdown current.
+          void backendRequest("/providers/chatgpt/session", chatgptSessionSchema)
+            .then((session) => {
+              if (!stopped) dispatch(chatgptSessionLoaded(session));
+            })
+            .catch(() => undefined);
         })
         .catch(() => {
           if (!stopped) dispatch(backendDisconnected());
@@ -62,7 +73,7 @@ function App() {
     <div className="flex h-screen flex-col overflow-hidden">
       <TitleBar />
       <div
-        key={pathname}
+        key={routeId}
         className="min-h-0 flex-1 animate-page-fade-in overflow-y-auto motion-reduce:animate-none"
       >
         <Outlet />

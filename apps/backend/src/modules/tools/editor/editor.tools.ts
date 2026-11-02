@@ -50,8 +50,13 @@ export function createEditorTools({ bridge, proposals }: EditorToolDependencies)
 
     defineTool({
       name: "editor.propose_commands",
-      description:
+      description: [
         "Submit a batch of structured scene commands for preview. Nothing changes until editor.apply_proposal runs.",
+        "Commands run in order, and later commands may use objects created earlier in the same batch.",
+        "geometry.create_primitive creates a new object by itself (a box, sphere, cylinder or plane): give it a fresh objectId, then place it with scene.transform_object. Do not call scene.create_object first for the same objectId.",
+        "scene.create_object makes an empty group or parent. replaceExisting true on geometry.create_primitive changes the shape of an object that already exists.",
+        "If the proposal is rejected, the error lists each problem with the commandId and how to fix it; correct those commands and propose again.",
+      ].join(" "),
       permission: "propose",
       parameters: z.object({
         summary: z.string().min(1).max(300),

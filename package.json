@@ -13,7 +13,10 @@
     "check": "pnpm --filter @movynta/editor-protocol build && pnpm --filter movynta-desktop check && pnpm --filter movynta-backend check",
     "tauri": "pnpm --filter @movynta/editor-protocol build && pnpm --filter movynta-desktop tauri",
     "lint:fix": "oxlint --fix apps/desktop/src apps/desktop/vite.config.ts apps/backend/src",
-    "test:desktop": "pnpm --filter @movynta/editor-protocol build && pnpm --filter movynta-backend exec tsc -p tsconfig.spec.json --noEmit false --declaration --outDir .test-output && pnpm --filter movynta-desktop exec vitest run"
+    "test:desktop": "pnpm --filter @movynta/editor-protocol build && pnpm --filter movynta-backend exec tsc -p tsconfig.spec.json --noEmit false --declaration --outDir .test-output && pnpm --filter movynta-desktop exec vitest run",
+    "bench": "pnpm --filter movynta-benchmarks bench",
+    "bench:desktop": "pnpm --filter movynta-benchmarks bench:desktop",
+    "bench:backend": "pnpm --filter movynta-benchmarks bench:backend"
   },
   "devDependencies": {
     "oxlint": "^1.90.0",

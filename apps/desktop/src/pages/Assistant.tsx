@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { House } from "lucide-react";
-import { useNavigate } from "react-router";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { LoaderCircle } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router";
+import { useAppDispatch } from "@/app/hooks";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   CoordinateViewport,
   ViewportToolbar,
@@ -15,22 +16,186 @@ import {
   LOGO_SRC,
   PromptSuggestions,
   useAssistantRun,
+  UNSAVED_PROJECT_ID,
+  type SceneStep,
 } from "@/features/assistant";
+import {
+  ImportButton,
+  loadSavedModel,
+  useModelImport,
+} from "@/features/importer";
+import {
+  ObjectEditingOverlay,
+  ToolHint,
+  useObjectEditing,
+} from "@/features/objectEditing";
+import { PoseToggle, RigPanel, RigToggle, useRigPosing } from "@/features/rigging";
+import { createSerialQueue } from "@/lib";
+import {
+  createProject,
+  getProject,
+  getProjectConversation,
+  getProjectScene,
+  ProjectBar,
+  ProjectDialogs,
+  projectChanged,
+  projectPath,
+  updateProject,
+  useProjectActions,
+  type Project,
+  type ProjectConversation,
+} from "@/features/projects";
+import { errorMessage } from "@/lib/backend";
+import { cn } from "@/lib/utils";
 
-export default function Assistant() {
+/** A saved project, fetched in full before the workspace shows it. */
+interface SavedProject {
+  project: Project;
+  conversation: ProjectConversation;
+  steps: SceneStep[];
+}
+
+type OpeningState = "loading" | "ready" | "error";
+
+interface WorkspaceProps {
+  /** The project to open, or undefined for a blank workspace whose project is made on the first prompt. */
+  openProjectId: string | undefined;
+  /** Called once, when the first prompt creates the project. */
+  onProjectCreated: (projectId: string) => void;
+}
+
+function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [prompt, setPrompt] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [viewport, setViewport] = useState<Viewport | null>(null);
+  const [editorScene, setEditorScene] = useState<EditorScene | null>(null);
+  const [project, setProject] = useState<Project | undefined>(undefined);
+  const [opening, setOpening] = useState<OpeningState>(
+    openProjectId ? "loading" : "ready",
+  );
+  const [openError, setOpenError] = useState("");
+  const loading = useRef(0);
   const editorRef = useRef<EditorScene | null>(null);
-  const projectId = useRef(`studio-${crypto.randomUUID()}`);
-  const run = useAssistantRun(editorRef);
+  const projectRef = useRef<Project | undefined>(undefined);
+  const saved = useRef<SavedProject | null>(null);
+  const restored = useRef(false);
+
+  const ensureProject = useCallback(async () => {
+    if (projectRef.current) return projectRef.current.id;
+    const created = await createProject("design");
+    projectRef.current = created;
+    setProject(created);
+    onProjectCreated(created.id);
+    return created.id;
+  }, [onProjectCreated]);
+
+  const run = useAssistantRun(editorRef, ensureProject);
+  const hydrate = useRef(run.hydrate);
+  useEffect(() => {
+    hydrate.current = run.hydrate;
+  });
+
+  // Moving objects and posing rigs save to the same project, so they share one line of saves.
+  const [saves] = useState(createSerialQueue);
+  const editing = useObjectEditing({
+    viewport,
+    scene: editorScene,
+    disabled: run.busy || opening !== "ready",
+    saves,
+  });
+  const rigging = useRigPosing({
+    viewport,
+    scene: editorScene,
+    disabled: run.busy || opening !== "ready",
+    saves,
+  });
+
+  const importer = useModelImport({
+    editor: editorRef,
+    ensureProject,
+    // A model is content like any prompt: the workspace leaves its blank state and offers the chat.
+    onImported: () => {
+      setSubmitted(true);
+      setPanelOpen(true);
+    },
+  });
+
+  const actions = useProjectActions({
+    onChanged: (changed, action) => {
+      if (action === "duplicate") {
+        void navigate(projectPath(changed));
+        return;
+      }
+      projectRef.current = changed;
+      setProject(changed);
+    },
+    onRemoved: () => void navigate("/", { replace: true }),
+  });
+
+  /** Shows a saved project once both its data and the 3D view are ready, whichever comes last. */
+  const restoreSaved = useCallback(async () => {
+    const data = saved.current;
+    const editor = editorRef.current;
+    if (!data || !editor || restored.current) return;
+    restored.current = true;
+    try {
+      await editor.restore(data.steps, (step) =>
+        loadSavedModel(data.project.id, step),
+      );
+    } catch (failure) {
+      setOpenError(errorMessage(failure));
+      setOpening("error");
+      return;
+    }
+    hydrate.current(data.conversation);
+    const hasContent =
+      data.conversation.messages.length > 0 || data.steps.length > 0;
+    setSubmitted(hasContent);
+    setPanelOpen(data.conversation.messages.length > 0);
+    setOpening("ready");
+  }, []);
+
+  /** Fetches the saved project. An answer that arrives after a newer request, or after leaving, is dropped. */
+  const fetchProject = useCallback(() => {
+    if (!openProjectId) return;
+    const request = ++loading.current;
+    Promise.all([
+      getProject(openProjectId),
+      getProjectConversation(openProjectId),
+      getProjectScene(openProjectId),
+    ])
+      .then(([loaded, conversation, scene]) => {
+        if (request !== loading.current) return;
+        saved.current = { project: loaded, conversation, steps: scene.steps };
+        projectRef.current = loaded;
+        setProject(loaded);
+        void restoreSaved();
+      })
+      .catch((failure: unknown) => {
+        if (request !== loading.current) return;
+        setOpenError(errorMessage(failure));
+        setOpening("error");
+      });
+  }, [openProjectId, restoreSaved]);
+
+  useEffect(() => {
+    fetchProject();
+    return () => {
+      loading.current += 1;
+    };
+  }, [fetchProject]);
 
   // Before the first prompt the view can only rotate; pan, zoom and the toolbar come after it.
   useEffect(() => {
     viewport?.setNavigationScope(submitted ? "full" : "rotate");
   }, [viewport, submitted]);
+
+  useEffect(() => {
+    viewport?.setAssistantPanelOpen(panelOpen);
+  }, [viewport, panelOpen]);
 
   function handleSubmit() {
     const message = prompt.trim();
@@ -55,6 +220,13 @@ export default function Assistant() {
     document.getElementById("design-prompt")?.focus();
   }
 
+  async function renameProject(target: Project, name: string) {
+    const updated = await updateProject(target.id, { name });
+    projectRef.current = updated;
+    setProject(updated);
+    dispatch(projectChanged(updated));
+  }
+
   const composer = (variant: "hero" | "panel") => (
     <Composer
       variant={variant}
@@ -72,11 +244,17 @@ export default function Assistant() {
       <CoordinateViewport
         className="absolute inset-0"
         onReady={(ready) => {
-          editorRef.current = new EditorScene(ready.scene, projectId.current);
+          const created = new EditorScene(
+            ready.scene,
+            openProjectId ?? UNSAVED_PROJECT_ID,
+          );
+          editorRef.current = created;
+          setEditorScene(created);
           setViewport(ready);
+          void restoreSaved();
         }}
       >
-        {!submitted && (
+        {!submitted && opening === "ready" && (
           <section
             className="pointer-events-none relative w-[min(620px,calc(100vw-40px))] text-center"
             aria-label="Design prompt"
@@ -104,11 +282,27 @@ export default function Assistant() {
         )}
       </CoordinateViewport>
       {submitted && (
-        <div className="pointer-events-none absolute top-1/2 right-4 z-10 -translate-y-1/2">
+        // The tools sit at the bottom of the free part of the view: clear of the chat on the left and of
+        // the object's values on the right, and centered under the work.
+        <div
+          className={cn(
+            "pointer-events-none absolute right-4 bottom-4 z-10 flex flex-col items-center gap-2 transition-[left] duration-300 motion-reduce:transition-none",
+            panelOpen ? "left-[340px]" : "left-4",
+          )}
+        >
+          <ToolHint hasSelection={editing.selected !== null} />
           <ViewportToolbar
             viewport={viewport}
-            className="animate-in fade-in slide-in-from-right-4 duration-500 motion-reduce:animate-none"
-          />
+            // While a rig is posed the selection is its bones, and X must never delete the model.
+            hasSelection={editing.selected !== null && !rigging.posing}
+            disabled={run.busy}
+            onDelete={editing.requestDelete}
+            orientation="horizontal"
+            className="animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none"
+          >
+            <RigToggle rigging={rigging} tooltipSide="top" />
+            <PoseToggle rigging={rigging} tooltipSide="top" />
+          </ViewportToolbar>
         </div>
       )}
       {submitted && (
@@ -121,17 +315,105 @@ export default function Assistant() {
           className="absolute top-[64px] bottom-4 left-4 z-20 animate-in fade-in zoom-in-95 duration-300 motion-reduce:animate-none"
         />
       )}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="absolute top-4 left-4 z-20 size-10 rounded-xl bg-black/60 text-muted-foreground shadow-2xl backdrop-blur-2xl backdrop-saturate-150 hover:bg-foreground/10 hover:text-foreground"
-        onClick={() => void navigate("/")}
-        aria-label="Home"
-        title="Home"
-      >
-        <House className="size-[18px]" />
-      </Button>
+      <ProjectBar
+        project={project}
+        onAction={actions.perform}
+        onRename={renameProject}
+        className="absolute top-4 left-4 z-20"
+      />
+      {/* One column down the right edge: Import, then the selected object's values, then nothing else. */}
+      <div className="pointer-events-none absolute top-4 right-4 bottom-20 z-20 flex w-[272px] flex-col items-end gap-3">
+        <ImportButton
+          importer={importer}
+          disabled={run.busy || opening !== "ready"}
+          className="pointer-events-auto w-full shrink-0"
+        />
+        <ObjectEditingOverlay
+          editing={editing}
+          disabled={run.busy}
+          className="w-full origin-top-right scale-[0.7]"
+        />
+        <RigPanel
+          rigging={rigging}
+          disabled={run.busy}
+          className="w-full origin-top-right scale-[0.7]"
+        />
+      </div>
+      {opening !== "ready" && (
+        <div
+          role={opening === "error" ? "alert" : "status"}
+          className="absolute inset-0 z-30 grid place-items-center bg-background/80 backdrop-blur-sm"
+        >
+          {opening === "loading" ? (
+            <p className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
+              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+              Opening project…
+            </p>
+          ) : (
+            <div className="flex max-w-[360px] flex-col items-center gap-4 px-6 text-center">
+              <div>
+                <h2 className="text-sm font-medium">
+                  This project could not be opened
+                </h2>
+                <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                  {openError}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 rounded-lg px-4 text-[13px]"
+                  onClick={() => {
+                    restored.current = false;
+                    saved.current = null;
+                    editorRef.current?.reset();
+                    setOpening("loading");
+                    fetchProject();
+                  }}
+                >
+                  Try again
+                </Button>
+                <Link
+                  to="/"
+                  className={cn(
+                    buttonVariants(),
+                    "h-9 rounded-lg px-4 text-[13px]",
+                  )}
+                >
+                  Back to home
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <ProjectDialogs actions={actions} />
     </main>
+  );
+}
+
+/**
+ * The design workspace. `/studio` is a blank one; `/studio/:projectId` opens a saved project. When the
+ * first prompt creates a project the address changes to its own, but the workspace stays as it is.
+ */
+export default function Assistant() {
+  const { projectId } = useParams();
+  const navigate = useNavigate();
+  const [instance] = useState(() => crypto.randomUUID());
+  const [created, setCreated] = useState<string | undefined>(undefined);
+
+  // The address follows the project once it exists, so a reload or a link reopens it.
+  useEffect(() => {
+    if (created) void navigate(projectPath({ id: created, category: "design" }), { replace: true });
+  }, [created, navigate]);
+
+  const openProjectId = projectId && projectId !== created ? projectId : undefined;
+  return (
+    <StudioWorkspace
+      key={openProjectId ?? instance}
+      openProjectId={openProjectId}
+      onProjectCreated={setCreated}
+    />
   );
 }

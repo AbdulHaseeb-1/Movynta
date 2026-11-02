@@ -1,0 +1,127 @@
+{
+  "suite": "importer/import.parse",
+  "environment": {
+    "timestamp": "2026-11-02T11:54:18.239Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 43762211,
+  "results": [
+    {
+      "name": "parseModel (obj)",
+      "params": {
+        "triangles": 25000
+      },
+      "samples": 12,
+      "median": 94.34504999999626,
+      "p95": 134.01894000000027,
+      "p99": 142.77898799999792,
+      "mad": 18.12424999999712,
+      "mean": 94.89114999999947,
+      "opsPerSecond": 10.538390566454359
+    },
+    {
+      "name": "parseModel (stl)",
+      "params": {
+        "triangles": 25000
+      },
+      "samples": 131,
+      "median": 2.1964999999981956,
+      "p95": 5.2628500000028,
+      "p99": 9.796740000001545,
+      "mad": 0.3948999999993248,
+      "mean": 2.6884557251910235,
+      "opsPerSecond": 371.96074706751835
+    },
+    {
+      "name": "parseModel (obj)",
+      "params": {
+        "triangles": 50000
+      },
+      "samples": 12,
+      "median": 146.19420000000173,
+      "p95": 221.58285500000125,
+      "p99": 256.27505100000144,
+      "mad": 16.68315000000075,
+      "mean": 155.69889166666812,
+      "opsPerSecond": 6.422653297628316
+    },
+    {
+      "name": "parseModel (stl)",
+      "params": {
+        "triangles": 50000
+      },
+      "samples": 129,
+      "median": 2.5662999999985914,
+      "p95": 4.153399999999964,
+      "p99": 6.877355999996944,
+      "mad": 0.4536999999982072,
+      "mean": 2.717425581395557,
+      "opsPerSecond": 367.99535812364053
+    },
+    {
+      "name": "parseModel (obj)",
+      "params": {
+        "triangles": 100000
+      },
+      "samples": 12,
+      "median": 321.846000000005,
+      "p95": 471.5508800000054,
+      "p99": 476.94105600000097,
+      "mad": 42.24465000000055,
+      "mean": 347.71776666666545,
+      "opsPerSecond": 2.875895613808642
+    },
+    {
+      "name": "parseModel (stl)",
+      "params": {
+        "triangles": 100000
+      },
+      "samples": 44,
+      "median": 6.758099999999104,
+      "p95": 20.715565000010994,
+      "p99": 28.814865999999167,
+      "mad": 0.6109500000020489,
+      "mean": 8.007536363637138,
+      "opsPerSecond": 124.88235514497066
+    },
+    {
+      "name": "parseModel (obj)",
+      "params": {
+        "triangles": 200000
+      },
+      "samples": 12,
+      "median": 636.835800000008,
+      "p95": 831.6517050000031,
+      "p99": 897.1408209999979,
+      "mad": 85.6105499999976,
+      "mean": 652.1513333333363,
+      "opsPerSecond": 1.5333864225788014
+    },
+    {
+      "name": "parseModel (stl)",
+      "params": {
+        "triangles": 200000
+      },
+      "samples": 24,
+      "median": 12.20585000000574,
+      "p95": 34.92927000000781,
+      "p99": 44.920387999999505,
+      "mad": 2.0543999999936204,
+      "mean": 15.44027083333458,
+      "opsPerSecond": 64.76570332180071
+    }
+  ],
+  "growth": {
+    "obj": 0.9845509011808994,
+    "stl": 0.8528831626664467
+  }
+}

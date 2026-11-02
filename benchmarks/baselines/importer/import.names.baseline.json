@@ -1,0 +1,72 @@
+{
+  "suite": "importer/import.names",
+  "environment": {
+    "timestamp": "2026-11-02T13:11:34.039Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 175551639,
+  "results": [
+    {
+      "name": "makeObjectId (2000 taken)",
+      "params": {
+        "taken": 2000
+      },
+      "samples": 50661,
+      "median": 0.004999999975552782,
+      "p95": 0.007799999992130324,
+      "p99": 0.038679999992018856,
+      "mad": 0.0009000000136438757,
+      "mean": 0.006908742425136897,
+      "opsPerSecond": 144744.14277793618
+    },
+    {
+      "name": "modelFormatOf",
+      "params": {
+        "calls": 1
+      },
+      "samples": 813019,
+      "median": 0.00039999998989515007,
+      "p95": 0.0005999999993946403,
+      "p99": 0.0010000000183936208,
+      "mad": 0.00010000000474974513,
+      "mean": 0.00043049449028724463,
+      "opsPerSecond": 2322910.1012018914
+    },
+    {
+      "name": "unsupportedFileMessage",
+      "params": {
+        "calls": 1
+      },
+      "samples": 562419,
+      "median": 0.0004999999946448952,
+      "p95": 0.0007000000041443855,
+      "p99": 0.0011999999987892807,
+      "mad": 2.9103830456733704e-11,
+      "mean": 0.0006223125463384877,
+      "opsPerSecond": 1606909.5921072448
+    },
+    {
+      "name": "formatFileSize",
+      "params": {
+        "calls": 1
+      },
+      "samples": 389969,
+      "median": 0.0007999999797903001,
+      "p95": 0.0009999999892897904,
+      "p99": 0.001500000013038516,
+      "mad": 0.00010000003385357559,
+      "mean": 0.0008975095456208084,
+      "opsPerSecond": 1114194.2777982366
+    }
+  ],
+  "growth": {}
+}

@@ -169,6 +169,7 @@ export class AgentRunsService implements OnModuleInit {
       input: dto.message,
       now,
     });
+    this.projects.recordActivity(dto.projectId);
     this.runs.transition(runId, "running", {}, now);
     this.events.publish(runId, "run.started", {
       runId,

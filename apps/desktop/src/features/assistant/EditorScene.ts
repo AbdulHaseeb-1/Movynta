@@ -10,10 +10,70 @@ import {
   type Object3D,
   type Scene,
 } from "three";
-import { editorCommandListSchema } from "@movynta/editor-protocol";
+import { sceneCommandListSchema } from "@movynta/editor-protocol";
 import type { z } from "zod";
+import { boneAt, isSkinnedMesh, rigOf } from "@/features/rigging/rig";
 
-type Command = z.infer<typeof editorCommandListSchema>[number];
+type Command = z.infer<typeof sceneCommandListSchema>[number];
+
+/** Stands in for a project's id until the first prompt or import creates the project. */
+export const UNSAVED_PROJECT_ID = "unsaved-project";
+
+export type Vec3 = [number, number, number];
+/** Where an object is: position, rotation (radians, XYZ order) and scale. */
+export interface ObjectTransform {
+  position: Vec3;
+  rotation: Vec3;
+  scale: Vec3;
+}
+
+/** The result of a change the user made by hand. */
+export interface UserEdit {
+  applied: boolean;
+  /** The commands to record with the project; they replay the change when it is reopened. */
+  commands: unknown[];
+}
+
+/** Whether an id is taken, without copying the ids. */
+export interface IdLookup {
+  has: (id: string) => boolean;
+}
+
+/** A model the user imported, as the project remembers it. */
+export interface ImportedModelStep {
+  kind: "import";
+  assetId: string;
+  objectId: string;
+  name: string;
+  format: string;
+}
+/** One saved change to the scene, in the order it happened. */
+export type SceneStep =
+  | { kind: "commands"; proposalId: string; commands?: unknown }
+  | ImportedModelStep;
+/** The commands that change objects that already exist, which is most of what the user does by hand. */
+type InPlaceCommand = Extract<
+  Command,
+  { type: "scene.transform_object" | "scene.delete_object" | "rig.pose_bone" }
+>;
+function isInPlace(command: Command): command is InPlaceCommand {
+  return (
+    command.type === "scene.transform_object" ||
+    command.type === "scene.delete_object" ||
+    command.type === "rig.pose_bone"
+  );
+}
+/** Whether a saved step does nothing but pose rigs. */
+function isPoseOnly(commands: unknown): boolean {
+  return (
+    Array.isArray(commands) &&
+    commands.length > 0 &&
+    commands.every(
+      (command: unknown) =>
+        typeof command === "object" && command !== null && "type" in command && command.type === "rig.pose_bone",
+    )
+  );
+}
 function isMesh(object: Object3D | undefined): object is Mesh {
   return object instanceof Mesh;
 }
@@ -24,38 +84,283 @@ export class EditorScene {
   private readonly applied = new Set<string>();
   private revision = 0;
   private readonly scene: Scene;
-  readonly projectId: string;
+  private boundProjectId: string;
+  /** The selected objects in the order they were chosen; the last one is the active object. */
+  private selected: readonly string[] = [];
+  private readonly listeners = new Set<() => void>();
+  /** Each registered object's id, so finding it from the object never has to search. */
+  private ids = new WeakMap<Object3D, string>();
+  private readonly idLookup: IdLookup = { has: (id) => this.objects.has(id) };
   constructor(scene: Scene, projectId: string) {
     this.scene = scene;
-    this.projectId = projectId;
+    this.boundProjectId = projectId;
+  }
+
+  /** The project this scene belongs to; it is the id the backend authorizes editor connections for. */
+  get projectId(): string {
+    return this.boundProjectId;
+  }
+
+  /** True once the scene belongs to a saved project, which is what the user's edits are recorded in. */
+  get hasProject(): boolean {
+    return this.boundProjectId !== UNSAVED_PROJECT_ID;
+  }
+
+  get currentRevision(): number {
+    return this.revision;
+  }
+
+  /** The id of the active object: the one chosen last, which the panel and the handles follow. */
+  get selection(): string | null {
+    return this.selected[this.selected.length - 1] ?? null;
+  }
+
+  /**
+   * Every selected object, the active one last. The array is replaced, never changed, when the selection
+   * changes, so it can be compared by identity to tell whether the selection is still the same.
+   */
+  get selectedIds(): readonly string[] {
+    return this.selected;
+  }
+
+  /** Calls `listener` after anything in the scene changes: a batch, an import, a selection. */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify() {
+    for (const listener of this.listeners) listener();
+  }
+
+  getObject(id: string): Object3D | undefined {
+    return this.objects.get(id);
+  }
+
+  /** Every object of the scene with its id, for walking the scene without copying it. */
+  entries(): IterableIterator<readonly [string, Object3D]> {
+    return this.objects.entries();
+  }
+
+  /** The objects a click can select. */
+  pickables(): Object3D[] {
+    return [...this.objects.values()];
+  }
+
+  /** The object that `node` belongs to: itself, or the closest one above it, such as a part of an imported model. */
+  idOf(node: Object3D): string | undefined {
+    for (let current: Object3D | null = node; current; current = current.parent) {
+      const id = this.ids.get(current);
+      if (id !== undefined) return id;
+    }
+    return undefined;
+  }
+
+  transformOf(id: string): ObjectTransform | undefined {
+    const object = this.objects.get(id);
+    if (!object) return undefined;
+    return {
+      position: object.position.toArray(),
+      rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
+      scale: object.scale.toArray(),
+    };
+  }
+
+  /** Selects one object alone, or clears the selection. An id that is not in the scene clears it. */
+  select(id: string | null) {
+    this.selectMany(id === null ? [] : [id]);
+  }
+
+  /** Selects exactly these objects, the last of them active. Ids that are not in the scene, and repeats, are left out. */
+  selectMany(ids: readonly string[]) {
+    const next: string[] = [];
+    const seen = new Set<string>();
+    for (const id of ids) {
+      if (!this.objects.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      next.push(id);
+    }
+    this.setSelection(next);
+  }
+
+  /**
+   * Adds an object to the selection and makes it active, or, when it is the active object, takes it out.
+   * An object that is selected but not active becomes the active one.
+   */
+  toggleSelection(id: string) {
+    if (!this.objects.has(id)) return;
+    const others = this.selected.filter((selectedId) => selectedId !== id);
+    this.setSelection(this.selection === id ? others : [...others, id]);
+  }
+
+  selectAll() {
+    this.setSelection([...this.objects.keys()]);
+  }
+
+  private setSelection(next: readonly string[]) {
+    if (next.length === this.selected.length && next.every((id, at) => id === this.selected[at])) return;
+    this.selected = next;
+    this.notify();
+  }
+
+  /** Drops objects that no longer exist from the selection. */
+  private pruneSelection() {
+    if (this.selected.some((id) => !this.objects.has(id)))
+      this.selected = this.selected.filter((id) => this.objects.has(id));
+  }
+
+  /**
+   * Applies a move, rotation or scale the user made by hand, as a command like any other, so it takes
+   * the same path as the assistant's changes and can be recorded and replayed.
+   */
+  applyUserTransform(id: string, transform: ObjectTransform): UserEdit {
+    const commands = [
+      { commandId: "edit", type: "scene.transform_object", objectId: id, transform },
+    ];
+    return { applied: this.applyUserEdit(commands), commands };
+  }
+
+  /** Applies a move, rotation or scale of several objects at once, as one batch of at most 50. */
+  applyUserTransforms(changes: readonly { id: string; transform: ObjectTransform }[]): UserEdit {
+    const commands = changes.map(({ id, transform }, index) => ({
+      commandId: `edit-${index}`,
+      type: "scene.transform_object",
+      objectId: id,
+      transform,
+    }));
+    return { applied: this.applyUserEdit(commands), commands };
+  }
+
+  /** Poses one bone of an imported model's rig by hand, as a command, so it is recorded and replayed like any other change. */
+  applyUserPose(id: string, bone: number, transform: ObjectTransform): UserEdit {
+    const commands = [{ commandId: "pose", type: "rig.pose_bone", objectId: id, bone, transform }];
+    return { applied: this.applyUserEdit(commands), commands };
+  }
+
+  /** Applies commands that came from the user, not the assistant. Returns whether they were applied. */
+  applyUserEdit(commands: readonly unknown[]): boolean {
+    return this.execute(`usr_${crypto.randomUUID()}`, this.revision, commands).status === "applied";
+  }
+
+  /**
+   * The commands that delete objects together with everything attached below them, the deepest first,
+   * as the scene requires. An object named twice, or reached from one that is also named, is deleted
+   * once. Empty when none of the objects exists.
+   */
+  deleteCommandsFor(ids: string | readonly string[]): unknown[] {
+    const named = (typeof ids === "string" ? [ids] : ids).filter((id) => this.objects.has(id));
+    if (named.length === 0) return [];
+    const below = new Map<string, string[]>();
+    for (const [childId, object] of this.objects) {
+      const parentId = object.parent ? this.ids.get(object.parent) : undefined;
+      if (parentId === undefined) continue;
+      const siblings = below.get(parentId);
+      if (siblings) siblings.push(childId);
+      else below.set(parentId, [childId]);
+    }
+    const order: string[] = [];
+    const visited = new Set<string>();
+    const visit = (current: string) => {
+      if (visited.has(current)) return;
+      visited.add(current);
+      for (const child of below.get(current) ?? []) visit(child);
+      order.push(current);
+    };
+    for (const id of named) visit(id);
+    return order.map((objectId, index) => ({
+      commandId: `delete-${index}`,
+      type: "scene.delete_object",
+      objectId,
+    }));
+  }
+
+  /** Attaches the scene to a project created after the editor opened, i.e. on the first prompt. */
+  bindProject(projectId: string) {
+    this.boundProjectId = projectId;
+  }
+
+  /**
+   * Rebuilds a saved scene by replaying its steps in order. `loadImport` fetches and parses an imported
+   * model. Fails, leaving the scene as far as it got, if a step cannot be replayed, so a damaged
+   * project is reported instead of shown half-empty.
+   */
+  async restore(
+    steps: readonly SceneStep[],
+    loadImport: (step: ImportedModelStep) => Promise<Object3D>,
+  ) {
+    for (const step of steps) {
+      if (step.kind === "import") {
+        // Steps must replay one after another, in the order they happened.
+        // eslint-disable-next-line no-await-in-loop
+        this.importObject(step.objectId, await loadImport(step));
+        continue;
+      }
+      const result = this.execute(step.proposalId, this.revision, step.commands);
+      // A pose only changes how a model stands. One that no longer fits, such as a bone the model does
+      // not have, is not worth refusing to open the project for.
+      if (result.status !== "applied" && !isPoseOnly(step.commands))
+        throw new Error("This project's scene could not be restored");
+    }
+  }
+
+  /** Empties the scene, as when a project is opened again after a failed attempt. */
+  reset() {
+    for (const object of this.objects.values()) this.disposeTree(object);
+    this.objects = new Map();
+    this.ids = new WeakMap();
+    this.applied.clear();
+    this.revision = 0;
+    this.selected = [];
+    this.notify();
+  }
+
+  /** The ids in use, so a new object can be given one that is free. */
+  objectIds(): IdLookup {
+    return this.idLookup;
+  }
+
+  /**
+   * Adds an imported model as one object of the scene. The assistant can then move or delete it with
+   * the usual commands, but its inner parts stay part of the model. This is a change made by the
+   * user, not a proposal, so it moves the scene to a new revision directly.
+   */
+  importObject(objectId: string, object: Object3D) {
+    if (this.objects.has(objectId))
+      throw new Error(`Object "${objectId}" already exists`);
+    this.objects.set(objectId, object);
+    this.ids.set(object, objectId);
+    if (!object.parent) this.scene.add(object);
+    this.revision += 1;
+    this.notify();
   }
 
   context() {
-    const ids = new Map([...this.objects].map(([id, object]) => [object, id]));
-    return {
-      projectId: this.projectId,
-      revision: this.revision,
-      activeSceneName: "Main",
-      selectedObjectIds: [],
-      objects: [...this.objects].map(([id, object]) => ({
+    const objects = [];
+    for (const [id, object] of this.objects) {
+      const parent = object.parent;
+      objects.push({
         id,
         name: object.name,
         type: object instanceof Mesh ? "mesh" : "empty",
-        parentId:
-          object.parent && object.parent !== this.scene
-            ? (ids.get(object.parent) ?? null)
-            : null,
+        parentId: parent && parent !== this.scene ? (this.ids.get(parent) ?? null) : null,
         transform: {
           position: object.position.toArray(),
           rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
           scale: object.scale.toArray(),
         },
-      })),
+      });
+    }
+    return {
+      projectId: this.projectId,
+      revision: this.revision,
+      activeSceneName: "Main",
+      selectedObjectIds: this.selected.slice(-500),
+      objects,
     };
   }
 
   execute(proposalId: string, expectedRevision: number, input: unknown) {
-    const commands = editorCommandListSchema.parse(input);
+    const commands = sceneCommandListSchema.parse(input);
     const results = commands.map((command) => ({
       commandId: command.commandId,
       status: "applied" as const,
@@ -68,11 +373,16 @@ export class EditorScene {
         revision: this.revision,
         results: [],
       };
+    // Moving, turning, resizing, posing and deleting are the common edits, and need no copy of the scene to be safe.
+    if (commands.every(isInPlace)) return this.applyInPlace(proposalId, commands, results);
     const staged = new Map<string, Object3D>();
+    /** Which original each staged copy was made from. */
+    const copiedFrom = new Map<Object3D, Object3D>();
     const ids = new Map([...this.objects].map(([id, object]) => [object, id]));
     for (const [id, object] of this.objects) {
       const clone = object.clone(false);
       staged.set(id, clone);
+      copiedFrom.set(clone, object);
     }
     for (const [id, object] of this.objects) {
       const parent = object.parent;
@@ -83,9 +393,14 @@ export class EditorScene {
         if (clone && clonedParent) clonedParent.add(clone);
       }
     }
+    let current: Command | undefined;
     try {
-      for (const command of commands) this.apply(staged, command);
-    } catch {
+      for (const command of commands) {
+        current = command;
+        this.apply(staged, command);
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Command failed";
       for (const [id, object] of staged) {
         const original = this.objects.get(id);
         if (
@@ -102,13 +417,28 @@ export class EditorScene {
         results: commands.map((command) => ({
           commandId: command.commandId,
           status: "failed" as const,
+          message:
+            command === current
+              ? reason
+              : "Not applied: the batch was rolled back",
         })),
-        message: "The scene command batch was rejected",
+        message: `The batch was rolled back: command ${current?.commandId ?? "?"} failed. ${reason}`,
       };
     }
+    const registered = new Set(this.objects.values());
     for (const [id, object] of this.objects) {
-      object.removeFromParent();
       const replacement = staged.get(id);
+      // An imported model keeps its inner parts: they follow the object into its new copy, or go with it.
+      // One pass splits them from the scene's own objects, which stay attached for the next step.
+      const kept: Object3D[] = [];
+      const inner: Object3D[] = [];
+      for (const child of object.children) (registered.has(child) ? kept : inner).push(child);
+      if (inner.length > 0) {
+        object.children = kept;
+        if (replacement && copiedFrom.get(replacement) === object) this.adopt(replacement, inner);
+        else for (const child of inner) this.disposeTree(child);
+      }
+      object.removeFromParent();
       if (
         !replacement ||
         (replacement instanceof Mesh &&
@@ -118,37 +448,130 @@ export class EditorScene {
         this.dispose(object);
     }
     this.objects = staged;
+    for (const [id, object] of staged) this.ids.set(object, id);
     const stagedObjects = new Set(staged.values());
     for (const object of staged.values())
       if (!object.parent || !stagedObjects.has(object.parent))
         this.scene.add(object);
     this.revision += 1;
     this.applied.add(proposalId);
+    this.pruneSelection();
+    this.notify();
     return { status: "applied", revision: this.revision, results };
+  }
+
+  /**
+   * Applies a batch of transforms, poses and deletions straight to the objects. The whole batch is checked
+   * first, following what the scene will look like as it goes, and nothing checked can fail when it
+   * runs, so the batch is applied whole or not at all without staging a copy of the scene. The cost
+   * follows the batch, not the scene.
+   */
+  private applyInPlace(
+    proposalId: string,
+    commands: readonly InPlaceCommand[],
+    results: { commandId: string; status: "applied" }[],
+  ) {
+    const gone = new Set<string>();
+    const fail = (failed: InPlaceCommand, reason: string) => ({
+      status: "failed",
+      revision: this.revision,
+      results: commands.map((command) => ({
+        commandId: command.commandId,
+        status: "failed" as const,
+        message: command === failed ? reason : "Not applied: the batch was rolled back",
+      })),
+      message: `The batch was rolled back: command ${failed.commandId} failed. ${reason}`,
+    });
+    for (const command of commands) {
+      const object = this.objects.get(command.objectId);
+      if (!object || gone.has(command.objectId))
+        return fail(command, `Object "${command.objectId}" does not exist`);
+      if (command.type === "rig.pose_bone") {
+        if (!this.boneOf(object, command.bone))
+          return fail(command, `Object "${command.objectId}" has no bone ${command.bone}`);
+        continue;
+      }
+      if (command.type !== "scene.delete_object") continue;
+      // An object can only go once whatever hangs below it has gone, earlier in the same batch or before.
+      for (const child of object.children) {
+        const childId = this.ids.get(child);
+        if (childId !== undefined && !gone.has(childId))
+          return fail(command, `Delete the children of "${command.objectId}" before deleting it`);
+      }
+      gone.add(command.objectId);
+    }
+    for (const command of commands) {
+      const object = this.objects.get(command.objectId);
+      if (!object) continue;
+      if (command.type === "scene.transform_object") this.transform(object, command.transform);
+      else if (command.type === "rig.pose_bone") this.pose(object, command);
+      else this.removeObject(command.objectId, object);
+    }
+    this.revision += 1;
+    this.applied.add(proposalId);
+    this.pruneSelection();
+    this.notify();
+    return { status: "applied", revision: this.revision, results };
+  }
+
+  /** The bone at `index` of an imported model's rig, if the model has one. */
+  private boneOf(object: Object3D, index: number) {
+    const rig = rigOf(object);
+    return rig ? boneAt(rig, index) : undefined;
+  }
+
+  private pose(object: Object3D, command: Extract<InPlaceCommand, { type: "rig.pose_bone" }>) {
+    const rig = rigOf(object);
+    const bone = rig ? boneAt(rig, command.bone) : undefined;
+    if (!rig || !bone) return;
+    this.transform(bone, command.transform);
+    // A skinned mesh measures its bounds once, in the pose it had then. With the bones moved they are
+    // wrong, and a click on a limb that left them would miss the model, so they are measured again when next needed.
+    // three.js reads null as "not measured yet", though its typings do not allow it.
+    for (const mesh of rig.skinned) Object.assign(mesh, { boundingBox: null, boundingSphere: null });
+  }
+
+  /** Takes an object out of the scene and frees what it and its inner parts held. */
+  private removeObject(id: string, object: Object3D) {
+    // Whatever is still attached is the imported model's own parts, since scene objects below it went first.
+    const parts = object.children;
+    object.children = [];
+    for (const part of parts) {
+      part.parent = null;
+      part.traverse((node) => this.dispose(node));
+    }
+    object.removeFromParent();
+    this.dispose(object);
+    this.objects.delete(id);
   }
 
   private apply(objects: Map<string, Object3D>, command: Command) {
     const existing = objects.get(command.objectId);
     if (command.type === "scene.delete_object") {
-      if (!existing) throw new Error("Missing object");
+      if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
       for (const child of existing.children) {
         const id = [...objects].find(([, object]) => object === child)?.[0];
-        if (id) throw new Error("Delete children before their parent");
+        if (id) throw new Error(`Delete the children of "${command.objectId}" before deleting it`);
       }
       existing.removeFromParent();
       objects.delete(command.objectId);
       return;
     }
     if (command.type === "scene.transform_object") {
-      if (!existing) throw new Error("Missing object");
+      if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
       this.transform(existing, command.transform);
       return;
     }
+    // A rig's bones stay with the model through a copy of the scene, so a pose is never staged.
+    if (command.type === "rig.pose_bone")
+      throw new Error("Posing a rig cannot be combined with commands that build the scene");
     if (
       existing &&
       !(command.type === "geometry.create_primitive" && command.replaceExisting)
     )
-      throw new Error("Duplicate object");
+      throw new Error(
+        `Object "${command.objectId}" already exists; use another objectId or set replaceExisting`,
+      );
     let object: Object3D;
     if (command.type === "geometry.create_primitive") {
       const size = command.size;
@@ -171,13 +594,20 @@ export class EditorScene {
       if (command.transform) this.transform(object, command.transform);
     }
     if (existing) {
+      // Replacing a shape keeps the object's name, place and position in the hierarchy.
+      object.name = existing.name;
+      object.position.copy(existing.position);
+      object.quaternion.copy(existing.quaternion);
+      object.scale.copy(existing.scale);
       for (const child of [...existing.children]) object.add(child);
+      existing.parent?.add(object);
       existing.removeFromParent();
     }
     objects.set(command.objectId, object);
     if (command.type === "scene.create_object" && command.parentId) {
       const parent = objects.get(command.parentId);
-      if (!parent || parent === object) throw new Error("Missing parent");
+      if (!parent || parent === object)
+        throw new Error(`Parent "${command.parentId}" does not exist`);
       parent.add(object);
     }
   }
@@ -196,8 +626,26 @@ export class EditorScene {
     }
     if (transform.scale) object.scale.fromArray(transform.scale);
   }
+  /**
+   * Hands parts to another object in a single pass. The caller has already taken them out of their old
+   * parent, so none of them has to be searched for there: adding them one at a time through three.js
+   * makes every part a search of the old list, which is quadratic for a model of thousands of parts.
+   */
+  private adopt(to: Object3D, children: readonly Object3D[]) {
+    for (const child of children) {
+      child.parent = to;
+      to.children.push(child);
+    }
+  }
+
+  /** Frees everything under `root`, which must not be shared with anything that stays in the scene. */
+  private disposeTree(root: Object3D) {
+    root.removeFromParent();
+    root.traverse((node) => this.dispose(node));
+  }
   private dispose(object: Object3D) {
     if (isMesh(object)) {
+      if (isSkinnedMesh(object)) object.skeleton.dispose();
       object.geometry.dispose();
       const materials = Array.isArray(object.material)
         ? object.material

@@ -1,0 +1,72 @@
+{
+  "suite": "importer/import.names",
+  "environment": {
+    "timestamp": "2026-11-02T11:54:25.732Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 247557598,
+  "results": [
+    {
+      "name": "makeObjectId (2000 taken)",
+      "params": {
+        "taken": 2000
+      },
+      "samples": 104174,
+      "median": 0.0026000000070780516,
+      "p95": 0.004700000004959293,
+      "p99": 0.012699999992037192,
+      "mad": 0.0003000000142492354,
+      "mean": 0.0033597673123756636,
+      "opsPerSecond": 297639.65984087996
+    },
+    {
+      "name": "modelFormatOf",
+      "params": {
+        "calls": 1
+      },
+      "samples": 1125109,
+      "median": 0.00029999999969732016,
+      "p95": 0.0005000000091968104,
+      "p99": 0.0008999999990919605,
+      "mad": 0.00010000000474974513,
+      "mean": 0.00031108123746514515,
+      "opsPerSecond": 3214594.3874613917
+    },
+    {
+      "name": "unsupportedFileMessage",
+      "params": {
+        "calls": 1
+      },
+      "samples": 1196764,
+      "median": 0.00020000000949949026,
+      "p95": 0.0005000000091968104,
+      "p99": 0.0010000000038417056,
+      "mad": 0.0000999999901978299,
+      "mean": 0.00029245532118935566,
+      "opsPerSecond": 3419325.714208945
+    },
+    {
+      "name": "formatFileSize",
+      "params": {
+        "calls": 1
+      },
+      "samples": 561756,
+      "median": 0.0005999999993946403,
+      "p95": 0.0008000000088941306,
+      "p99": 0.0011999999987892807,
+      "mad": 0.00010000000474974513,
+      "mean": 0.0006238455842017855,
+      "opsPerSecond": 1602960.773184772
+    }
+  ],
+  "growth": {}
+}

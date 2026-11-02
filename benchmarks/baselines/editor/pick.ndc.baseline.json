@@ -1,0 +1,33 @@
+{
+  "suite": "editor/pick.ndc",
+  "environment": {
+    "timestamp": "2026-11-02T13:13:48.432Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 0,
+  "results": [
+    {
+      "name": "toNdc",
+      "params": {
+        "calls": 1
+      },
+      "samples": 1231821,
+      "median": 0.00020000000040454324,
+      "p95": 0.0003999999989900971,
+      "p99": 0.0005000000001018634,
+      "mad": 0.00009999999929277692,
+      "mean": 0.00028413259718758447,
+      "opsPerSecond": 3519483.543592851
+    }
+  ],
+  "growth": {}
+}

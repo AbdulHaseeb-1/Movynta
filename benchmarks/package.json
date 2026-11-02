@@ -1,0 +1,25 @@
+{
+  "name": "movynta-benchmarks",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Reproducible performance benchmarks for the desktop app and the backend.",
+  "scripts": {
+    "bench": "vitest run --config vitest.config.ts",
+    "bench:desktop": "vitest run --config vitest.config.ts suites/editor suites/importer suites/viewport suites/projects suites/rigging",
+    "bench:backend": "pnpm --filter movynta-backend build && vitest run --config vitest.config.ts suites/backend",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "three": "^0.187.0",
+    "tinybench": "^6.2.2",
+    "zod": "4.6.7",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

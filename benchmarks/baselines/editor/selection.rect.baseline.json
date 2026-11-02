@@ -1,0 +1,87 @@
+{
+  "suite": "editor/selection.rect",
+  "environment": {
+    "timestamp": "2026-11-02T14:33:42.903Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 2693400,
+  "results": [
+    {
+      "name": "idsInRect",
+      "params": {
+        "objects": 100
+      },
+      "samples": 3327,
+      "median": 0.10439999999925931,
+      "p95": 0.17819999999937863,
+      "p99": 0.3134440000003268,
+      "mad": 0.038199999999051215,
+      "mean": 0.10520249473999627,
+      "opsPerSecond": 9505.478006690428
+    },
+    {
+      "name": "idsInRect",
+      "params": {
+        "objects": 200
+      },
+      "samples": 2555,
+      "median": 0.12640000000010332,
+      "p95": 0.1934900000000197,
+      "p99": 0.29152200000038647,
+      "mad": 0.01330000000052678,
+      "mean": 0.13701158512721284,
+      "opsPerSecond": 7298.652877211205
+    },
+    {
+      "name": "idsInRect",
+      "params": {
+        "objects": 400
+      },
+      "samples": 1193,
+      "median": 0.2701999999999316,
+      "p95": 0.4238999999997759,
+      "p99": 0.5417199999996951,
+      "mad": 0.02269999999953143,
+      "mean": 0.2935108968985884,
+      "opsPerSecond": 3407.0285313649265
+    },
+    {
+      "name": "idsInRect",
+      "params": {
+        "objects": 800
+      },
+      "samples": 484,
+      "median": 0.6010000000001128,
+      "p95": 1.3932499999998982,
+      "p99": 1.7432089999999707,
+      "mad": 0.08835000000044602,
+      "mean": 0.7235987603305584,
+      "opsPerSecond": 1381.9813615257915
+    },
+    {
+      "name": "idsInRect",
+      "params": {
+        "objects": 1600
+      },
+      "samples": 172,
+      "median": 1.8153500000003078,
+      "p95": 3.6052400000002307,
+      "p99": 4.0908629999998505,
+      "mad": 0.35429999999996653,
+      "mean": 2.044284883720958,
+      "opsPerSecond": 489.16861243909614
+    }
+  ],
+  "growth": {
+    "objects": 1.048947674751164
+  }
+}

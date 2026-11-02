@@ -1,0 +1,87 @@
+{
+  "suite": "importer/import.parts",
+  "environment": {
+    "timestamp": "2026-11-02T11:53:54.199Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 43761740,
+  "results": [
+    {
+      "name": "prepareModel (many parts)",
+      "params": {
+        "parts": 1000
+      },
+      "samples": 135,
+      "median": 2.444100000000617,
+      "p95": 4.141359999998531,
+      "p99": 4.79978399999949,
+      "mad": 0.6431999999986147,
+      "mean": 2.607925185185256,
+      "opsPerSecond": 383.4465826246332
+    },
+    {
+      "name": "prepareModel (many parts)",
+      "params": {
+        "parts": 2000
+      },
+      "samples": 49,
+      "median": 6.807600000000093,
+      "p95": 11.036999999998077,
+      "p99": 12.65529200000572,
+      "mad": 1.7861999999950058,
+      "mean": 7.1813775510202005,
+      "opsPerSecond": 139.24904976733023
+    },
+    {
+      "name": "prepareModel (many parts)",
+      "params": {
+        "parts": 4000
+      },
+      "samples": 27,
+      "median": 13.590400000000955,
+      "p95": 18.494769999998244,
+      "p99": 20.80735600000334,
+      "mad": 2.9324999999953434,
+      "mean": 13.525296296296464,
+      "opsPerSecond": 73.93553369132644
+    },
+    {
+      "name": "prepareModel (many parts)",
+      "params": {
+        "parts": 8000
+      },
+      "samples": 13,
+      "median": 27.671300000001793,
+      "p95": 35.61717999999526,
+      "p99": 41.347275999996334,
+      "mad": 1.907099999996717,
+      "mean": 27.508807692307947,
+      "opsPerSecond": 36.351993557307885
+    },
+    {
+      "name": "prepareModel (many parts)",
+      "params": {
+        "parts": 16000
+      },
+      "samples": 12,
+      "median": 45.91870000000199,
+      "p95": 64.04271499999994,
+      "p99": 66.44718300000176,
+      "mad": 7.684050000003481,
+      "mean": 47.10195833333395,
+      "opsPerSecond": 21.230539777627513
+    }
+  ],
+  "growth": {
+    "parts": 1.0115861242595634
+  }
+}

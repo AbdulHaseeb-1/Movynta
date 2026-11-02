@@ -1,0 +1,46 @@
+{
+  "suite": "backend/projects.names",
+  "environment": {
+    "timestamp": "2026-11-02T11:56:00.658Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 8994567,
+  "results": [
+    {
+      "name": "tidyText",
+      "params": {
+        "chars": 24
+      },
+      "samples": 229139,
+      "median": 0.0012999999962630682,
+      "p95": 0.002400000004854519,
+      "p99": 0.003299999996670522,
+      "mad": 0.00039999998989515007,
+      "mean": 0.001527459315082292,
+      "opsPerSecond": 654681.9218855102
+    },
+    {
+      "name": "normalizeProjectName",
+      "params": {
+        "chars": 24
+      },
+      "samples": 412511,
+      "median": 0.0006999999968684278,
+      "p95": 0.0013999999937368557,
+      "p99": 0.0019000000029336661,
+      "mad": 0.00020000000222353265,
+      "mean": 0.0008484624652389002,
+      "opsPerSecond": 1178602.5204054627
+    }
+  ],
+  "growth": {}
+}

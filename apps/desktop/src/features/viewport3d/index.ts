@@ -2,6 +2,14 @@ export {
   CoordinateViewport,
   type CoordinateViewportProps,
 } from "./CoordinateViewport";
+export {
+  CLICK_MAX_MS,
+  CLICK_TOLERANCE_PX,
+  isClick,
+  watchClicks,
+  type ClickWatch,
+  type Press,
+} from "./clicks";
 export { addCoordinateSpace } from "./coordinateSpace";
 export { ThreeViewport, type ThreeViewportProps } from "./ThreeViewport";
 export {
@@ -12,8 +20,9 @@ export {
   type ViewportOptions,
 } from "./viewport";
 export {
-  setNavigationTool,
   setShowGrid,
+  setViewportTool,
   viewportReducer,
+  type ViewportTool,
 } from "./viewportSlice";
-export { ViewportToolbar } from "./ViewportToolbar";
+export { ToolButton, ViewportToolbar, type ToolButtonProps } from "./ViewportToolbar";

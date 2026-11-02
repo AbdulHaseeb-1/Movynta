@@ -1,0 +1,87 @@
+{
+  "suite": "rigging/rig.pose",
+  "environment": {
+    "timestamp": "2026-11-02T14:51:30.485Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": -225011,
+  "results": [
+    {
+      "name": "applyUserPose",
+      "params": {
+        "bones": 25
+      },
+      "samples": 17362,
+      "median": 0.016200000000026193,
+      "p95": 0.02419999999983702,
+      "p99": 0.08090700000069698,
+      "mad": 0.0019000000011146767,
+      "mean": 0.020159088814646176,
+      "opsPerSecond": 49605.41665323039
+    },
+    {
+      "name": "applyUserPose",
+      "params": {
+        "bones": 50
+      },
+      "samples": 40443,
+      "median": 0.005199999999604188,
+      "p95": 0.01768999999876556,
+      "p99": 0.035658000000658094,
+      "mad": 0.0009999999983847374,
+      "mean": 0.008654355512708375,
+      "opsPerSecond": 115548.75444295802
+    },
+    {
+      "name": "applyUserPose",
+      "params": {
+        "bones": 100
+      },
+      "samples": 38603,
+      "median": 0.005300000000715954,
+      "p95": 0.01840000000083819,
+      "p99": 0.029695999999167454,
+      "mad": 0.0011999999987892807,
+      "mean": 0.009066777193471362,
+      "opsPerSecond": 110292.77312781675
+    },
+    {
+      "name": "applyUserPose",
+      "params": {
+        "bones": 200
+      },
+      "samples": 28830,
+      "median": 0.009199999996781116,
+      "p95": 0.01929999999993015,
+      "p99": 0.037299999999959255,
+      "mad": 0.004999999997380655,
+      "mean": 0.012140603537989163,
+      "opsPerSecond": 82368.22797737361
+    },
+    {
+      "name": "applyUserPose",
+      "params": {
+        "bones": 400
+      },
+      "samples": 38840,
+      "median": 0.005199999999604188,
+      "p95": 0.01780000000144355,
+      "p99": 0.02686100000031735,
+      "mad": 0.0011000000013154931,
+      "mean": 0.009011462409878837,
+      "opsPerSecond": 110969.77987765311
+    }
+  ],
+  "growth": {
+    "bones": -0.3978207503970791
+  }
+}

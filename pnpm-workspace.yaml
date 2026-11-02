@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - benchmarks
 
 
 storeDir: .pnpm-store

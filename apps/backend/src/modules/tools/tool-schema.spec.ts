@@ -122,7 +122,7 @@ describe("validateAgainstContext", () => {
       [{ commandId: "c1", type: "scene.transform_object", objectId: "ghost", transform: { position: [0, 0, 0] } }],
       emptyScene,
     );
-    expect(issues[0]?.message).toBe("objectId does not exist");
+    expect(issues[0]?.message).toContain(`"ghost" does not exist`);
   });
 
   it("allows creating an object and then transforming it in the same batch", () => {

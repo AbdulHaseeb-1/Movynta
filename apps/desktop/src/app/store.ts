@@ -1,5 +1,10 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { providersReducer } from "@/features/providers";
+import {
+  chatgptSessionReducer,
+  providersReducer,
+} from "@/features/providers";
+import { projectsReducer } from "@/features/projects";
+import { riggingReducer } from "@/features/rigging/riggingSlice";
 import { viewportReducer } from "@/features/viewport3d/viewportSlice";
 import { assistantSelectionReducer } from "@/features/assistant/selectionSlice";
 import { saveSelection } from "@/features/assistant/selectionStorage";
@@ -7,7 +12,10 @@ import { saveSelection } from "@/features/assistant/selectionStorage";
 export const store = configureStore({
   reducer: {
     providers: providersReducer,
+    chatgptSession: chatgptSessionReducer,
+    projects: projectsReducer,
     viewport: viewportReducer,
+    rigging: riggingReducer,
     assistantSelection: assistantSelectionReducer,
   },
 });

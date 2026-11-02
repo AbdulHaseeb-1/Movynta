@@ -103,7 +103,7 @@ export function AssistantPanel({
         {/* One dark glass surface that grows out of the launcher button and shrinks back into it. */}
         <Card
           className={cn(
-            "pointer-events-auto relative min-h-0 gap-0 overflow-hidden border-0 bg-black/60 p-0 text-card-foreground shadow-2xl backdrop-blur-2xl backdrop-saturate-150",
+            "pointer-events-auto relative min-h-0 gap-0 overflow-hidden border-0 bg-black/60 bg-[radial-gradient(ellipse_at_30%_22%,rgb(255_255_255_/_0.10),transparent_72%)] p-0 text-card-foreground shadow-2xl backdrop-blur-2xl backdrop-saturate-150",
             "transition-[width,height,border-radius] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
             open
               ? "h-full w-[min(400px,calc(100vw-32px))] rounded-3xl"

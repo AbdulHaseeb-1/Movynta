@@ -78,9 +78,9 @@ export function Composer({
   return (
     <form
       className={cn(
-        "pointer-events-auto flex flex-col gap-1 bg-foreground/[0.07] transition-colors duration-200 focus-within:bg-foreground/[0.1]",
+        "pointer-events-auto flex flex-col gap-1 bg-foreground/[0.07] bg-[radial-gradient(ellipse_at_28%_0%,rgb(255_255_255_/_0.10),transparent_72%)] transition-colors duration-200 focus-within:bg-foreground/[0.1]",
         hero
-          ? "rounded-3xl px-4 pt-3.5 pb-2.5 text-left backdrop-blur-xl"
+          ? "rounded-3xl bg-black/60 px-4 pt-3.5 pb-2.5 text-left backdrop-blur-xl focus-within:bg-black/70"
           : "rounded-2xl p-3",
       )}
       onSubmit={handleSubmit}

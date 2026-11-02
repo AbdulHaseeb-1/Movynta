@@ -1,0 +1,61 @@
+{
+  "suite": "editor/frame.parts",
+  "environment": {
+    "timestamp": "2026-11-02T11:52:16.089Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 8,
+  "results": [
+    {
+      "name": "ObjectGizmo frame sync (model)",
+      "params": {
+        "parts": 1000
+      },
+      "samples": 462118,
+      "median": 0.0007000000005064066,
+      "p95": 0.0008999999990919605,
+      "p99": 0.0015999999995983671,
+      "mad": 0.00009999999929277692,
+      "mean": 0.0007573831791887414,
+      "opsPerSecond": 1320335.6339008396
+    },
+    {
+      "name": "ObjectGizmo frame sync (model)",
+      "params": {
+        "parts": 4000
+      },
+      "samples": 531970,
+      "median": 0.0005999999993946403,
+      "p95": 0.0008999999990919605,
+      "p99": 0.001399999999193824,
+      "mad": 0.00009999999929277692,
+      "mean": 0.0006579324022044066,
+      "opsPerSecond": 1519912.9829287839
+    },
+    {
+      "name": "ObjectGizmo frame sync (model)",
+      "params": {
+        "parts": 16000
+      },
+      "samples": 498308,
+      "median": 0.0006000000012136297,
+      "p95": 0.0008999999990919605,
+      "p99": 0.001699999998891144,
+      "mad": 0.00009999999929277692,
+      "mean": 0.0007023774452750721,
+      "opsPerSecond": 1423735.922511535
+    }
+  ],
+  "growth": {
+    "parts": -0.055598104865496455
+  }
+}

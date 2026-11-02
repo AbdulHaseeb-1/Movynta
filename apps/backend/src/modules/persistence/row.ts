@@ -22,3 +22,10 @@ export function integerColumn(row: SqlRow, column: string): number {
   if (typeof value === "bigint") return Number(value);
   throw new Error(`Expected integer column "${column}"`);
 }
+
+/** Reads a required binary column. */
+export function blobColumn(row: SqlRow, column: string): Uint8Array {
+  const value = row[column];
+  if (value instanceof Uint8Array) return value;
+  throw new Error(`Expected blob column "${column}"`);
+}

@@ -1,0 +1,87 @@
+{
+  "suite": "editor/execute.parts",
+  "environment": {
+    "timestamp": "2026-11-02T13:11:42.595Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 426004,
+  "results": [
+    {
+      "name": "applyUserTransform(imported model)",
+      "params": {
+        "parts": 1000
+      },
+      "samples": 29851,
+      "median": 0.008100000000013097,
+      "p95": 0.016099999999823922,
+      "p99": 0.06874999999990905,
+      "mad": 0.0020000000004074536,
+      "mean": 0.011725121436468176,
+      "opsPerSecond": 85286.96316012046
+    },
+    {
+      "name": "applyUserTransform(imported model)",
+      "params": {
+        "parts": 2000
+      },
+      "samples": 19675,
+      "median": 0.012700000000222644,
+      "p95": 0.021700000000237196,
+      "p99": 0.10339999999996508,
+      "mad": 0.0018999999992956873,
+      "mean": 0.017792406607370123,
+      "opsPerSecond": 56203.75152542722
+    },
+    {
+      "name": "applyUserTransform(imported model)",
+      "params": {
+        "parts": 4000
+      },
+      "samples": 19344,
+      "median": 0.012600000000020373,
+      "p95": 0.022299999999631837,
+      "p99": 0.11365700000018475,
+      "mad": 0.002299999999195279,
+      "mean": 0.018203794458227143,
+      "opsPerSecond": 54933.602018784244
+    },
+    {
+      "name": "applyUserTransform(imported model)",
+      "params": {
+        "parts": 8000
+      },
+      "samples": 27361,
+      "median": 0.008299999999508145,
+      "p95": 0.018500000000130967,
+      "p99": 0.06988000000001222,
+      "mad": 0.0029999999997016857,
+      "mean": 0.012792079967833415,
+      "opsPerSecond": 78173.3699691192
+    },
+    {
+      "name": "applyUserTransform(imported model)",
+      "params": {
+        "parts": 16000
+      },
+      "samples": 17439,
+      "median": 0.013699999999516876,
+      "p95": 0.0239000000001397,
+      "p99": 0.11044800000001447,
+      "mad": 0.0015999999995983671,
+      "mean": 0.020070135902283015,
+      "opsPerSecond": 49825.27297616595
+    }
+  ],
+  "growth": {
+    "parts": 0.09027189045093614
+  }
+}

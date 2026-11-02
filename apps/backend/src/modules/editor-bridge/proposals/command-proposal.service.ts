@@ -6,6 +6,7 @@ import type { EditorCommand } from "../../../shared/types/editor-command.types.j
 import type { EditorContext } from "../../../shared/types/editor-context.types.js";
 import { EDITOR_BRIDGE } from "../editor-bridge.tokens.js";
 import type { CommandExecutionResult, EditorBridge } from "../editor-bridge.types.js";
+import { ProjectScenesService } from "../../projects/project-scenes.service.js";
 import { CommandProposalRepository } from "./command-proposal.repository.js";
 import type { CommandProposalRecord, ProposalInput, ProposalIssue, ProposalRun } from "./proposals.types.js";
 
@@ -21,6 +22,7 @@ export class CommandProposalService {
     private readonly repository: CommandProposalRepository,
     private readonly policy: ApprovalPolicy,
     @Inject(EDITOR_BRIDGE) private readonly bridge: EditorBridge,
+    private readonly scenes: ProjectScenesService,
   ) {}
 
   async propose(run: ProposalRun, input: ProposalInput): Promise<CommandProposalRecord> {
@@ -97,6 +99,8 @@ export class CommandProposalService {
 
     const status = outcome.status === "applied" ? "applied" : "failed";
     this.repository.transition(proposal.id, ["applying"], status, new Date().toISOString(), outcome);
+    // The project keeps what was applied, so its scene can be rebuilt when it is reopened.
+    if (status === "applied") this.scenes.append(proposal.projectId, proposal.id, proposal.commands);
     return outcome;
   }
 
@@ -109,41 +113,108 @@ export class CommandProposalService {
 
 /**
  * Checks references against the latest scene and against objects the same batch
- * creates. Returns one issue per problem so the agent can fix them in one retry.
+ * creates or deletes, in order. Returns one issue per problem, each saying how to fix it, so the
+ * agent can correct everything in one retry.
  */
 export function validateAgainstContext(commands: readonly EditorCommand[], context: EditorContext): ProposalIssue[] {
-  const known = new Set(context.objects.map((object) => object.id));
+  /** Every object that exists at this point of the batch, mapped to its parent. */
+  const parents = new Map<string, string | null>();
+  for (const object of context.objects) parents.set(object.id, object.parentId);
+  /**
+   * What hangs below each object, built the first time a delete needs it and then kept up to date as the
+   * batch goes, so a delete never scans the scene and a batch without deletes pays nothing for it.
+   */
+  let childrenOf: Map<string, Set<string>> | undefined;
+  const link = (child: string, parent: string | null | undefined) => {
+    if (!childrenOf || !parent) return;
+    const siblings = childrenOf.get(parent);
+    if (siblings) siblings.add(child);
+    else childrenOf.set(parent, new Set([child]));
+  };
+  const children = (): Map<string, Set<string>> => {
+    if (childrenOf) return childrenOf;
+    childrenOf = new Map();
+    for (const [id, parent] of parents) link(id, parent);
+    return childrenOf;
+  };
+  const createdInBatch = new Set<string>();
   const seenCommandIds = new Set<string>();
   const issues: ProposalIssue[] = [];
+  const issue = (commandId: string, message: string) => issues.push({ commandId, message });
 
   for (const command of commands) {
     if (seenCommandIds.has(command.commandId)) {
-      issues.push({ commandId: command.commandId, message: "commandId is used more than once" });
+      issue(command.commandId, "commandId is used more than once; every command needs its own commandId");
     }
     seenCommandIds.add(command.commandId);
 
     switch (command.type) {
       case "scene.create_object":
-        if (known.has(command.objectId)) issues.push({ commandId: command.commandId, message: "objectId already exists" });
-        if (command.parentId !== undefined && !known.has(command.parentId)) {
-          issues.push({ commandId: command.commandId, message: "parentId does not exist" });
+        if (parents.has(command.objectId)) {
+          issue(command.commandId, existsMessage(command.objectId, createdInBatch, "scene.create_object"));
         }
-        known.add(command.objectId);
+        if (command.parentId !== undefined && !parents.has(command.parentId)) {
+          issue(
+            command.commandId,
+            `parentId "${command.parentId}" does not exist; create the parent in an earlier command or use an id from editor.get_context`,
+          );
+        }
+        parents.set(command.objectId, command.parentId ?? null);
+        link(command.objectId, command.parentId);
+        createdInBatch.add(command.objectId);
         break;
       case "geometry.create_primitive":
         if (command.replaceExisting) {
-          if (!known.has(command.objectId)) issues.push({ commandId: command.commandId, message: "objectId to replace does not exist" });
+          if (!parents.has(command.objectId)) {
+            issue(
+              command.commandId,
+              `objectId "${command.objectId}" cannot be replaced because it does not exist; set replaceExisting to false to create it`,
+            );
+          }
         } else {
-          if (known.has(command.objectId)) issues.push({ commandId: command.commandId, message: "objectId already exists" });
-          known.add(command.objectId);
+          if (parents.has(command.objectId)) {
+            issue(command.commandId, existsMessage(command.objectId, createdInBatch, "geometry.create_primitive"));
+          }
+          parents.set(command.objectId, null);
+          createdInBatch.add(command.objectId);
         }
         break;
       case "scene.transform_object":
-      case "scene.delete_object":
-        if (!known.has(command.objectId)) issues.push({ commandId: command.commandId, message: "objectId does not exist" });
-        if (command.type === "scene.delete_object") known.delete(command.objectId);
+        if (!parents.has(command.objectId)) {
+          issue(command.commandId, `objectId "${command.objectId}" does not exist; create it first or use an id from editor.get_context`);
+        }
         break;
+      case "scene.delete_object": {
+        if (!parents.has(command.objectId)) {
+          issue(command.commandId, `objectId "${command.objectId}" does not exist, so it cannot be deleted`);
+          break;
+        }
+        const below = [...(children().get(command.objectId) ?? [])];
+        if (below.length > 0) {
+          issue(
+            command.commandId,
+            `objectId "${command.objectId}" still has children (${below.slice(0, 5).join(", ")}); delete the children first, in earlier commands`,
+          );
+        }
+        const parent = parents.get(command.objectId);
+        if (parent) children().get(parent)?.delete(command.objectId);
+        children().delete(command.objectId);
+        parents.delete(command.objectId);
+        break;
+      }
     }
   }
   return issues;
+}
+
+/** The fix depends on whether the id was taken by this same batch (a common mix-up) or already in the scene. */
+function existsMessage(objectId: string, createdInBatch: ReadonlySet<string>, commandType: EditorCommand["type"]): string {
+  if (createdInBatch.has(objectId)) {
+    return commandType === "geometry.create_primitive"
+      ? `objectId "${objectId}" was already created earlier in this batch. A primitive is its own object, so drop the scene.create_object and position it with scene.transform_object, or set replaceExisting to true to give that object the shape`
+      : `objectId "${objectId}" is created more than once in this batch; use a different objectId`;
+  }
+  return `objectId "${objectId}" already exists in the scene; use a different objectId${
+    commandType === "geometry.create_primitive" ? ", or set replaceExisting to true to replace its shape" : ""
+  }`;
 }

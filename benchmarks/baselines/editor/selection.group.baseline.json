@@ -1,0 +1,87 @@
+{
+  "suite": "editor/selection.group",
+  "environment": {
+    "timestamp": "2026-11-02T14:33:39.405Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 0,
+  "results": [
+    {
+      "name": "GroupTransform.update",
+      "params": {
+        "objects": 100
+      },
+      "samples": 10439,
+      "median": 0.02310000000011314,
+      "p95": 0.06581000000007865,
+      "p99": 0.11622400000007035,
+      "mad": 0.0027000000000043656,
+      "mean": 0.03353518536258298,
+      "opsPerSecond": 29819.426646609627
+    },
+    {
+      "name": "GroupTransform.update",
+      "params": {
+        "objects": 200
+      },
+      "samples": 7637,
+      "median": 0.03890000000001237,
+      "p95": 0.07580000000007203,
+      "p99": 0.17352800000009672,
+      "mad": 0.0018000000000029104,
+      "mean": 0.045831858059446215,
+      "opsPerSecond": 21818.884119927014
+    },
+    {
+      "name": "GroupTransform.update",
+      "params": {
+        "objects": 400
+      },
+      "samples": 3556,
+      "median": 0.0785000000000764,
+      "p95": 0.2009000000002743,
+      "p99": 0.39647500000016833,
+      "mad": 0.0048000000001593435,
+      "mean": 0.09843219910011552,
+      "opsPerSecond": 10159.277239990328
+    },
+    {
+      "name": "GroupTransform.update",
+      "params": {
+        "objects": 800
+      },
+      "samples": 861,
+      "median": 0.34799999999995634,
+      "p95": 0.7107999999998356,
+      "p99": 1.0379200000002107,
+      "mad": 0.04579999999987194,
+      "mean": 0.40687456445992765,
+      "opsPerSecond": 2457.7599273804894
+    },
+    {
+      "name": "GroupTransform.update",
+      "params": {
+        "objects": 1600
+      },
+      "samples": 391,
+      "median": 0.7098000000000866,
+      "p95": 1.802500000000009,
+      "p99": 2.1890300000001015,
+      "mad": 0.2569000000003143,
+      "mean": 0.8959874680306867,
+      "opsPerSecond": 1116.087038804153
+    }
+  ],
+  "growth": {
+    "objects": 1.0206238835594768
+  }
+}

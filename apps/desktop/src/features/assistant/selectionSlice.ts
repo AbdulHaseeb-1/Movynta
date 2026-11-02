@@ -21,6 +21,20 @@ const slice = createSlice({
       state.providerId = action.payload.id;
       state.model = action.payload.model;
     },
+    /** Replaces a missing or retired model with the first one the provider currently offers. */
+    reconcileAssistantModel(
+      state,
+      action: PayloadAction<{ id: ProviderId; models: string[] }>,
+    ) {
+      const [first] = action.payload.models;
+      if (
+        state.providerId !== action.payload.id ||
+        first === undefined ||
+        action.payload.models.includes(state.model)
+      )
+        return;
+      state.model = first;
+    },
     selectAssistantEffort(
       state,
       action: PayloadAction<{ key: string; effort: ReasoningEffort | null }>,
@@ -34,6 +48,7 @@ const slice = createSlice({
 export const {
   selectAssistantProvider,
   selectAssistantModel,
+  reconcileAssistantModel,
   selectAssistantEffort,
 } = slice.actions;
 export const assistantSelectionReducer = slice.reducer;

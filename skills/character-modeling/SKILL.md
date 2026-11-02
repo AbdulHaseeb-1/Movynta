@@ -35,7 +35,7 @@ error_handling:
 
 1. Call `editor.get_context` and note the existing objects and the revision.
 2. Call `modeling.generate_model_plan` with the goal, the dimension `3d`, and the ordered body-part steps (torso, head, arms, legs). Keep each step small.
-3. For each step, add `scene.create_object` commands with a `geometry.create_primitive` command for its shape. Use the step ids as the basis of object ids.
+3. For each step, add a `geometry.create_primitive` command per part, each with its own new `objectId` (use the step ids as the basis), then place it with `scene.transform_object`. A primitive is already an object, so do not create the same `objectId` with `scene.create_object` first. Use `scene.create_object` only for empty groups that other parts attach to.
 4. Submit everything with `editor.propose_commands`. Keep proposals under 20 commands so they are easy to review.
 5. Call `editor.apply_proposal` with the returned proposal id. The user may need to approve it first.
 6. Call `validation.check_scene`. Fix any error-severity issues with a new proposal.

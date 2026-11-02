@@ -1,0 +1,153 @@
+{
+  "suite": "editor/pick.objects",
+  "environment": {
+    "timestamp": "2026-11-02T11:37:52.962Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 27320,
+  "results": [
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 100
+      },
+      "samples": 2799,
+      "median": 0.10500000000001819,
+      "p95": 0.23151000000007116,
+      "p99": 0.4872680000000309,
+      "mad": 0.00980000000004111,
+      "mean": 0.12507713469095802,
+      "opsPerSecond": 7995.0664241774575
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 100
+      },
+      "samples": 64801,
+      "median": 0.0045999999997548,
+      "p95": 0.007500000000163709,
+      "p99": 0.02299999999991087,
+      "mad": 0.00020000000040454324,
+      "mean": 0.005401209857872096,
+      "opsPerSecond": 185143.70415408522
+    },
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 200
+      },
+      "samples": 1210,
+      "median": 0.23264999999992142,
+      "p95": 0.511774999999875,
+      "p99": 1.1338720000000702,
+      "mad": 0.022349999999960346,
+      "mean": 0.2895897520661244,
+      "opsPerSecond": 3453.160869351695
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 200
+      },
+      "samples": 9428,
+      "median": 0.038000000000010914,
+      "p95": 0.052000000000134605,
+      "p99": 0.11193800000019993,
+      "mad": 0.0061000000000603904,
+      "mean": 0.037126007636829356,
+      "opsPerSecond": 26935.29586542428
+    },
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 400
+      },
+      "samples": 147,
+      "median": 2.3395000000000437,
+      "p95": 3.2598800000000203,
+      "p99": 3.8185440000001263,
+      "mad": 0.27480000000014115,
+      "mean": 2.4101789115646195,
+      "opsPerSecond": 414.90695782033396
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 400
+      },
+      "samples": 3430,
+      "median": 0.08950000000004366,
+      "p95": 0.18324999999990696,
+      "p99": 0.33380900000029246,
+      "mad": 0.011399999999412103,
+      "mean": 0.10204927113701921,
+      "opsPerSecond": 9799.188067275101
+    },
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 800
+      },
+      "samples": 72,
+      "median": 4.884799999999814,
+      "p95": 6.488070000000153,
+      "p99": 7.02194400000009,
+      "mad": 0.49244999999973516,
+      "mean": 4.883424999999988,
+      "opsPerSecond": 204.77431311016394
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 800
+      },
+      "samples": 1551,
+      "median": 0.20079999999961728,
+      "p95": 0.4157500000001164,
+      "p99": 0.5862999999994827,
+      "mad": 0.032599999999547435,
+      "mean": 0.22569458413927748,
+      "opsPerSecond": 4430.766488321643
+    },
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 1600
+      },
+      "samples": 35,
+      "median": 9.993900000000394,
+      "p95": 11.80278999999964,
+      "p99": 14.412617999999682,
+      "mad": 1.0526999999992768,
+      "mean": 10.05239714285708,
+      "opsPerSecond": 99.47875972156241
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 1600
+      },
+      "samples": 661,
+      "median": 0.487899999999172,
+      "p95": 0.8852999999999156,
+      "p99": 1.458820000000378,
+      "mad": 0.07209999999940919,
+      "mean": 0.5298511346444905,
+      "opsPerSecond": 1887.3225602715017
+    }
+  ],
+  "growth": {
+    "hit": 1.1049355625810247,
+    "miss": 1.2583572388982582
+  }
+}

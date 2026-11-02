@@ -1,0 +1,87 @@
+{
+  "suite": "importer/import.dense",
+  "environment": {
+    "timestamp": "2026-11-02T11:53:44.061Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 32529740,
+  "results": [
+    {
+      "name": "prepareModel (dense mesh)",
+      "params": {
+        "triangles": 25000
+      },
+      "samples": 206,
+      "median": 1.4679999999993925,
+      "p95": 2.974124999999958,
+      "p99": 3.3613100000000937,
+      "mad": 0.31054999999923893,
+      "mean": 1.70043834951461,
+      "opsPerSecond": 588.0836551854114
+    },
+    {
+      "name": "prepareModel (dense mesh)",
+      "params": {
+        "triangles": 50000
+      },
+      "samples": 113,
+      "median": 2.5921999999991385,
+      "p95": 5.6718600000000094,
+      "p99": 9.842456000002707,
+      "mad": 0.4974999999976717,
+      "mean": 3.107025663716797,
+      "opsPerSecond": 321.85121985884865
+    },
+    {
+      "name": "prepareModel (dense mesh)",
+      "params": {
+        "triangles": 100000
+      },
+      "samples": 33,
+      "median": 7.385399999999208,
+      "p95": 34.72531999999845,
+      "p99": 51.82611199999825,
+      "mad": 2.7317000000002736,
+      "mean": 10.615363636363107,
+      "opsPerSecond": 94.20308472283354
+    },
+    {
+      "name": "prepareModel (dense mesh)",
+      "params": {
+        "triangles": 200000
+      },
+      "samples": 12,
+      "median": 43.519100000001345,
+      "p95": 61.084945000002335,
+      "p99": 61.521469000003705,
+      "mad": 10.817349999999351,
+      "mean": 43.62937500000044,
+      "opsPerSecond": 22.920337501969488
+    },
+    {
+      "name": "prepareModel (dense mesh)",
+      "params": {
+        "triangles": 400000
+      },
+      "samples": 12,
+      "median": 62.30870000000141,
+      "p95": 100.51318000000319,
+      "p99": 101.57463600000366,
+      "mad": 5.725850000002538,
+      "mean": 70.38855000000149,
+      "opsPerSecond": 14.20685608667857
+    }
+  ],
+  "growth": {
+    "triangles": 1.1654120463023574
+  }
+}

@@ -1,0 +1,180 @@
+{
+  "suite": "backend/validator",
+  "environment": {
+    "timestamp": "2026-11-02T11:56:26.812Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 56889,
+  "results": [
+    {
+      "name": "validate 50 creates",
+      "params": {
+        "objects": 250
+      },
+      "samples": 12311,
+      "median": 0.021600000000034925,
+      "p95": 0.046199999999771535,
+      "p99": 0.10648999999984878,
+      "mad": 0.0052999999998064595,
+      "mean": 0.02843105352936263,
+      "opsPerSecond": 35172.80845633222
+    },
+    {
+      "name": "validate 50 transforms",
+      "params": {
+        "objects": 250
+      },
+      "samples": 16453,
+      "median": 0.01470000000017535,
+      "p95": 0.04984000000013108,
+      "p99": 0.07313999999994827,
+      "mad": 0.0033000000003085006,
+      "mean": 0.021273153832127797,
+      "opsPerSecond": 47007.604414995076
+    },
+    {
+      "name": "validate 50 deletes",
+      "params": {
+        "objects": 250
+      },
+      "samples": 594,
+      "median": 0.5244000000002416,
+      "p95": 0.9785499999999274,
+      "p99": 1.3760079999996153,
+      "mad": 0.08910000000037144,
+      "mean": 0.5897126262626253,
+      "opsPerSecond": 1695.741205911802
+    },
+    {
+      "name": "validate 50 creates",
+      "params": {
+        "objects": 500
+      },
+      "samples": 4325,
+      "median": 0.06040000000029977,
+      "p95": 0.14989999999988868,
+      "p99": 0.26227599999976575,
+      "mad": 0.013800000000173895,
+      "mean": 0.08093239306358192,
+      "opsPerSecond": 12355.991984746852
+    },
+    {
+      "name": "validate 50 transforms",
+      "params": {
+        "objects": 500
+      },
+      "samples": 5855,
+      "median": 0.049500000000080036,
+      "p95": 0.08956000000016505,
+      "p99": 0.1854180000001362,
+      "mad": 0.006199999999807915,
+      "mean": 0.05978433817250182,
+      "opsPerSecond": 16726.788830790407
+    },
+    {
+      "name": "validate 50 deletes",
+      "params": {
+        "objects": 500
+      },
+      "samples": 127,
+      "median": 2.486699999999473,
+      "p95": 4.719979999999941,
+      "p99": 5.5926220000002465,
+      "mad": 0.6005999999988489,
+      "mean": 2.7562023622047875,
+      "opsPerSecond": 362.8180621687238
+    },
+    {
+      "name": "validate 50 creates",
+      "params": {
+        "objects": 1000
+      },
+      "samples": 2466,
+      "median": 0.12110000000029686,
+      "p95": 0.23452499999984866,
+      "p99": 0.4876499999998486,
+      "mad": 0.01599999999962165,
+      "mean": 0.1419422141119194,
+      "opsPerSecond": 7045.120482702308
+    },
+    {
+      "name": "validate 50 transforms",
+      "params": {
+        "objects": 1000
+      },
+      "samples": 2488,
+      "median": 0.12030000000004293,
+      "p95": 0.26782000000030176,
+      "p99": 0.4053079999998956,
+      "mad": 0.03260000000000218,
+      "mean": 0.14070582797428138,
+      "opsPerSecond": 7107.026158026538
+    },
+    {
+      "name": "validate 50 deletes",
+      "params": {
+        "objects": 1000
+      },
+      "samples": 58,
+      "median": 5.906199999999899,
+      "p95": 9.086035000000173,
+      "p99": 10.969324000000524,
+      "mad": 1.3946499999997286,
+      "mean": 6.101689655172432,
+      "opsPerSecond": 163.8890301725351
+    },
+    {
+      "name": "validate 50 creates",
+      "params": {
+        "objects": 2000
+      },
+      "samples": 966,
+      "median": 0.32565000000022337,
+      "p95": 0.5930500000001757,
+      "p99": 0.9636999999999278,
+      "mad": 0.07274999999981446,
+      "mean": 0.36233219461697974,
+      "opsPerSecond": 2759.898278034876
+    },
+    {
+      "name": "validate 50 transforms",
+      "params": {
+        "objects": 2000
+      },
+      "samples": 1110,
+      "median": 0.23484999999982392,
+      "p95": 0.6177300000003013,
+      "p99": 1.2189820000000144,
+      "mad": 0.06694999999990614,
+      "mean": 0.3154186486486471,
+      "opsPerSecond": 3170.389589468838
+    },
+    {
+      "name": "validate 50 deletes",
+      "params": {
+        "objects": 2000
+      },
+      "samples": 26,
+      "median": 12.360900000000129,
+      "p95": 20.078024999999798,
+      "p99": 21.49917500000015,
+      "mad": 2.193199999999706,
+      "mean": 13.56008846153848,
+      "opsPerSecond": 73.74583158777885
+    }
+  ],
+  "growth": {
+    "validate 50 creates": 1.427123361639425,
+    "validate 50 transforms": 1.281136212207287,
+    "validate 50 deletes": 1.247997742172951
+  }
+}

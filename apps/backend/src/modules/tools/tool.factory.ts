@@ -16,6 +16,23 @@ function describeError(error: unknown): string {
 }
 
 /**
+ * Structured detail the model needs to correct its call, such as which command in a batch was rejected.
+ * Domain errors never put secrets in `details`, so they are passed along as they are.
+ */
+/** The first rejected command, so the chat can say what went wrong instead of only "conflicts". */
+function firstIssue(error: unknown): string | undefined {
+  const issues: unknown = error instanceof AppError ? error.details?.["issues"] : undefined;
+  if (!Array.isArray(issues) || issues.length === 0) return undefined;
+  const first: unknown = issues[0];
+  if (typeof first !== "object" || first === null || !("message" in first)) return undefined;
+  return typeof first.message === "string" ? first.message : undefined;
+}
+
+function errorDetails(error: unknown): { details?: Readonly<Record<string, unknown>> } {
+  return error instanceof AppError && error.details ? { details: error.details } : {};
+}
+
+/**
  * Runs one tool with progress events and timing. Failures are returned to the
  * model as `{ error }` so it can recover; the run itself keeps going. Arguments
  * are never logged.
@@ -31,9 +48,13 @@ async function runTool(definition: ToolDefinition, input: unknown, context: Agen
     return JSON.stringify(result ?? null);
   } catch (error) {
     const message = describeError(error);
-    context.events.emit("tool.failed", { toolName: definition.name, message });
+    const issue = firstIssue(error);
+    context.events.emit("tool.failed", {
+      toolName: definition.name,
+      message: issue ? `${message}: ${issue}` : message,
+    });
     logger.warn(`${definition.name} failed: ${message}`);
-    return JSON.stringify({ error: message });
+    return JSON.stringify({ error: message, ...errorDetails(error) });
   }
 }
 

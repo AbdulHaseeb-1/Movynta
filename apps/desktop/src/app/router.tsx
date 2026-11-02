@@ -7,8 +7,10 @@ export const router = createHashRouter([
   {
     Component: App,
     children: [
-      { index: true, Component: Home },
-      { path: "studio", Component: Assistant },
+      { index: true, id: "home", Component: Home },
+      // One route for a new project and for an open one, so creating the project on the first prompt
+      // changes the address without reloading the workspace.
+      { path: "studio/:projectId?", id: "studio", Component: Assistant },
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },

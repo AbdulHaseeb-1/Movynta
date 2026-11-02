@@ -1,0 +1,87 @@
+{
+  "suite": "editor/execute.objects",
+  "environment": {
+    "timestamp": "2026-11-02T13:11:38.913Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 265506,
+  "results": [
+    {
+      "name": "applyUserTransform",
+      "params": {
+        "objects": 100
+      },
+      "samples": 71444,
+      "median": 0.0027999999999792635,
+      "p95": 0.008000000000038199,
+      "p99": 0.016699999999900683,
+      "mad": 0.0005000000001018634,
+      "mean": 0.004898990817983087,
+      "opsPerSecond": 204123.6730489933
+    },
+    {
+      "name": "applyUserTransform",
+      "params": {
+        "objects": 200
+      },
+      "samples": 45556,
+      "median": 0.0039999999999054126,
+      "p95": 0.012999999999919964,
+      "p99": 0.058135000000060284,
+      "mad": 0.001299999999901047,
+      "mean": 0.007682948459040208,
+      "opsPerSecond": 130158.3637234142
+    },
+    {
+      "name": "applyUserTransform",
+      "params": {
+        "objects": 400
+      },
+      "samples": 21603,
+      "median": 0.011300000000119326,
+      "p95": 0.021899999999732245,
+      "p99": 0.09559400000010088,
+      "mad": 0.0030999999999039574,
+      "mean": 0.016201735870018708,
+      "opsPerSecond": 61721.781420378466
+    },
+    {
+      "name": "applyUserTransform",
+      "params": {
+        "objects": 800
+      },
+      "samples": 21065,
+      "median": 0.011600000000271393,
+      "p95": 0.023099999999885767,
+      "p99": 0.10247200000019814,
+      "mad": 0.0027000000000043656,
+      "mean": 0.016615466413479992,
+      "opsPerSecond": 60184.88889295988
+    },
+    {
+      "name": "applyUserTransform",
+      "params": {
+        "objects": 1600
+      },
+      "samples": 19513,
+      "median": 0.012600000000020373,
+      "p95": 0.021700000000237196,
+      "p99": 0.09636399999948511,
+      "mad": 0.0015000000003055902,
+      "mean": 0.017936954850616443,
+      "opsPerSecond": 55750.82327676332
+    }
+  ],
+  "growth": {
+    "objects": 0.3169360505736256
+  }
+}

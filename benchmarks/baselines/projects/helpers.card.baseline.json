@@ -1,0 +1,72 @@
+{
+  "suite": "projects/helpers.card",
+  "environment": {
+    "timestamp": "2026-11-02T13:14:05.311Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 163866969,
+  "results": [
+    {
+      "name": "formatRelativeTime (minutes)",
+      "params": {
+        "calls": 1
+      },
+      "samples": 59897,
+      "median": 0.005100000000311411,
+      "p95": 0.006799999999202555,
+      "p99": 0.01299999999901047,
+      "mad": 0.0007000000005064066,
+      "mean": 0.005843501343971062,
+      "opsPerSecond": 171130.27637646286
+    },
+    {
+      "name": "formatRelativeTime (date)",
+      "params": {
+        "calls": 1
+      },
+      "samples": 26954,
+      "median": 0.010999999998603016,
+      "p95": 0.014900000000125146,
+      "p99": 0.06202900000043964,
+      "mad": 0.0011000000013154931,
+      "mean": 0.012985089411589483,
+      "opsPerSecond": 77011.4065681733
+    },
+    {
+      "name": "displayName + isUntitled",
+      "params": {
+        "calls": 1
+      },
+      "samples": 835626,
+      "median": 0.00030000000151630957,
+      "p95": 0.000499999998282874,
+      "p99": 0.0007000000005064066,
+      "mad": 0.00009999999747378752,
+      "mean": 0.0004188476663009095,
+      "opsPerSecond": 2387502.8571403758
+    },
+    {
+      "name": "listQuery",
+      "params": {
+        "calls": 1
+      },
+      "samples": 79821,
+      "median": 0.0033999999996012775,
+      "p95": 0.004399999999805004,
+      "p99": 0.008300000000963337,
+      "mad": 0.00029999999787833076,
+      "mean": 0.004384838576315949,
+      "opsPerSecond": 228058.56648893547
+    }
+  ],
+  "growth": {}
+}

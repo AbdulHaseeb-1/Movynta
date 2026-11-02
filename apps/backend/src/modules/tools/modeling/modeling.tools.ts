@@ -9,13 +9,18 @@ export function createModelingTools({ knownToolNames }: ModelingToolDependencies
     defineTool({
       name: MODELING_PLAN_TOOL_NAME,
       description:
-        "Record a structured modeling plan (goal, dimension, ordered steps). It does not change the scene; propose commands afterwards.",
+        "Record a structured modeling plan (goal, dimension, ordered steps). Each step's toolName must be a tool you can call, such as editor.propose_commands. It does not change the scene; propose commands afterwards.",
       permission: "plan",
       parameters: modelingPlanSchema,
       execute: (plan, context) => {
         const unknownTools = plan.steps.map((step) => step.toolName).filter((name) => !knownToolNames.includes(name));
         if (unknownTools.length > 0) {
-          return { status: "rejected", reason: "Plan references unknown tools", unknownTools };
+          return {
+            status: "rejected",
+            reason: "Plan references unknown tools. Each step's toolName must be one of the available tools.",
+            unknownTools,
+            availableTools: knownToolNames,
+          };
         }
         context.plans.push(plan);
         return { status: "recorded", planNumber: context.plans.length, stepCount: plan.steps.length };

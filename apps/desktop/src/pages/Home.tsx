@@ -2,21 +2,16 @@ import { ArrowUpRight, Box, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ASSISTANT_NAME, LOGO_SRC } from "@/features/assistant";
+import { ASSISTANT_NAME } from "@/features/assistant";
+import { ProjectsSection } from "@/features/projects";
 
 export default function Home() {
   const navigate = useNavigate();
 
   return (
     <main className="relative min-h-full overflow-hidden bg-background font-sans text-foreground">
-      <div className="relative mx-auto grid w-[min(960px,calc(100%_-_80px))] grid-cols-2 gap-x-5 gap-y-7 pt-[clamp(70px,10vh,95px)] pb-[60px] max-[640px]:w-[calc(100%_-_40px)] max-[640px]:grid-cols-[1fr] max-[640px]:gap-y-6 max-[640px]:pt-[68px]">
+      <div className="relative mx-auto grid w-[min(960px,calc(100%_-_80px))] grid-cols-2 gap-x-5 gap-y-7 pt-[clamp(48px,7vh,68px)] pb-[60px] max-[640px]:w-[calc(100%_-_40px)] max-[640px]:grid-cols-[1fr] max-[640px]:gap-y-6 max-[640px]:pt-12">
         <header className="col-span-full">
-          <img
-            src={LOGO_SRC}
-            alt="Movynta"
-            draggable={false}
-            className="mb-5 h-9 w-auto select-none"
-          />
           <h1 className="text-[clamp(24px,3vw,30px)] leading-[1.12] font-bold tracking-[-0.045em]">
             Home
           </h1>
@@ -43,7 +38,7 @@ export default function Home() {
                   Create characters and objects in 3D with {ASSISTANT_NAME}.
                 </span>
                 <span className="mt-2.5 inline-flex items-center gap-[5px] font-[650] text-[11px] text-foreground">
-                  Open studio{" "}
+                  Start a project{" "}
                   <ArrowUpRight
                     size={14}
                     className="transition-transform duration-[220ms] ease-[ease] group-hover:translate-x-[2px] group-hover:-translate-y-[2px] motion-reduce:transition-none"
@@ -69,6 +64,7 @@ export default function Home() {
             />
           </Button>
         </Card>
+        <ProjectsSection />
       </div>
     </main>
   );

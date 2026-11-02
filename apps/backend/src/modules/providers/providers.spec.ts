@@ -8,7 +8,7 @@ import { openEventStream } from "../../testing/event-stream.js";
 import { assistantMessage } from "@openai/agents/testing";
 import type { TestServer } from "../../testing/testing.types.js";
 import {
-  PROVIDER_IDS,
+  API_KEY_PROVIDER_IDS as PROVIDER_IDS,
   isCompatibleProvider,
   type ProviderId,
 } from "./providers.types.js";

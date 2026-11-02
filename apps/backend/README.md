@@ -8,6 +8,8 @@ From the repository root, run `pnpm dev:backend` and then `pnpm tauri dev` in an
 
 Open Settings > Providers to configure OpenAI, Anthropic, Google, OpenAI-compatible, or Anthropic-compatible providers. Enter a key, load models using the plus button, select or type a model ID, test access, and save. Select the provider's radio button to make it active. All provider requests originate on the backend. Compatible providers accept an HTTPS API base URL (or HTTP on localhost), usually ending in `/v1`. OpenAI compatibility uses Chat Completions; Anthropic compatibility uses Messages. Model loading uses the endpoint's `/models` resource; you can enter a model ID manually if the service does not expose it. Re-enter the key when changing a saved endpoint.
 
+**ChatGPT subscription.** Settings > Providers > ChatGPT signs in with a ChatGPT plan instead of an API key. The backend runs the browser OAuth (PKCE) flow: it listens briefly on `127.0.0.1:1455` for the redirect, exchanges the code, and stores the tokens only as DPAPI ciphertext in `chatgpt_logins`. Tokens refresh automatically, but a sign-in stops working 30 days after it was made (`CHATGPT_LOGIN_TTL_MS`); the tokens are then wiped and the user signs in again. Routes: `GET /providers/chatgpt/session`, `POST /providers/chatgpt/login`, `DELETE /providers/chatgpt/login` (cancel), and `DELETE /providers/chatgpt` (sign out). Requests go to `chatgpt.com/backend-api/codex` with `store: false`. This uses the sign-in client of OpenAI's Codex CLI and is intended for local, personal use.
+
 A `.env` file is optional. By default the backend creates its authentication signing secret and database under `%LOCALAPPDATA%/Movynta`. The signing secret and desktop connection record use Windows DPAPI CurrentUser encryption. Provider keys are stored only as DPAPI ciphertext in SQLite, scoped to the API user and provider. `DATABASE_URL` can override the database path. The old token CLI remains available for advanced authenticated API clients.
 
 See [the integration and security report](../../docs/assistant-integration-report.md) for verification and limitations.
@@ -100,6 +102,13 @@ All routes are under `/api/v1` and need `Authorization: Bearer <token>` except t
 | POST | `/api/v1/agent-runs/:runId/cancel` | cancel a run |
 | GET | `/api/v1/agent-runs/:runId/approvals` | approval requests |
 | POST | `/api/v1/agent-runs/:runId/approvals/:approvalId` | approve or reject |
+| GET / POST | `/api/v1/projects` | list (search, scope, category, sort) and create projects |
+| GET / PATCH / DELETE | `/api/v1/projects/:projectId` | read, rename, star, archive, delete |
+| POST | `/api/v1/projects/:projectId/duplicate` | copy a project with its scene and imported models |
+| GET | `/api/v1/projects/:projectId/scene` | the scene's history: applied command batches and imported models, in order |
+| POST | `/api/v1/projects/:projectId/assets` | import a model: the file is the body (`application/octet-stream`, up to 64 MB); `name`, `format` and `objectId` are query parameters |
+| GET | `/api/v1/projects/:projectId/assets/:assetId` | download an imported model |
+| GET | `/api/v1/projects/:projectId/conversation` | the latest chat of a project |
 | POST | `/api/v1/sessions` | create a session |
 | GET | `/api/v1/sessions/:sessionId` | read a session |
 | DELETE | `/api/v1/sessions/:sessionId` | delete a session and its history |
@@ -110,6 +119,7 @@ Errors use one shape: `{ "error": { "code", "message", "requestId", "details?" }
 ## Known limitations
 
 - **Live inference is not verified with real provider credentials.** Tests mock inference for every vendor and exercise the real HTTP/SSE/WebSocket/editor pipeline. The Test connection action verifies key access and model listing; it does not bill a generation request.
+- **ChatGPT subscription sign-in is unverified against the live service.** Tests mock the token endpoint and the model. The endpoints, client ID, redirect and request shape follow OpenAI's open-source Codex client, but the subscription backend is undocumented and can change. The model list is static; any model ID can be typed in. Port 1455 must be free during sign-in.
 - **Automatic authentication and credential persistence currently require Windows.** DPAPI fails closed on other platforms. The backend is a separate process and must be started before use; the desktop retries its connection automatically.
 - **Scene commands cover only creation, transforms, deletion, and primitives.** Rigging, animation, and mesh-modifier tools are not implemented. The skills that mention them describe the intended workflow and are limited to the tools that exist.
 - **Persistence is a single SQLite file.** It suits one local desktop process. Several backend processes would need a different store.

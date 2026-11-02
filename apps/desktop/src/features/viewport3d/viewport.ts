@@ -16,6 +16,7 @@ import {
   type Object3D,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { createOutlineRenderer } from "./outline";
 
 export type FrameListener = (deltaSeconds: number) => void;
 
@@ -42,8 +43,12 @@ export interface Viewport {
   zoomBy: (factor: number) => void;
   // Eases the camera back to its starting view.
   resetView: () => void;
+  // Shifts the view right while the assistant panel is open, then restores its previous center.
+  setAssistantPanelOpen: (open: boolean) => void;
   // Runs before each frame renders. Returns a function that removes the listener.
   addFrameListener: (listener: FrameListener) => () => void;
+  // Draws an orange outline around these objects, as Blender does for a selection. An empty list clears it.
+  setOutlinedObjects: (objects: readonly Object3D[]) => void;
   dispose: () => void;
 }
 
@@ -56,6 +61,7 @@ const ORBIT_MIN_DISTANCE = 2;
 const ORBIT_MAX_DISTANCE = 60;
 const ORBIT_DAMPING = 0.08;
 const EASE_SECONDS = 0.35;
+const ASSISTANT_PANEL_SHIFT_FRACTION = 0.12;
 
 function isTypingTarget(target: EventTarget | null): boolean {
   return (
@@ -183,12 +189,15 @@ export function createViewport(
     },
   });
 
+  const outline = createOutlineRenderer(renderer, scene, camera);
+
   const resize = () => {
     const width = container.clientWidth;
     const height = container.clientHeight;
     if (width === 0 || height === 0) return;
 
     renderer.setSize(width, height);
+    outline.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
   };
@@ -207,6 +216,7 @@ export function createViewport(
 
   // Eases the camera to a new position and target. Grabbing the view with the mouse cancels the move.
   let stopEase: (() => void) | undefined;
+  let assistantPanelOffset: Vector3 | null = null;
   const easeTo = (position: Vector3, target: Vector3) => {
     stopEase?.();
     const fromPosition = camera.position.clone();
@@ -243,7 +253,32 @@ export function createViewport(
   };
   const resetView = () => {
     if (!fullNavigation) return;
-    easeTo(CAMERA_START.clone(), new Vector3(0, 0, 0));
+    const target = assistantPanelOffset?.clone() ?? new Vector3();
+    easeTo(CAMERA_START.clone().add(target), target);
+  };
+  const setAssistantPanelOpen = (open: boolean) => {
+    if (open) {
+      if (assistantPanelOffset) return;
+      camera.updateMatrixWorld();
+      const right = new Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+      const viewWidth =
+        2 *
+        controls.getDistance() *
+        Math.tan(MathUtils.degToRad(camera.fov / 2)) *
+        camera.aspect;
+      assistantPanelOffset = right.multiplyScalar(
+        -viewWidth * ASSISTANT_PANEL_SHIFT_FRACTION,
+      );
+      easeTo(
+        camera.position.clone().add(assistantPanelOffset),
+        controls.target.clone().add(assistantPanelOffset),
+      );
+      return;
+    }
+    if (!assistantPanelOffset) return;
+    const restore = assistantPanelOffset.clone().negate();
+    assistantPanelOffset = null;
+    easeTo(camera.position.clone().add(restore), controls.target.clone().add(restore));
   };
   const setNavigationTool = (next: NavigationTool) => {
     tool = next;
@@ -268,7 +303,8 @@ export function createViewport(
     const delta = timer.getDelta();
     controls.update(delta);
     frameListeners.forEach((listener) => listener(delta));
-    renderer.render(scene, camera);
+    if (outline.active) outline.render();
+    else renderer.render(scene, camera);
   });
 
   const dispose = () => {
@@ -277,6 +313,7 @@ export function createViewport(
     resizeObserver.disconnect();
     stopEase?.();
     disableSpacePan();
+    outline.dispose();
     controls.dispose();
     frameListeners.clear();
 
@@ -303,7 +340,9 @@ export function createViewport(
     setNavigationScope,
     zoomBy,
     resetView,
+    setAssistantPanelOpen,
     addFrameListener,
+    setOutlinedObjects: outline.setObjects,
     dispose,
   };
 }

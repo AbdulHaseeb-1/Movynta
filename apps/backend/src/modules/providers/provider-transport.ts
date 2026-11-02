@@ -7,9 +7,9 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { ServiceUnavailableError } from "../../common/errors/app-error.js";
 import type { ProviderCredentials } from "./providers.types.js";
 import { providerEndpoint } from "./provider-endpoint.js";
+import { noRedirectFetch } from "./no-redirect-fetch.js";
+import { chatgptModel } from "./chatgpt/chatgpt-model.js";
 
-const noRedirectFetch: typeof fetch = (input, init) =>
-  fetch(input, { ...init, redirect: "error" });
 
 @Injectable()
 export class ProviderTransport {
@@ -48,6 +48,8 @@ export class ProviderTransport {
         return compatibleModel(
           aisdk(createGoogleGenerativeAI({ apiKey })(model)),
         );
+      case "chatgpt":
+        return chatgptModel(credentials);
     }
     throw new ServiceUnavailableError("Unknown model provider");
   }
@@ -55,6 +57,8 @@ export class ProviderTransport {
   /** Compatible URLs are validated before use; redirects never forward credentials to another endpoint. */
   async models(credentials: ProviderCredentials): Promise<string[]> {
     const { id, apiKey } = credentials;
+    if (id === "chatgpt")
+      throw new ServiceUnavailableError("This provider has a fixed model list");
     const baseUrl = providerEndpoint(id, credentials.baseUrl);
     const url = baseUrl
       ? `${baseUrl}/models${id === "anthropic-compatible" ? "?limit=1000" : ""}`

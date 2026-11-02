@@ -26,7 +26,10 @@ import { classifyFailure, describeError } from "./agent-run.failure.js";
 import { AgentRunRepository } from "./agent-run.repository.js";
 import { ProvidersService } from "../providers/providers.service.js";
 import { ProviderTransport } from "../providers/provider-transport.js";
-import { reasoningModelSettings } from "../providers/model-capabilities.js";
+import {
+  reasoningModelSettings,
+  requiredModelSettings,
+} from "../providers/model-capabilities.js";
 import {
   extractTextDelta,
   interruptionCallId,
@@ -117,14 +120,19 @@ export class AgentRunProcessor implements OnModuleDestroy {
     const model = await this.transport.model(credentials);
     return new SdkRunner({
       modelProvider: { getModel: () => model },
-      ...(run.reasoningEffort
-        ? {
-            modelSettings: reasoningModelSettings(
+      modelSettings: {
+        ...requiredModelSettings(run.providerId),
+        ...(run.reasoningEffort
+          ? reasoningModelSettings(
               run.providerId,
               credentials.model,
               run.reasoningEffort,
-            ),
-          }
+            )
+          : {}),
+      },
+      // Without stored responses, replayed reasoning items must not point at ids the server never kept.
+      ...(run.providerId === "chatgpt"
+        ? { reasoningItemIdPolicy: "omit" as const }
         : {}),
       tracingDisabled: true,
       traceIncludeSensitiveData: false,

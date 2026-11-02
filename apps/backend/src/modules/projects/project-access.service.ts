@@ -4,8 +4,9 @@ import { DatabaseService } from "../persistence/database.service.js";
 import { textColumn } from "../persistence/row.js";
 
 /**
- * Projects are identified by client-supplied ids. The first authenticated user to
- * use a project id becomes its owner; every later use must come from that owner.
+ * Decides who may use a project id. A stored project belongs to the user who created it. An id that
+ * was never created through the projects API is claimed by the first authenticated user to use it,
+ * and every later use must come from that owner.
  */
 @Injectable()
 export class ProjectAccessService {
@@ -13,6 +14,11 @@ export class ProjectAccessService {
 
   assertOwner(userId: string, projectId: string): void {
     const db = this.database.db;
+    const stored = db.prepare("SELECT user_id FROM projects WHERE id = ?").get(projectId);
+    if (stored) {
+      if (textColumn(stored, "user_id") !== userId) throw new ForbiddenError("Project belongs to another user");
+      return;
+    }
     db.prepare("INSERT OR IGNORE INTO project_owners (project_id, owner_user_id, created_at) VALUES (?, ?, ?)").run(
       projectId,
       userId,
@@ -22,5 +28,12 @@ export class ProjectAccessService {
     if (!row || textColumn(row, "owner_user_id") !== userId) {
       throw new ForbiddenError("Project belongs to another user");
     }
+  }
+
+  /** Marks a stored project as just worked on, so it leads the recent list. Other ids are ignored. */
+  recordActivity(projectId: string): void {
+    this.database.db
+      .prepare("UPDATE projects SET updated_at = ? WHERE id = ?")
+      .run(new Date().toISOString(), projectId);
   }
 }

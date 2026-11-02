@@ -16,6 +16,25 @@ const executionSchema = z.object({
   expectedRevision: z.number().int(),
   commands: z.unknown(),
 });
+type ExecutionRequest = z.infer<typeof executionSchema>;
+
+/** Runs a batch, turning a batch the editor cannot even parse into a failed result. */
+function executeSafely(editor: EditorScene, request: ExecutionRequest) {
+  try {
+    return editor.execute(
+      request.proposalId,
+      request.expectedRevision,
+      request.commands,
+    );
+  } catch {
+    return {
+      status: "failed" as const,
+      results: [],
+      message: "The editor could not read this command batch",
+    };
+  }
+}
+
 export interface EditorConnection {
   clientId: string;
   close: () => void;
@@ -77,13 +96,10 @@ export async function connectEditor(
           });
         if (message.event === "commands.execute") {
           const request = executionSchema.parse(message.data);
+          // A rejected batch is an answer, not a reason to drop the editor connection.
           send("commands.result", {
             requestId: request.requestId,
-            ...editor.execute(
-              request.proposalId,
-              request.expectedRevision,
-              request.commands,
-            ),
+            ...executeSafely(editor, request),
           });
         }
         if (message.event === "error") {

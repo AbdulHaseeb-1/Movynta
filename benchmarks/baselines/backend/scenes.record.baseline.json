@@ -1,0 +1,87 @@
+{
+  "suite": "backend/scenes.record",
+  "environment": {
+    "timestamp": "2026-11-02T13:12:26.012Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 334240,
+  "results": [
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 250
+      },
+      "samples": 3329,
+      "median": 0.058100000000194996,
+      "p95": 0.24128000000000607,
+      "p99": 0.6321800000000245,
+      "mad": 0.009400000000368891,
+      "mean": 0.10514424752178284,
+      "opsPerSecond": 9510.743797874715
+    },
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 500
+      },
+      "samples": 687,
+      "median": 0.3524999999999636,
+      "p95": 1.245950000000037,
+      "p99": 3.9721680000002375,
+      "mad": 0.15579999999999927,
+      "mean": 0.5099901018922962,
+      "opsPerSecond": 1960.8223694725511
+    },
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 1000
+      },
+      "samples": 398,
+      "median": 0.5622500000001764,
+      "p95": 1.8306399999999712,
+      "p99": 4.607128999999918,
+      "mad": 0.14315000000010514,
+      "mean": 0.8863472361809057,
+      "opsPerSecond": 1128.2260035116728
+    },
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 2000
+      },
+      "samples": 566,
+      "median": 0.47495000000026266,
+      "p95": 1.5740999999995893,
+      "p99": 3.0563099999995305,
+      "mad": 0.13309999999955835,
+      "mean": 0.618635335689003,
+      "opsPerSecond": 1616.4611723742767
+    },
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 4000
+      },
+      "samples": 500,
+      "median": 0.5340500000002066,
+      "p95": 1.7391549999998912,
+      "p99": 3.74913699999989,
+      "mad": 0.13415000000031796,
+      "mean": 0.700400399999995,
+      "opsPerSecond": 1427.7547528528069
+    }
+  ],
+  "growth": {
+    "steps": 0.421393837536027
+  }
+}

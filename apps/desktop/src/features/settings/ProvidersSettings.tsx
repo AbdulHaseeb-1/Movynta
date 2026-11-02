@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Plug, SlidersHorizontal, Trash2 } from "lucide-react";
+import { LogIn, Plug, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -14,12 +14,16 @@ import {
   providersSchema,
   providerNames as names,
   providerIds as catalog,
+  describeChatgptSession,
+  isSubscriptionProvider,
   ProviderIcon,
   type Provider,
 } from "@/features/providers";
 import { backendRequest, errorMessage } from "@/lib/backend";
 import { cn } from "@/lib/utils";
+import { ChatgptEditor } from "./ChatgptEditor";
 import { ProviderEditor } from "./ProviderEditor";
+import { useChatgptSignIn } from "./useChatgptSignIn";
 
 /** An icon-only action with a tooltip, used for the per-provider controls. */
 function IconAction({
@@ -65,6 +69,7 @@ export function ProvidersSettings() {
   const [editing, setEditing] = useState<Provider | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const chatgpt = useChatgptSignIn();
   const [confirmingRemoval, setConfirmingRemoval] = useState<string | null>(
     null,
   );
@@ -111,6 +116,13 @@ export function ProvidersSettings() {
               model: "",
               baseUrl: "",
             };
+            const subscription = isSubscriptionProvider(id);
+            const sessionSummary = subscription
+              ? describeChatgptSession(chatgpt.session)
+              : "";
+            const removable =
+              provider.configured ||
+              (subscription && chatgpt.session?.state === "expired");
             return (
               <div
                 key={id}
@@ -128,10 +140,16 @@ export function ProvidersSettings() {
                   />
                   <div>
                     <h3 className="text-sm font-medium">{names[id]}</h3>
-                    {!provider.configured && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Not configured
+                    {subscription && sessionSummary ? (
+                      <p className="mt-1 max-w-[260px] truncate text-xs text-muted-foreground">
+                        {sessionSummary}
                       </p>
+                    ) : (
+                      !provider.configured && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {subscription ? "Not signed in" : "Not configured"}
+                        </p>
+                      )
                     )}
                     {provider.baseUrl && (
                       <p
@@ -144,17 +162,19 @@ export function ProvidersSettings() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {provider.configured && (
+                  {removable && (
                     <IconAction
                       label={
                         confirmingRemoval === id
-                          ? "Click again to remove"
-                          : "Remove"
+                          ? "Click again to confirm"
+                          : subscription
+                            ? "Sign out"
+                            : "Remove"
                       }
                       destructive={confirmingRemoval === id}
                       disabled={busy}
                       onClick={() => {
-                        // Removing deletes the saved API key, so ask for a second click.
+                        // Removing deletes the saved key or sign-in, so ask for a second click.
                         if (confirmingRemoval !== id) {
                           setConfirmingRemoval(id);
                           window.setTimeout(
@@ -174,11 +194,21 @@ export function ProvidersSettings() {
                     </IconAction>
                   )}
                   <IconAction
-                    label={provider.configured ? "Configure" : "Connect"}
+                    label={
+                      subscription
+                        ? provider.configured
+                          ? "Manage sign-in"
+                          : "Sign in"
+                        : provider.configured
+                          ? "Configure"
+                          : "Connect"
+                    }
                     disabled={!connected || busy}
                     onClick={() => setEditing(provider)}
                   >
-                    {provider.configured ? (
+                    {subscription && !provider.configured ? (
+                      <LogIn className="size-4" />
+                    ) : provider.configured ? (
                       <SlidersHorizontal className="size-4" />
                     ) : (
                       <Plug className="size-4" />
@@ -196,13 +226,19 @@ export function ProvidersSettings() {
             if (!open) setEditing(null);
           }}
         >
-          {editing && (
-            <ProviderEditor
-              provider={editing}
-              onSaved={(providers) => dispatch(providersLoaded(providers))}
-              onClose={() => setEditing(null)}
-            />
-          )}
+          {editing &&
+            (isSubscriptionProvider(editing.id) ? (
+              <ChatgptEditor
+                signIn={chatgpt}
+                onClose={() => setEditing(null)}
+              />
+            ) : (
+              <ProviderEditor
+                provider={editing}
+                onSaved={(providers) => dispatch(providersLoaded(providers))}
+                onClose={() => setEditing(null)}
+              />
+            ))}
         </Dialog>
       </div>
     </TooltipProvider>

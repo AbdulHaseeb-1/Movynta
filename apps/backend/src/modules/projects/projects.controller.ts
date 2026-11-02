@@ -1,0 +1,117 @@
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, StreamableFile } from "@nestjs/common";
+import { ApiBearerAuth, ApiNotFoundResponse, ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/decorators/current-user.decorator.js";
+import { ResourceIdPipe } from "../../common/pipes/resource-id.pipe.js";
+import { ValidationFailedError } from "../../common/errors/app-error.js";
+import { ASSET_RESOURCE_ID_PATTERN, PROJECT_RESOURCE_ID_PATTERN } from "../../shared/constants/resource-ids.js";
+import type { AuthUser } from "../auth/auth.types.js";
+import { CreateProjectDto, ImportModelQueryDto, ListProjectsQueryDto, RecordSceneEditDto, UpdateProjectDto } from "./dto/index.js";
+import { ProjectsService } from "./projects.service.js";
+import type { ProjectConversation, ProjectView, SceneImport, SceneStep } from "./projects.types.js";
+
+const projectIdPipe = new ResourceIdPipe(PROJECT_RESOURCE_ID_PATTERN);
+const assetIdPipe = new ResourceIdPipe(ASSET_RESOURCE_ID_PATTERN);
+
+@ApiTags("projects")
+@ApiBearerAuth()
+@Controller({ path: "projects", version: "1" })
+export class ProjectsController {
+  constructor(private readonly projects: ProjectsService) {}
+
+  @Get()
+  list(@CurrentUser() user: AuthUser, @Query() query: ListProjectsQueryDto): ProjectView[] {
+    return this.projects.list(user.id, {
+      search: query.search?.trim() || undefined,
+      category: query.category,
+      scope: query.scope ?? "active",
+      starredOnly: query.starred === "true",
+      sort: query.sort ?? "updated",
+    });
+  }
+
+  @Post()
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateProjectDto): ProjectView {
+    return this.projects.create(user.id, dto.category, dto.name);
+  }
+
+  @Get(":projectId")
+  @ApiNotFoundResponse({ description: "Project not found for this user." })
+  get(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string): ProjectView {
+    return this.projects.get(user.id, projectId);
+  }
+
+  @Patch(":projectId")
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param("projectId", projectIdPipe) projectId: string,
+    @Body() dto: UpdateProjectDto,
+  ): ProjectView {
+    return this.projects.update(user.id, projectId, dto);
+  }
+
+  @Post(":projectId/duplicate")
+  duplicate(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string): ProjectView {
+    return this.projects.duplicate(user.id, projectId);
+  }
+
+  @Delete(":projectId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string): void {
+    this.projects.remove(user.id, projectId);
+  }
+
+  /** The scene's history in order: applied command batches and imported models. The editor replays it. */
+  @Get(":projectId/scene")
+  scene(
+    @CurrentUser() user: AuthUser,
+    @Param("projectId", projectIdPipe) projectId: string,
+  ): { steps: SceneStep[] } {
+    return { steps: this.projects.scene(user.id, projectId) };
+  }
+
+  /** Records moves, rotations and scale changes the user made by hand. */
+  @Post(":projectId/scene/edits")
+  recordSceneEdit(
+    @CurrentUser() user: AuthUser,
+    @Param("projectId", projectIdPipe) projectId: string,
+    @Body() dto: RecordSceneEditDto,
+  ): { proposalId: string } {
+    return this.projects.recordSceneEdit(user.id, projectId, dto.commands);
+  }
+
+  /** Imports a model: the file is the request body (application/octet-stream), described by the query. */
+  @Post(":projectId/assets")
+  importModel(
+    @CurrentUser() user: AuthUser,
+    @Param("projectId", projectIdPipe) projectId: string,
+    @Query() query: ImportModelQueryDto,
+    @Body() body: unknown,
+  ): SceneImport {
+    if (!Buffer.isBuffer(body)) throw new ValidationFailedError("Send the model file as application/octet-stream");
+    return this.projects.importModel(user.id, projectId, {
+      name: query.name,
+      format: query.format,
+      objectId: query.objectId,
+      content: body,
+    });
+  }
+
+  @Get(":projectId/assets/:assetId")
+  model(
+    @CurrentUser() user: AuthUser,
+    @Param("projectId", projectIdPipe) projectId: string,
+    @Param("assetId", assetIdPipe) assetId: string,
+  ): StreamableFile {
+    const asset = this.projects.model(user.id, projectId, assetId);
+    return new StreamableFile(asset.content, { type: "application/octet-stream" });
+  }
+
+  /** The latest chat, so the assistant can continue where it stopped. */
+  @Get(":projectId/conversation")
+  conversation(
+    @CurrentUser() user: AuthUser,
+    @Param("projectId", projectIdPipe) projectId: string,
+  ): ProjectConversation {
+    return this.projects.conversation(user.id, projectId);
+  }
+}

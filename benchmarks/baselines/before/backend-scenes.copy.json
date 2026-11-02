@@ -1,0 +1,74 @@
+{
+  "suite": "backend/scenes.copy",
+  "environment": {
+    "timestamp": "2026-11-02T11:55:11.186Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 276918,
+  "results": [
+    {
+      "name": "copy",
+      "params": {
+        "steps": 250
+      },
+      "samples": 234,
+      "median": 1.1583000000009633,
+      "p95": 3.269140000000515,
+      "p99": 4.376047000000866,
+      "mad": 0.3051000000032218,
+      "mean": 1.4961773504274034,
+      "opsPerSecond": 668.3699627683419
+    },
+    {
+      "name": "copy",
+      "params": {
+        "steps": 500
+      },
+      "samples": 136,
+      "median": 2.469199999999546,
+      "p95": 3.54987500000243,
+      "p99": 4.797320000001128,
+      "mad": 0.29574999999931606,
+      "mean": 2.5922941176470564,
+      "opsPerSecond": 385.75869658943964
+    },
+    {
+      "name": "copy",
+      "params": {
+        "steps": 1000
+      },
+      "samples": 72,
+      "median": 4.818050000001676,
+      "p95": 6.734689999999864,
+      "p99": 6.864086999998762,
+      "mad": 0.7327999999997701,
+      "mean": 4.912974999999834,
+      "opsPerSecond": 203.54265999725905
+    },
+    {
+      "name": "copy",
+      "params": {
+        "steps": 2000
+      },
+      "samples": 24,
+      "median": 15.076649999999063,
+      "p95": 18.614569999999002,
+      "p99": 19.895307999999496,
+      "mad": 2.303700000002209,
+      "mean": 14.785425000000183,
+      "opsPerSecond": 67.63417351885303
+    }
+  ],
+  "growth": {
+    "steps": 1.0920347363585108
+  }
+}

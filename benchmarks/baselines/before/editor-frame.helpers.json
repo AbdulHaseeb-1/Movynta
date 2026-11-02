@@ -1,0 +1,85 @@
+{
+  "suite": "editor/frame.helpers",
+  "environment": {
+    "timestamp": "2026-11-02T11:52:27.498Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 25125816,
+  "results": [
+    {
+      "name": "formatNumber x9 (one panel render)",
+      "params": {
+        "calls": 9
+      },
+      "samples": 69165,
+      "median": 0.004399999999805004,
+      "p95": 0.0059999999994033715,
+      "p99": 0.010599999999612919,
+      "mad": 0.00020000000040454324,
+      "mean": 0.005060409166484823,
+      "opsPerSecond": 197612.47897166442
+    },
+    {
+      "name": "parseNumber",
+      "params": {
+        "calls": 1
+      },
+      "samples": 707973,
+      "median": 0.0004000000008090865,
+      "p95": 0.0007000000005064066,
+      "p99": 0.001399999999193824,
+      "mad": 1.8189894035458565e-12,
+      "mean": 0.0004943694180429537,
+      "opsPerSecond": 2022778.8441256578
+    },
+    {
+      "name": "radiansToDegrees",
+      "params": {
+        "calls": 1
+      },
+      "samples": 1962943,
+      "median": 0.00019999999858555384,
+      "p95": 0.00020000000222353265,
+      "p99": 0.0003999999989900971,
+      "mad": 3.637978807091713e-12,
+      "mean": 0.00017830380199522415,
+      "opsPerSecond": 5608405.366626927
+    },
+    {
+      "name": "withAxis",
+      "params": {
+        "calls": 1
+      },
+      "samples": 1455742,
+      "median": 0.00019999999858555384,
+      "p95": 0.00030000000333529897,
+      "p99": 0.0007000000005064066,
+      "mad": 3.637978807091713e-12,
+      "mean": 0.00024046122183909356,
+      "opsPerSecond": 4158674.701691225
+    },
+    {
+      "name": "sameTransform",
+      "params": {
+        "calls": 1
+      },
+      "samples": 781226,
+      "median": 0.00030000000333529897,
+      "p95": 0.0007000000005064066,
+      "p99": 0.0012000000024272595,
+      "mad": 3.637978807091713e-12,
+      "mean": 0.0004490587870853289,
+      "opsPerSecond": 2226879.929219563
+    }
+  ],
+  "growth": {}
+}

@@ -7,6 +7,10 @@ import { backendRequest, errorMessage } from "@/lib/backend";
 import type { EditorScene } from "./EditorScene";
 import { connectEditor, type EditorConnection } from "./editorConnection";
 import { acceptedSchema, approvalSchema, getRun, streamRun } from "./runClient";
+import {
+  savedExchangesToMessages,
+  type SavedExchange,
+} from "./conversationMessages";
 import { applyRunEvent, settleActivity } from "./runEvents";
 import type { ChatMessage, RunPhase } from "./types";
 
@@ -29,7 +33,22 @@ function newMessage(
   };
 }
 
-export function useAssistantRun(editor: React.RefObject<EditorScene | null>) {
+/** What a reopened project hands back so its conversation can carry on. */
+export interface SavedConversation {
+  sessionId?: string | undefined;
+  /** The provider and model of the last reply; the session continues only if the same one is used. */
+  provider?: { id: string; model: string; baseUrl: string } | undefined;
+  messages: readonly SavedExchange[];
+}
+
+/**
+ * Drives one conversation with the assistant. `ensureProject` returns the id of the project the work
+ * belongs to, creating it first if this is the first prompt.
+ */
+export function useAssistantRun(
+  editor: React.RefObject<EditorScene | null>,
+  ensureProject: () => Promise<string>,
+) {
   const { provider, model, connected } = useAssistantSelection();
   const { effort } = useReasoningEffort();
   const sessionProvider = useRef("");
@@ -110,6 +129,7 @@ export function useAssistantRun(editor: React.RefObject<EditorScene | null>) {
     try {
       // Validate/refresh native authentication before opening the WebSocket, which cannot retry HTTP 401s.
       await backendRequest("/agents", z.array(z.object({ id: z.string() })));
+      scene.bindProject(await ensureProject());
       connection.current?.close();
       connection.current = await connectEditor(scene, abort.signal);
       const accepted = await backendRequest(
@@ -272,6 +292,15 @@ export function useAssistantRun(editor: React.RefObject<EditorScene | null>) {
     setPhase("idle");
     setStatus("Ready");
   }
+  /** Shows the saved chat of a reopened project and lets the assistant continue its session. */
+  function hydrate(saved: SavedConversation) {
+    session.current = saved.sessionId;
+    sessionProvider.current = saved.provider
+      ? `${saved.provider.id}:${saved.provider.model.trim()}:${saved.provider.baseUrl}`
+      : "";
+    lastPrompt.current = saved.messages[saved.messages.length - 1]?.prompt ?? "";
+    setMessages(savedExchangesToMessages(saved.messages));
+  }
   /** Sends the most recent prompt again, e.g. after a failure or to get another take. */
   function retry() {
     if (lastPrompt.current) void submit(lastPrompt.current);
@@ -286,6 +315,7 @@ export function useAssistantRun(editor: React.RefObject<EditorScene | null>) {
     cancel,
     decide,
     reset,
+    hydrate,
     retry,
     canRetry: !busy && messages.some((message) => message.role === "user"),
     ready: connected && Boolean(provider) && Boolean(model.trim()),

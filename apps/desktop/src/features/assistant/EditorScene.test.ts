@@ -51,4 +51,36 @@ describe("desktop editor protocol", () => {
       ]),
     ).toThrow();
   });
+  it("keeps a replaced object's name, place and parent", () => {
+    const editor = new EditorScene(new Scene(), "project");
+    editor.execute("p1", 0, [
+      { commandId: "g", type: "scene.create_object", objectId: "group", name: "Group" },
+      { ...box, commandId: "b", objectId: "part" },
+      {
+        commandId: "t",
+        type: "scene.transform_object",
+        objectId: "part",
+        transform: { position: [1, 2, 3], scale: [2, 2, 2] },
+      },
+    ]);
+    const replace = { ...box, commandId: "r", objectId: "part", primitive: "sphere", replaceExisting: true };
+    expect(editor.execute("p2", 1, [replace]).status).toBe("applied");
+    const part = editor.context().objects.find((object) => object.id === "part");
+    expect(part?.transform.position).toEqual([1, 2, 3]);
+    expect(part?.transform.scale).toEqual([2, 2, 2]);
+    expect(part?.name).toBe("box");
+  });
+  it("reports which command failed and why, and keeps the scene unchanged", () => {
+    const editor = new EditorScene(new Scene(), "project");
+    const result = editor.execute("p1", 0, [
+      { ...box, commandId: "ok", objectId: "fine" },
+      { ...box, commandId: "dup", objectId: "fine" },
+    ]);
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("dup");
+    expect(result.message).toContain("already exists");
+    const dup = result.results.find((item) => item.commandId === "dup");
+    expect(dup && "message" in dup ? dup.message : "").toContain("already exists");
+    expect(editor.context().objects).toHaveLength(0);
+  });
 });

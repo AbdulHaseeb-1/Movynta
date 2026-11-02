@@ -1,5 +1,6 @@
 import type { ModelSettings } from "@openai/agents";
 import type { ProviderId } from "./providers.types.js";
+import { CHATGPT_MODEL_SETTINGS } from "./chatgpt/chatgpt.constants.js";
 
 /**
  * Reasoning effort levels the app offers. Every provider has its own knob (OpenAI's `reasoning.effort`,
@@ -21,6 +22,13 @@ function openaiEfforts(model: string): readonly ReasoningEffort[] {
   // Codex variants and gpt-5.1 and later dropped "minimal"; the shared subset is always accepted.
   if (/codex|^gpt-5\.\d/.test(model)) return LOW_MEDIUM_HIGH;
   return ["minimal", ...LOW_MEDIUM_HIGH];
+}
+
+function chatgptEfforts(model: string): readonly ReasoningEffort[] {
+  // The subscription backend accepts the shared subset on every reasoning model, but not "minimal".
+  return /^(gpt-([5-9]|d{2,})|od)|codex/.test(model) && !/chat|-pro/.test(model)
+    ? LOW_MEDIUM_HIGH
+    : [];
 }
 
 function anthropicEfforts(model: string): readonly ReasoningEffort[] {
@@ -49,6 +57,7 @@ export function reasoningEffortsFor(
 ): readonly ReasoningEffort[] {
   const name = model.toLowerCase();
   if (providerId === "openai") return openaiEfforts(name);
+  if (providerId === "chatgpt") return chatgptEfforts(name);
   if (providerId === "anthropic") return anthropicEfforts(name);
   if (providerId === "google") return googleEfforts(name);
   return [];
@@ -74,7 +83,8 @@ export function reasoningModelSettings(
   model: string,
   effort: ReasoningEffort,
 ): ModelSettings {
-  if (providerId === "openai") return { reasoning: { effort } };
+  if (providerId === "openai" || providerId === "chatgpt")
+    return { reasoning: { effort } };
   if (providerId === "anthropic")
     return {
       providerData: {
@@ -98,4 +108,9 @@ export function reasoningModelSettings(
       },
     };
   return {};
+}
+
+/** Settings a provider needs on every run, whatever the user selects. */
+export function requiredModelSettings(providerId: ProviderId): ModelSettings {
+  return providerId === "chatgpt" ? CHATGPT_MODEL_SETTINGS : {};
 }

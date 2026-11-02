@@ -33,3 +33,7 @@ target-check/
 .env.*
 !.env.example
 
+
+# Benchmark runs (the committed baselines stay)
+benchmarks/results/
+benchmarks/reports/

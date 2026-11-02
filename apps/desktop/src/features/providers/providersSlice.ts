@@ -6,6 +6,7 @@ export const providerIdSchema = z.enum([
   "google",
   "openai-compatible",
   "anthropic-compatible",
+  "chatgpt",
 ]);
 export type ProviderId = z.infer<typeof providerIdSchema>;
 export const providerSchema = z.object({
@@ -44,7 +45,12 @@ export const providerIds: ProviderId[] = [
   "google",
   "openai-compatible",
   "anthropic-compatible",
+  "chatgpt",
 ];
+/** The ChatGPT provider signs in with a subscription in the browser instead of taking an API key. */
+export function isSubscriptionProvider(id: ProviderId) {
+  return id === "chatgpt";
+}
 export function isCompatibleProvider(id: ProviderId) {
   return id === "openai-compatible" || id === "anthropic-compatible";
 }
@@ -54,4 +60,5 @@ export const providerNames: Record<ProviderId, string> = {
   google: "Google",
   "openai-compatible": "OpenAI compatible",
   "anthropic-compatible": "Anthropic compatible",
+  chatgpt: "ChatGPT",
 };

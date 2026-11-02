@@ -1,0 +1,153 @@
+{
+  "suite": "editor/pick.objects",
+  "environment": {
+    "timestamp": "2026-11-02T13:13:37.754Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 15385,
+  "results": [
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 100
+      },
+      "samples": 1529,
+      "median": 0.1471999999998843,
+      "p95": 0.5389999999998962,
+      "p99": 1.0913800000000369,
+      "mad": 0.03530000000000655,
+      "mean": 0.22902099411379495,
+      "opsPerSecond": 4366.411925987555
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 100
+      },
+      "samples": 20901,
+      "median": 0.012200000000120781,
+      "p95": 0.026200000000244472,
+      "p99": 0.06860000000006039,
+      "mad": 0.001099999999951251,
+      "mean": 0.016746150901871166,
+      "opsPerSecond": 59715.21490877423
+    },
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 200
+      },
+      "samples": 656,
+      "median": 0.3161499999998796,
+      "p95": 1.5230999999998858,
+      "p99": 2.3993949999998008,
+      "mad": 0.07884999999987485,
+      "mean": 0.5348868902439011,
+      "opsPerSecond": 1869.5541398369544
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 200
+      },
+      "samples": 2058,
+      "median": 0.13035000000013497,
+      "p95": 0.31016499999977853,
+      "p99": 0.8549729999997369,
+      "mad": 0.007100000000036744,
+      "mean": 0.17037954324587345,
+      "opsPerSecond": 5869.249212371155
+    },
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 400
+      },
+      "samples": 119,
+      "median": 2.592399999999998,
+      "p95": 6.541949999999904,
+      "p99": 7.624157999999942,
+      "mad": 0.7233999999998559,
+      "mean": 2.9451991596638396,
+      "opsPerSecond": 339.5356122925617
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 400
+      },
+      "samples": 1024,
+      "median": 0.26464999999961947,
+      "p95": 0.785520000000042,
+      "p99": 1.610206000000378,
+      "mad": 0.055499999999938154,
+      "mean": 0.34199189453124745,
+      "opsPerSecond": 2924.045908662993
+    },
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 800
+      },
+      "samples": 48,
+      "median": 6.593449999999848,
+      "p95": 11.658169999999654,
+      "p99": 12.204100999999628,
+      "mad": 1.378700000000208,
+      "mean": 7.377010416666603,
+      "opsPerSecond": 135.5562678535383
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 800
+      },
+      "samples": 519,
+      "median": 0.5583999999998923,
+      "p95": 1.5812699999996744,
+      "p99": 2.5993759999997765,
+      "mad": 0.12889999999970314,
+      "mean": 0.6752724470134844,
+      "opsPerSecond": 1480.883759470244
+    },
+    {
+      "name": "pickObjectId (hit)",
+      "params": {
+        "objects": 1600
+      },
+      "samples": 26,
+      "median": 14.786249999999654,
+      "p95": 16.63115000000016,
+      "p99": 17.43640000000005,
+      "mad": 1.4775500000000648,
+      "mean": 13.884423076922932,
+      "opsPerSecond": 72.02315821548851
+    },
+    {
+      "name": "pickObjectId (miss)",
+      "params": {
+        "objects": 1600
+      },
+      "samples": 244,
+      "median": 1.175600000000486,
+      "p95": 3.199105000000508,
+      "p99": 5.490730999999841,
+      "mad": 0.42484999999942374,
+      "mean": 1.4363831967213374,
+      "opsPerSecond": 696.1930509091043
+    }
+  ],
+  "growth": {
+    "hit": 1.2559479834425922,
+    "miss": 1.0756198525095642
+  }
+}

@@ -27,7 +27,7 @@ export const envSchema = z
     OPENAI_MODEL: z.string().min(1).optional(),
     OPENAI_AGENTS_DISABLE_TRACING: z.stringbool().default(true),
     AGENT_RUN_TIMEOUT_MS: durationMs(5 * 60 * 1000),
-    AGENT_MAX_TURNS: z.coerce.number().int().positive().default(12),
+    AGENT_MAX_TURNS: z.coerce.number().int().positive().default(500),
 
     EDITOR_REQUEST_TIMEOUT_MS: durationMs(15_000),
     SKILLS_DIR: z.string().min(1).default("../../skills"),

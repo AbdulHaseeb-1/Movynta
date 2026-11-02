@@ -5,6 +5,7 @@ import { isCompatibleProvider, type ProviderId } from "./providersSlice";
 
 const BRAND_PATHS: Readonly<Record<ProviderId, string>> = {
   openai: siOpenai.path,
+  chatgpt: siOpenai.path,
   "openai-compatible": siOpenai.path,
   anthropic: siAnthropic.path,
   "anthropic-compatible": siAnthropic.path,

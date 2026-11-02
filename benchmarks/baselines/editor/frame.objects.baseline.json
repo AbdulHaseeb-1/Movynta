@@ -1,0 +1,87 @@
+{
+  "suite": "editor/frame.objects",
+  "environment": {
+    "timestamp": "2026-11-02T14:23:49.974Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 5,
+  "results": [
+    {
+      "name": "ObjectGizmo frame sync",
+      "params": {
+        "objects": 100
+      },
+      "samples": 457253,
+      "median": 0.00040000000035433914,
+      "p95": 0.0014999999998508429,
+      "p99": 0.001900000000205182,
+      "mad": 0.00009999999929277692,
+      "mean": 0.0007654412327528029,
+      "opsPerSecond": 1306436.0230551457
+    },
+    {
+      "name": "ObjectGizmo frame sync",
+      "params": {
+        "objects": 200
+      },
+      "samples": 446647,
+      "median": 0.0005000000001018634,
+      "p95": 0.0015999999995983671,
+      "p99": 0.0020000000004074536,
+      "mad": 0.00010000000020227162,
+      "mean": 0.0007836168159636073,
+      "opsPerSecond": 1276133.9211056975
+    },
+    {
+      "name": "ObjectGizmo frame sync",
+      "params": {
+        "objects": 400
+      },
+      "samples": 514143,
+      "median": 0.0003999999998995918,
+      "p95": 0.0016000000005078618,
+      "p99": 0.001999999999497959,
+      "mad": 9.094947017729282e-13,
+      "mean": 0.0006807462126300043,
+      "opsPerSecond": 1468976.222631612
+    },
+    {
+      "name": "ObjectGizmo frame sync",
+      "params": {
+        "objects": 800
+      },
+      "samples": 453930,
+      "median": 0.0005000000001018634,
+      "p95": 0.0015999999995983671,
+      "p99": 0.001900000000205182,
+      "mad": 0.00010000000020227162,
+      "mean": 0.0007710439935675526,
+      "opsPerSecond": 1296942.8571424156
+    },
+    {
+      "name": "ObjectGizmo frame sync",
+      "params": {
+        "objects": 1600
+      },
+      "samples": 499888,
+      "median": 0.0004000000008090865,
+      "p95": 0.0015999999995983671,
+      "p99": 0.001999999999497959,
+      "mad": 0.00009999999929277692,
+      "mean": 0.0007001576353105277,
+      "opsPerSecond": 1428249.7962855021
+    }
+  ],
+  "growth": {
+    "objects": 3.280308564779643e-10
+  }
+}

@@ -3,8 +3,11 @@ import type { NodeAdapter } from "@nestjs/platform-node";
 import { WsAdapter } from "@nestjs/platform-ws";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import type { AppConfig } from "../../config/config.types.js";
+import { MAX_ASSET_BYTES } from "../../modules/projects/projects.types.js";
 
 const HEALTH_ROUTES = ["health/live", "health/ready"];
+/** The one route that takes a binary body: a model file sent to a project. */
+const MODEL_UPLOAD_PATH = /^\/api\/v1\/projects\/[^/?]+\/assets(\?|$)/;
 
 /**
  * Applies the HTTP and WebSocket configuration shared by the server and the
@@ -13,12 +16,20 @@ const HEALTH_ROUTES = ["health/live", "health/ready"];
  */
 export function configureApplication(app: INestApplication, adapter: NodeAdapter, config: AppConfig): void {
   adapter.useBodyParser("json", false, { limit: config.requestBodyLimit });
+  // Large bodies are read only for model uploads, so no other route can be sent megabytes.
+  adapter.useBodyParser("raw", false, {
+    limit: MAX_ASSET_BYTES,
+    type: (request) =>
+      request.method === "POST" &&
+      MODEL_UPLOAD_PATH.test(request.url ?? "") &&
+      (request.headers["content-type"] ?? "").startsWith("application/octet-stream"),
+  });
   app.setGlobalPrefix("api", { exclude: HEALTH_ROUTES });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: "1" });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true, validationError: { target: false, value: false } }));
   app.enableCors({
     origin: config.corsOrigins.length > 0 ? [...config.corsOrigins] : false,
-    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     credentials: false,
   });
   app.useWebSocketAdapter(new WsAdapter(app));

@@ -1,0 +1,74 @@
+{
+  "suite": "editor/execute.restore",
+  "environment": {
+    "timestamp": "2026-11-02T11:32:41.454Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 589189,
+  "results": [
+    {
+      "name": "restore",
+      "params": {
+        "steps": 50
+      },
+      "samples": 67,
+      "median": 4.8817999999992026,
+      "p95": 7.586569999999298,
+      "p99": 10.012692000000223,
+      "mad": 0.5066999999980908,
+      "mean": 5.253368656716594,
+      "opsPerSecond": 190.35405000969598
+    },
+    {
+      "name": "restore",
+      "params": {
+        "steps": 100
+      },
+      "samples": 64,
+      "median": 5.156850000000304,
+      "p95": 8.018934999999509,
+      "p99": 9.003526000000472,
+      "mad": 0.9124500000007174,
+      "mean": 5.509043750000075,
+      "opsPerSecond": 181.51970566579482
+    },
+    {
+      "name": "restore",
+      "params": {
+        "steps": 200
+      },
+      "samples": 48,
+      "median": 6.734849999999824,
+      "p95": 10.798224999999274,
+      "p99": 11.782686000000178,
+      "mad": 1.4674499999991895,
+      "mean": 7.3061062499999325,
+      "opsPerSecond": 136.8718118491651
+    },
+    {
+      "name": "restore",
+      "params": {
+        "steps": 400
+      },
+      "samples": 50,
+      "median": 6.281200000000354,
+      "p95": 11.781299999999918,
+      "p99": 12.338674000000228,
+      "mad": 0.9765000000006694,
+      "mean": 7.083908000000047,
+      "opsPerSecond": 141.16501795336603
+    }
+  ],
+  "growth": {
+    "steps": 0.0790768904357535
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "suite": "editor/pick.triangles",
+  "environment": {
+    "timestamp": "2026-11-02T11:38:03.594Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 30035,
+  "results": [
+    {
+      "name": "pickObjectId (hit, dense mesh)",
+      "params": {
+        "triangles": 10000
+      },
+      "samples": 280,
+      "median": 1.1088999999997213,
+      "p95": 1.970070000000169,
+      "p99": 2.0843789999994713,
+      "mad": 0.3407999999999447,
+      "mean": 1.2554324999999869,
+      "opsPerSecond": 796.5382447881591
+    },
+    {
+      "name": "pickObjectId (miss, dense mesh)",
+      "params": {
+        "triangles": 10000
+      },
+      "samples": 430844,
+      "median": 0.0007000000005064066,
+      "p95": 0.0009000000009109499,
+      "p99": 0.0014000000010128133,
+      "mad": 0.00009999999929277692,
+      "mean": 0.0008123592297906882,
+      "opsPerSecond": 1230982.5054337834
+    },
+    {
+      "name": "pickObjectId (hit, dense mesh)",
+      "params": {
+        "triangles": 40000
+      },
+      "samples": 55,
+      "median": 6.522300000000541,
+      "p95": 7.5261200000006285,
+      "p99": 8.493132000000514,
+      "mad": 0.34759999999914726,
+      "mean": 6.44527272727269,
+      "opsPerSecond": 155.1524725662228
+    },
+    {
+      "name": "pickObjectId (miss, dense mesh)",
+      "params": {
+        "triangles": 40000
+      },
+      "samples": 434126,
+      "median": 0.0007000000005064066,
+      "p95": 0.0009000000009109499,
+      "p99": 0.001399999999193824,
+      "mad": 0.00009999999929277692,
+      "mean": 0.0008062182407884429,
+      "opsPerSecond": 1240358.9368333416
+    },
+    {
+      "name": "pickObjectId (hit, dense mesh)",
+      "params": {
+        "triangles": 160000
+      },
+      "samples": 21,
+      "median": 13.493100000001505,
+      "p95": 26.528800000000047,
+      "p99": 29.99983999999968,
+      "mad": 2.5139000000017404,
+      "mean": 16.75230952380982,
+      "opsPerSecond": 59.69326190987064
+    },
+    {
+      "name": "pickObjectId (miss, dense mesh)",
+      "params": {
+        "triangles": 160000
+      },
+      "samples": 454898,
+      "median": 0.0007000000005064066,
+      "p95": 0.000800000001618173,
+      "p99": 0.001399999999193824,
+      "mad": 1.8189894035458565e-12,
+      "mean": 0.0007694041301572921,
+      "opsPerSecond": 1299707.0860479607
+    },
+    {
+      "name": "pickObjectId (hit, dense mesh)",
+      "params": {
+        "triangles": 640000
+      },
+      "samples": 12,
+      "median": 101.91055000000051,
+      "p95": 104.99185500000075,
+      "p99": 106.54853100000048,
+      "mad": 2.164850000000115,
+      "mean": 97.4140750000003,
+      "opsPerSecond": 10.265457019429656
+    },
+    {
+      "name": "pickObjectId (miss, dense mesh)",
+      "params": {
+        "triangles": 640000
+      },
+      "samples": 429266,
+      "median": 0.0007000000005064066,
+      "p95": 0.0009000000009109499,
+      "p99": 0.0014999999984866008,
+      "mad": 0.00009999999929277692,
+      "mean": 0.0008153464285530263,
+      "opsPerSecond": 1226472.5336133176
+    }
+  ],
+  "growth": {
+    "hit": 1.2781257654840767
+  }
+}

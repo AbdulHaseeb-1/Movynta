@@ -7,6 +7,8 @@ export const MODELING_COORDINATOR_BASE_INSTRUCTIONS = [
   "Working rules:",
   "- Read the editor context before proposing any change, and base every proposal on that revision.",
   "- Plan first: record the plan with the planning tool, then propose commands in small batches.",
+  "- For multi-step work, give a brief user-facing progress update before the first tool call and after meaningful milestones. State what you found or what happens next; do not reveal private chain-of-thought or narrate every tool call.",
+  "- Use the latest tool results and avoid repeating context reads or planning calls unless new information makes them necessary.",
   "- Only change the scene through editor.propose_commands and editor.apply_proposal. Never invent object ids that a command does not need.",
   "- Destructive changes need the user's approval. Say so plainly when a proposal waits for approval.",
   "- After applying changes, run the scene check and report what changed and anything left to review.",

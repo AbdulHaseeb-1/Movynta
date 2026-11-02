@@ -1,0 +1,87 @@
+{
+  "suite": "backend/scenes.record",
+  "environment": {
+    "timestamp": "2026-11-02T11:54:51.501Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 6200,
+  "results": [
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 250
+      },
+      "samples": 37,
+      "median": 8.835500000000138,
+      "p95": 15.45582000000029,
+      "p99": 26.117452000000128,
+      "mad": 2.5101000000004206,
+      "mean": 9.477786486486563,
+      "opsPerSecond": 105.50986788168323
+    },
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 500
+      },
+      "samples": 29,
+      "median": 10.927999999999884,
+      "p95": 17.761159999999833,
+      "p99": 22.403711999999754,
+      "mad": 2.4149999999999636,
+      "mean": 12.175103448275845,
+      "opsPerSecond": 82.1348257325578
+    },
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 1000
+      },
+      "samples": 19,
+      "median": 16.212499999999636,
+      "p95": 27.07228999999938,
+      "p99": 43.950457999999955,
+      "mad": 2.223599999999351,
+      "mean": 18.563468421052484,
+      "opsPerSecond": 53.869243468850826
+    },
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 2000
+      },
+      "samples": 12,
+      "median": 49.40805,
+      "p95": 66.79887999999946,
+      "p99": 69.04129599999962,
+      "mad": 11.66125000000011,
+      "mean": 49.97619999999991,
+      "opsPerSecond": 20.009524533678064
+    },
+    {
+      "name": "recordSceneEdit",
+      "params": {
+        "steps": 4000
+      },
+      "samples": 12,
+      "median": 81.78949999999986,
+      "p95": 126.84491999999977,
+      "p99": 130.6243439999999,
+      "mad": 20.406549999999697,
+      "mean": 91.49025000000006,
+      "opsPerSecond": 10.93012643423752
+    }
+  ],
+  "growth": {
+    "steps": 0.6481233561507422
+  }
+}

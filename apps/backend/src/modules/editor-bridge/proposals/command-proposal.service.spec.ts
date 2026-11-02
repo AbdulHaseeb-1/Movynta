@@ -13,6 +13,7 @@ import type {
   EditorBridge,
   EditorConnectionScope,
 } from "../editor-bridge.types.js";
+import { ProjectScenesService } from "../../projects/project-scenes.service.js";
 import { CommandProposalRepository } from "./command-proposal.repository.js";
 import { CommandProposalService } from "./command-proposal.service.js";
 import type { ProposalRun } from "./proposals.types.js";
@@ -49,7 +50,7 @@ class FakeBridge implements EditorBridge {
 function setup() {
   const database = openInMemoryDatabase();
   const bridge = new FakeBridge();
-  const service = new CommandProposalService(new CommandProposalRepository(database), new ApprovalPolicy(), bridge);
+  const service = new CommandProposalService(new CommandProposalRepository(database), new ApprovalPolicy(), bridge, new ProjectScenesService(database));
 
   // Proposals reference a run, which references a session. Create both for the foreign keys.
   const sessionId = randomUUID();

@@ -39,16 +39,33 @@ export async function backendRequest<T>(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
+  const response = await authorizedFetch(
+    path,
+    {
+      method,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: signal ?? AbortSignal.timeout(20000),
+    },
+    body === undefined ? {} : { "Content-Type": "application/json" },
+  );
+  // A 204 has no body, e.g. after deleting something.
+  const data: unknown =
+    response.status === 204 ? undefined : await response.json();
+  if (!response.ok) throw new Error(failureMessage(data));
+  return schema.parse(data);
+}
+
+/** Sends a request with the backend token, getting a fresh token once if the old one was refused. */
+async function authorizedFetch(
+  path: string,
+  init: Omit<RequestInit, "headers">,
+  headers: Record<string, string>,
+): Promise<Response> {
   await ensureBackendConnection();
   const send = () =>
     fetch(`${BACKEND_URL}/api/v1${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: signal ?? AbortSignal.timeout(20000),
+      ...init,
+      headers: { ...headers, Authorization: `Bearer ${accessToken}` },
     });
   let response = await send();
   if (response.status === 401 && isTauri()) {
@@ -56,19 +73,60 @@ export async function backendRequest<T>(
     await ensureBackendConnection();
     response = await send();
   }
-  const data: unknown = await response.json();
+  if (response.status === 401) accessToken = "";
+  return response;
+}
+
+function failureMessage(data: unknown): string {
+  const parsed = z
+    .object({ error: z.object({ message: z.string() }) })
+    .safeParse(data);
+  return parsed.success
+    ? parsed.data.error.message
+    : "The backend request failed.";
+}
+
+/** Sends a file as the request body, for example a model being imported. */
+export async function backendUpload<T>(
+  path: string,
+  schema: z.ZodType<T>,
+  data: Blob,
+  signal?: AbortSignal,
+): Promise<T> {
+  const response = await authorizedFetch(
+    path,
+    {
+      method: "POST",
+      body: data,
+      signal: signal ?? AbortSignal.timeout(120000),
+    },
+    { "Content-Type": "application/octet-stream" },
+  );
+  const body: unknown = await response.json();
+  if (!response.ok) throw new Error(failureMessage(body));
+  return schema.parse(body);
+}
+
+/** Fetches a file the backend keeps, such as an imported model. */
+export async function backendDownload(
+  path: string,
+  signal?: AbortSignal,
+): Promise<ArrayBuffer> {
+  const response = await authorizedFetch(
+    path,
+    { method: "GET", signal: signal ?? AbortSignal.timeout(120000) },
+    {},
+  );
   if (!response.ok) {
-    if (response.status === 401) accessToken = "";
-    const parsed = z
-      .object({ error: z.object({ message: z.string() }) })
-      .safeParse(data);
-    throw new Error(
-      parsed.success
-        ? parsed.data.error.message
-        : "The backend request failed.",
-    );
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      body = undefined;
+    }
+    throw new Error(failureMessage(body));
   }
-  return schema.parse(data);
+  return response.arrayBuffer();
 }
 
 export function errorMessage(error: unknown) {

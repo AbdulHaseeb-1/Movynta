@@ -1,0 +1,74 @@
+{
+  "suite": "backend/projects.purge",
+  "environment": {
+    "timestamp": "2026-11-02T13:13:28.329Z",
+    "commit": "06aa3fb",
+    "dirty": true,
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1265U",
+    "cores": 12,
+    "ramGb": 31,
+    "os": "win32 10.0.26300",
+    "node": "v24.21.0",
+    "buildProfile": "node JIT (optimized), backend from dist",
+    "seedNote": "fixtures seeded with 20260402",
+    "command": "D:\\movynta\\node_modules\\.pnpm\\vitest@5.0.5_@types+node@26_ce662acc77373e2572bcdd385a1819ba\\node_modules\\vitest\\dist\\workers\\forks.js"
+  },
+  "sink": 390694,
+  "results": [
+    {
+      "name": "purge",
+      "params": {
+        "projects": 50
+      },
+      "samples": 780,
+      "median": 0.3191999999999098,
+      "p95": 1.078975000000172,
+      "p99": 2.9967230000008245,
+      "mad": 0.07229999999799475,
+      "mean": 0.44887615384607976,
+      "opsPerSecond": 2227.7859748880787
+    },
+    {
+      "name": "purge",
+      "params": {
+        "projects": 100
+      },
+      "samples": 1131,
+      "median": 0.22950000000128057,
+      "p95": 0.7617499999978463,
+      "p99": 2.0101200000011903,
+      "mad": 0.09360000000015134,
+      "mean": 0.3095572944296729,
+      "opsPerSecond": 3230.4197574875307
+    },
+    {
+      "name": "purge",
+      "params": {
+        "projects": 200
+      },
+      "samples": 674,
+      "median": 0.3345500000013999,
+      "p95": 1.4338500000014394,
+      "p99": 2.856479000002071,
+      "mad": 0.0838000000003376,
+      "mean": 0.5199102373887834,
+      "opsPerSecond": 1923.408942709875
+    },
+    {
+      "name": "purge",
+      "params": {
+        "projects": 400
+      },
+      "samples": 375,
+      "median": 0.836699999999837,
+      "p95": 2.0551800000012013,
+      "p99": 3.4027520000001075,
+      "mad": 0.4076000000022759,
+      "mean": 0.9339623999999507,
+      "opsPerSecond": 1070.7069149679396
+    }
+  ],
+  "growth": {
+    "projects": 0.47144770411746373
+  }
+}
