@@ -332,33 +332,6 @@ describe("edits made by the user", () => {
     expect(scene.steps).toHaveLength(3);
   });
 
-  it("can pose a rig, and the pose is kept in the history without adding objects to the project", async () => {
-    const project = await create();
-    expect((await upload(project.id, GLB_HEADER)).status).toBe(201);
-    const pose = (commandId: string, objectId: string, bone = 2) => ({
-      type: "rig.pose_bone",
-      commandId,
-      objectId,
-      bone,
-      transform: { rotation: [0, 0.5, 0] },
-    });
-    expect((await recordEdit(project.id, [pose("p1", "robot_glb")])).status).toBe(201);
-    // The same object can be posed again, and a pose never makes a new object known.
-    expect((await recordEdit(project.id, [pose("p2", "robot_glb", 0), move("m", "robot_glb")])).status).toBe(201);
-    expect((await recordEdit(project.id, [pose("p3", "ghost")])).status).toBe(422);
-    expect((await recordEdit(project.id, [{ ...pose("p4", "robot_glb"), bone: -1 }])).status).toBe(422);
-    expect((await recordEdit(project.id, [{ ...pose("p5", "robot_glb"), bone: 1.5 }])).status).toBe(422);
-    expect((await recordEdit(project.id, [{ ...pose("p6", "robot_glb"), transform: undefined }])).status).toBe(422);
-    const scene = (await (await request(`/projects/${project.id}/scene`)).json()) as {
-      steps: { kind: string; commands?: { type: string }[] }[];
-    };
-    expect(scene.steps.map((step) => step.commands?.[0]?.type ?? step.kind)).toEqual([
-      "import",
-      "rig.pose_bone",
-      "rig.pose_bone",
-    ]);
-  });
-
   it("do not know about objects the assistant deleted", async () => {
     const project = await create();
     const scenes = server.app.get(ProjectScenesService);

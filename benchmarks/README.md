@@ -8,7 +8,7 @@ these check how long it takes, and how that grows with the size of the input.
 
 ```bash
 pnpm --filter movynta-benchmarks bench            # every suite (several minutes)
-pnpm --filter movynta-benchmarks bench:desktop    # editor, import, projects, rigging, viewport suites
+pnpm --filter movynta-benchmarks bench:desktop    # editor, import, projects, viewport suites
 pnpm --filter movynta-benchmarks bench:backend    # backend suites (builds the backend first)
 pnpm --filter movynta-benchmarks exec vitest run --config vitest.config.ts suites/editor/pick   # one suite
 ```
@@ -45,7 +45,6 @@ Read `config/environment.md` before keeping numbers: they only compare under the
 | `editor/selection` | Group drag step, rectangle select, select all, many objects at once | HIGH | O(selected objects); rectangle O(objects) |
 | `editor/pick` | `pickObjectId` on many objects and on one dense mesh | HIGH | O(objects), O(triangles hit) |
 | `editor/frame` | Per-frame gizmo sync and the panel's number helpers | HIGH | O(1) |
-| `rigging/rig` | Joints, overlay and bone picking per frame; posing; planning a reset | HIGH | O(bones); posing O(1) |
 | `importer/import` | `prepareModel`, OBJ and STL reading, naming | HIGH | O(vertices), O(file) |
 | `projects/helpers` | Store reducers, chat restore, card text | MEDIUM | O(items) |
 | `backend/scenes` | Recording and reading a project's history, files | HIGH | O(1) per edit; O(history) to read |

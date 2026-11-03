@@ -25,8 +25,6 @@ export interface GizmoView {
   tool: () => ViewportTool;
   /** False while the assistant works, which turns the handles off. */
   enabled: () => boolean;
-  /** False while something else, such as posing a rig, owns the handles and the clicks of the view. */
-  editsObjects: () => boolean;
 }
 
 /** An object that a drag moved: where it was and where it is now. */
@@ -131,7 +129,7 @@ export class ObjectGizmo {
       // A press on a handle drags it; it is never a click on the scene.
       ignore: () => this.controls.axis !== null,
       onClick: (event) => {
-        if (!this.view.editsObjects() || this.view.tool() === "pan") return;
+        if (this.view.tool() === "pan") return;
         const ndc = toNdc(event.clientX, event.clientY, dom.getBoundingClientRect());
         const hit = pickObjectId(this.editor, viewport.camera, ndc);
         if (!event.shiftKey) this.editor.select(hit ?? null);
@@ -236,7 +234,7 @@ export class ObjectGizmo {
       this.controls.setMode(this.mode);
     }
     const showGizmo =
-      Boolean(target) && enabled && isHandleTool(tool) && this.view.editsObjects();
+      Boolean(target) && enabled && isHandleTool(tool);
     this.controls.getHelper().visible = showGizmo;
     this.controls.enabled = showGizmo;
     if (this.controls.dragging) return;

@@ -25,6 +25,8 @@ const eventPayloadSchemas: { readonly [K in AgentRunEventType]: z.ZodType<AgentR
     requiresApproval: z.boolean(),
     commandCount: z.number().int().nonnegative(),
     baseRevision: z.number().int().nonnegative(),
+    supersedes: z.string().nullable(),
+    planStepId: z.string().nullable(),
   }),
   "approval.required": z.object({
     approvalId: z.string(),

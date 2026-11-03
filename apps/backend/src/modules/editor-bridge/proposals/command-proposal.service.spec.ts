@@ -37,10 +37,13 @@ class FakeBridge implements EditorBridge {
 
   executeCommands(_clientId: string, request: CommandExecutionRequest): Promise<CommandExecutionResult> {
     this.executions.push(request);
+    if (request.expectedRevision !== this.scene.revision) {
+      return Promise.resolve({ proposalId: request.proposalId, status: "revision_conflict", revision: this.scene.revision, results: [], message: undefined });
+    }
     return Promise.resolve({
       proposalId: request.proposalId,
       status: "applied",
-      revision: 5,
+      revision: this.scene.revision + 1,
       results: request.commands.map((command) => ({ commandId: command.commandId, status: "applied", message: undefined })),
       message: undefined,
     });
@@ -74,6 +77,10 @@ function setup() {
 }
 
 const addBox: EditorCommand = { commandId: "c1", type: "scene.create_object", objectId: "box", name: "Box" };
+
+function sceneObject(id: string, parentId: string | null = null): EditorContext["objects"][number] {
+  return { id, name: id, type: "mesh", parentId, transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } };
+}
 
 describe("command proposals", () => {
   it("validates against the latest scene and records the base revision", async () => {
@@ -141,5 +148,107 @@ describe("command proposals", () => {
     const { service, run } = setup();
     const proposal = await service.propose(run, { summary: "Add a box", commands: [addBox] });
     await expect(service.apply({ ...run, id: "run_other" }, proposal.id)).rejects.toThrow(/not found/);
+  });
+
+  it("runs a batch again on a newer scene when its commands still fit, and says so", async () => {
+    const { bridge, service, run } = setup();
+    const proposal = await service.propose(run, { summary: "Add a box", commands: [addBox] });
+    bridge.scene = { ...bridge.scene, revision: 9 };
+
+    const result = await service.apply(run, proposal.id);
+
+    expect(result.status).toBe("applied");
+    expect(result.rebased).toBe(true);
+    expect(bridge.executions.map((request) => request.expectedRevision)).toEqual([4, 9]);
+  });
+
+  it("fails a batch whose commands no longer fit the newer scene, so it has to be proposed again", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("old")] };
+    const proposal = await service.propose(run, {
+      summary: "Move old",
+      commands: [{ commandId: "t", type: "scene.transform_object", objectId: "old", transform: { position: [1, 0, 0] } }],
+    });
+    bridge.scene = { ...bridge.scene, revision: 9, objects: [] };
+
+    const result = await service.apply(run, proposal.id);
+
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("no longer fits");
+    expect(bridge.executions).toHaveLength(1);
+  });
+
+  it("replaces a waiting proposal with a newer one, and the replaced one can no longer be applied", async () => {
+    const { service, run } = setup();
+    const first = await service.propose(run, { summary: "Add a box", commands: [addBox] });
+    const second = await service.propose(run, {
+      summary: "Add a second box",
+      commands: [{ ...addBox, commandId: "c2", objectId: "box2" }],
+      supersedes: first.id,
+    });
+
+    expect(service.require(run.id, first.id).status).toBe("superseded");
+    await expect(service.apply(run, first.id)).rejects.toThrow(/replaced/);
+    expect((await service.apply(run, second.id)).status).toBe("applied");
+  });
+
+  it("refuses to supersede a proposal that was already applied", async () => {
+    const { service, run } = setup();
+    const first = await service.propose(run, { summary: "Add a box", commands: [addBox] });
+    await service.apply(run, first.id);
+
+    await expect(
+      service.propose(run, { summary: "Again", commands: [{ ...addBox, commandId: "c3", objectId: "box3" }], supersedes: first.id }),
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it("checks renames, visibility and parent changes against the scene and the batch so far", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("a"), sceneObject("b", "a")] };
+
+    await expect(
+      service.propose(run, { summary: "Rename ghost", commands: [{ commandId: "r", type: "scene.rename_object", objectId: "ghost", name: "Ghost" }] }),
+    ).rejects.toThrow(ValidationFailedError);
+    await expect(
+      service.propose(run, { summary: "Hide ghost", commands: [{ commandId: "v", type: "scene.set_visibility", objectId: "ghost", visible: false }] }),
+    ).rejects.toThrow(ValidationFailedError);
+    // "b" hangs below "a", so "a" cannot be placed under "b".
+    await expect(
+      service.propose(run, { summary: "Loop", commands: [{ commandId: "p", type: "scene.set_parent", objectId: "a", parentId: "b" }] }),
+    ).rejects.toThrow(ValidationFailedError);
+    // Moving "b" to the top first makes the later move of "a" under "b" valid.
+    const valid = await service.propose(run, {
+      summary: "Swap",
+      commands: [
+        { commandId: "p1", type: "scene.set_parent", objectId: "b", parentId: null },
+        { commandId: "p2", type: "scene.set_parent", objectId: "a", parentId: "b" },
+      ],
+    });
+    expect(valid.status).toBe("proposed");
+    // Once "a" is under "b" in the batch, moving "b" under "a" would make a cycle.
+    await expect(
+      service.propose(run, {
+        summary: "Cycle",
+        commands: [
+          { commandId: "q1", type: "scene.set_parent", objectId: "a", parentId: "b" },
+          { commandId: "q2", type: "scene.set_parent", objectId: "b", parentId: "a" },
+        ],
+      }),
+    ).rejects.toThrow(ValidationFailedError);
+  });
+
+  it("asks for approval only for destructive or very large batches", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("box")] };
+    const renames = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        commandId: `r${index}`,
+        type: "scene.rename_object" as const,
+        objectId: "box",
+        name: `Box ${index}`,
+      }));
+
+    expect((await service.propose(run, { summary: "Rename", commands: renames(25) })).requiresApproval).toBe(false);
+    expect((await service.propose(run, { summary: "Rename many", commands: renames(101) })).requiresApproval).toBe(true);
   });
 });

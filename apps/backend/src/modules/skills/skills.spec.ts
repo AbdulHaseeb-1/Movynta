@@ -74,11 +74,11 @@ describe("parseSkillDocument", () => {
 });
 
 describe("SkillsLoader", () => {
-  it("loads the four repository skills, including the dotted 2.5d id", () => {
+  it("loads the three repository skills, including the dotted 2.5d id", () => {
     const ids = new SkillsLoader()
       .load(repositorySkills)
       .map((skill) => skill.id);
-    expect(ids).toEqual(["2.5d-character-design", "character-modeling", "character-rigging", "mesh-editing"]);
+    expect(ids).toEqual(["2.5d-character-design", "character-modeling", "mesh-editing"]);
   });
 
   it("rejects folder names that could escape the skills root", () => {
@@ -106,18 +106,13 @@ describe("SkillsRegistry.selectRelevant", () => {
     expect(ids).toContain("character-modeling");
   });
 
-  it("selects rigging when the request is about a skeleton", () => {
-    const ids = registry.selectRelevant({ message: "Add a skeleton so I can rig the character", dimension: "3d" }).map((s) => s.id);
-    expect(ids).toContain("character-rigging");
-  });
-
   it("selects the 2.5D skill for layered sprite requests", () => {
     const ids = registry.selectRelevant({ message: "Make a layered sprite with parallax", dimension: "2.5d" }).map((s) => s.id);
     expect(ids[0]).toBe("2.5d-character-design");
   });
 
   it("never returns more than two skills", () => {
-    const ids = registry.selectRelevant({ message: "character humanoid mesh skeleton rig layer sprite", dimension: "3d" });
+    const ids = registry.selectRelevant({ message: "character humanoid mesh layer sprite", dimension: "3d" });
     expect(ids.length).toBeLessThanOrEqual(2);
   });
 

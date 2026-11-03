@@ -17,6 +17,8 @@ export interface CommandExecutionResult {
   readonly revision: number | undefined;
   readonly results: readonly EditorCommandResult[];
   readonly message: string | undefined;
+  /** True when the batch was written for an older scene and ran again on a newer one. */
+  readonly rebased?: boolean;
 }
 
 /** What the editor needs to show a preview and to run the proposal later. */

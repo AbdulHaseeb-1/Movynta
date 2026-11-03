@@ -1,6 +1,4 @@
-import { Box3, BufferAttribute, Mesh, Vector3, type BufferGeometry, type Material, type Object3D } from "three";
-import { prepareRig } from "@/features/rigging/prepareRig";
-import { isSkinnedMesh } from "@/features/rigging/rig";
+import { Box3, BufferAttribute, Mesh, SkinnedMesh, Vector3, type BufferGeometry, type Material, type Object3D } from "three";
 import { wrap } from "./parseModel";
 
 /** Models smaller or larger than this (in scene units) are scaled to {@link TARGET_SIZE}. */
@@ -94,8 +92,6 @@ export function prepareModel(content: Object3D, name: string): PreparedModel {
 
   const root = wrap(content);
   root.name = name;
-  // The rig is read before anything moves, so the pose it remembers as the rest pose is the file's own.
-  prepareRig(root);
   root.updateMatrixWorld(true);
   const bounds = new Box3().setFromObject(root);
   const size = bounds.getSize(new Vector3());
@@ -125,7 +121,7 @@ export function prepareModel(content: Object3D, name: string): PreparedModel {
 export function disposeModel(root: Object3D): void {
   root.traverse((node) => {
     if (!isMesh(node)) return;
-    if (isSkinnedMesh(node)) node.skeleton.dispose();
+    if (node instanceof SkinnedMesh) node.skeleton.dispose();
     node.geometry.dispose();
     const materials: Material[] = Array.isArray(node.material)
       ? node.material

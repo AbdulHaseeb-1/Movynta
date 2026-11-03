@@ -5,16 +5,16 @@ import {
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
+  SkinnedMesh,
   SphereGeometry,
   type BufferGeometry,
   type Object3D,
   type Scene,
 } from "three";
-import { sceneCommandListSchema } from "@movynta/editor-protocol";
+import { editorCommandListSchema } from "@movynta/editor-protocol";
 import type { z } from "zod";
-import { boneAt, isSkinnedMesh, rigOf } from "@/features/rigging/rig";
 
-type Command = z.infer<typeof sceneCommandListSchema>[number];
+type Command = z.infer<typeof editorCommandListSchema>[number];
 
 /** Stands in for a project's id until the first prompt or import creates the project. */
 export const UNSAVED_PROJECT_ID = "unsaved-project";
@@ -54,24 +54,16 @@ export type SceneStep =
 /** The commands that change objects that already exist, which is most of what the user does by hand. */
 type InPlaceCommand = Extract<
   Command,
-  { type: "scene.transform_object" | "scene.delete_object" | "rig.pose_bone" }
+  { type: "scene.transform_object" | "scene.delete_object" | "scene.rename_object" | "scene.set_visibility" }
 >;
+/** The commands that change one existing object's own properties, without touching the hierarchy. */
+type ObjectChange = Extract<Command, { type: "scene.transform_object" | "scene.rename_object" | "scene.set_visibility" }>;
 function isInPlace(command: Command): command is InPlaceCommand {
   return (
     command.type === "scene.transform_object" ||
     command.type === "scene.delete_object" ||
-    command.type === "rig.pose_bone"
-  );
-}
-/** Whether a saved step does nothing but pose rigs. */
-function isPoseOnly(commands: unknown): boolean {
-  return (
-    Array.isArray(commands) &&
-    commands.length > 0 &&
-    commands.every(
-      (command: unknown) =>
-        typeof command === "object" && command !== null && "type" in command && command.type === "rig.pose_bone",
-    )
+    command.type === "scene.rename_object" ||
+    command.type === "scene.set_visibility"
   );
 }
 function isMesh(object: Object3D | undefined): object is Mesh {
@@ -231,12 +223,6 @@ export class EditorScene {
     return { applied: this.applyUserEdit(commands), commands };
   }
 
-  /** Poses one bone of an imported model's rig by hand, as a command, so it is recorded and replayed like any other change. */
-  applyUserPose(id: string, bone: number, transform: ObjectTransform): UserEdit {
-    const commands = [{ commandId: "pose", type: "rig.pose_bone", objectId: id, bone, transform }];
-    return { applied: this.applyUserEdit(commands), commands };
-  }
-
   /** Applies commands that came from the user, not the assistant. Returns whether they were applied. */
   applyUserEdit(commands: readonly unknown[]): boolean {
     return this.execute(`usr_${crypto.randomUUID()}`, this.revision, commands).status === "applied";
@@ -296,9 +282,7 @@ export class EditorScene {
         continue;
       }
       const result = this.execute(step.proposalId, this.revision, step.commands);
-      // A pose only changes how a model stands. One that no longer fits, such as a bone the model does
-      // not have, is not worth refusing to open the project for.
-      if (result.status !== "applied" && !isPoseOnly(step.commands))
+      if (result.status !== "applied")
         throw new Error("This project's scene could not be restored");
     }
   }
@@ -348,6 +332,7 @@ export class EditorScene {
           rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
           scale: object.scale.toArray(),
         },
+        visible: object.visible,
       });
     }
     return {
@@ -360,7 +345,7 @@ export class EditorScene {
   }
 
   execute(proposalId: string, expectedRevision: number, input: unknown) {
-    const commands = sceneCommandListSchema.parse(input);
+    const commands = editorCommandListSchema.parse(input);
     const results = commands.map((command) => ({
       commandId: command.commandId,
       status: "applied" as const,
@@ -373,7 +358,7 @@ export class EditorScene {
         revision: this.revision,
         results: [],
       };
-    // Moving, turning, resizing, posing and deleting are the common edits, and need no copy of the scene to be safe.
+    // Moving, turning, resizing and deleting are the common edits, and need no copy of the scene to be safe.
     if (commands.every(isInPlace)) return this.applyInPlace(proposalId, commands, results);
     const staged = new Map<string, Object3D>();
     /** Which original each staged copy was made from. */
@@ -461,7 +446,7 @@ export class EditorScene {
   }
 
   /**
-   * Applies a batch of transforms, poses and deletions straight to the objects. The whole batch is checked
+   * Applies a batch of transforms and deletions straight to the objects. The whole batch is checked
    * first, following what the scene will look like as it goes, and nothing checked can fail when it
    * runs, so the batch is applied whole or not at all without staging a copy of the scene. The cost
    * follows the batch, not the scene.
@@ -486,11 +471,6 @@ export class EditorScene {
       const object = this.objects.get(command.objectId);
       if (!object || gone.has(command.objectId))
         return fail(command, `Object "${command.objectId}" does not exist`);
-      if (command.type === "rig.pose_bone") {
-        if (!this.boneOf(object, command.bone))
-          return fail(command, `Object "${command.objectId}" has no bone ${command.bone}`);
-        continue;
-      }
       if (command.type !== "scene.delete_object") continue;
       // An object can only go once whatever hangs below it has gone, earlier in the same batch or before.
       for (const child of object.children) {
@@ -503,32 +483,14 @@ export class EditorScene {
     for (const command of commands) {
       const object = this.objects.get(command.objectId);
       if (!object) continue;
-      if (command.type === "scene.transform_object") this.transform(object, command.transform);
-      else if (command.type === "rig.pose_bone") this.pose(object, command);
-      else this.removeObject(command.objectId, object);
+      if (command.type === "scene.delete_object") this.removeObject(command.objectId, object);
+      else this.change(object, command);
     }
     this.revision += 1;
     this.applied.add(proposalId);
     this.pruneSelection();
     this.notify();
     return { status: "applied", revision: this.revision, results };
-  }
-
-  /** The bone at `index` of an imported model's rig, if the model has one. */
-  private boneOf(object: Object3D, index: number) {
-    const rig = rigOf(object);
-    return rig ? boneAt(rig, index) : undefined;
-  }
-
-  private pose(object: Object3D, command: Extract<InPlaceCommand, { type: "rig.pose_bone" }>) {
-    const rig = rigOf(object);
-    const bone = rig ? boneAt(rig, command.bone) : undefined;
-    if (!rig || !bone) return;
-    this.transform(bone, command.transform);
-    // A skinned mesh measures its bounds once, in the pose it had then. With the bones moved they are
-    // wrong, and a click on a limb that left them would miss the model, so they are measured again when next needed.
-    // three.js reads null as "not measured yet", though its typings do not allow it.
-    for (const mesh of rig.skinned) Object.assign(mesh, { boundingBox: null, boundingSphere: null });
   }
 
   /** Takes an object out of the scene and frees what it and its inner parts held. */
@@ -557,14 +519,22 @@ export class EditorScene {
       objects.delete(command.objectId);
       return;
     }
-    if (command.type === "scene.transform_object") {
+    if (
+      command.type === "scene.transform_object" ||
+      command.type === "scene.rename_object" ||
+      command.type === "scene.set_visibility"
+    ) {
       if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
-      this.transform(existing, command.transform);
+      this.change(existing, command);
       return;
     }
-    // A rig's bones stay with the model through a copy of the scene, so a pose is never staged.
-    if (command.type === "rig.pose_bone")
-      throw new Error("Posing a rig cannot be combined with commands that build the scene");
+    if (command.type === "scene.set_parent") {
+      if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
+      const parent = command.parentId === null ? undefined : objects.get(command.parentId);
+      if (command.parentId !== null && !parent) throw new Error(`Parent "${command.parentId}" does not exist`);
+      this.reparent(existing, parent);
+      return;
+    }
     if (
       existing &&
       !(command.type === "geometry.create_primitive" && command.replaceExisting)
@@ -611,6 +581,39 @@ export class EditorScene {
       parent.add(object);
     }
   }
+  /** Applies a command that changes one existing object's own properties. */
+  private change(object: Object3D, command: ObjectChange) {
+    switch (command.type) {
+      case "scene.transform_object":
+        this.transform(object, command.transform);
+        break;
+      case "scene.rename_object":
+        object.name = command.name;
+        break;
+      case "scene.set_visibility":
+        object.visible = command.visible;
+        break;
+    }
+  }
+
+  /**
+   * Moves an object under another object, or to the top level, without moving it in the world: its own place
+   * is changed to make up for the new parent's. An object cannot go under itself or under anything below it.
+   */
+  private reparent(object: Object3D, parent: Object3D | undefined) {
+    for (let above: Object3D | null | undefined = parent; above; above = above.parent)
+      if (above === object)
+        throw new Error("An object cannot be placed under itself or under something that hangs below it");
+    object.updateWorldMatrix(true, false);
+    if (parent) {
+      parent.attach(object);
+      return;
+    }
+    const world = object.matrixWorld.clone();
+    object.removeFromParent();
+    world.decompose(object.position, object.quaternion, object.scale);
+  }
+
   private transform(
     object: Object3D,
     transform: {
@@ -645,7 +648,7 @@ export class EditorScene {
   }
   private dispose(object: Object3D) {
     if (isMesh(object)) {
-      if (isSkinnedMesh(object)) object.skeleton.dispose();
+      if (object instanceof SkinnedMesh) object.skeleton.dispose();
       object.geometry.dispose();
       const materials = Array.isArray(object.material)
         ? object.material

@@ -9,6 +9,8 @@ export const editorObjectSchema = z.object({
   type: z.enum(["mesh", "empty", "collection", "camera", "light"]),
   parentId: identifier.nullable(),
   transform: z.object({ position: vector3, rotation: vector3, scale: vector3 }).strict(),
+  /** Whether the object is drawn. Missing for snapshots from editors that predate it. */
+  visible: z.boolean().optional(),
 });
 
 /** Snapshot of the editor scene that the backend receives over the editor bridge. */

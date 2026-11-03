@@ -4,7 +4,6 @@ import {
   providersReducer,
 } from "@/features/providers";
 import { projectsReducer } from "@/features/projects";
-import { riggingReducer } from "@/features/rigging/riggingSlice";
 import { viewportReducer } from "@/features/viewport3d/viewportSlice";
 import { assistantSelectionReducer } from "@/features/assistant/selectionSlice";
 import { saveSelection } from "@/features/assistant/selectionStorage";
@@ -15,7 +14,6 @@ export const store = configureStore({
     chatgptSession: chatgptSessionReducer,
     projects: projectsReducer,
     viewport: viewportReducer,
-    rigging: riggingReducer,
     assistantSelection: assistantSelectionReducer,
   },
 });

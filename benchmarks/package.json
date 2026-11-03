@@ -6,7 +6,7 @@
   "description": "Reproducible performance benchmarks for the desktop app and the backend.",
   "scripts": {
     "bench": "vitest run --config vitest.config.ts",
-    "bench:desktop": "vitest run --config vitest.config.ts suites/editor suites/importer suites/viewport suites/projects suites/rigging",
+    "bench:desktop": "vitest run --config vitest.config.ts suites/editor suites/importer suites/viewport suites/projects",
     "bench:backend": "pnpm --filter movynta-backend build && vitest run --config vitest.config.ts suites/backend",
     "typecheck": "tsc -p tsconfig.json"
   },

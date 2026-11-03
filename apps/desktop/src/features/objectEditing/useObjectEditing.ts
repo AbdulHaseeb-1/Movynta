@@ -118,17 +118,14 @@ export function useObjectEditing({
   saves,
 }: ObjectEditingOptions): ObjectEditing {
   const tool = useAppSelector((state) => state.viewport.tool);
-  // While a rig is being posed the view's clicks, handles and keys belong to its bones.
-  const posing = useAppSelector((state) => state.rigging.posing);
   // The gizmo reads these on every frame, so a change of tool needs no rebuild.
-  const current = useRef<{ tool: ViewportTool; enabled: boolean; posing: boolean }>({
+  const current = useRef<{ tool: ViewportTool; enabled: boolean }>({
     tool,
     enabled: !disabled,
-    posing,
   });
   useEffect(() => {
-    current.current = { tool, enabled: !disabled, posing };
-  }, [tool, disabled, posing]);
+    current.current = { tool, enabled: !disabled };
+  }, [tool, disabled]);
 
   const [selected, setSelected] = useState<SelectedObject | null>(null);
   const [error, setError] = useState("");
@@ -189,7 +186,6 @@ export function useObjectEditing({
     const view = {
       tool: () => current.current.tool,
       enabled: () => current.current.enabled,
-      editsObjects: () => !current.current.posing,
     };
     const handles = new ObjectGizmo(
       viewport,
@@ -217,7 +213,7 @@ export function useObjectEditing({
 
   const requestDelete = useCallback(() => {
     const ids = scene?.selectedIds;
-    if (!scene || !ids || ids.length === 0 || !current.current.enabled || current.current.posing) return;
+    if (!scene || !ids || ids.length === 0 || !current.current.enabled) return;
     setError("");
     redoHistory.current = [];
     // What was deleted can no longer be moved back, so the history forgets every change that touched it.
@@ -256,7 +252,7 @@ export function useObjectEditing({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target) || event.altKey || current.current.posing) return;
+      if (isTypingTarget(event.target) || event.altKey) return;
       if (event.ctrlKey || event.metaKey) {
         const key = event.key.toLowerCase();
         if (key === "z") {

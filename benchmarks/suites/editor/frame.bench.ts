@@ -35,7 +35,7 @@ function selectedGizmo(scene: Scene, editor: import("@/features/assistant/Editor
     viewport,
     editor,
     { onLiveChange: () => undefined, onCommit: () => undefined },
-    { tool: () => "move", enabled: () => true, editsObjects: () => true },
+    { tool: () => "move", enabled: () => true },
   );
   editor.select(id);
   frame();

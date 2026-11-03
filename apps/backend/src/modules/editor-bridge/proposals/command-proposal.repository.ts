@@ -8,7 +8,7 @@ import { requireOneOf } from "../../../shared/guards/enum.guard.js";
 import type { CommandExecutionResult } from "../editor-bridge.types.js";
 import type { CommandProposalRecord, NewProposal, ProposalStatus } from "./proposals.types.js";
 
-export const PROPOSAL_STATUSES = ["proposed", "applying", "applied", "failed", "rejected"] as const;
+export const PROPOSAL_STATUSES = ["proposed", "applying", "applied", "failed", "rejected", "superseded"] as const;
 
 // JSON storage drops undefined fields, so optional values may be absent or null.
 const storedResultSchema = z.object({
@@ -16,6 +16,7 @@ const storedResultSchema = z.object({
   status: z.enum(["applied", "failed", "revision_conflict"]),
   revision: z.number().nullish(),
   message: z.string().nullish(),
+  rebased: z.boolean().nullish(),
   results: z.array(
     z.object({ commandId: z.string(), status: z.enum(["applied", "failed"]), message: z.string().nullish() }),
   ),
@@ -34,6 +35,7 @@ function parseStoredResult(json: string): CommandExecutionResult {
       status: item.status,
       message: item.message ?? undefined,
     })),
+    ...(stored.rebased ? { rebased: true } : {}),
   };
 }
 

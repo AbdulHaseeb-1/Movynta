@@ -53,20 +53,37 @@ export function createEditorTools({ bridge, proposals }: EditorToolDependencies)
       description: [
         "Submit a batch of structured scene commands for preview. Nothing changes until editor.apply_proposal runs.",
         "Commands run in order, and later commands may use objects created earlier in the same batch.",
+        "Change existing objects with scene.rename_object, scene.set_visibility and scene.set_parent instead of recreating them.",
         "geometry.create_primitive creates a new object by itself (a box, sphere, cylinder or plane): give it a fresh objectId, then place it with scene.transform_object. Do not call scene.create_object first for the same objectId.",
         "scene.create_object makes an empty group or parent. replaceExisting true on geometry.create_primitive changes the shape of an object that already exists.",
         "If the proposal is rejected, the error lists each problem with the commandId and how to fix it; correct those commands and propose again.",
+        "If the user changes the request while a proposal still waits, send the new batch with supersedes set to that proposal's id; it replaces the waiting one.",
+        "stepId names the step of the latest plan that this batch carries out.",
       ].join(" "),
       permission: "propose",
-      parameters: z.object({
-        summary: z.string().min(1).max(300),
-        commands: editorCommandListSchema,
-      }),
+      parameters: z
+        .object({
+          summary: z.string().min(1).max(300),
+          commands: editorCommandListSchema,
+          supersedes: identifier.optional(),
+          stepId: identifier.optional(),
+        })
+        .strict(),
       execute: async (input, context) => {
         assertConnection(bridge, context);
+        const latestPlan = context.plans[context.plans.length - 1];
+        const steps = latestPlan?.steps ?? [];
+        const planStep = input.stepId === undefined ? undefined : steps.find((step) => step.id === input.stepId);
+        if (input.stepId !== undefined && !planStep) {
+          return {
+            status: "rejected",
+            reason: "stepId does not match a step of the latest plan. Record a plan first, or leave stepId out.",
+            availableStepIds: steps.map((step) => step.id),
+          };
+        }
         const proposal = await proposals.propose(
           { id: context.runId, userId: context.userId, projectId: context.projectId, clientId: context.clientId },
-          input,
+          { summary: input.summary, commands: input.commands, supersedes: input.supersedes },
         );
         context.events.emit("editor.proposal.created", {
           proposalId: proposal.id,
@@ -74,6 +91,8 @@ export function createEditorTools({ bridge, proposals }: EditorToolDependencies)
           requiresApproval: proposal.requiresApproval,
           commandCount: proposal.commands.length,
           baseRevision: proposal.baseRevision,
+          supersedes: input.supersedes ?? null,
+          planStepId: planStep?.id ?? null,
         });
         return {
           proposalId: proposal.id,
@@ -81,13 +100,19 @@ export function createEditorTools({ bridge, proposals }: EditorToolDependencies)
           requiresApproval: proposal.requiresApproval,
           commandCount: proposal.commands.length,
           baseRevision: proposal.baseRevision,
+          supersedes: input.supersedes ?? null,
+          planStep: planStep ? { id: planStep.id, title: planStep.title } : null,
         };
       },
     }),
 
     defineTool({
       name: "editor.apply_proposal",
-      description: "Apply a previously proposed batch in the editor. Destructive or large batches need user approval first.",
+      description: [
+        "Apply a previously proposed batch in the editor. Destructive or large batches need user approval first.",
+        "If the scene changed since the proposal was made, the batch runs again on the new scene when every command still fits;",
+        "the result then has rebased true. Otherwise the result is failed and the batch must be proposed again.",
+      ].join(" "),
       permission: "apply",
       parameters: z.object({ proposalId: identifier }).strict(),
       // An unknown proposal is treated as needing approval, so a person still sees the request.
@@ -110,6 +135,7 @@ export function createEditorTools({ bridge, proposals }: EditorToolDependencies)
           revision: result.revision ?? null,
           results: result.results,
           message: result.message ?? null,
+          rebased: result.rebased ?? false,
         };
       },
     }),

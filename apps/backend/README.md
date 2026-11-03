@@ -49,7 +49,7 @@ src/
   shared/                         Zod schemas for editor commands, context, plans
   testing/                        harness, editor simulator, SSE reader (tests only)
 skills/                           repository skills: character-modeling, mesh-editing,
-                                  character-rigging, 2.5d-character-design
+                                  2.5d-character-design
 ```
 
 ### Modeling workflow
@@ -121,7 +121,7 @@ Errors use one shape: `{ "error": { "code", "message", "requestId", "details?" }
 - **Live inference is not verified with real provider credentials.** Tests mock inference for every vendor and exercise the real HTTP/SSE/WebSocket/editor pipeline. The Test connection action verifies key access and model listing; it does not bill a generation request.
 - **ChatGPT subscription sign-in is unverified against the live service.** Tests mock the token endpoint and the model. The endpoints, client ID, redirect and request shape follow OpenAI's open-source Codex client, but the subscription backend is undocumented and can change. The model list is static; any model ID can be typed in. Port 1455 must be free during sign-in.
 - **Automatic authentication and credential persistence currently require Windows.** DPAPI fails closed on other platforms. The backend is a separate process and must be started before use; the desktop retries its connection automatically.
-- **Scene commands cover only creation, transforms, deletion, and primitives.** Rigging, animation, and mesh-modifier tools are not implemented. The skills that mention them describe the intended workflow and are limited to the tools that exist.
+- **Scene commands cover only creation, transforms, deletion, and primitives.** Animation and mesh-modifier tools are not implemented. The skills that mention them describe the intended workflow and are limited to the tools that exist.
 - **Persistence is a single SQLite file.** It suits one local desktop process. Several backend processes would need a different store.
 - **Local desktop authentication is not a remote login system.** The desktop discovers a DPAPI-protected bearer token through native IPC. Anyone able to run code as the same Windows account can access that account's credentials; DPAPI does not protect against a compromised user session.
 - **Run recovery is conservative.** Runs active at shutdown are marked failed. Runs waiting for approval survive a restart, and their approvals can still be decided.

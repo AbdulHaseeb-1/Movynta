@@ -137,7 +137,18 @@ export class EditorSimulator {
         break;
       }
       case "scene.transform_object":
+      case "scene.set_visibility":
         break;
+      case "scene.rename_object": {
+        const object = this.objects.find((item) => item.id === command.objectId);
+        if (object) object.name = command.name;
+        break;
+      }
+      case "scene.set_parent": {
+        const object = this.objects.find((item) => item.id === command.objectId);
+        if (object) object.parentId = command.parentId;
+        break;
+      }
     }
   }
 

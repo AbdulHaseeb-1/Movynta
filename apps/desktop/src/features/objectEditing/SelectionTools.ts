@@ -44,7 +44,7 @@ export class SelectionTools {
         this.cancel();
         return;
       }
-      if (!this.view.enabled() || !this.view.editsObjects()) return;
+      if (!this.view.enabled()) return;
       const key = event.key.toLowerCase();
       if (key === "a") {
         event.preventDefault();

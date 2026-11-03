@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Group, Object3D, PerspectiveCamera, Quaternion, Scene, Vector3 } from "three";
-import { sceneCommandListSchema } from "@movynta/editor-protocol";
+import { editorCommandListSchema } from "@movynta/editor-protocol";
 import { EditorScene } from "../assistant/EditorScene";
 import { inBatches } from "./batches";
 import { idsInRect, rectBetween } from "./boxSelect";
@@ -128,7 +128,7 @@ describe("changing and deleting several objects", () => {
       { commandId: "k2", type: "scene.create_object", objectId: "kid2", name: "kid", parentId: "group" },
     ]);
     // Naming a parent and one of its children, and one object twice, deletes each once.
-    const commands = sceneCommandListSchema.parse(editor.deleteCommandsFor(["group", "kid1", "a", "a"]));
+    const commands = editorCommandListSchema.parse(editor.deleteCommandsFor(["group", "kid1", "a", "a"]));
     const order = commands.map((command) => command.objectId);
     expect(new Set(order).size).toBe(order.length);
     expect([...order].sort()).toEqual(["a", "group", "kid1", "kid2"]);

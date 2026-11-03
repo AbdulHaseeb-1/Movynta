@@ -5,7 +5,7 @@ import { ConflictError, NotFoundError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../persistence/database.service.js";
 import { blobColumn, integerColumn, textColumn } from "../persistence/row.js";
 import { requireOneOf } from "../../shared/guards/enum.guard.js";
-import type { SceneCommand } from "../../shared/types/editor-command.types.js";
+import type { EditorCommand } from "../../shared/types/editor-command.types.js";
 import {
   ASSET_FORMATS,
   MAX_PROJECT_ASSET_BYTES,
@@ -52,7 +52,7 @@ function nextSeq(db: DatabaseSync, projectId: string): number {
  * tools or by the route that records the user's edits. Reading them back only needs to confirm they
  * have the shape of a command list, which is far cheaper than validating every field again.
  */
-function isStoredCommandList(value: unknown): value is SceneCommand[] {
+function isStoredCommandList(value: unknown): value is EditorCommand[] {
   return (
     Array.isArray(value) &&
     value.every(
@@ -68,12 +68,17 @@ function isStoredCommandList(value: unknown): value is SceneCommand[] {
 }
 
 /** Commands that change an object that already exists, so they add and remove nothing from the index. */
-function changesExistingObject(command: SceneCommand): boolean {
-  return command.type === "scene.transform_object" || command.type === "rig.pose_bone";
+function changesExistingObject(command: EditorCommand): boolean {
+  return (
+    command.type === "scene.transform_object" ||
+    command.type === "scene.rename_object" ||
+    command.type === "scene.set_visibility" ||
+    command.type === "scene.set_parent"
+  );
 }
 
 /** Keeps `objects` in step with what `commands` create and delete. */
-function trackObjects(db: DatabaseSync, projectId: string, commands: readonly SceneCommand[]): void {
+function trackObjects(db: DatabaseSync, projectId: string, commands: readonly EditorCommand[]): void {
   for (const command of commands) {
     if (changesExistingObject(command)) continue;
     if (command.type === "scene.delete_object")
@@ -93,7 +98,7 @@ export class ProjectScenesService {
   constructor(private readonly database: DatabaseService) {}
 
   /** Records a batch the editor applied. Ignored for ids that are not stored projects. */
-  append(projectId: string, proposalId: string, commands: readonly SceneCommand[]): void {
+  append(projectId: string, proposalId: string, commands: readonly EditorCommand[]): void {
     this.database.transaction((db) => {
       // One lookup both confirms the project exists and tells whether its object index is built.
       const project = statement(db, "SELECT objects_indexed FROM projects WHERE id = ?").get(projectId);

@@ -45,6 +45,18 @@
 - Never expose `OPENAI_API_KEY` or other server secrets to the React or Tauri frontend.
 - Mock the model in automated tests (`@openai/agents/testing`). Tests must not call OpenAI.
 
+### Assistant tools
+
+- `docs/assistant-tools.md` is the inventory of every tool the assistant can call, the editor commands they accept, and the approval rules. Keep it current.
+- Update that file in the same change whenever you add, rename, remove, or alter a tool: its name, description, permission, parameters, approval rule, or the editor commands it accepts. Also update it when a skill's `tools:` list changes.
+- Steps for a tool change:
+  1. Define or change the tool with `defineTool` in `apps/backend/src/modules/tools/<area>/`. Names are `namespace.snake_case`.
+  2. Register a new tool in the factory in `apps/backend/src/modules/tools/tools.module.ts`.
+  3. Update the tool table, the approval notes, and the command table in `docs/assistant-tools.md`. If the command schema in `packages/editor-protocol` changed, also update the desktop handling in `apps/desktop/src/features/assistant/EditorScene.ts`.
+  4. Update the tests in `apps/backend/src/modules/tools/` and any skill `tools:` lists in `skills/` that name the tool.
+  5. Update the base instructions in `modeling-coordinator.instructions.ts` if the model needs to know about the change.
+  6. Run `pnpm check` and the backend tests before finishing.
+
 ### Types and checks
 
 - Keep TypeScript strict. The compiler options in `apps/desktop/tsconfig.json` and `apps/desktop/tsconfig.node.json` must stay enabled; do not weaken them.

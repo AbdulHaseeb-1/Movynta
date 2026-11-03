@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import type { EditorCommand } from "../../shared/types/editor-command.types.js";
 
-/** Batches larger than this always need a human decision. */
-export const LARGE_BATCH_THRESHOLD = 20;
+/** Batches larger than this always need a human decision, however harmless their commands are. */
+export const LARGE_BATCH_THRESHOLD = 100;
 
 /** Destructive commands remove or replace existing scene content. */
 export function isDestructiveCommand(command: EditorCommand): boolean {

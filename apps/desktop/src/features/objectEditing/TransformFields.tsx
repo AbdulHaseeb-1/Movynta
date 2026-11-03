@@ -16,7 +16,7 @@ interface TransformFieldsProps {
 }
 
 /**
- * Location, rotation (in degrees) and scale as typed numbers: the values of any object or bone. Typing
+ * Location, rotation (in degrees) and scale as typed numbers: the values of any object. Typing
  * a value does the same as dragging a handle, and is saved the same way.
  */
 export function TransformFields({ transform, disabled, onChange }: TransformFieldsProps) {

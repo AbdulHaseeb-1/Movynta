@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../common/errors/app-error.js";
 import { isOneOf } from "../../shared/guards/enum.guard.js";
-import { sceneCommandListSchema } from "../../shared/schemas/editor-command.schema.js";
+import { editorCommandListSchema } from "../../shared/schemas/editor-command.schema.js";
 import { ProjectScenesService } from "./project-scenes.service.js";
 import { ProjectsRepository } from "./projects.repository.js";
 import {
@@ -24,7 +24,7 @@ import {
 const OBJECT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const ASSET_NAME_MAX_LENGTH = 160;
 /** The changes a user can make by hand and have saved with the project. */
-const USER_EDIT_TYPES: ReadonlySet<string> = new Set(["scene.transform_object", "scene.delete_object", "rig.pose_bone"]);
+const USER_EDIT_TYPES: ReadonlySet<string> = new Set(["scene.transform_object", "scene.delete_object"]);
 
 /** An uploaded model, before it is checked. */
 export interface ModelUpload {
@@ -145,7 +145,7 @@ export class ProjectsService {
 
   /**
    * Records a change the user made to the scene by hand, so the project shows it when reopened. Only
-   * moving, rotating, scaling, deleting and posing existing objects can be recorded this way; building
+   * moving, rotating, scaling and deleting existing objects can be recorded this way; building
    * goes through the assistant's approved proposals.
    */
   recordSceneEdit(userId: string, projectId: string, input: unknown): { proposalId: string } {
@@ -153,7 +153,7 @@ export class ProjectsService {
     if (this.repository.hasActiveRun(projectId)) {
       throw new ConflictError("The assistant is working in this project. Wait for it to finish, then edit.");
     }
-    const parsed = sceneCommandListSchema.safeParse(input);
+    const parsed = editorCommandListSchema.safeParse(input);
     if (!parsed.success) throw new ValidationFailedError("These scene changes are not valid");
     // Only the objects this batch names are looked up; the history itself is never read.
     const known = this.scenes.existingObjectIds(
@@ -162,7 +162,7 @@ export class ProjectsService {
     );
     for (const command of parsed.data) {
       if (!USER_EDIT_TYPES.has(command.type)) {
-        throw new ValidationFailedError("Only moving, rotating, scaling, deleting and posing can be recorded here");
+        throw new ValidationFailedError("Only moving, rotating, scaling and deleting can be recorded here");
       }
       if (!known.has(command.objectId)) {
         throw new ValidationFailedError(`Object "${command.objectId}" is not in this project`);

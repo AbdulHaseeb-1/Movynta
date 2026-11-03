@@ -1,4 +1,4 @@
-import type { SceneCommand } from "../../shared/types/editor-command.types.js";
+import type { EditorCommand } from "../../shared/types/editor-command.types.js";
 
 /**
  * What a project is for. Each category opens its own workspace in the desktop app. Add a value here
@@ -67,7 +67,7 @@ export const MAX_PROJECT_ASSET_BYTES = 256 * 1024 * 1024;
 export interface SceneBatch {
   readonly kind: "commands";
   readonly proposalId: string;
-  readonly commands: readonly SceneCommand[];
+  readonly commands: readonly EditorCommand[];
 }
 
 /** A model the user imported. The file itself is fetched separately by `assetId`. */

@@ -30,7 +30,7 @@ export class ImportModelQueryDto {
 }
 
 export class RecordSceneEditDto {
-  @ApiProperty({ description: "scene.transform_object, scene.delete_object and rig.pose_bone commands for objects already in the project." })
+  @ApiProperty({ description: "scene.transform_object and scene.delete_object commands for objects already in the project." })
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(50)

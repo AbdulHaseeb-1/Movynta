@@ -41,6 +41,8 @@ export interface ProposalRun {
 export interface ProposalInput {
   readonly summary: string;
   readonly commands: readonly EditorCommand[];
+  /** The id of a waiting proposal this batch replaces. */
+  readonly supersedes?: string | undefined;
 }
 
 export interface ProposalIssue {

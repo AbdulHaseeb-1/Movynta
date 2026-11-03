@@ -29,7 +29,6 @@ import {
   ToolHint,
   useObjectEditing,
 } from "@/features/objectEditing";
-import { PoseToggle, RigPanel, RigToggle, useRigPosing } from "@/features/rigging";
 import { createSerialQueue } from "@/lib";
 import {
   createProject,
@@ -98,15 +97,9 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     hydrate.current = run.hydrate;
   });
 
-  // Moving objects and posing rigs save to the same project, so they share one line of saves.
+  // Moving objects saves to the same project, so they share one line of saves.
   const [saves] = useState(createSerialQueue);
   const editing = useObjectEditing({
-    viewport,
-    scene: editorScene,
-    disabled: run.busy || opening !== "ready",
-    saves,
-  });
-  const rigging = useRigPosing({
     viewport,
     scene: editorScene,
     disabled: run.busy || opening !== "ready",
@@ -293,15 +286,12 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
           <ToolHint hasSelection={editing.selected !== null} />
           <ViewportToolbar
             viewport={viewport}
-            // While a rig is posed the selection is its bones, and X must never delete the model.
-            hasSelection={editing.selected !== null && !rigging.posing}
+            hasSelection={editing.selected !== null}
             disabled={run.busy}
             onDelete={editing.requestDelete}
             orientation="horizontal"
             className="animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none"
           >
-            <RigToggle rigging={rigging} tooltipSide="top" />
-            <PoseToggle rigging={rigging} tooltipSide="top" />
           </ViewportToolbar>
         </div>
       )}
@@ -330,11 +320,6 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
         />
         <ObjectEditingOverlay
           editing={editing}
-          disabled={run.busy}
-          className="w-full origin-top-right scale-[0.7]"
-        />
-        <RigPanel
-          rigging={rigging}
           disabled={run.busy}
           className="w-full origin-top-right scale-[0.7]"
         />

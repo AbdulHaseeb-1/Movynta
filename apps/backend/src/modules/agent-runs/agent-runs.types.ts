@@ -66,6 +66,8 @@ export type AgentRunEventPayloads = {
     readonly requiresApproval: boolean;
     readonly commandCount: number;
     readonly baseRevision: number;
+    readonly supersedes: string | null;
+    readonly planStepId: string | null;
   };
   readonly "approval.required": {
     readonly approvalId: string;

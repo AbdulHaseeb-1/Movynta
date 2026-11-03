@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Upper bound for commands in one proposal. Larger batches always require approval. */
-export const MAX_COMMANDS_PER_PROPOSAL = 50;
+export const MAX_COMMANDS_PER_PROPOSAL = 200;
 
 export const identifierSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, "Identifiers use letters, digits, '_' or '-'");
 // A fixed-length array rather than z.tuple: tuples become `items: [...]` in JSON Schema, which model
@@ -17,6 +17,7 @@ export const transformSchema = z
   .strict();
 
 const commandBase = { commandId: identifierSchema };
+const nameSchema = z.string().min(1).max(80);
 
 /**
  * Editor commands are a closed, discriminated union. The agent can only ask for
@@ -28,7 +29,7 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       ...commandBase,
       type: z.literal("scene.create_object"),
       objectId: identifierSchema,
-      name: z.string().min(1).max(80),
+      name: nameSchema,
       parentId: identifierSchema.optional(),
       transform: transformSchema.optional(),
     })
@@ -56,6 +57,31 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       primitive: z.enum(["box", "sphere", "cylinder", "plane"]),
       size: z.number().positive().max(100),
       replaceExisting: z.boolean().default(false),
+    })
+    .strict(),
+  z
+    .object({
+      ...commandBase,
+      type: z.literal("scene.rename_object"),
+      objectId: identifierSchema,
+      name: nameSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...commandBase,
+      type: z.literal("scene.set_visibility"),
+      objectId: identifierSchema,
+      visible: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      ...commandBase,
+      type: z.literal("scene.set_parent"),
+      objectId: identifierSchema,
+      /** The new parent, or null to move the object to the top level. The object keeps its place in the world. */
+      parentId: identifierSchema.nullable(),
     })
     .strict(),
 ]);
