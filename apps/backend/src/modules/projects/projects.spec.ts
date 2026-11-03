@@ -207,6 +207,55 @@ describe("projects API", () => {
 
 const GLB_HEADER = Buffer.concat([Buffer.from("glTF"), Buffer.alloc(24, 1)]);
 
+describe("durable scene undo and redo", () => {
+  it("groups multi-batch manual actions into one undo", async () => {
+    const project = await create(); const scenes = server.app.get(ProjectScenesService);
+    scenes.append(project.id, "first", [box("a", "a")], "gesture");
+    scenes.append(project.id, "second", [box("b", "b")], "gesture");
+    const preview = scenes.previewHistory(project.id, "undo");
+    expect(preview.targets).toHaveLength(2); expect(preview.steps).toHaveLength(0);
+    scenes.commitHistory(project.id, "undo", preview.version, "groupUndo");
+    expect(scenes.list(project.id)).toHaveLength(0);
+    const redo = scenes.previewHistory(project.id, "redo"); expect(redo.steps).toHaveLength(2);
+  });
+  it("previews without mutation, commits idempotently, and retains redo across reads", async () => {
+    const project = await create(); const scenes = server.app.get(ProjectScenesService);
+    scenes.append(project.id, "create", [box("c", "cube")]);
+    scenes.append(project.id, "delete", [{ commandId: "d", type: "scene.delete_object", objectId: "cube" }]);
+    const preview = scenes.previewHistory(project.id, "undo");
+    expect(preview.steps).toHaveLength(1); expect(scenes.list(project.id)).toHaveLength(2);
+    scenes.commitHistory(project.id, "undo", preview.version, "undo1");
+    scenes.commitHistory(project.id, "undo", preview.version, "undo1");
+    expect(scenes.list(project.id)).toHaveLength(1);
+    expect(scenes.existingObjectIds(project.id, ["cube"]).has("cube")).toBe(true);
+    const redo = scenes.previewHistory(project.id, "redo");
+    scenes.commitHistory(project.id, "redo", redo.version, "redo1");
+    expect(scenes.list(project.id)).toHaveLength(2);
+    expect(scenes.existingObjectIds(project.id, ["cube"]).has("cube")).toBe(false);
+    expect((await request(`/projects/${project.id}/scene/history/preview`, "POST", { direction: "undo" }, "intruder")).status).toBe(404);
+  });
+
+  it("rejects stale previews and abandons redo after a new edit", async () => {
+    const project = await create(); const scenes = server.app.get(ProjectScenesService);
+    scenes.append(project.id, "a", [box("a", "a")]);
+    const preview = scenes.previewHistory(project.id, "undo");
+    scenes.append(project.id, "b", [box("b", "b")]);
+    expect(() => scenes.commitHistory(project.id, "undo", preview.version, "stale")).toThrow(/changed/);
+    const fresh = scenes.previewHistory(project.id, "undo"); scenes.commitHistory(project.id, "undo", fresh.version, "fresh");
+    scenes.append(project.id, "c", [box("c", "c")]);
+    expect(scenes.history(project.id).canRedo).toBe(false); expect(scenes.list(project.id)).toHaveLength(2);
+  });
+
+  it("retains imported asset bytes while undoing and redoing the import", async () => {
+    const project = await create(); const scenes = server.app.get(ProjectScenesService);
+    const step = scenes.addImport(project.id, { objectId: "model", name: "Model", format: "glb", content: GLB_HEADER });
+    const undo = scenes.previewHistory(project.id, "undo"); scenes.commitHistory(project.id, "undo", undo.version, "u");
+    expect(scenes.list(project.id)).toEqual([]); expect(scenes.asset(project.id, step.assetId).content).toEqual(GLB_HEADER);
+    const redo = scenes.previewHistory(project.id, "redo"); scenes.commitHistory(project.id, "redo", redo.version, "r");
+    expect(scenes.list(project.id)).toEqual([step]);
+  });
+});
+
 async function upload(
   projectId: string,
   content: Uint8Array | string,

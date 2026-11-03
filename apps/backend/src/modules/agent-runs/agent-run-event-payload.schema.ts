@@ -28,6 +28,11 @@ const eventPayloadSchemas: { readonly [K in AgentRunEventType]: z.ZodType<AgentR
     supersedes: z.string().nullable(),
     planStepId: z.string().nullable(),
   }),
+  "viewport.captured": z.object({
+    captureId: z.string(),
+    views: z.array(z.object({ label: z.string(), width: z.number().int().positive(), height: z.number().int().positive() })),
+    imagesSent: z.boolean(),
+  }),
   "approval.required": z.object({
     approvalId: z.string(),
     toolName: z.string(),

@@ -150,7 +150,7 @@ describe("batches", () => {
   it("split a list into runs of at most the size, in order", () => {
     expect(inBatches([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
     expect(inBatches([], 2)).toEqual([]);
-    expect(inBatches(Array.from({ length: 120 }, (_, index) => index)).map((batch) => batch.length)).toEqual([50, 50, 20]);
+    expect(inBatches(Array.from({ length: 450 }, (_, index) => index)).map((batch) => batch.length)).toEqual([200, 200, 50]);
   });
 });
 

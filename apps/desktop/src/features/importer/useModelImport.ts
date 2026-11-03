@@ -1,6 +1,7 @@
 import { useCallback, useState, type RefObject } from "react";
 import type { EditorScene } from "@/features/assistant";
 import { errorMessage } from "@/lib/backend";
+import type { SerialQueue } from "@/lib";
 import { uploadModel } from "./importApi";
 import {
   formatFileSize,
@@ -18,6 +19,7 @@ export interface ImportedModelSummary {
 }
 
 interface ModelImportOptions {
+  saves: SerialQueue;
   editor: RefObject<EditorScene | null>;
   /** Returns the id of the project the model belongs to, creating the project first if needed. */
   ensureProject: () => Promise<string>;
@@ -37,6 +39,7 @@ export interface ModelImport {
  * scene. The file is saved first, so nothing appears that would be missing after reopening.
  */
 export function useModelImport({
+  saves,
   editor,
   ensureProject,
   onImported,
@@ -44,7 +47,7 @@ export function useModelImport({
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
 
-  const importFile = useCallback(
+  const performImport = useCallback(
     async (file: File) => {
       setError("");
       const format = modelFormatOf(file.name);
@@ -79,6 +82,13 @@ export function useModelImport({
     },
     [editor, ensureProject, onImported],
   );
+
+  const enqueue = saves.run;
+  const importFile = (file: File): Promise<void> => new Promise((resolve) => {
+    enqueue(async () => {
+      try { await performImport(file); } finally { resolve(); }
+    }, (failure) => { setError(errorMessage(failure)); resolve(); });
+  });
 
   return {
     importing,

@@ -82,6 +82,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       db.exec("BEGIN IMMEDIATE");
       try {
         for (const statement of migration.statements) db.exec(statement);
+        migration.run?.(db);
         db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)").run(
           migration.version,
           migration.name,

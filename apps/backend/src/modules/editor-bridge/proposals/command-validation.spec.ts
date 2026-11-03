@@ -42,6 +42,11 @@ const remove = (commandId: string, objectId: string): EditorCommand => ({
 });
 
 describe("validateAgainstContext", () => {
+  it("checks modifier targets and rejects mixed geometry batches", () => {
+    const subdivide: EditorCommand = { commandId: "s", type: "geometry.subdivide", objectId: "missing", meshPath: [], levels: 1 };
+    expect(validateAgainstContext([subdivide], emptyScene)[0]?.message).toContain("does not exist");
+    expect(validateAgainstContext([subdivide, create("c", "new")], emptyScene)[0]?.message).toContain("only bevel/subdivision");
+  });
   it("explains the create_object then create_primitive mix-up and how to fix it", () => {
     const issues = validateAgainstContext([create("a", "crate"), primitive("b", "crate")], emptyScene);
     expect(issues).toHaveLength(1);

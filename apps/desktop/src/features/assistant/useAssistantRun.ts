@@ -4,6 +4,7 @@ import { z } from "zod";
 import { useAssistantSelection } from "./useAssistantSelection";
 import { useReasoningEffort } from "./useReasoningEffort";
 import { backendRequest, errorMessage } from "@/lib/backend";
+import type { ViewCaptureHandler } from "@/features/viewCapture";
 import type { EditorScene } from "./EditorScene";
 import { connectEditor, type EditorConnection } from "./editorConnection";
 import { acceptedSchema, approvalSchema, getRun, streamRun } from "./runClient";
@@ -12,6 +13,7 @@ import {
   type SavedExchange,
 } from "./conversationMessages";
 import { applyRunEvent, settleActivity } from "./runEvents";
+import { recoverSavedScene } from "../objectEditing/sceneHistory";
 import type { ChatMessage, RunPhase } from "./types";
 
 type Approval = z.infer<typeof approvalSchema>;
@@ -43,11 +45,14 @@ export interface SavedConversation {
 
 /**
  * Drives one conversation with the assistant. `ensureProject` returns the id of the project the work
- * belongs to, creating it first if this is the first prompt.
+ * belongs to, creating it first if this is the first prompt. `capture` draws the viewport when the assistant
+ * asks to look at the scene.
  */
 export function useAssistantRun(
   editor: React.RefObject<EditorScene | null>,
   ensureProject: () => Promise<string>,
+  capture: React.RefObject<ViewCaptureHandler | null>,
+  beforeSubmit?: () => Promise<void>,
 ) {
   const { provider, model, connected } = useAssistantSelection();
   const { effort } = useReasoningEffort();
@@ -128,10 +133,11 @@ export function useAssistantRun(
     controller.current = abort;
     try {
       // Validate/refresh native authentication before opening the WebSocket, which cannot retry HTTP 401s.
+      await beforeSubmit?.();
       await backendRequest("/agents", z.array(z.object({ id: z.string() })));
       scene.bindProject(await ensureProject());
       connection.current?.close();
-      connection.current = await connectEditor(scene, abort.signal);
+      connection.current = await connectEditor(scene, abort.signal, capture);
       const accepted = await backendRequest(
         "/agent-runs",
         acceptedSchema,
@@ -184,6 +190,7 @@ export function useAssistantRun(
         );
         const result = await getRun(accepted.runId);
         if (TERMINAL_STATUSES.includes(result.status)) {
+          await recoverSavedScene(scene, true);
           terminal = true;
           const nextPhase: RunPhase =
             result.status === "completed"

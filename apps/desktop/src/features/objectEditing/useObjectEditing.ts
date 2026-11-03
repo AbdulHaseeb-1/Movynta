@@ -8,6 +8,7 @@ import { inBatches } from "./batches";
 import { ObjectGizmo, type ObjectChange } from "./ObjectGizmo";
 import { recordSceneEdit } from "./sceneEditApi";
 import { SelectionTools } from "./SelectionTools";
+import { changeSceneHistory } from "./sceneHistory";
 
 /** The active object, as the panel shows it, and how many objects are selected with it. */
 export interface SelectedObject {
@@ -43,17 +44,6 @@ type SceneChange =
   | { kind: "transform"; changes: ObjectChange[] }
   | { kind: "delete"; ids: readonly string[] };
 
-/** One finished change, which may have moved several objects, as undo and redo take it back and forward. */
-interface TransformHistoryEntry {
-  changes: ObjectChange[];
-  persistence: "pending" | "saved" | "failed";
-}
-
-/** The same objects moved the other way: what undoing a change, or redoing an undone one, applies. */
-function reversed(changes: readonly ObjectChange[]): ObjectChange[] {
-  return changes.map(({ id, before, after }) => ({ id, before: after, after: before }));
-}
-
 function describe(scene: EditorScene): SelectedObject | null {
   const id = scene.selection;
   const transform = id ? scene.transformOf(id) : undefined;
@@ -69,13 +59,14 @@ async function applyTransform(
   scene: EditorScene,
   change: Extract<SceneChange, { kind: "transform" }>,
 ): Promise<void> {
+  const actionId = `edit_${crypto.randomUUID()}`;
   for (const batch of inBatches(change.changes)) {
     // Batches are saved one after another, in order.
     // eslint-disable-next-line no-await-in-loop
     await applyAndRecord(scene, {
       apply: () => scene.applyUserTransforms(batch.map(({ id, after }) => ({ id, transform: after }))),
       revert: () => void scene.applyUserTransforms(batch.map(({ id, before }) => ({ id, transform: before }))),
-    });
+    }, (projectId, commands) => recordSceneEdit(projectId, commands, actionId));
   }
 }
 
@@ -88,11 +79,12 @@ async function applyDelete(
   change: Extract<SceneChange, { kind: "delete" }>,
 ): Promise<void> {
   if (!scene.hasProject) throw new Error(SAVE_FIRST);
+  const actionId = `delete_${crypto.randomUUID()}`;
   // The deepest parts go first, and a batch never separates a part from the one it hangs from.
   for (const commands of inBatches(scene.deleteCommandsFor(change.ids))) {
     // Batches are saved one after another, in order.
     // eslint-disable-next-line no-await-in-loop
-    await recordSceneEdit(scene.projectId, commands);
+    await recordSceneEdit(scene.projectId, commands, actionId);
     if (!scene.applyUserEdit(commands))
       throw new Error("The objects were removed from the project but could not be removed here. Reopen the project.");
   }
@@ -129,8 +121,7 @@ export function useObjectEditing({
 
   const [selected, setSelected] = useState<SelectedObject | null>(null);
   const [error, setError] = useState("");
-  const undoHistory = useRef<TransformHistoryEntry[]>([]);
-  const redoHistory = useRef<TransformHistoryEntry[]>([]);
+  const historyBusy = useRef(false);
 
   const save = useCallback(
     (
@@ -163,20 +154,7 @@ export function useObjectEditing({
 
   const onTransformCommit = useCallback(
     (changes: ObjectChange[]) => {
-      const entry: TransformHistoryEntry = { changes, persistence: "pending" };
-      undoHistory.current.push(entry);
-      redoHistory.current = [];
-      save(
-        { kind: "transform", changes },
-        () => {
-          entry.persistence = "saved";
-        },
-        () => {
-          entry.persistence = "failed";
-          const index = undoHistory.current.indexOf(entry);
-          if (index >= 0) undoHistory.current.splice(index, 1);
-        },
-      );
+      save({ kind: "transform", changes });
     },
     [save],
   );
@@ -185,7 +163,7 @@ export function useObjectEditing({
     if (!viewport || !scene) return undefined;
     const view = {
       tool: () => current.current.tool,
-      enabled: () => current.current.enabled,
+      enabled: () => current.current.enabled && !historyBusy.current && !scene.requiresRecovery,
     };
     const handles = new ObjectGizmo(
       viewport,
@@ -213,42 +191,21 @@ export function useObjectEditing({
 
   const requestDelete = useCallback(() => {
     const ids = scene?.selectedIds;
-    if (!scene || !ids || ids.length === 0 || !current.current.enabled) return;
+    if (!scene || !ids || ids.length === 0 || !current.current.enabled || historyBusy.current || scene.requiresRecovery) return;
     setError("");
-    redoHistory.current = [];
-    // What was deleted can no longer be moved back, so the history forgets every change that touched it.
-    const touchesDeleted = (entry: TransformHistoryEntry) => entry.changes.some((change) => ids.includes(change.id));
-    save({ kind: "delete", ids }, () => {
-      undoHistory.current = undoHistory.current.filter((entry) => !touchesDeleted(entry));
-      redoHistory.current = redoHistory.current.filter((entry) => !touchesDeleted(entry));
-    });
+    save({ kind: "delete", ids });
   }, [scene, save]);
 
-  const undo = useCallback(() => {
-    const change = undoHistory.current.pop();
-    if (!change || !scene) return;
-    save(
-      { kind: "transform", changes: reversed(change.changes) },
-      () => redoHistory.current.push(change),
-      () => {
-        if (change.persistence !== "failed") undoHistory.current.push(change);
-      },
-      () => change.persistence !== "failed",
-    );
-  }, [scene, save]);
-
-  const redo = useCallback(() => {
-    const change = redoHistory.current.pop();
-    if (!change || !scene) return;
-    save(
-      { kind: "transform", changes: change.changes },
-      () => undoHistory.current.push(change),
-      () => {
-        if (change.persistence !== "failed") redoHistory.current.push(change);
-      },
-      () => change.persistence !== "failed",
-    );
-  }, [scene, save]);
+  const history = useCallback((direction: "undo" | "redo") => {
+    if (!scene || !current.current.enabled || historyBusy.current || scene.requiresRecovery) return;
+    historyBusy.current = true;
+    saves.run(async () => {
+      try { await changeSceneHistory(scene, direction); }
+      finally { historyBusy.current = false; }
+    }, (failure) => setError(errorMessage(failure)));
+  }, [scene, saves]);
+  const undo = useCallback(() => history("undo"), [history]);
+  const redo = useCallback(() => history("redo"), [history]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -278,24 +235,11 @@ export function useObjectEditing({
     (patch: Partial<ObjectTransform>) => {
       const id = scene?.selection;
       const before = id ? scene?.transformOf(id) : undefined;
-      if (!id || !before) return;
+      if (!id || !before || !current.current.enabled || historyBusy.current || scene?.requiresRecovery) return;
       setError("");
       const after = { ...before, ...patch };
       const changes = [{ id, before, after }];
-      const entry: TransformHistoryEntry = { changes, persistence: "pending" };
-      undoHistory.current.push(entry);
-      redoHistory.current = [];
-      save(
-        { kind: "transform", changes },
-        () => {
-          entry.persistence = "saved";
-        },
-        () => {
-          entry.persistence = "failed";
-          const index = undoHistory.current.indexOf(entry);
-          if (index >= 0) undoHistory.current.splice(index, 1);
-        },
-      );
+      save({ kind: "transform", changes });
     },
     [scene, save],
   );

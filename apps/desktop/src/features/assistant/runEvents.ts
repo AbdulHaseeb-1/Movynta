@@ -2,11 +2,14 @@ import type { RunEvent } from "./runClient";
 import type { ActivityStep, ChatMessage } from "./types";
 
 const TOOL_LABELS: Readonly<Record<string, string>> = {
+  "editor.inspect_mesh": "Inspecting mesh geometry",
   "editor.get_context": "Reading the scene",
   "editor.get_scene_summary": "Summarizing the scene",
   "editor.propose_commands": "Planning scene changes",
   "editor.apply_proposal": "Applying scene changes",
+  "viewport.capture": "Looking at the scene",
   "modeling.generate_model_plan": "Planning the model",
+  "modeling.generate_commands": "Calculating scene changes",
 };
 
 function humanize(identifier: string): string {
@@ -179,6 +182,21 @@ function applyEvent(message: ChatMessage, event: RunEvent): ChatMessage {
         ...(summary === undefined ? {} : { detail: summary }),
         status: "done",
       });
+    }
+    case "viewport.captured": {
+      const captureId = readString(payload, "captureId");
+      if (captureId === undefined) return message;
+      const imagesSent = payload["imagesSent"] !== false;
+      // The picture step is the tool call that took them; its pictures are filed in the editor under captureId.
+      return updateLastRunning(
+        message,
+        (step) => step.kind === "tool" && step.toolName === "viewport.capture",
+        (step) => ({
+          ...step,
+          captureId,
+          ...(imagesSent ? {} : { detail: "This model connection cannot receive images, so the scene was measured, not drawn." }),
+        }),
+      );
     }
     case "approval.required": {
       const summary = readString(payload, "summary");

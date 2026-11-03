@@ -121,11 +121,11 @@ export function prepareModel(content: Object3D, name: string): PreparedModel {
 export function disposeModel(root: Object3D): void {
   root.traverse((node) => {
     if (!isMesh(node)) return;
+    const geometry: BufferGeometry = node.geometry;
+    geometry.dispose();
+    const material: Material | Material[] = node.material;
+    const materials = Array.isArray(material) ? material : [material];
+    materials.forEach((entry) => entry.dispose());
     if (node instanceof SkinnedMesh) node.skeleton.dispose();
-    node.geometry.dispose();
-    const materials: Material[] = Array.isArray(node.material)
-      ? node.material
-      : [node.material];
-    materials.forEach((material) => material.dispose());
   });
 }

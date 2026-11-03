@@ -8,6 +8,7 @@ import type { AuthUser } from "../auth/auth.types.js";
 import { CreateProjectDto, ImportModelQueryDto, ListProjectsQueryDto, RecordSceneEditDto, UpdateProjectDto } from "./dto/index.js";
 import { ProjectsService } from "./projects.service.js";
 import type { ProjectConversation, ProjectView, SceneImport, SceneStep } from "./projects.types.js";
+import { SceneHistoryDto, CommitSceneHistoryDto } from "./dto/index.js";
 
 const projectIdPipe = new ResourceIdPipe(PROJECT_RESOURCE_ID_PATTERN);
 const assetIdPipe = new ResourceIdPipe(ASSET_RESOURCE_ID_PATTERN);
@@ -65,18 +66,29 @@ export class ProjectsController {
   scene(
     @CurrentUser() user: AuthUser,
     @Param("projectId", projectIdPipe) projectId: string,
-  ): { steps: SceneStep[] } {
-    return { steps: this.projects.scene(user.id, projectId) };
+  ): { steps: SceneStep[]; recoveryRequired: boolean } {
+    return { steps: this.projects.scene(user.id, projectId), recoveryRequired: this.projects.recoveryRequired(user.id, projectId) };
   }
 
   /** Records moves, rotations and scale changes the user made by hand. */
+  @Post(":projectId/scene/history/preview")
+  previewHistory(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string, @Body() dto: SceneHistoryDto) {
+    return this.projects.previewHistory(user.id, projectId, dto.direction);
+  }
+
+  @Post(":projectId/scene/history/commit")
+  commitHistory(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string, @Body() dto: CommitSceneHistoryDto) {
+    this.projects.commitHistory(user.id, projectId, dto.direction, dto.version, dto.operationId);
+    return { committed: true };
+  }
+
   @Post(":projectId/scene/edits")
   recordSceneEdit(
     @CurrentUser() user: AuthUser,
     @Param("projectId", projectIdPipe) projectId: string,
     @Body() dto: RecordSceneEditDto,
   ): { proposalId: string } {
-    return this.projects.recordSceneEdit(user.id, projectId, dto.commands);
+    return this.projects.recordSceneEdit(user.id, projectId, dto.commands, dto.actionId);
   }
 
   /** Imports a model: the file is the request body (application/octet-stream), described by the query. */

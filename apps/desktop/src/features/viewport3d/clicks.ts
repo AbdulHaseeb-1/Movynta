@@ -31,7 +31,7 @@ export interface ClickWatch {
 }
 
 /** Calls `onClick` for every left-button click on `element`. Returns a function that stops watching. */
-export function watchClicks(element: HTMLElement, { ignore, onClick, capture = false }: ClickWatch): () => void {
+export function watchClicks(element: Pick<HTMLElement, "addEventListener" | "removeEventListener">, { ignore, onClick, capture = false }: ClickWatch): () => void {
   let press: Press | undefined;
   const onDown = (event: PointerEvent) => {
     press =

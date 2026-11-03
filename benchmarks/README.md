@@ -26,7 +26,17 @@ node benchmarks/compare.mjs before          # speedup of every case against the 
 
 Read `config/environment.md` before keeping numbers: they only compare under the same conditions.
 
+### Procedural command and bounds smoke measurements
+
+Run `pnpm --filter movynta-backend test -- --runInBand --runTestsByPath src/modules/tools/procedural/procedural.runner.spec.ts` for interpreter limits and warm command-generation timing. Run `pnpm --filter movynta-desktop exec vitest run src/features/assistant/sceneBounds.test.ts src/features/assistant/EditorScene.performance.test.ts --reporter=verbose` for bounds and snapshot timing. These are smoke measurements, not regression gates.
+
+On the implementation machine (2026-11-03), 20 warm 200-command generations averaged 5.7ms. Twenty snapshots of 2,000 box meshes including world bounds averaged 6.4ms; 100 snapshots of 2,000 empty objects averaged 2.8ms. Bounds are aggregated bottom-up in O(nodes), with cached geometry bounding boxes; computing previously unmeasured geometry bounds additionally costs O(vertices). Results vary with geometry and hardware.
+
+For surface operations run `pnpm --filter movynta-desktop exec vitest run src/features/meshGeometry/meshGeometry.test.ts src/features/meshGeometry/modifierFeatures.test.ts --reporter=verbose`. The attribute-preserving evaluator averaged about 7ms for twenty bevel-plus-two-level-subdivision runs on a UV-mapped cube, compared with roughly 1–4ms for the earlier position-only implementation. This is a small-mesh smoke measurement, not a throughput guarantee. Topology reconstruction and Catmull–Clark passes follow vertices/edges/face corners; output grows approximately fourfold per subsequent quad subdivision level. Bevel checks local face insets and vertex patches instead of testing every vertex against every face for global convexity. Attribute and morph interpolation adds work proportional to output vertices, channel sizes, target counts and interpolation stencil sizes. Subdivision checks projected growth before allocating intermediate levels. Limits on triangle counts, stack size, extraordinary vertex valence and output attribute memory reject oversized work before committing changes. Adjacent render groups with the same material are coalesced to avoid a draw call per output face.
+
 ## Layout
+
+Prepared assistant edits also have a smoke benchmark in `EditorScene.prepared.test.ts`. Ten prepare/discard cycles on a 100-box scene averaged about 6.3ms locally. Preparing isolates geometry/material resources and copies the scene; its cost grows with scene data. A conservative 128 MiB geometry-buffer budget bounds this path. Undo/redo replays saved history and reloads assets, so its cost grows with history and imported geometry; checkpointing remains an optimization opportunity.
 
 | Folder | Holds |
 | --- | --- |

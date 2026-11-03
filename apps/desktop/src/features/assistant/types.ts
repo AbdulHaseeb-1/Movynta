@@ -16,6 +16,8 @@ export interface ActivityStep {
   detail?: string;
   status: ActivityStatus;
   durationMs?: number;
+  /** Names the pictures the assistant looked at in this step, which the chat shows under it. */
+  captureId?: string;
   /** Character position in the streamed reply when this step started. */
   contentOffset?: number;
 }

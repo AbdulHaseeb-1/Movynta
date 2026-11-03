@@ -25,6 +25,18 @@ const sceneWith = (ids: string[]): EditorContext => ({
 });
 
 describe("editor command schema", () => {
+  it("accepts rounded bevels and bounded live stacks and rejects duplicate ids", () => {
+    const stack = [{ id: "smooth", kind: "subdivision", enabled: false, levels: 2 }];
+    expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.set_modifiers", objectId: "mesh", modifiers: stack }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.set_modifiers", objectId: "mesh", modifiers: [...stack, ...stack] }]).success).toBe(false);
+    for (const segments of [0, 9, 1.5]) expect(editorCommandListSchema.safeParse([{ commandId: "b", type: "geometry.bevel", objectId: "mesh", width: .1, segments }]).success).toBe(false);
+  });
+  it("validates bounded bevel/subdivision parameters and supplies the root mesh path", () => {
+    const result = editorCommandListSchema.parse([{ commandId: "b", type: "geometry.bevel", objectId: "a", width: .1 }]);
+    expect(result[0]).toMatchObject({ meshPath: [] });
+    for (const levels of [0, 4, 1.5]) expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.subdivide", objectId: "a", levels }]).success).toBe(false);
+    for (const width of [0, -1, Number.NaN, 101]) expect(editorCommandListSchema.safeParse([{ commandId: "b", type: "geometry.bevel", objectId: "a", width }]).success).toBe(false);
+  });
   it("accepts a valid mixed batch", () => {
     const parsed = editorCommandListSchema.safeParse([
       { commandId: "c1", type: "scene.create_object", objectId: "torso", name: "Torso" },

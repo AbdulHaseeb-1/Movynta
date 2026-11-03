@@ -29,6 +29,7 @@ import {
   ToolHint,
   useObjectEditing,
 } from "@/features/objectEditing";
+import { useViewCapture } from "@/features/viewCapture";
 import { createSerialQueue } from "@/lib";
 import {
   createProject,
@@ -91,14 +92,16 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     return created.id;
   }, [onProjectCreated]);
 
-  const run = useAssistantRun(editorRef, ensureProject);
+  // The assistant looks at the scene through the same viewport the user sees, from any point of view.
+  const viewCapture = useViewCapture(viewport, editorRef);
+  const [saves] = useState(createSerialQueue);
+  const run = useAssistantRun(editorRef, ensureProject, viewCapture, saves.flush);
   const hydrate = useRef(run.hydrate);
   useEffect(() => {
     hydrate.current = run.hydrate;
   });
 
   // Moving objects saves to the same project, so they share one line of saves.
-  const [saves] = useState(createSerialQueue);
   const editing = useObjectEditing({
     viewport,
     scene: editorScene,
@@ -107,6 +110,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   });
 
   const importer = useModelImport({
+    saves,
     editor: editorRef,
     ensureProject,
     // A model is content like any prompt: the workspace leaves its blank state and offers the chat.

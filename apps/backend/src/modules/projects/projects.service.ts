@@ -113,6 +113,22 @@ export class ProjectsService {
     this.owned(userId, projectId);
     return this.scenes.list(projectId);
   }
+  recoveryRequired(userId: string, projectId: string): boolean {
+    this.owned(userId, projectId); return this.scenes.recoveryRequired(projectId);
+  }
+
+  previewHistory(userId: string, projectId: string, direction: "undo" | "redo") {
+    this.owned(userId, projectId);
+    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before changing history");
+    return this.scenes.previewHistory(projectId, direction);
+  }
+
+  commitHistory(userId: string, projectId: string, direction: "undo" | "redo", version: number, operationId: string): void {
+    this.owned(userId, projectId);
+    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before changing history");
+    this.scenes.commitHistory(projectId, direction, version, operationId);
+    this.repository.touch(projectId, new Date().toISOString());
+  }
 
   /**
    * Keeps a model file the user imported and adds it to the project's scene history. The backend does
@@ -120,6 +136,7 @@ export class ProjectsService {
    */
   importModel(userId: string, projectId: string, upload: ModelUpload): SceneImport {
     this.owned(userId, projectId);
+    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before importing");
     if (!isOneOf(ASSET_FORMATS, upload.format)) {
       throw new ValidationFailedError(`Models can be imported as ${ASSET_FORMATS.join(", ")} files`);
     }
@@ -148,7 +165,7 @@ export class ProjectsService {
    * moving, rotating, scaling and deleting existing objects can be recorded this way; building
    * goes through the assistant's approved proposals.
    */
-  recordSceneEdit(userId: string, projectId: string, input: unknown): { proposalId: string } {
+  recordSceneEdit(userId: string, projectId: string, input: unknown, actionId?: string): { proposalId: string } {
     this.owned(userId, projectId);
     if (this.repository.hasActiveRun(projectId)) {
       throw new ConflictError("The assistant is working in this project. Wait for it to finish, then edit.");
@@ -171,7 +188,7 @@ export class ProjectsService {
       if (command.type === "scene.delete_object") known.delete(command.objectId);
     }
     const proposalId = `usr_${randomUUID()}`;
-    this.scenes.append(projectId, proposalId, parsed.data);
+    this.scenes.append(projectId, proposalId, parsed.data, actionId);
     this.repository.touch(projectId, new Date().toISOString());
     return { proposalId };
   }

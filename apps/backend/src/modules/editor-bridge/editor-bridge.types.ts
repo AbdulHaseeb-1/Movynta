@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
 import type { EditorCommand } from "../../shared/types/editor-command.types.js";
 import type { EditorContext } from "../../shared/types/editor-context.types.js";
 import type { EDITOR_INBOUND_EVENTS, commandResultSchema } from "./editor-protocol.js";
@@ -31,6 +32,7 @@ export interface CommandProposalView {
 }
 
 export interface CommandExecutionRequest {
+  readonly phase?: "prepare" | "commit" | "discard";
   readonly proposalId: string;
   /** Equal to the proposal id, so a repeated request cannot run the batch twice. */
   readonly idempotencyKey: string;
@@ -51,9 +53,19 @@ export interface EditorConnectionScope {
 export interface EditorBridge {
   /** Throws unless `clientId` is a live editor connection for this user and project. */
   assertConnection(userId: string, projectId: string, clientId: string): EditorConnectionScope;
-  getContext(clientId: string): Promise<EditorContext>;
+  getContext(clientId: string, inspection?: MeshInspectionRequest): Promise<EditorContext>;
   proposeCommands(clientId: string, proposal: CommandProposalView): Promise<void>;
   executeCommands(clientId: string, request: CommandExecutionRequest): Promise<CommandExecutionResult>;
+  /** Asks the editor to draw the scene from the requested points of view. Nothing in the scene changes. */
+  captureViews(clientId: string, request: ViewCaptureRequest, options: ViewCaptureOptions): Promise<ViewCaptureResult>;
+}
+
+/** What the backend decides about a capture, apart from what the assistant asked for. */
+export interface ViewCaptureOptions {
+  /** False when the model cannot receive images, so the editor skips drawing and only measures. */
+  readonly withImages: boolean;
+  /** Names this capture. The editor files the pictures under it so the chat can show what the assistant saw. */
+  readonly captureId: string;
 }
 
 /** The subset of a WebSocket the bridge needs. Keeps the transport swappable and testable. */
@@ -82,6 +94,13 @@ export type PendingRequest =
       readonly timer: NodeJS.Timeout;
       readonly resolve: (result: CommandExecutionResult) => void;
       readonly reject: (error: Error) => void;
+    }
+  | {
+      readonly kind: "capture";
+      readonly clientId: string;
+      readonly timer: NodeJS.Timeout;
+      readonly resolve: (result: ViewCaptureResult) => void;
+      readonly reject: (error: Error) => void;
     };
 
 export interface SocketState {
@@ -97,10 +116,17 @@ export type EditorInboundEvent = (typeof EDITOR_INBOUND_EVENTS)[number];
 /** Data for `commands.execute`: the execution request plus the id the editor must echo back. */
 export type CommandsExecuteData = CommandExecutionRequest & { readonly requestId: string };
 
+/** Data for `view.request`: what to draw, the id the editor must echo back, and whether to draw at all. */
+export type ViewRequestData = ViewCaptureOptions & {
+  readonly requestId: string;
+  readonly request: ViewCaptureRequest;
+};
+
 /** Outbound messages. The gateway serializes each one as JSON text; every event has its own data shape. */
 export type EditorOutboundMessage =
-  | { readonly event: "auth.ok"; readonly data: { readonly clientId: string; readonly projectId: string } }
+  | { readonly event: "auth.ok"; readonly data: { readonly clientId: string; readonly projectId: string; readonly recoveryRequired?: boolean } }
   | { readonly event: "error"; readonly data: { readonly code: string; readonly message: string } }
-  | { readonly event: "context.request"; readonly data: { readonly requestId: string } }
+  | { readonly event: "context.request"; readonly data: { readonly requestId: string; readonly inspection?: MeshInspectionRequest | undefined } }
   | { readonly event: "proposal.created"; readonly data: { readonly proposal: CommandProposalView } }
-  | { readonly event: "commands.execute"; readonly data: CommandsExecuteData };
+  | { readonly event: "commands.execute"; readonly data: CommandsExecuteData }
+  | { readonly event: "view.request"; readonly data: ViewRequestData };

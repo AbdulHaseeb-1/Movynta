@@ -1,10 +1,13 @@
 import { z } from "zod";
+import { meshInspectionRequestSchema, viewCaptureRequestSchema } from "@movynta/editor-protocol";
 import {
   BACKEND_URL,
   backendToken,
   ensureBackendConnection,
 } from "@/lib/backend";
+import { rememberCapture, type ViewCaptureHandler } from "@/features/viewCapture";
 import type { EditorScene } from "./EditorScene";
+import { recoverSavedScene } from "../objectEditing/sceneHistory";
 
 const messageSchema = z.object({
   event: z.string(),
@@ -15,12 +18,14 @@ const executionSchema = z.object({
   proposalId: z.string(),
   expectedRevision: z.number().int(),
   commands: z.unknown(),
+  phase: z.enum(["prepare", "commit", "discard"]).optional(),
 });
 type ExecutionRequest = z.infer<typeof executionSchema>;
 
 /** Runs a batch, turning a batch the editor cannot even parse into a failed result. */
 function executeSafely(editor: EditorScene, request: ExecutionRequest) {
   try {
+    if (request.phase) return editor.executePrepared(request.proposalId, request.expectedRevision, request.commands, request.phase);
     return editor.execute(
       request.proposalId,
       request.expectedRevision,
@@ -35,13 +40,48 @@ function executeSafely(editor: EditorScene, request: ExecutionRequest) {
   }
 }
 
+/**
+ * Answers a request to look at the scene. A view that cannot be drawn is an answer, not a reason to drop the
+ * connection, so the assistant is told why and can ask differently.
+ */
+function answerViewRequest(
+  data: Record<string, unknown>,
+  capture: ViewCaptureHandler | null,
+  send: (name: string, data: unknown) => void,
+): void {
+  const requestId = data["requestId"];
+  if (typeof requestId !== "string") return;
+  try {
+    if (!capture) throw new Error("The viewport is not available");
+    const request = viewCaptureRequestSchema.parse(data["request"]);
+    const result = capture(request, { withImages: data["withImages"] === true });
+    // The chat shows the user what the assistant is about to see, found again by the id the backend gave this capture.
+    const captureId = data["captureId"];
+    if (typeof captureId === "string") rememberCapture(captureId, result.images);
+    send("view.response", { requestId, result });
+  } catch (error) {
+    const message =
+      error instanceof z.ZodError
+        ? "The view request was not valid"
+        : error instanceof Error
+          ? error.message.slice(0, 400)
+          : "The view could not be drawn";
+    send("view.error", { requestId, message });
+  }
+}
+
 export interface EditorConnection {
   clientId: string;
   close: () => void;
 }
+/**
+ * Opens the editor's side of the bridge. `capture` is read each time the assistant asks to look at the scene, so it
+ * may be replaced while the connection is open; null means no viewport is showing.
+ */
 export async function connectEditor(
   editor: EditorScene,
   signal: AbortSignal,
+  capture: { readonly current: ViewCaptureHandler | null } = { current: null },
 ): Promise<EditorConnection> {
   await ensureBackendConnection();
   return new Promise((resolve, reject) => {
@@ -53,11 +93,13 @@ export async function connectEditor(
       reject(new Error("Editor connection timed out"));
     }, 10000);
     const close = () => {
+      editor.discardPrepared();
       clearTimeout(timer);
       socket.close();
     };
     signal.addEventListener("abort", close, { once: true });
     socket.onclose = () => {
+      editor.discardPrepared();
       clearTimeout(timer);
       signal.removeEventListener("abort", close);
       reject(new Error("Editor disconnected"));
@@ -84,7 +126,10 @@ export async function connectEditor(
           typeof message.data["clientId"] === "string"
         ) {
           clearTimeout(timer);
-          resolve({ clientId: message.data["clientId"], close });
+          const clientId = message.data["clientId"];
+          if (message.data["recoveryRequired"] === true || editor.requiresRecovery) {
+            void recoverSavedScene(editor).then(() => resolve({ clientId, close })).catch((error: unknown) => { close(); reject(error); });
+          } else resolve({ clientId, close });
         }
         if (
           message.event === "context.request" &&
@@ -92,7 +137,7 @@ export async function connectEditor(
         )
           send("context.response", {
             requestId: message.data["requestId"],
-            context: editor.context(),
+            context: editor.context(message.data["inspection"] === undefined ? undefined : meshInspectionRequestSchema.parse(message.data["inspection"])),
           });
         if (message.event === "commands.execute") {
           const request = executionSchema.parse(message.data);
@@ -102,6 +147,7 @@ export async function connectEditor(
             ...executeSafely(editor, request),
           });
         }
+        if (message.event === "view.request") answerViewRequest(message.data, capture.current, send);
         if (message.event === "error") {
           close();
           reject(new Error("Editor authentication failed"));

@@ -9,6 +9,7 @@ export const AGENT_RUN_EVENT_TYPES = [
   "tool.completed",
   "tool.failed",
   "editor.proposal.created",
+  "viewport.captured",
   "approval.required",
   "approval.resolved",
   "run.completed",

@@ -36,6 +36,41 @@ describe("applyRunEvent", () => {
     expect(done.activity[0]).toMatchObject({ status: "done", durationMs: 40 });
   });
 
+  it("attaches the pictures the assistant looked at to the step that took them", () => {
+    const started = applyRunEvent(empty, {
+      type: "tool.started",
+      payload: { toolName: "viewport.capture", permission: "read" },
+    });
+    expect(started.activity[0]).toMatchObject({ label: "Looking at the scene", status: "running" });
+    const captured = applyRunEvent(started, {
+      type: "viewport.captured",
+      payload: { captureId: "cap_1", views: [{ label: "front", width: 768, height: 576 }], imagesSent: true },
+    });
+    expect(captured.activity).toHaveLength(1);
+    expect(captured.activity[0]).toMatchObject({ captureId: "cap_1", status: "running" });
+    expect(captured.activity[0]?.detail).toBeUndefined();
+    const done = applyRunEvent(captured, {
+      type: "tool.completed",
+      payload: { toolName: "viewport.capture", durationMs: 120 },
+    });
+    expect(done.activity[0]).toMatchObject({ captureId: "cap_1", status: "done", durationMs: 120 });
+  });
+
+  it("explains a look that drew nothing, and ignores one that names no pictures", () => {
+    const started = applyRunEvent(empty, {
+      type: "tool.started",
+      payload: { toolName: "viewport.capture", permission: "read" },
+    });
+    const measured = applyRunEvent(started, {
+      type: "viewport.captured",
+      payload: { captureId: "cap_2", views: [], imagesSent: false },
+    });
+    expect(measured.activity[0]?.detail).toMatch(/cannot receive images/);
+    expect(applyRunEvent(started, { type: "viewport.captured", payload: { imagesSent: true } })).toBe(started);
+    // Without the tool step running there is nothing to attach them to.
+    expect(applyRunEvent(empty, { type: "viewport.captured", payload: { captureId: "cap_3", imagesSent: true } })).toBe(empty);
+  });
+
   it("keeps activity at its position between streamed messages", () => {
     const result = [
       { type: "agent.message.delta", payload: { delta: "Before" } },

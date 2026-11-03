@@ -2,9 +2,9 @@ import type { AgentInputItem, InputGuardrail } from "@openai/agents";
 
 export const MAX_REQUEST_CHARACTERS = 4000;
 
-/** Requests to run code or shell commands. Movynta's agents only do modeling work. */
+/** System execution stays unavailable; JavaScript modeling calculations use the isolated tool. */
 const CODE_EXECUTION_PATTERN =
-  /\b(run|execute|eval)\b[\s\S]{0,40}\b(python|javascript|typescript|shell|bash|powershell|cmd|script|code)\b|\bos\.system\b|\bsubprocess\b|\bchild_process\b/i;
+  /\b(run|execute|eval)\b[\s\S]{0,40}\b(python|shell|bash|powershell|cmd)\b|\bos\.system\b|\bsubprocess\b|\bchild_process\b/i;
 
 /** Text of the request, used for policy checks. Only user-visible message text is inspected. */
 function requestText(input: string | readonly AgentInputItem[]): string {

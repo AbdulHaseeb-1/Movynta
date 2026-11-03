@@ -31,6 +31,8 @@ export interface AgentRunContext {
   readonly events: AgentRunEventSink;
   readonly signal: AbortSignal;
   readonly plans: ModelingPlan[];
+  /** False when the model's provider cannot take images inside a tool result, so tools send text only. */
+  readonly supportsToolImages: boolean;
 }
 
 /** Payload shape for each event type. Clients receive these as JSON, so each shape is part of the stream contract. */
@@ -68,6 +70,13 @@ export type AgentRunEventPayloads = {
     readonly baseRevision: number;
     readonly supersedes: string | null;
     readonly planStepId: string | null;
+  };
+  /** The assistant looked at the scene. The pictures stay in the editor, filed under `captureId`; only their names travel here. */
+  readonly "viewport.captured": {
+    readonly captureId: string;
+    readonly views: readonly { readonly label: string; readonly width: number; readonly height: number }[];
+    /** False when the model connection cannot take images, so nothing was drawn. */
+    readonly imagesSent: boolean;
   };
   readonly "approval.required": {
     readonly approvalId: string;

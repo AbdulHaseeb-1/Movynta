@@ -5,11 +5,12 @@ import { backendRequest } from "@/lib/backend";
 export function recordSceneEdit(
   projectId: string,
   commands: readonly unknown[],
+  actionId?: string,
 ): Promise<{ proposalId: string }> {
   return backendRequest(
     `/projects/${projectId}/scene/edits`,
     z.object({ proposalId: z.string() }),
     "POST",
-    { commands },
+    { commands, ...(actionId ? { actionId } : {}) },
   );
 }

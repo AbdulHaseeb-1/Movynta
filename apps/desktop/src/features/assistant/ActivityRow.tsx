@@ -6,6 +6,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { CaptureGallery } from "@/features/viewCapture";
 import type { ActivityStep } from "./types";
 
 function formatDuration(durationMs: number): string {
@@ -78,6 +79,7 @@ export function StepRow({ step }: { step: ActivityStep }) {
           {step.detail}
         </p>
       </CollapsibleContent>
+      {step.captureId && <CaptureGallery captureId={step.captureId} />}
     </Collapsible>
   );
 }

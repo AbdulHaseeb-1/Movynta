@@ -1,7 +1,7 @@
 ---
 name: mesh-editing
-version: 1.0.0
-description: Edits existing meshes safely, such as transforms, replacements, and cleanup, with previews and approval for destructive changes.
+version: 1.2.0
+description: Inspects mesh geometry and edits transforms, bevels, subdivision surfaces, replacements, and cleanup through approved commands.
 dimensions:
   - 2d
   - 2.5d
@@ -11,6 +11,8 @@ tags:
   - edit
   - transform
   - topology
+  - bevel
+  - subdivision
 when_to_use:
   - The user asks to move, scale, rotate, replace, or clean up existing geometry.
   - The user asks to change the topology of an object that already exists.
@@ -19,6 +21,8 @@ required_inputs:
   - The intended change (for example: scale by 1.2, replace with a sphere).
 tools:
   - editor.get_context
+  - editor.inspect_mesh
+  - modeling.generate_commands
   - editor.propose_commands
   - editor.apply_proposal
   - validation.check_scene
@@ -29,7 +33,7 @@ validation:
 error_handling:
   - If a target object is missing, stop and ask the user which object to change.
   - If the user rejects a destructive proposal, do not retry it. Propose a non-destructive alternative instead.
-  - Report revision conflicts and ask the user to confirm before re-proposing.
+  - Report revision conflicts, read the current context, and recalculate before proposing corrected commands.
 ---
 
 # Mesh editing workflow
@@ -40,4 +44,10 @@ error_handling:
 4. Submit with `editor.propose_commands` and apply with `editor.apply_proposal`.
 5. Validate with `validation.check_scene` and summarise what changed.
 
-Prefer transforms over replacement. Replacement and deletion are destructive, so they require approval.
+For repeated layouts or mathematical placement, calculate command arrays with `modeling.generate_commands` using synchronous JavaScript and the supplied `scene` snapshot. Submit the returned commands with `expectedRevision` equal to `sourceRevision`. If the scene changes, recalculate before proposing again. Programs support the existing commands, including bevel/subdivision; arbitrary mesh creation and material operations remain unavailable.
+
+For surface editing, first call `editor.inspect_mesh` with objectId. Imported groups return parts; choose a meshPath and inspect that mesh. Use offset/limit for local-space vertex, edge and polygon samples; indices refer to the complete topology, not just the sample. Inspect bounds, counts and boundary/winding defects before choosing an operation.
+
+Use `geometry.bevel` with a small positive local-space width and 1–8 segments (default 1; 3–4 gives rounded edges). Use `geometry.subdivide` with 1–3 Catmull–Clark levels. These append live modifiers. Inspect the mesh's `modifiers`, then use `geometry.set_modifiers` with the full ordered list to edit parameters, reorder, disable (`enabled: false`) or remove entries. Each entry has a unique id and kind (`bevel` or `subdivision`); preserve existing ids. Up to eight entries are supported, and an empty list restores the original base mesh.
+
+Concave and open manifold meshes are supported; open boundaries remain open. UV seams, material assignments, vertex colors, skin weights and morph targets are preserved/interpolated. New bevel strips and corner patches use adjacent materials and interpolated UVs; they do not create an automatic texture unwrap. Both geometric and stack edits require approval, use strict scene revisions, and must be submitted separately from creation/transforms (at most 20 commands). Reduce overlapping widths and excessive refinement or explain unsupported topology rather than replacing the model. There is no dedicated manual stack panel or crease editor yet.

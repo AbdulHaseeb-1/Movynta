@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsOptional, IsString, Length, Matches, MaxLength } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsDefined, Min, IsOptional, IsString, Length, Matches, MaxLength } from "class-validator";
+
+export class SceneHistoryDto {
+  @IsDefined() @IsIn(["undo", "redo"]) declare direction: "undo" | "redo";
+}
+export class CommitSceneHistoryDto extends SceneHistoryDto {
+  @IsDefined() @IsInt() @Min(0) declare version: number;
+  @IsDefined() @IsString() @Matches(/^[A-Za-z0-9_-]{1,64}$/) declare operationId: string;
+}
 import {
   ASSET_FORMATS,
   PROJECT_CATEGORIES,
@@ -30,6 +38,7 @@ export class ImportModelQueryDto {
 }
 
 export class RecordSceneEditDto {
+  @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{1,64}$/) declare actionId?: string;
   @ApiProperty({ description: "scene.transform_object and scene.delete_object commands for objects already in the project." })
   @IsArray()
   @ArrayMinSize(1)

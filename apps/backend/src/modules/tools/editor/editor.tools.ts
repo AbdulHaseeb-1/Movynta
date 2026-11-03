@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { meshInspectionRequestSchema } from "@movynta/editor-protocol";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import { editorCommandListSchema } from "../../../shared/schemas/editor-command.schema.js";
@@ -16,8 +17,18 @@ function assertConnection(bridge: EditorBridge, context: AgentRunContext): void 
 export function createEditorTools({ bridge, proposals }: EditorToolDependencies): ToolDefinition[] {
   return [
     defineTool({
+      name: "editor.inspect_mesh", permission: "read",
+      description: "Inspect mesh topology and local-space vertex/edge/face samples. Supply objectId, optional meshPath (child-index path, [] for the object itself), offset and limit (1–100, default 25). Imported groups return available mesh parts with paths; inspect one path next. Returns welded polygon topology, counts, boundary/non-manifold/inconsistent edges, render attributes and groups, the live modifiers and base triangle count, skin/morph status, local bounds and column-major matrixWorld. Positions are local to the target mesh. Faces/edges reference the full vertex index space, so page vertices separately as needed. Source meshes above 20000 triangles may be unsupported. Nothing changes.",
+      parameters: meshInspectionRequestSchema,
+      execute: async (input, context) => {
+        assertConnection(bridge, context);
+        const scene = await bridge.getContext(context.clientId, input);
+        return { revision: scene.revision, inspection: scene.meshInspection ?? null, message: scene.meshInspection ? null : "This editor does not support mesh inspection" };
+      },
+    }),
+    defineTool({
       name: "editor.get_context",
-      description: "Read the current editor scene: objects, parents, selection, and the scene revision.",
+      description: "Read the current editor scene: objects, parents, local transforms, world-space geometry bounds when supported, visibility, selection, and revision.",
       permission: "read",
       parameters: noInput,
       execute: (_input, context) => {
@@ -51,20 +62,23 @@ export function createEditorTools({ bridge, proposals }: EditorToolDependencies)
     defineTool({
       name: "editor.propose_commands",
       description: [
-        "Submit a batch of structured scene commands for preview. Nothing changes until editor.apply_proposal runs.",
+        "Submit a batch of structured scene commands for preview. A proposal alone does not request approval or show an approval card. After a successful proposal, call editor.apply_proposal with the returned proposalId even if requiresApproval is true; that call requests approval when needed. Nothing changes until the proposal is approved and applied.",
         "Commands run in order, and later commands may use objects created earlier in the same batch.",
         "Change existing objects with scene.rename_object, scene.set_visibility and scene.set_parent instead of recreating them.",
+        "geometry.bevel adds a live bevel modifier (local-space width, optional segments 1–8, default 1). geometry.subdivide adds a live Catmull-Clark modifier (levels 1–3). geometry.set_modifiers replaces the ordered stack (at most eight entries); each entry has unique id, kind bevel/subdivision, enabled, and its parameters. Read editor.inspect_mesh.modifiers before editing; preserve existing ids to update, change order to reorder, enabled false to disable, or send an empty list to restore the base. Bevel supports manifold concave and open meshes; open boundaries remain open. Textures, UV seams, material groups, skinning, vertex colors and morph targets are preserved/interpolated. Both geometric and stack edits require approval and reject revision changes. Submit only geometry modifier commands in a batch (at most 20); create/transform separately. Width overlaps and invalid topology are rejected.",
         "geometry.create_primitive creates a new object by itself (a box, sphere, cylinder or plane): give it a fresh objectId, then place it with scene.transform_object. Do not call scene.create_object first for the same objectId.",
         "scene.create_object makes an empty group or parent. replaceExisting true on geometry.create_primitive changes the shape of an object that already exists.",
         "If the proposal is rejected, the error lists each problem with the commandId and how to fix it; correct those commands and propose again.",
         "If the user changes the request while a proposal still waits, send the new batch with supersedes set to that proposal's id; it replaces the waiting one.",
         "stepId names the step of the latest plan that this batch carries out.",
+        "For calculated commands, pass expectedRevision from modeling.generate_commands.sourceRevision. Such proposals fail if the scene changes before proposal or application; regenerate instead of rebasing.",
       ].join(" "),
       permission: "propose",
       parameters: z
         .object({
           summary: z.string().min(1).max(300),
           commands: editorCommandListSchema,
+          expectedRevision: z.number().int().nonnegative().optional(),
           supersedes: identifier.optional(),
           stepId: identifier.optional(),
         })
@@ -83,7 +97,7 @@ export function createEditorTools({ bridge, proposals }: EditorToolDependencies)
         }
         const proposal = await proposals.propose(
           { id: context.runId, userId: context.userId, projectId: context.projectId, clientId: context.clientId },
-          { summary: input.summary, commands: input.commands, supersedes: input.supersedes },
+          { summary: input.summary, commands: input.commands, supersedes: input.supersedes, expectedRevision: input.expectedRevision },
         );
         context.events.emit("editor.proposal.created", {
           proposalId: proposal.id,
@@ -102,6 +116,7 @@ export function createEditorTools({ bridge, proposals }: EditorToolDependencies)
           baseRevision: proposal.baseRevision,
           supersedes: input.supersedes ?? null,
           planStep: planStep ? { id: planStep.id, title: planStep.title } : null,
+          nextAction: "Call editor.apply_proposal with this proposalId. If approval is required, that call will request it before applying the changes.",
         };
       },
     }),

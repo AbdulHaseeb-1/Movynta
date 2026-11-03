@@ -23,6 +23,7 @@ interface ApplyAttempt {
 @Injectable()
 export class CommandProposalService {
   private readonly logger = new Logger(CommandProposalService.name);
+  private readonly activeApplications = new Set<string>();
 
   constructor(
     private readonly repository: CommandProposalRepository,
@@ -42,6 +43,9 @@ export class CommandProposalService {
       throw new ConflictError("Only a proposal that has not been applied yet can be superseded");
     }
     const context = await this.bridge.getContext(run.clientId);
+    if (input.expectedRevision !== undefined && input.expectedRevision !== context.revision) {
+      throw new ConflictError("Scene changed since these commands were calculated. Read the scene and regenerate the commands.");
+    }
     const issues = validateAgainstContext(input.commands, context);
     if (issues.length > 0) {
       throw new ValidationFailedError("Proposal conflicts with the current scene", { issues });
@@ -53,6 +57,7 @@ export class CommandProposalService {
       projectId: run.projectId,
       clientId: run.clientId,
       baseRevision: context.revision,
+      strictRevision: input.expectedRevision !== undefined || input.commands.some((command) => command.type === "geometry.bevel" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers")),
       summary: input.summary,
       commands: input.commands,
       requiresApproval: this.policy.requiresApproval(input.commands),
@@ -93,19 +98,60 @@ export class CommandProposalService {
     if (proposal.status === "superseded") {
       throw new ConflictError("Proposal was replaced by a newer proposal; apply that one instead");
     }
-    if (proposal.status === "applying") throw new ConflictError("Proposal is already being applied");
+    if (this.activeApplications.has(proposal.id)) throw new ConflictError("Proposal is already being applied");
 
     const now = new Date().toISOString();
-    if (!this.repository.transition(proposal.id, ["proposed"], "applying", now)) {
+    if (proposal.status === "proposed" && !this.repository.transition(proposal.id, ["proposed"], "applying", now)) {
       throw new ConflictError("Proposal is already being applied");
     }
+    this.activeApplications.add(proposal.id);
+    try {
+      const context = await this.bridge.getContext(run.clientId);
+      if (context.supportsPreparedCommands) return await this.applyPrepared(run, proposal, context);
+      const { outcome, rebased } = await this.attempt(run, proposal);
+      const stored: CommandExecutionResult = rebased ? { ...outcome, rebased: true } : outcome;
+      if (outcome.status === "applied") {
+        this.repository.commitApplied(proposal.id, stored, () => this.scenes.appendInTransaction(
+          this.repository.connection, proposal.projectId, proposal.id, proposal.commands,
+        ));
+      } else {
+        this.repository.transition(proposal.id, ["applying"], "failed", new Date().toISOString(), stored);
+      }
+      return stored;
+    } finally {
+      this.activeApplications.delete(proposal.id);
+    }
+  }
 
-    const { outcome, rebased } = await this.attempt(run, proposal);
-    const status = outcome.status === "applied" ? "applied" : "failed";
-    const stored: CommandExecutionResult = rebased ? { ...outcome, rebased: true } : outcome;
-    this.repository.transition(proposal.id, ["applying"], status, new Date().toISOString(), stored);
-    // The project keeps what was applied, so its scene can be rebuilt when it is reopened.
-    if (status === "applied") this.scenes.append(proposal.projectId, proposal.id, proposal.commands);
+  private async applyPrepared(run: ProposalRun, proposal: CommandProposalRecord, context: EditorContext): Promise<CommandExecutionResult> {
+    const rebased = context.revision !== proposal.baseRevision;
+    const issues = validateAgainstContext(proposal.commands, context);
+    if ((rebased && proposal.strictRevision) || issues.length > 0) {
+      const result = failedOutcome(proposal.id, "Scene changed; regenerate and propose again", context.revision);
+      this.repository.transition(proposal.id, ["applying"], "failed", new Date().toISOString(), result);
+      return result;
+    }
+    const prepared = await this.execute(run, proposal, context.revision, "prepare");
+    if (prepared.status !== "applied") {
+      this.repository.transition(proposal.id, ["applying"], "failed", new Date().toISOString(), prepared);
+      return prepared;
+    }
+    const stored = { ...prepared, rebased };
+    try {
+      this.repository.commitApplied(proposal.id, stored, () => this.scenes.appendInTransaction(
+        this.repository.connection, proposal.projectId, proposal.id, proposal.commands,
+      ), true);
+    } catch (error) {
+      try { await this.execute(run, proposal, context.revision, "discard"); }
+      catch { /* Connection close discards the uncommitted candidate. */ }
+      throw error;
+    }
+    try {
+      const delivered = await this.execute(run, proposal, context.revision, "commit");
+      if (delivered.status === "applied") this.repository.markDelivered(proposal.id);
+    } catch {
+      // The durable project is authoritative. A new authenticated connection restores it.
+    }
     return stored;
   }
 
@@ -119,6 +165,9 @@ export class CommandProposalService {
   private async attempt(run: ProposalRun, proposal: CommandProposalRecord): Promise<ApplyAttempt> {
     const outcome = await this.execute(run, proposal, proposal.baseRevision);
     if (outcome.status !== "revision_conflict") return { outcome, rebased: false };
+    if (proposal.strictRevision) {
+      return { outcome: failedOutcome(proposal.id, "Scene changed since these commands were calculated. Regenerate and propose again."), rebased: false };
+    }
     return this.rebase(run, proposal);
   }
 
@@ -147,7 +196,7 @@ export class CommandProposalService {
   }
 
   /** Sends the batch to the editor at `expectedRevision`. A failure to reach the editor becomes a failed outcome. */
-  private async execute(run: ProposalRun, proposal: CommandProposalRecord, expectedRevision: number): Promise<CommandExecutionResult> {
+  private async execute(run: ProposalRun, proposal: CommandProposalRecord, expectedRevision: number, phase?: "prepare" | "commit" | "discard"): Promise<CommandExecutionResult> {
     try {
       this.bridge.assertConnection(run.userId, run.projectId, proposal.clientId);
       return await this.bridge.executeCommands(proposal.clientId, {
@@ -155,11 +204,14 @@ export class CommandProposalService {
         idempotencyKey: proposal.id,
         expectedRevision,
         commands: proposal.commands,
+        ...(phase ? { phase } : {}),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Execution failed";
       this.logger.warn(`proposal ${proposal.id} failed: ${message}`);
-      return failedOutcome(proposal.id, message);
+      // The editor might have applied the batch before its response was lost. Keep it
+      // retryable with the same idempotency key instead of recording a false failure.
+      throw error;
     }
   }
 }
@@ -197,6 +249,10 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
   const createdInBatch = new Set<string>();
   const seenCommandIds = new Set<string>();
   const issues: ProposalIssue[] = [];
+  const modifiers = commands.filter((command) => command.type === "geometry.bevel" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers"));
+  if (modifiers.length > 0 && (modifiers.length !== commands.length || commands.length > 20)) {
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Geometry batches accept only bevel/subdivision commands, at most 20; create/transform in separate proposals" }];
+  }
   const issue = (commandId: string, message: string) => issues.push({ commandId, message });
   const missing = (commandId: string, objectId: string) =>
     issue(commandId, `objectId "${objectId}" does not exist; create it first or use an id from editor.get_context`);
@@ -239,6 +295,9 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
         }
         break;
       case "scene.transform_object":
+      case "geometry.bevel":
+      case "geometry.subdivide":
+      case "geometry.set_modifiers":
       case "scene.rename_object":
       case "scene.set_visibility":
         if (!parents.has(command.objectId)) missing(command.commandId, command.objectId);

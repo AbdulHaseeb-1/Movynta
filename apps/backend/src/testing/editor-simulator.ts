@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { viewCaptureRequestSchema, type ViewCaptureRequest } from "@movynta/editor-protocol";
 import type { EditorContext, EditorObject } from "../shared/types/editor-context.types.js";
 import { editorCommandListSchema } from "../shared/schemas/editor-command.schema.js";
 import type { EditorCommand, EditorCommandList, OutboundMessage } from "./testing.types.js";
@@ -8,10 +9,15 @@ export const outboundSchema = z.object({
   data: z.record(z.string(), z.unknown()),
 });
 
+/** Stands in for the base64 text of a picture. The backend only passes it along, so it need not decode. */
+export const SIMULATED_IMAGE_BASE64 = Buffer.from("simulated jpeg bytes").toString("base64");
+
 /** Test double for the Tauri/React editor. It speaks the real WebSocket protocol and keeps a scene in memory. */
 export class EditorSimulator {
   readonly received: OutboundMessage[] = [];
   readonly executions: { readonly proposalId: string; readonly commands: readonly EditorCommand[] }[] = [];
+  /** Every view request the backend sent, with whether it asked for pixels. */
+  readonly viewRequests: { readonly request: ViewCaptureRequest; readonly withImages: boolean; readonly captureId: string }[] = [];
   /** When false, the simulator never answers command execution, which exercises timeouts. */
   answerExecutions = true;
   private readonly waiters: (() => void)[] = [];
@@ -93,6 +99,9 @@ export class EditorSimulator {
       case "commands.execute":
         this.execute(message.data);
         break;
+      case "view.request":
+        this.captureViews(message.data);
+        break;
       default:
         break;
     }
@@ -113,6 +122,42 @@ export class EditorSimulator {
       status: "applied",
       revision: this.revision,
       results: commands.map((command) => ({ commandId: command.commandId, status: "applied" })),
+    });
+  }
+
+  /** Answers a view request with one tiny image per requested view, or with no pixels when images were declined. */
+  private captureViews(data: Record<string, unknown>): void {
+    const request = viewCaptureRequestSchema.parse(data["request"]);
+    const withImages = data["withImages"] === true;
+    this.viewRequests.push({ request, withImages, captureId: String(data["captureId"]) });
+    const images = request.views.map((view, index) => ({
+      label: view.label ?? view.preset ?? `view ${index + 1}`,
+      mediaType: "image/jpeg" as const,
+      data: withImages ? SIMULATED_IMAGE_BASE64 : "",
+      width: request.width ?? 768,
+      height: request.height ?? 576,
+      camera: {
+        projection: "perspective" as const,
+        position: [5, 4, 7],
+        target: [0, 0, 0],
+        fov: 45,
+        orthographicHeight: null,
+      },
+      objects: this.objects.map((object) => ({
+        id: object.id,
+        name: object.name,
+        screenBounds: { x: 10, y: 10, width: 100, height: 100 },
+        inFrame: true,
+      })),
+    }));
+    this.send("view.response", {
+      requestId: data["requestId"],
+      result: {
+        images,
+        scene: { objectCount: this.objects.length, bounds: null },
+        focus: [],
+        missingIds: [],
+      },
     });
   }
 
@@ -137,6 +182,9 @@ export class EditorSimulator {
         break;
       }
       case "scene.transform_object":
+      case "geometry.bevel":
+      case "geometry.subdivide":
+      case "geometry.set_modifiers":
       case "scene.set_visibility":
         break;
       case "scene.rename_object": {

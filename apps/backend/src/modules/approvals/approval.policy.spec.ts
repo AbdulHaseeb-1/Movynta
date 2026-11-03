@@ -6,6 +6,13 @@ const policy = new ApprovalPolicy();
 const create = (id: string): EditorCommand => ({ commandId: `c-${id}`, type: "scene.create_object", objectId: id, name: id });
 
 describe("ApprovalPolicy", () => {
+  it("requires approval to change or clear a modifier stack", () => {
+    expect(policy.requiresApproval([{ commandId: "clear", type: "geometry.set_modifiers", objectId: "mesh", meshPath: [], modifiers: [] }])).toBe(true);
+  });
+  it("requires approval for mesh bevel and subdivision", () => {
+    expect(policy.requiresApproval([{ commandId: "b", type: "geometry.bevel", objectId: "a", meshPath: [], width: .1 }])).toBe(true);
+    expect(policy.requiresApproval([{ commandId: "s", type: "geometry.subdivide", objectId: "a", meshPath: [], levels: 1 }])).toBe(true);
+  });
   it("does not ask for approval for read-only creation and transforms", () => {
     expect(policy.requiresApproval([create("a"), { commandId: "t", type: "scene.transform_object", objectId: "a", transform: { position: [1, 0, 0] } }])).toBe(false);
   });

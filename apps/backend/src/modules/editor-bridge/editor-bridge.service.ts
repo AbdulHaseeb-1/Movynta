@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import type { MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
 import type { AppConfig } from "../../config/config.types.js";
@@ -15,6 +16,7 @@ import {
   type EditorConnectionScope,
   type EditorOutboundMessage,
   type PendingRequest,
+  type ViewCaptureOptions,
 } from "./editor-bridge.types.js";
 
 const SOCKET_OPEN = 1;
@@ -55,7 +57,7 @@ export class EditorBridgeService implements EditorBridge {
     return { clientId, userId, projectId };
   }
 
-  getContext(clientId: string): Promise<EditorContext> {
+  getContext(clientId: string, inspection?: MeshInspectionRequest): Promise<EditorContext> {
     return new Promise<EditorContext>((resolve, reject) => {
       this.sendRequest(
         clientId,
@@ -66,7 +68,7 @@ export class EditorBridgeService implements EditorBridge {
           resolve,
           reject,
         }),
-        (requestId) => ({ event: "context.request", data: { requestId } }),
+        (requestId) => ({ event: "context.request", data: { requestId, inspection } }),
       );
     });
   }
@@ -96,10 +98,45 @@ export class EditorBridgeService implements EditorBridge {
             idempotencyKey: request.idempotencyKey,
             expectedRevision: request.expectedRevision,
             commands: request.commands,
+            ...(request.phase ? { phase: request.phase } : {}),
           },
         }),
       );
     });
+  }
+
+  captureViews(clientId: string, request: ViewCaptureRequest, options: ViewCaptureOptions): Promise<ViewCaptureResult> {
+    return new Promise<ViewCaptureResult>((resolve, reject) => {
+      this.sendRequest(
+        clientId,
+        (requestId) => ({
+          kind: "capture",
+          clientId,
+          timer: this.timeout(requestId, reject),
+          resolve,
+          reject,
+        }),
+        (requestId) => ({
+          event: "view.request",
+          data: { requestId, request, withImages: options.withImages, captureId: options.captureId },
+        }),
+      );
+    });
+  }
+
+  /** Called by the gateway after schema validation of an inbound view response. */
+  resolveCapture(clientId: string, requestId: string, result: ViewCaptureResult): boolean {
+    const request = this.takePending(clientId, requestId, "capture");
+    if (!request || request.kind !== "capture") return false;
+    request.resolve(result);
+    return true;
+  }
+
+  rejectCapture(clientId: string, requestId: string, message: string): boolean {
+    const request = this.takePending(clientId, requestId, "capture");
+    if (!request) return false;
+    request.reject(new ServiceUnavailableError(`Editor could not draw the view: ${message}`));
+    return true;
   }
 
   /** Called by the gateway after schema validation of an inbound context response. */

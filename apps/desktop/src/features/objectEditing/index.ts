@@ -26,3 +26,4 @@ export {
   type ObjectEditing,
   type SelectedObject,
 } from "./useObjectEditing";
+export { changeSceneHistory, recoverSavedScene } from "./sceneHistory";

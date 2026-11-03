@@ -8,10 +8,12 @@ import { SkillsRegistry } from "../skills/skills.registry.js";
 import { createEditorTools } from "./editor/editor.tools.js";
 import { createModelingTools, MODELING_PLAN_TOOL_NAME } from "./modeling/modeling.tools.js";
 import { createSkillTools } from "./skills/skills.tools.js";
+import { createProceduralTools } from "./procedural/index.js";
 import { ToolRegistry } from "./tool.registry.js";
 import { TOOL_DEFINITIONS } from "./tool.tokens.js";
 import type { ToolDefinition } from "./tool.types.js";
 import { createValidationTools } from "./validation/validation.tools.js";
+import { createViewportTools } from "./viewport/index.js";
 
 @Module({
   imports: [EditorBridgeModule, SkillsModule],
@@ -23,15 +25,19 @@ import { createValidationTools } from "./validation/validation.tools.js";
         const editorTools = createEditorTools({ bridge, proposals });
         const validationTools = createValidationTools({ bridge });
         const skillTools = createSkillTools({ skills });
+        const proceduralTools = createProceduralTools({ bridge });
+        const viewportTools = createViewportTools({ bridge });
         const knownToolNames = [
           ...editorTools,
           ...validationTools,
           ...skillTools,
+          ...proceduralTools,
+          ...viewportTools,
         ].map((definition) => definition.name);
         const modelingTools = createModelingTools({
           knownToolNames: [...knownToolNames, MODELING_PLAN_TOOL_NAME],
         });
-        return [...editorTools, ...validationTools, ...skillTools, ...modelingTools];
+        return [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools, ...modelingTools];
       },
     },
     ToolRegistry,

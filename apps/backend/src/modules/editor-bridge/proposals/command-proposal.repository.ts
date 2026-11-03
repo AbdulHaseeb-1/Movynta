@@ -47,6 +47,7 @@ function toRecord(row: SqlRow): CommandProposalRecord {
     projectId: textColumn(row, "project_id"),
     clientId: textColumn(row, "client_id"),
     baseRevision: Number(row["base_revision"]),
+    strictRevision: Number(row["strict_revision"]) === 1,
     summary: textColumn(row, "summary"),
     commands: editorCommandListSchema.parse(JSON.parse(textColumn(row, "commands_json"))),
     requiresApproval: Number(row["requires_approval"]) === 1,
@@ -64,8 +65,8 @@ export class CommandProposalRepository {
   insert(proposal: NewProposal): void {
     this.database
       .db.prepare(
-        `INSERT INTO editor_proposals (id, run_id, project_id, client_id, base_revision, summary, commands_json, requires_approval, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?)`,
+        `INSERT INTO editor_proposals (id, run_id, project_id, client_id, base_revision, summary, commands_json, requires_approval, status, created_at, updated_at, strict_revision)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?)`,
       )
       .run(
         proposal.id,
@@ -78,6 +79,7 @@ export class CommandProposalRepository {
         proposal.requiresApproval ? 1 : 0,
         proposal.now,
         proposal.now,
+        proposal.strictRevision ? 1 : 0,
       );
   }
 
@@ -85,6 +87,26 @@ export class CommandProposalRepository {
     const row = this.database.db.prepare("SELECT * FROM editor_proposals WHERE id = ?").get(proposalId);
     return row ? toRecord(row) : undefined;
   }
+
+  /** Commit project history and the matching proposal outcome in the same SQLite transaction. */
+  commitApplied(proposalId: string, result: CommandExecutionResult, append: () => void, deliveryPending = false): void {
+    this.database.transaction(() => {
+      append();
+      if (!this.transition(proposalId, ["applying"], "applied", new Date().toISOString(), result)) {
+        throw new Error("Proposal is no longer being applied");
+      }
+      this.database.db.prepare("UPDATE editor_proposals SET delivery_pending = ? WHERE id = ?").run(deliveryPending ? 1 : 0, proposalId);
+    });
+  }
+  markDelivered(proposalId: string): void {
+    this.database.db.prepare("UPDATE editor_proposals SET delivery_pending = 0 WHERE id = ?").run(proposalId);
+  }
+  needsRecovery(projectId: string): boolean {
+    return this.database.db.prepare("SELECT 1 FROM editor_proposals WHERE project_id = ? AND delivery_pending = 1 LIMIT 1").get(projectId) !== undefined;
+  }
+
+  /** Share this repository's connection with a transaction participant. */
+  get connection() { return this.database.db; }
 
   /** Moves a proposal from one of `from` to `to` in one conditional write. */
   transition(

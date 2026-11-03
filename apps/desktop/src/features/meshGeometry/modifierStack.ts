@@ -1,0 +1,28 @@
+import type { BufferGeometry, Mesh } from "three";
+import type { MeshModifierSpec } from "@movynta/editor-protocol";
+import { copyTopology } from "./meshTopology";
+import { modifyGeometry, type MeshModifier } from "./meshModifiers";
+
+export interface ModifierStackState { base: BufferGeometry; modifiers: MeshModifierSpec[]; geometry: BufferGeometry }
+const stacks = new WeakMap<Mesh, ModifierStackState>();
+export function modifierStack(mesh: Mesh): ModifierStackState | undefined { return stacks.get(mesh); }
+function cloneGeometry(source: BufferGeometry): BufferGeometry { const copy = source.clone(); copyTopology(source, copy); return copy; }
+
+export function evaluateStack(mesh: Mesh, modifiers: MeshModifierSpec[], previous = stacks.get(mesh)): ModifierStackState {
+  const base = previous?.base ?? cloneGeometry(mesh.geometry);
+  let geometry = cloneGeometry(base);
+  try {
+    for (const modifier of modifiers) {
+      if (!modifier.enabled) continue;
+      const operation: MeshModifier = modifier.kind === "bevel" ? { type: "geometry.bevel", width: modifier.width, segments: modifier.segments } : { type: "geometry.subdivide", levels: modifier.levels };
+      const next = modifyGeometry(geometry, operation); geometry.dispose(); geometry = next;
+    }
+    return { base, modifiers, geometry };
+  } catch (error) { geometry.dispose(); if (!previous) base.dispose(); throw error; }
+}
+export function commitStack(mesh: Mesh, state: ModifierStackState): void { stacks.set(mesh, state); mesh.geometry = state.geometry; }
+export function copyModifierStack(source: Mesh, target: Mesh): void {
+  const state = stacks.get(source);
+  if (state) stacks.set(target, { base: cloneGeometry(state.base), geometry: target.geometry, modifiers: state.modifiers.map((modifier) => ({ ...modifier })) });
+}
+export function disposeModifierStack(mesh: Mesh): void { const state = stacks.get(mesh); if (state) { state.base.dispose(); stacks.delete(mesh); } }

@@ -8,13 +8,24 @@ import {
   SkinnedMesh,
   SphereGeometry,
   type BufferGeometry,
+  type Material,
   type Object3D,
   type Scene,
 } from "three";
 import { editorCommandListSchema } from "@movynta/editor-protocol";
 import type { z } from "zod";
+import { sceneBounds } from "./sceneBounds";
+import { Scene as ThreeScene } from "three";
+import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
+import { copyTopology } from "../meshGeometry/meshTopology";
+import { assertEditableMesh, inspectMesh, meshAtPath, evaluateStack, modifierStack, commitStack, copyModifierStack, disposeModifierStack, type ModifierStackState } from "../meshGeometry";
+import type { MeshInspectionRequest } from "@movynta/editor-protocol";
 
 type Command = z.infer<typeof editorCommandListSchema>[number];
+type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" }>;
+function isGeometryCommand(command: Command): command is GeometryCommand {
+  return command.type === "geometry.bevel" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers";
+}
 
 /** Stands in for a project's id until the first prompt or import creates the project. */
 export const UNSAVED_PROJECT_ID = "unsaved-project";
@@ -75,6 +86,10 @@ export class EditorScene {
   private objects = new Map<string, Object3D>();
   private readonly applied = new Set<string>();
   private revision = 0;
+  private prepared: { id: string; revision: number; candidate: EditorScene } | undefined;
+  private recoveryNeeded = false;
+  get requiresRecovery(): boolean { return this.recoveryNeeded; }
+  requireRecovery(): void { this.recoveryNeeded = true; }
   private readonly scene: Scene;
   private boundProjectId: string;
   /** The selected objects in the order they were chosen; the last one is the active object. */
@@ -265,6 +280,93 @@ export class EditorScene {
     this.boundProjectId = projectId;
   }
 
+  /** Transfer a fully replayed scene only after its durable history change has committed. */
+  replaceFrom(candidate: EditorScene): void {
+    const revision = this.revision + 1;
+    const selection = this.selected;
+    this.reset();
+    this.objects = candidate.objects;
+    this.ids = candidate.ids;
+    for (const id of candidate.applied) this.applied.add(id);
+    const roots = [...candidate.scene.children];
+    for (const root of roots) this.scene.add(root);
+    this.revision = revision;
+    this.recoveryNeeded = false;
+    this.selected = selection.filter((id) => this.objects.has(id));
+    candidate.objects = new Map();
+    candidate.ids = new WeakMap();
+    candidate.applied.clear();
+    this.notify();
+  }
+
+  /** Resource-independent candidate: discarding it cannot dispose geometry in the displayed scene. */
+  private fork(): EditorScene {
+    let bytes = 0;
+    const measured = new Set<Object3D>();
+    for (const root of this.objects.values()) root.traverse((node) => {
+      if (measured.has(node)) return;
+      measured.add(node);
+      if (isMesh(node)) {
+        for (const attribute of Object.values(node.geometry.attributes)) bytes += attribute.count * attribute.itemSize * 8;
+        for (const attribute of Object.values(node.geometry.morphAttributes).flatMap((targets) => targets ?? [])) bytes += attribute.count * attribute.itemSize * 8;
+        bytes += (node.geometry.index?.count ?? 0) * 4;
+      }
+    });
+    if (bytes > 128 * 1024 * 1024) throw new Error("This scene exceeds the 128 MiB prepared-geometry budget; simplify it before assistant editing");
+    const candidate = new EditorScene(new ThreeScene(), this.projectId);
+    const copied = new Map<Object3D, Object3D>();
+    const registered = new Set(this.objects.values());
+    for (const object of this.objects.values()) {
+      let nested = false;
+      for (let p = object.parent; p; p = p.parent) if (registered.has(p)) { nested = true; break; }
+      if (nested) continue;
+      const copy = cloneSkeleton(object);
+      const originals: Object3D[] = []; const clones: Object3D[] = [];
+      object.traverse((node) => originals.push(node)); copy.traverse((node) => clones.push(node));
+      originals.forEach((node, i) => {
+        const cloned = clones[i]; if (!cloned) throw new Error("Could not clone scene");
+        copied.set(node, cloned);
+        if (isMesh(node) && isMesh(cloned)) {
+          cloned.geometry = node.geometry.clone(); copyTopology(node.geometry, cloned.geometry);
+          cloned.material = Array.isArray(node.material) ? node.material.map((material) => material.clone()) : node.material.clone();
+          copyModifierStack(node, cloned);
+        }
+      });
+      candidate.scene.add(copy);
+    }
+    for (const [id, original] of this.objects) {
+      const copy = copied.get(original); if (!copy) throw new Error("Could not clone scene object");
+      candidate.objects.set(id, copy); candidate.ids.set(copy, id);
+    }
+    candidate.selected = [...this.selected]; candidate.revision = this.revision;
+    for (const id of this.applied) candidate.applied.add(id);
+    return candidate;
+  }
+
+  executePrepared(proposalId: string, expectedRevision: number, input: unknown, phase: "prepare" | "commit" | "discard") {
+    const commands = editorCommandListSchema.parse(input);
+    const applied = () => ({ status: "applied", revision: this.revision, results: commands.map((command) => ({ commandId: command.commandId, status: "applied" as const })) });
+    if (phase === "discard") {
+      if (this.prepared?.id === proposalId) { this.prepared.candidate.reset(); this.prepared = undefined; }
+      return applied();
+    }
+    if (this.applied.has(proposalId)) return applied();
+    if (phase === "commit") {
+      const pending = this.prepared;
+      if (!pending || pending.id !== proposalId || pending.revision !== this.revision) throw new Error("Prepared scene is unavailable; reload the saved project");
+      this.prepared = undefined; this.replaceFrom(pending.candidate); return applied();
+    }
+    if (this.prepared?.id === proposalId) return { ...applied(), revision: this.prepared.candidate.currentRevision };
+    if (this.prepared) throw new Error("Another scene change is being prepared");
+    const candidate = this.fork();
+    let result: ReturnType<EditorScene["execute"]>;
+    try { result = candidate.execute(proposalId, expectedRevision, commands); }
+    catch (error) { candidate.reset(); throw error; }
+    if (result.status === "applied") this.prepared = { id: proposalId, revision: this.revision, candidate };
+    else candidate.reset();
+    return result;
+  }
+
   /**
    * Rebuilds a saved scene by replaying its steps in order. `loadImport` fetches and parses an imported
    * model. Fails, leaving the scene as far as it got, if a step cannot be replayed, so a damaged
@@ -289,6 +391,7 @@ export class EditorScene {
 
   /** Empties the scene, as when a project is opened again after a failed attempt. */
   reset() {
+    this.discardPrepared();
     for (const object of this.objects.values()) this.disposeTree(object);
     this.objects = new Map();
     this.ids = new WeakMap();
@@ -296,6 +399,10 @@ export class EditorScene {
     this.revision = 0;
     this.selected = [];
     this.notify();
+  }
+  discardPrepared(): void {
+    const pending = this.prepared; this.prepared = undefined;
+    pending?.candidate.reset();
   }
 
   /** The ids in use, so a new object can be given one that is free. */
@@ -309,6 +416,8 @@ export class EditorScene {
    * user, not a proposal, so it moves the scene to a new revision directly.
    */
   importObject(objectId: string, object: Object3D) {
+    if (this.recoveryNeeded) throw new Error("Reconnect to the saved project before editing");
+    if (this.prepared) throw new Error("Wait for the prepared scene change to finish");
     if (this.objects.has(objectId))
       throw new Error(`Object "${objectId}" already exists`);
     this.objects.set(objectId, object);
@@ -318,10 +427,13 @@ export class EditorScene {
     this.notify();
   }
 
-  context() {
+  context(inspection?: MeshInspectionRequest) {
+    this.scene.updateMatrixWorld(true);
+    const bounds = sceneBounds(this.objects.values());
     const objects = [];
     for (const [id, object] of this.objects) {
       const parent = object.parent;
+      const box = bounds.get(object);
       objects.push({
         id,
         name: object.name,
@@ -333,6 +445,7 @@ export class EditorScene {
           scale: object.scale.toArray(),
         },
         visible: object.visible,
+        worldBounds: box && !box.isEmpty() ? { min: box.min.toArray(), max: box.max.toArray() } : null,
       });
     }
     return {
@@ -341,10 +454,14 @@ export class EditorScene {
       activeSceneName: "Main",
       selectedObjectIds: this.selected.slice(-500),
       objects,
+      supportsPreparedCommands: true,
+      ...(inspection ? { meshInspection: inspectMesh(this.objects.get(inspection.objectId), inspection) } : {}),
     };
   }
 
   execute(proposalId: string, expectedRevision: number, input: unknown) {
+    if (this.recoveryNeeded) throw new Error("Reconnect to the saved project before editing");
+    if (this.prepared) throw new Error("Wait for the prepared scene change to finish");
     const commands = editorCommandListSchema.parse(input);
     const results = commands.map((command) => ({
       commandId: command.commandId,
@@ -358,6 +475,7 @@ export class EditorScene {
         revision: this.revision,
         results: [],
       };
+    if (commands.some(isGeometryCommand)) return this.applyGeometryBatch(proposalId, commands, results);
     // Moving, turning, resizing and deleting are the common edits, and need no copy of the scene to be safe.
     if (commands.every(isInPlace)) return this.applyInPlace(proposalId, commands, results);
     const staged = new Map<string, Object3D>();
@@ -366,6 +484,7 @@ export class EditorScene {
     const ids = new Map([...this.objects].map(([id, object]) => [object, id]));
     for (const [id, object] of this.objects) {
       const clone = object.clone(false);
+      if (isMesh(object) && isMesh(clone)) copyModifierStack(object, clone);
       staged.set(id, clone);
       copiedFrom.set(clone, object);
     }
@@ -445,6 +564,48 @@ export class EditorScene {
     return { status: "applied", revision: this.revision, results };
   }
 
+  /** Build every replacement first, then swap buffers together; scene objects and materials retain identity. */
+  private applyGeometryBatch(proposalId: string, commands: Command[], results: { commandId: string; status: "applied" }[]) {
+    const staged = new Map<Mesh, ModifierStackState>();
+    let current: Command | undefined;
+    try {
+      if (commands.length > 20 || !commands.every(isGeometryCommand)) throw new Error("Geometry batches accept only bevel/subdivision commands, at most 20; create or transform objects in a separate proposal");
+      for (const command of commands) {
+        current = command;
+        const mesh = meshAtPath(this.objects.get(command.objectId), command.meshPath);
+        assertEditableMesh(mesh);
+        const previous = staged.get(mesh);
+        const existing = previous ?? modifierStack(mesh);
+        const entries = existing?.modifiers ?? [];
+        let id = command.commandId;
+        for (let suffix = 1; entries.some((entry) => entry.id === id); suffix += 1) id = `${command.commandId.slice(0, 50)}_${suffix}`;
+        const modifiers = command.type === "geometry.set_modifiers" ? command.modifiers : [...entries, command.type === "geometry.bevel"
+          ? { id, kind: "bevel" as const, enabled: true, width: command.width, segments: command.segments ?? 1 }
+          : { id, kind: "subdivision" as const, enabled: true, levels: command.levels }];
+        if (modifiers.length > 8) throw new Error("A mesh supports at most eight modifiers");
+        const next = evaluateStack(mesh, modifiers, existing);
+        staged.set(mesh, next);
+        previous?.geometry.dispose();
+        let total = 0;
+        for (const state of staged.values()) total += (state.geometry.index?.count ?? state.geometry.getAttribute("position").count) / 3;
+        if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
+      }
+    } catch (error) {
+      for (const [mesh, state] of staged) { state.geometry.dispose(); if (state.base !== modifierStack(mesh)?.base) state.base.dispose(); }
+      const reason = (error instanceof Error ? error.message : "Geometry operation failed").slice(0, 400);
+      return { status: "failed", revision: this.revision, message: reason, results: commands.map((command) => ({
+        commandId: command.commandId, status: "failed" as const, message: command === current ? reason : "Not applied: the batch was rolled back",
+      })) };
+    }
+    const replaced = new Set<BufferGeometry>();
+    for (const [mesh, state] of staged) { replaced.add(mesh.geometry); commitStack(mesh, state); }
+    const used = new Set<BufferGeometry>();
+    this.scene.traverse((node) => { if (isMesh(node)) used.add(node.geometry); });
+    for (const geometry of replaced) if (!used.has(geometry)) geometry.dispose();
+    this.revision += 1; this.applied.add(proposalId); this.notify();
+    return { status: "applied", revision: this.revision, results };
+  }
+
   /**
    * Applies a batch of transforms and deletions straight to the objects. The whole batch is checked
    * first, following what the scene will look like as it goes, and nothing checked can fail when it
@@ -508,6 +669,7 @@ export class EditorScene {
   }
 
   private apply(objects: Map<string, Object3D>, command: Command) {
+    if (isGeometryCommand(command)) throw new Error("Geometry commands require a separate geometry batch");
     const existing = objects.get(command.objectId);
     if (command.type === "scene.delete_object") {
       if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
@@ -648,12 +810,15 @@ export class EditorScene {
   }
   private dispose(object: Object3D) {
     if (isMesh(object)) {
+      disposeModifierStack(object);
+      const geometry: BufferGeometry = object.geometry;
+      geometry.dispose();
+      const material: Material | Material[] = object.material;
+      const materials = Array.isArray(material)
+        ? material
+        : [material];
+      materials.forEach((entry) => entry.dispose());
       if (object instanceof SkinnedMesh) object.skeleton.dispose();
-      object.geometry.dispose();
-      const materials = Array.isArray(object.material)
-        ? object.material
-        : [object.material];
-      materials.forEach((material) => material.dispose());
     }
   }
 }

@@ -44,6 +44,7 @@
 - Agents change the editor only through `editor.propose_commands` and `editor.apply_proposal`. Never send code, shell commands, or raw scene access from an agent to the editor.
 - Never expose `OPENAI_API_KEY` or other server secrets to the React or Tauri frontend.
 - Mock the model in automated tests (`@openai/agents/testing`). Tests must not call OpenAI.
+- Change the database schema only by adding a new version at the end of `apps/backend/src/modules/persistence/migrations.ts`. Never edit a version that has already run, even only on your own machine: a database that recorded the version skips the change, and the app then fails with errors such as "no such column". When a change must be safe to repeat, use a migration's `run` with `addColumnIfMissing`. Test it against a database left at the previous version (see `migrations.spec.ts`).
 
 ### Assistant tools
 

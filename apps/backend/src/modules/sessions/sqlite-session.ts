@@ -11,6 +11,22 @@ function isStoredItem(value: unknown): value is AgentInputItem {
   return typeof value === "object" && value !== null && ("type" in value || "role" in value);
 }
 
+const IMAGE_PLACEHOLDER =
+  "[An image was shown here. Images are not kept in the conversation history; capture the view again to see it.]";
+
+/**
+ * Pictures a tool returned are base64 text, and the whole history is sent to the model on every later turn.
+ * They are kept for the run that took them, but not in the stored history, where they would grow it by
+ * hundreds of kilobytes per picture. The text next to them is kept, so the conclusions and measurements stay.
+ */
+export function withoutImages(item: AgentInputItem): AgentInputItem {
+  if (!("type" in item) || item.type !== "function_call_result" || !Array.isArray(item.output)) return item;
+  const output = item.output.map((part) =>
+    part.type === "input_image" ? { type: "input_text" as const, text: IMAGE_PLACEHOLDER } : part,
+  );
+  return { ...item, output };
+}
+
 function parseItem(row: SqlRow): AgentInputItem {
   const parsed: unknown = JSON.parse(textColumn(row, "item_json"));
   if (!isStoredItem(parsed)) throw new Error("Stored session item is malformed");
@@ -57,7 +73,7 @@ export class SqliteSession implements Session {
       const insert = db.prepare("INSERT INTO session_items (session_id, seq, item_json) VALUES (?, ?, ?)");
       for (const item of items) {
         seq += 1;
-        insert.run(this.sessionId, seq, JSON.stringify(item));
+        insert.run(this.sessionId, seq, JSON.stringify(withoutImages(item)));
       }
     });
   }

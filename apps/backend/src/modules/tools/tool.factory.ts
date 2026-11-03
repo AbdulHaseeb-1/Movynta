@@ -4,6 +4,7 @@ import { z } from "zod";
 import { AppError } from "../../common/errors/app-error.js";
 import { isAgentRunContext } from "../agent-runs/agent-run.context.js";
 import type { AgentRunContext } from "../agent-runs/agent-runs.types.js";
+import { RichToolResult, type ToolOutputPart } from "./tool-result.js";
 import { toProviderToolName, type ToolDefinition } from "./tool.types.js";
 
 const logger = new Logger("ToolExecution");
@@ -37,7 +38,11 @@ function errorDetails(error: unknown): { details?: Readonly<Record<string, unkno
  * model as `{ error }` so it can recover; the run itself keeps going. Arguments
  * are never logged.
  */
-async function runTool(definition: ToolDefinition, input: unknown, context: AgentRunContext): Promise<string> {
+async function runTool(
+  definition: ToolDefinition,
+  input: unknown,
+  context: AgentRunContext,
+): Promise<string | ToolOutputPart[]> {
   const startedAt = Date.now();
   context.events.emit("tool.started", { toolName: definition.name, permission: definition.permission });
   try {
@@ -45,6 +50,8 @@ async function runTool(definition: ToolDefinition, input: unknown, context: Agen
     const durationMs = Date.now() - startedAt;
     context.events.emit("tool.completed", { toolName: definition.name, durationMs });
     logger.log(`${definition.name} completed in ${durationMs}ms`);
+    // Pictures go to the model as structured parts; everything else is JSON text.
+    if (result instanceof RichToolResult) return result.parts();
     return JSON.stringify(result ?? null);
   } catch (error) {
     const message = describeError(error);

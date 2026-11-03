@@ -173,6 +173,8 @@ export class AgentRunProcessor implements OnModuleDestroy {
       events: this.events.sinkFor(run.id),
       signal: controller.signal,
       plans: [],
+      // Chat Completions tool messages carry text only; every other transport accepts images in tool results.
+      supportsToolImages: run.providerId !== "openai-compatible",
     };
 
     this.drive(run, () => execute(context, controller.signal)).catch(

@@ -12,6 +12,7 @@ import { ForbiddenError, UnauthorizedError } from "../../common/errors/app-error
 import { AuthService } from "../auth/auth.service.js";
 import { ProjectAccessService } from "../projects/project-access.service.js";
 import { EditorBridgeService } from "./editor-bridge.service.js";
+import { CommandProposalRepository } from "./proposals/command-proposal.repository.js";
 import type { EditorSocket, SocketState } from "./editor-bridge.types.js";
 import {
   authMessageSchema,
@@ -19,6 +20,8 @@ import {
   contextErrorSchema,
   contextResponseSchema,
   EDITOR_WS_PATH,
+  viewErrorSchema,
+  viewResponseSchema,
 } from "./editor-protocol.js";
 
 const AUTH_TIMEOUT_MS = 10_000;
@@ -36,6 +39,7 @@ export class EditorBridgeGateway implements OnGatewayConnection, OnGatewayDiscon
     private readonly bridge: EditorBridgeService,
     private readonly auth: AuthService,
     private readonly projects: ProjectAccessService,
+    private readonly proposals: CommandProposalRepository,
   ) {}
 
   handleConnection(client: EditorSocket): void {
@@ -81,7 +85,7 @@ export class EditorBridgeGateway implements OnGatewayConnection, OnGatewayDiscon
     state.authenticated = true;
     state.clientId = clientId;
     clearTimeout(state.authTimer);
-    this.bridge.sendRaw(clientId, { event: "auth.ok", data: { clientId, projectId: parsed.data.projectId } });
+    this.bridge.sendRaw(clientId, { event: "auth.ok", data: { clientId, projectId: parsed.data.projectId, recoveryRequired: this.proposals.needsRecovery(parsed.data.projectId) } });
     this.logger.log(`editor connected for project ${parsed.data.projectId}`);
   }
 
@@ -115,6 +119,28 @@ export class EditorBridgeGateway implements OnGatewayConnection, OnGatewayDiscon
     if (!parsed.success) return this.sendError(client, "invalid_message", "Invalid command result");
     if (!this.bridge.resolveCommandResult(clientId, parsed.data.requestId, parsed.data)) {
       this.sendError(client, "unknown_request", "No matching command request");
+    }
+  }
+
+  @SubscribeMessage("view.response")
+  handleViewResponse(@ConnectedSocket() client: EditorSocket, @MessageBody() body: unknown): void {
+    const clientId = this.requireClientId(client);
+    if (!clientId) return;
+    const parsed = viewResponseSchema.safeParse(body);
+    if (!parsed.success) return this.sendError(client, "invalid_message", "Invalid view response");
+    if (!this.bridge.resolveCapture(clientId, parsed.data.requestId, parsed.data.result)) {
+      this.sendError(client, "unknown_request", "No matching view request");
+    }
+  }
+
+  @SubscribeMessage("view.error")
+  handleViewError(@ConnectedSocket() client: EditorSocket, @MessageBody() body: unknown): void {
+    const clientId = this.requireClientId(client);
+    if (!clientId) return;
+    const parsed = viewErrorSchema.safeParse(body);
+    if (!parsed.success) return this.sendError(client, "invalid_message", "Invalid view error");
+    if (!this.bridge.rejectCapture(clientId, parsed.data.requestId, parsed.data.message)) {
+      this.sendError(client, "unknown_request", "No matching view request");
     }
   }
 

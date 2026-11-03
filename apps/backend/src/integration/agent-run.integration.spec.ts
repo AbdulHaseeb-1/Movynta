@@ -2,7 +2,7 @@ import type { AgentInputItem } from "@openai/agents";
 import { assistantMessage, functionCall, modelResponder } from "@openai/agents/testing";
 import { startTestServer } from "../testing/test-app.js";
 import { openEventStream } from "../testing/event-stream.js";
-import { EditorSimulator } from "../testing/editor-simulator.js";
+import { EditorSimulator, SIMULATED_IMAGE_BASE64 } from "../testing/editor-simulator.js";
 import type { EventStream, StreamedEvent, TestServer } from "../testing/testing.types.js";
 
 interface HttpResult<T = unknown> {
@@ -145,6 +145,90 @@ describe("platform endpoints", () => {
 });
 
 describe("agent run: propose, approve-free apply, and streaming", () => {
+  it("calculates procedural commands before proposing and applying them", async () => {
+    const token = server.token("alice");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-procedural");
+    const commands = Array.from({ length: 3 }, (_, i) => ({
+      commandId: `step_${i}`, type: "scene.create_object", objectId: `step_${i}`, name: `Step ${i}`,
+      transform: { position: [i * 2, 0, 0] },
+    }));
+    server.model.enqueue(
+      [functionCall("modeling__generate_commands", {
+        source: "return Array.from({length:3}, (_,i) => ({commandId:'step_'+i, type:'scene.create_object', objectId:'step_'+i, name:'Step '+i, transform:{position:[i*2,0,0]}}));",
+      }, { callId: "generate-layout" })],
+      modelResponder((call) => {
+        expect(JSON.stringify(call.request.input)).toContain("generated");
+        expect(editor.executions).toHaveLength(0);
+        return [functionCall("editor__propose_commands", { summary: "Three steps", commands, expectedRevision: 0 }, { callId: "propose-layout" })];
+      }),
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-layout" })]),
+      [assistantMessage("Three steps are arranged.")],
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-procedural", editorClientId: editor.clientId, message: "Run JavaScript to arrange three steps" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+        expect(editor.executions).toHaveLength(1);
+        expect(editor.scene.objects).toHaveLength(3);
+      } finally {
+        stream.stop();
+      }
+    } finally {
+      editor.close();
+    }
+  }, 30_000);
+
+  it("lets the model look at the scene from several views and hands it the pictures", async () => {
+    const token = server.token("alice");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-look", torsoScene);
+    server.model.enqueue(
+      [
+        functionCall(
+          "viewport__capture",
+          { views: [{ preset: "front", label: "Front" }, { preset: "top" }], focus: ["torso"], mode: "wireframe" },
+          { callId: "look-1" },
+        ),
+      ],
+      modelResponder((call) => {
+        const input = JSON.stringify(call.request.input);
+        // The pictures reach the model as image parts, next to the measurements that say what is in them.
+        expect(input).toContain("input_image");
+        expect(input).toContain(SIMULATED_IMAGE_BASE64);
+        expect(input).toContain("screenBounds");
+        return [assistantMessage("The torso looks right from the front and above.")];
+      }),
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-look", editorClientId: editor.clientId, message: "Look at the torso" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+        expect(editor.viewRequests).toHaveLength(1);
+        expect(editor.viewRequests[0]?.withImages).toBe(true);
+        expect(editor.viewRequests[0]?.request.views).toHaveLength(2);
+        expect(editor.viewRequests[0]?.request.mode).toBe("wireframe");
+        // The chat is told which views were drawn, under the id the editor was given, and never receives the pictures.
+        const captured = stream.events.find((event) => event.envelope.type === "viewport.captured");
+        expect(captured?.envelope.payload).toEqual({
+          captureId: editor.viewRequests[0]?.captureId,
+          views: [
+            { label: "Front", width: 768, height: 576 },
+            { label: "top", width: 768, height: 576 },
+          ],
+          imagesSent: true,
+        });
+        expect(JSON.stringify(stream.events)).not.toContain(SIMULATED_IMAGE_BASE64);
+      } finally {
+        stream.stop();
+      }
+    } finally {
+      editor.close();
+    }
+  }, 30_000);
+
   it("runs the modeling workflow end to end and streams progress", async () => {
     const token = server.token("alice");
     const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-happy");
@@ -271,9 +355,11 @@ describe("agent run: approvals", () => {
           { callId: "propose-d" },
         ),
       ],
-      modelResponder((call) => [
-        functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-d" }),
-      ]),
+      modelResponder((call) => {
+        expect(JSON.stringify(call.request.input)).toContain("Call editor.apply_proposal with this proposalId");
+        expect(editor.executions).toHaveLength(0);
+        return [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-d" })];
+      }),
     );
     const run = await createRun(token, { projectId, editorClientId: editor.clientId, message: "Delete the torso" });
     const stream = streamFor(run, token);

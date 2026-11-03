@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { editorContextSchema } from "../../shared/schemas/editor-context.schema.js";
+import { MAX_COMMANDS_PER_PROPOSAL, viewCaptureResultSchema } from "@movynta/editor-protocol";
 
 /**
  * Messages exchanged with the editor over WebSocket. Format: `{ event, data }`.
@@ -37,8 +38,20 @@ export const commandResultSchema = z
           })
           .strict(),
       )
-      .max(50),
+      .max(MAX_COMMANDS_PER_PROPOSAL),
   })
   .strict();
 
-export const EDITOR_INBOUND_EVENTS = ["auth", "context.response", "context.error", "commands.result"] as const;
+/** The editor's answer to a `view.request`: the drawn images, or why it could not draw them. */
+export const viewResponseSchema = z.object({ requestId, result: viewCaptureResultSchema }).strict();
+
+export const viewErrorSchema = z.object({ requestId, message: z.string().max(500) }).strict();
+
+export const EDITOR_INBOUND_EVENTS = [
+  "auth",
+  "context.response",
+  "context.error",
+  "commands.result",
+  "view.response",
+  "view.error",
+] as const;

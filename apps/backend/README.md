@@ -54,6 +54,14 @@ skills/                           repository skills: character-modeling, mesh-ed
 
 ### Modeling workflow
 
+Current desktops prepare assistant edits in an isolated candidate, commit accepted commands and proposal status together, then display the candidate. Saved-but-undelivered changes are restored when the editor reconnects, and the desktop checks for them at run completion. A failed prepare or failed database commit does not change the displayed scene. Older editor clients use the legacy execution path.
+
+Project history supports durable undo/redo for manual edits, deletion, imports, geometry and assistant runs. The desktop previews history, loads all required assets, commits with an optimistic version and idempotency key, then replaces the displayed scene. Ctrl/Cmd+Z undoes an action; Ctrl/Cmd+Shift+Z or Ctrl+Y redoes it. Adjacent proposals from one assistant run and batches from one manual gesture form an action. New work abandons redo. Source assets remain stored for replay. Large histories need a full replay; checkpoints and a visual history panel are not implemented.
+
+The assistant can inspect paged mesh topology and live stacks with `editor.inspect_mesh`, append `geometry.bevel` or `geometry.subdivide`, and edit or clear the stack with `geometry.set_modifiers`. Bevel supports 1–8 segments and concave/open manifold geometry; subdivision uses 1–3 Catmull–Clark levels. UVs, material groups, skinning, morph targets and vertex colors are interpolated. Changes use approval, isolated preparation and saved-history replay. Full parameters and limits are in [assistant tools](../../docs/assistant-tools.md#mesh-inspection-and-surface-operations).
+
+For procedural layouts, the assistant can call `modeling.generate_commands`: bounded synchronous JavaScript runs in a fresh QuickJS WebAssembly runtime against a JSON scene snapshot. It returns validated command arrays; source is never sent to the editor. The assistant then proposes those commands with `expectedRevision: sourceRevision` and applies them through the normal approval flow. Such proposals fail on revision changes rather than rebasing calculated positions. Limits, API examples and remaining limitations are in [assistant tools](../../docs/assistant-tools.md#procedural-programs).
+
 1. A client creates a run with `POST /api/v1/agent-runs` and receives `runId` and `eventsUrl`.
 2. The service selects at most two relevant skills for the request. Only their names and descriptions go into the prompt. The agent loads a full workflow with `skills.load_skill`, which refuses any skill not selected for the request.
 3. The agent reads the scene through `editor.get_context`. This is a request to the editor over the WebSocket bridge, answered only by the connection that owns the run.
@@ -105,6 +113,8 @@ All routes are under `/api/v1` and need `Authorization: Bearer <token>` except t
 | GET / POST | `/api/v1/projects` | list (search, scope, category, sort) and create projects |
 | GET / PATCH / DELETE | `/api/v1/projects/:projectId` | read, rename, star, archive, delete |
 | POST | `/api/v1/projects/:projectId/duplicate` | copy a project with its scene and imported models |
+| POST | `/api/v1/projects/:projectId/scene/history/preview` | preview undo or redo without changing saved history |
+| POST | `/api/v1/projects/:projectId/scene/history/commit` | commit a prepared history change with version and operation id |
 | GET | `/api/v1/projects/:projectId/scene` | the scene's history: applied command batches and imported models, in order |
 | POST | `/api/v1/projects/:projectId/assets` | import a model: the file is the body (`application/octet-stream`, up to 64 MB); `name`, `format` and `objectId` are query parameters |
 | GET | `/api/v1/projects/:projectId/assets/:assetId` | download an imported model |
@@ -121,7 +131,7 @@ Errors use one shape: `{ "error": { "code", "message", "requestId", "details?" }
 - **Live inference is not verified with real provider credentials.** Tests mock inference for every vendor and exercise the real HTTP/SSE/WebSocket/editor pipeline. The Test connection action verifies key access and model listing; it does not bill a generation request.
 - **ChatGPT subscription sign-in is unverified against the live service.** Tests mock the token endpoint and the model. The endpoints, client ID, redirect and request shape follow OpenAI's open-source Codex client, but the subscription backend is undocumented and can change. The model list is static; any model ID can be typed in. Port 1455 must be free during sign-in.
 - **Automatic authentication and credential persistence currently require Windows.** DPAPI fails closed on other platforms. The backend is a separate process and must be started before use; the desktop retries its connection automatically.
-- **Scene commands cover only creation, transforms, deletion, and primitives.** Animation and mesh-modifier tools are not implemented. The skills that mention them describe the intended workflow and are limited to the tools that exist.
+- **Surface operations have bounded scope.** Bevel supports 1–8 segments and manifold concave/open geometry; subdivision uses Catmull–Clark levels 1–3. Live stacks preserve the base and interpolate texture, material and deformation data. Non-manifold geometry, overlapping widths and excessive refinement are rejected. New bevel faces use interpolated UVs rather than an automatic unwrap. A manual modifier panel, animation editing and arbitrary mesh creation are not implemented.
 - **Persistence is a single SQLite file.** It suits one local desktop process. Several backend processes would need a different store.
 - **Local desktop authentication is not a remote login system.** The desktop discovers a DPAPI-protected bearer token through native IPC. Anyone able to run code as the same Windows account can access that account's credentials; DPAPI does not protect against a compromised user session.
 - **Run recovery is conservative.** Runs active at shutdown are marked failed. Runs waiting for approval survive a restart, and their approvals can still be decided.

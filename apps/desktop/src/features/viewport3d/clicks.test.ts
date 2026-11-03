@@ -22,8 +22,28 @@ describe("telling a click from a drag", () => {
 });
 
 /** A canvas stand-in that takes listeners and can be sent pointer events. */
+class CanvasTarget extends EventTarget {
+  private readonly captureListeners = new EventTarget();
+
+  override addEventListener(type: string, callback: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void {
+    if (typeof options === "boolean" ? options : options?.capture) this.captureListeners.addEventListener(type, callback, options);
+    else super.addEventListener(type, callback, options);
+  }
+
+  override removeEventListener(type: string, callback: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void {
+    if (typeof options === "boolean" ? options : options?.capture) this.captureListeners.removeEventListener(type, callback, options);
+    else super.removeEventListener(type, callback, options);
+  }
+
+  override dispatchEvent(event: Event): boolean {
+    // Node's EventTarget has no DOM capture phase; model it explicitly for these tests.
+    this.captureListeners.dispatchEvent(event);
+    return super.dispatchEvent(event);
+  }
+}
+
 function canvas() {
-  const target = new EventTarget();
+  const target = new CanvasTarget();
   const send = (type: "pointerdown" | "pointerup", init: { button?: number; x?: number; y?: number } = {}) => {
     const event = Object.assign(new Event(type, { cancelable: true }), {
       button: init.button ?? 0,
@@ -34,7 +54,7 @@ function canvas() {
     return event;
   };
   // watchClicks only needs the listener methods of an element.
-  return { element: target as unknown as HTMLElement, send };
+  return { element: target, send };
 }
 
 describe("watching clicks", () => {

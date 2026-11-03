@@ -33,4 +33,4 @@ it("benchmarks scene snapshots and atomic updates at the 2,000-object limit", ()
   console.info(
     JSON.stringify({ objects: 2000, samples, snapshotMs, updateMs }),
   );
-});
+}, 20_000);

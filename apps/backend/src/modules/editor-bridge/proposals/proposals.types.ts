@@ -5,6 +5,7 @@ import type { CommandExecutionResult } from "../editor-bridge.types.js";
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
 
 export interface CommandProposalRecord {
+  readonly strictRevision?: boolean;
   readonly id: string;
   readonly runId: string;
   readonly projectId: string;
@@ -20,6 +21,7 @@ export interface CommandProposalRecord {
 }
 
 export interface NewProposal {
+  readonly strictRevision?: boolean;
   readonly id: string;
   readonly runId: string;
   readonly projectId: string;
@@ -39,6 +41,8 @@ export interface ProposalRun {
 }
 
 export interface ProposalInput {
+  /** Reject computations based on an obsolete scene snapshot. */
+  readonly expectedRevision?: number | undefined;
   readonly summary: string;
   readonly commands: readonly EditorCommand[];
   /** The id of a waiting proposal this batch replaces. */

@@ -35,6 +35,10 @@ class FakeBridge implements EditorBridge {
     return Promise.resolve();
   }
 
+  captureViews(): Promise<never> {
+    return Promise.reject(new Error("Proposals never draw views"));
+  }
+
   executeCommands(_clientId: string, request: CommandExecutionRequest): Promise<CommandExecutionResult> {
     this.executions.push(request);
     if (request.expectedRevision !== this.scene.revision) {
@@ -53,7 +57,8 @@ class FakeBridge implements EditorBridge {
 function setup() {
   const database = openInMemoryDatabase();
   const bridge = new FakeBridge();
-  const service = new CommandProposalService(new CommandProposalRepository(database), new ApprovalPolicy(), bridge, new ProjectScenesService(database));
+  const scenes = new ProjectScenesService(database);
+  const service = new CommandProposalService(new CommandProposalRepository(database), new ApprovalPolicy(), bridge, scenes);
 
   // Proposals reference a run, which references a session. Create both for the foreign keys.
   const sessionId = randomUUID();
@@ -73,7 +78,7 @@ function setup() {
     now,
   });
   const run: ProposalRun = { id: runId, userId: "alice", projectId: "proj-1", clientId: "client-1" };
-  return { bridge, service, run };
+  return { bridge, service, run, database, scenes };
 }
 
 const addBox: EditorCommand = { commandId: "c1", type: "scene.create_object", objectId: "box", name: "Box" };
@@ -83,6 +88,82 @@ function sceneObject(id: string, parentId: string | null = null): EditorContext[
 }
 
 describe("command proposals", () => {
+  it("discards a prepared edit if the durable commit fails", async () => {
+    const { service, run, bridge, scenes } = setup();
+    bridge.scene = { ...bridge.scene, supportsPreparedCommands: true };
+    const phases: string[] = [];
+    bridge.executeCommands = (_clientId, request) => {
+      phases.push(request.phase ?? "legacy");
+      return Promise.resolve({ proposalId: request.proposalId, status: "applied", revision: 5, results: [], message: undefined });
+    };
+    scenes.appendInTransaction = () => { throw new Error("Disk unavailable"); };
+    const proposal = await service.propose(run, { summary: "Add box", commands: [addBox] });
+    await expect(service.apply(run, proposal.id)).rejects.toThrow("Disk unavailable");
+    expect(phases).toEqual(["prepare", "discard"]);
+    expect(service.require(run.id, proposal.id).status).toBe("applying");
+  });
+  it("rolls back the history and applied status together and retries the same proposal", async () => {
+    const { service, run, database, scenes, bridge } = setup();
+    database.db.prepare("INSERT INTO projects (id, user_id, name, category, starred, created_at, updated_at, objects_indexed) VALUES (?, ?, ?, ?, 0, ?, ?, 1)")
+      .run(run.projectId, run.userId, "Project", "design", new Date().toISOString(), new Date().toISOString());
+    const proposal = await service.propose(run, { summary: "Add a box", commands: [addBox] });
+    const append = scenes.appendInTransaction.bind(scenes);
+    let fail = true;
+    scenes.appendInTransaction = (...args) => {
+      append(...args);
+      if (fail) throw new Error("Simulated storage failure");
+    };
+    await expect(service.apply(run, proposal.id)).rejects.toThrow("Simulated storage failure");
+    expect(service.require(run.id, proposal.id).status).toBe("applying");
+    expect(scenes.list(run.projectId)).toEqual([]);
+    fail = false;
+    expect((await service.apply(run, proposal.id)).status).toBe("applied");
+    expect(scenes.list(run.projectId)).toHaveLength(1);
+    expect(bridge.executions.map((item) => item.idempotencyKey)).toEqual([proposal.id, proposal.id]);
+    expect((await service.apply(run, proposal.id)).status).toBe("applied");
+    expect(scenes.list(run.projectId)).toHaveLength(1);
+  });
+
+  it("keeps a lost editor response retryable instead of recording a failure", async () => {
+    const { service, run, bridge } = setup();
+    const proposal = await service.propose(run, { summary: "Add a box", commands: [addBox] });
+    const execute = bridge.executeCommands.bind(bridge);
+    let lost = true;
+    bridge.executeCommands = async (clientId, request) => {
+      const result = await execute(clientId, request);
+      if (lost) throw new Error("Response lost");
+      return result;
+    };
+    await expect(service.apply(run, proposal.id)).rejects.toThrow("Response lost");
+    expect(service.require(run.id, proposal.id).status).toBe("applying");
+    lost = false;
+    expect((await service.apply(run, proposal.id)).status).toBe("applied");
+    expect(bridge.executions.map((item) => item.idempotencyKey)).toEqual([proposal.id, proposal.id]);
+  });
+  it("requires approval and refuses to rebase mesh operations even without expectedRevision", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
+    const proposal = await service.propose(run, { summary: "Subdivide mesh", commands: [{ commandId: "s", type: "geometry.subdivide", objectId: "mesh", meshPath: [], levels: 1 }] });
+    expect(proposal.requiresApproval).toBe(true); expect(proposal.strictRevision).toBe(true);
+    bridge.scene = { ...bridge.scene, revision: 5 };
+    expect((await service.apply(run, proposal.id)).status).toBe("failed");
+    expect(bridge.executions).toHaveLength(1);
+  });
+  it("rejects calculated commands from an obsolete snapshot", async () => {
+    const { service, run } = setup();
+    await expect(service.propose(run, { summary: "Calculated layout", commands: [addBox], expectedRevision: 3 })).rejects.toThrow(ConflictError);
+  });
+
+  it("persists strict revisions and refuses to rebase calculated layouts", async () => {
+    const { bridge, service, run } = setup();
+    const proposal = await service.propose(run, { summary: "Calculated layout", commands: [addBox], expectedRevision: 4 });
+    expect(service.require(run.id, proposal.id).strictRevision).toBe(true);
+    bridge.scene = { ...bridge.scene, revision: 5 };
+    const result = await service.apply(run, proposal.id);
+    expect(result.status).toBe("failed");
+    expect(result.message).toContain("Regenerate");
+    expect(bridge.executions).toHaveLength(1);
+  });
   it("validates against the latest scene and records the base revision", async () => {
     const { service, run } = setup();
     const proposal = await service.propose(run, { summary: "Add a box", commands: [addBox] });

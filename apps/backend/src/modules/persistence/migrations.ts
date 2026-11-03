@@ -1,6 +1,17 @@
+import type { DatabaseSync } from "node:sqlite";
 import type { Migration } from "./persistence.types.js";
 
-/** Append-only schema history. Never edit a shipped migration; add a new version instead. */
+/** Adds a column unless the table already has it, so a migration can be repeated on a database that got it another way. */
+function addColumnIfMissing(db: DatabaseSync, table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (columns.some((existing) => existing["name"] === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+/**
+ * Append-only schema history. Never edit a migration that has been applied, even on one machine: a database
+ * that already recorded its version skips it, so the change never reaches that database. Add a new version instead.
+ */
 export const MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -188,5 +199,28 @@ export const MIGRATIONS: readonly Migration[] = [
          PRIMARY KEY (project_id, object_id)
        ) WITHOUT ROWID`,
     ],
+  },
+  {
+    version: 10,
+    name: "revision_bound_proposals",
+    statements: [`ALTER TABLE editor_proposals ADD COLUMN strict_revision INTEGER NOT NULL DEFAULT 0`],
+  },
+  {
+    version: 11, name: "scene_undo_history",
+    statements: [
+      `ALTER TABLE project_scene_batches ADD COLUMN history_state INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE project_assets ADD COLUMN history_state INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE projects ADD COLUMN scene_version INTEGER NOT NULL DEFAULT 0`,
+      `CREATE TABLE scene_history_requests (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, operation_id TEXT NOT NULL, PRIMARY KEY(project_id, operation_id))`,
+    ],
+  },
+  { version: 12, name: "manual_history_actions", statements: [`ALTER TABLE project_scene_batches ADD COLUMN action_id TEXT`] },
+  {
+    // This column was first added to version 11 after that version had already run on existing databases, which
+    // then skipped it. It is a version of its own now, and skips itself on a database that did get the column.
+    version: 13,
+    name: "proposal_delivery_pending",
+    statements: [],
+    run: (db) => addColumnIfMissing(db, "editor_proposals", "delivery_pending", "INTEGER NOT NULL DEFAULT 0"),
   },
 ];
