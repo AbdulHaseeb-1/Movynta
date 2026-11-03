@@ -335,6 +335,32 @@ async function recordEdit(projectId: string, commands: unknown, user = "project-
 }
 
 describe("edits made by the user", () => {
+  it("adds primitives and transforms in one saved undoable action", async () => {
+    const project = await create();
+    for (const primitive of ["box", "sphere", "cylinder", "cone", "torus", "plane"]) {
+      const commands = [{ ...box(`add-${primitive}`, primitive), primitive }, move(`place-${primitive}`, primitive)];
+      expect((await recordEdit(project.id, commands)).status).toBe(201);
+      expect((await recordEdit(project.id, commands)).status).toBe(422);
+    }
+    const scenes = server.app.get(ProjectScenesService); const undo = scenes.previewHistory(project.id, "undo");
+    scenes.commitHistory(project.id, "undo", undo.version, "shapeUndo"); expect(scenes.list(project.id)).toHaveLength(5);
+    const redo = scenes.previewHistory(project.id, "redo"); scenes.commitHistory(project.id, "redo", redo.version, "shapeRedo"); expect(scenes.list(project.id)).toHaveLength(6);
+  });
+  it("saves validated manual modifier stacks for existing objects only", async () => {
+    const project = await create();
+    server.app.get(ProjectScenesService).append(project.id, "base", [box("b", "crate")]);
+    const command = { commandId: "modifier", type: "geometry.set_modifiers", objectId: "crate", meshPath: [], modifiers: [{ id: "smooth", kind: "subdivision", enabled: true, levels: 1 }] };
+    expect((await recordEdit(project.id, [command])).status).toBe(201);
+    expect((await recordEdit(project.id, [{ ...command, objectId: "missing" }])).status).toBe(422);
+    expect((await recordEdit(project.id, [{ ...command, modifiers: [{ id: "bad", kind: "subdivision", levels: 4 }] }])).status).toBe(422);
+    const scenes = server.app.get(ProjectScenesService);
+    const undo = scenes.previewHistory(project.id, "undo");
+    scenes.commitHistory(project.id, "undo", undo.version, "modifierUndo");
+    expect(scenes.list(project.id)).toHaveLength(1);
+    const redo = scenes.previewHistory(project.id, "redo");
+    scenes.commitHistory(project.id, "redo", redo.version, "modifierRedo");
+    expect(scenes.list(project.id)).toHaveLength(2);
+  });
   it("are kept in the scene history in the order they happened, after the assistant's changes", async () => {
     const project = await create({ name: "Edited" });
     const scenes = server.app.get(ProjectScenesService);
@@ -357,10 +383,10 @@ describe("edits made by the user", () => {
     expect((await recordEdit(project.id, [move("m1", "robot_glb")])).status).toBe(201);
   });
 
-  it("refuse anything but changing existing objects", async () => {
+  it("refuses replacement primitives and references to missing objects", async () => {
     const project = await create();
     server.app.get(ProjectScenesService).append(project.id, "prp_1", [box("a", "crate")]);
-    expect((await recordEdit(project.id, [box("b", "new")])).status).toBe(422);
+    expect((await recordEdit(project.id, [{ ...box("b", "new"), replaceExisting: true }])).status).toBe(422);
     expect((await recordEdit(project.id, [move("m", "ghost")])).status).toBe(422);
     expect((await recordEdit(project.id, [{ type: "scene.transform_object", commandId: "x", objectId: "crate" }])).status).toBe(422);
     expect((await recordEdit(project.id, [])).status).toBe(400);

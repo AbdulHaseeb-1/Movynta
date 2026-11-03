@@ -2,7 +2,7 @@ import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
 import { idsInRect, rectBetween } from "./boxSelect";
 import type { GizmoView } from "./ObjectGizmo";
-import { toNdc } from "./picking";
+import { pickObjectId, toNdc } from "./picking";
 
 /** A drag shorter than this, in pixels, is a click that missed, not a rectangle. */
 const MIN_BOX_PX = 4;
@@ -16,8 +16,9 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 /**
  * Selecting many objects at once, with the keys Blender uses: A selects everything, Alt+A selects
- * nothing, and B lets you drag a rectangle round the objects to select (Shift keeps the selection
- * and adds to it). Shift-click, which adds one object at a time, is in the {@link ObjectGizmo}, next to
+ * nothing, and B lets you drag a rectangle round the objects to select. In Select mode, dragging
+ * empty space starts a rectangle directly; Space-drag remains navigation. Shift keeps the selection
+ * and adds to it. Shift-click, which adds one object at a time, is in the {@link ObjectGizmo}, next to
  * the click it extends. Everything here ends in a call on the {@link EditorScene}, which owns the selection.
  */
 export class SelectionTools {
@@ -28,6 +29,7 @@ export class SelectionTools {
   /** The rectangle's drawing, made when the first drag starts. */
   private frame: HTMLDivElement | undefined;
   private armed = false;
+  private navigationHeld = false;
   private start: { x: number; y: number } | undefined;
 
   constructor(viewport: Viewport, editor: EditorScene, view: GizmoView) {
@@ -37,6 +39,7 @@ export class SelectionTools {
     const dom = viewport.renderer.domElement;
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === " " && !isTypingTarget(event.target)) this.navigationHeld = true;
       if (isTypingTarget(event.target) || event.ctrlKey || event.metaKey || event.repeat) return;
       if (event.key === "Escape" && this.armed) {
         // The first Escape puts the rectangle away; it must not also clear the selection.
@@ -60,7 +63,12 @@ export class SelectionTools {
 
     // Also in the capture phase, so the press that starts a rectangle never reaches the camera or the handles.
     const onPointerDown = (event: PointerEvent) => {
-      if (!this.armed) return;
+      if (!this.armed) {
+        if (event.button !== 0 || event.altKey || this.navigationHeld || !this.view.enabled() || this.view.tool() !== "select") return;
+        const point = toNdc(event.clientX, event.clientY, dom.getBoundingClientRect());
+        if (pickObjectId(this.editor, viewport.camera, point) !== undefined) return;
+        this.arm();
+      }
       event.stopImmediatePropagation();
       event.preventDefault();
       if (event.button !== 0) {
@@ -69,10 +77,9 @@ export class SelectionTools {
       }
       this.start = { x: event.clientX, y: event.clientY };
       dom.setPointerCapture(event.pointerId);
-      this.draw(event.clientX, event.clientY);
     };
     const onPointerMove = (event: PointerEvent) => {
-      if (this.start) this.draw(event.clientX, event.clientY);
+      if (this.start && (Math.abs(event.clientX - this.start.x) >= MIN_BOX_PX || Math.abs(event.clientY - this.start.y) >= MIN_BOX_PX)) this.draw(event.clientX, event.clientY);
     };
     const onPointerUp = (event: PointerEvent) => {
       const start = this.start;
@@ -81,17 +88,29 @@ export class SelectionTools {
       if (dom.hasPointerCapture(event.pointerId)) dom.releasePointerCapture(event.pointerId);
       const wide = Math.abs(event.clientX - start.x) >= MIN_BOX_PX || Math.abs(event.clientY - start.y) >= MIN_BOX_PX;
       if (wide) this.select(start, event);
+      else if (!event.shiftKey) this.editor.select(null);
       this.cancel();
     };
+    const onPointerCancel = () => this.cancel();
+    const onKeyUp = (event: KeyboardEvent) => { if (event.key === " ") this.navigationHeld = false; };
+    const onBlur = () => { this.navigationHeld = false; this.cancel(); };
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
     dom.addEventListener("pointerdown", onPointerDown, true);
     dom.addEventListener("pointermove", onPointerMove);
     dom.addEventListener("pointerup", onPointerUp, true);
+    dom.addEventListener("pointercancel", onPointerCancel);
+    dom.addEventListener("lostpointercapture", onPointerCancel);
 
     this.cleanups.push(
       () => window.removeEventListener("keydown", onKeyDown, true),
+      () => window.removeEventListener("keyup", onKeyUp),
+      () => window.removeEventListener("blur", onBlur),
       () => dom.removeEventListener("pointerdown", onPointerDown, true),
       () => dom.removeEventListener("pointermove", onPointerMove),
       () => dom.removeEventListener("pointerup", onPointerUp, true),
+      () => dom.removeEventListener("pointercancel", onPointerCancel),
+      () => dom.removeEventListener("lostpointercapture", onPointerCancel),
     );
   }
 
@@ -121,7 +140,7 @@ export class SelectionTools {
     if (!this.frame) {
       this.frame = document.createElement("div");
       this.frame.style.cssText =
-        "position:fixed;pointer-events:none;z-index:40;border:1px dashed var(--foreground);" +
+        "position:fixed;pointer-events:none;z-index:40;border:1px solid var(--foreground);" +
         "background:color-mix(in srgb, var(--foreground) 10%, transparent)";
       document.body.appendChild(this.frame);
     }

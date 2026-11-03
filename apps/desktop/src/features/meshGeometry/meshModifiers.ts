@@ -1,9 +1,9 @@
 import { Vector3, type BufferGeometry, type Mesh } from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
-import { assertManifold, channels, edgeKey, point, readTopology, topology, type PolygonMesh } from "./meshTopology";
+import { assertManifold, channels, continuityChannels, edgeKey, point, readTopology, topology, type ContinuityChannel, type PolygonMesh } from "./meshTopology";
 
 export type MeshModifier = { type: "geometry.bevel"; width: number; segments?: number } | { type: "geometry.subdivide"; levels: number };
-import { blend, mean, type Weights } from "./meshWeights";
+import { blend, evaluate, mean, type Weights } from "./meshWeights";
 import { writeGeometry } from "./meshOutput";
 import { bevelSurface } from "./meshBevel";
 
@@ -15,12 +15,24 @@ function checkBudget(mesh: PolygonMesh): void {
   const triangles = mesh.faces.reduce((count, face) => count + face.length - 2, 0);
   if (triangles > MAX_MESH_OUTPUT_TRIANGLES) throw new Error(`Result exceeds the ${MAX_MESH_OUTPUT_TRIANGLES}-triangle geometry limit`);
 }
-function subdivide(mesh: PolygonMesh): PolygonMesh {
+function samplesMatch(sources: readonly ContinuityChannel[], left: Weights, right: Weights): boolean {
+  for (const source of sources) for (let component = 0; component < source.itemSize; component += 1)
+    if (Math.abs(evaluate(source, left, component) - evaluate(source, right, component)) > 1e-5) return false;
+  return true;
+}
+function subdivide(mesh: PolygonMesh, sources: readonly ContinuityChannel[]): PolygonMesh {
   const graph = topology(mesh); assertManifold(mesh, graph);
   if (graph.vertexFaces.some((faces) => faces.length > 64)) throw new Error("Subdivision supports vertex valence up to 64; simplify extraordinary vertices first");
   const data = channels(mesh);
   const weightsAt = (id: number): Weights => { const value = data.positions[id]; if (!value) throw new Error("Missing vertex interpolation"); return value; };
+  const cornerOn = (faceIndex: number, vertexId: number): Weights => {
+    const face = mesh.faces[faceIndex]; if (!face) throw new Error("Missing face");
+    const sample = data.corners[faceIndex]?.[face.indexOf(vertexId)];
+    if (!sample) throw new Error("Missing corner attributes");
+    return sample;
+  };
   const faceWeights = mesh.faces.map((face) => mean(face.map(weightsAt)));
+  const faceCornerAverage = mesh.faces.map((_, index) => mean(data.corners[index] ?? []));
   const positionWeights: Weights[] = [];
   const corners = mesh.faces.reduce((sum, face) => sum + face.length, 0);
   if (corners * 2 > MAX_MESH_OUTPUT_TRIANGLES) throw new Error("Subdivision would exceed the geometry limit; use fewer levels or a simpler mesh");
@@ -63,17 +75,55 @@ function subdivide(mesh: PolygonMesh): PolygonMesh {
     positionWeights.push(mean(weights));
     edgeIds.set(key, positions.push(average(values)) - 1);
   }
+  const vertexAttribute = (faceIndex: number, vertexId: number): Weights => {
+    const self = cornerOn(faceIndex, vertexId);
+    const edges = (graph.vertexEdges[vertexId] ?? []).map((key) => graph.edges.get(key) ?? []);
+    const boundary = edges.filter((edge) => edge.length === 1);
+    if (boundary.length === 2) {
+      const neighbors = boundary.map((edge) => {
+        const half = edge[0]; if (!half) throw new Error("Missing boundary edge");
+        return cornerOn(half.face, half.from === vertexId ? half.to : half.from);
+      });
+      return blend([[self, 0.75], [mean(neighbors), 0.25]]);
+    }
+    if (edges.length === 0) return self;
+    const incident = graph.vertexFaces[vertexId] ?? [];
+    const continuous = incident.every((index) => index === faceIndex || samplesMatch(sources, self, cornerOn(index, vertexId)));
+    if (!continuous) {
+      const face = mesh.faces[faceIndex] ?? []; const corner = face.indexOf(vertexId);
+      const before = data.corners[faceIndex]?.[(corner + face.length - 1) % face.length];
+      const after = data.corners[faceIndex]?.[(corner + 1) % face.length];
+      if (!before || !after) return self;
+      return blend([[self, 0.75], [before, 0.125], [after, 0.125]]);
+    }
+    const n = edges.length;
+    const faceSamples = incident.map((index) => faceCornerAverage[index]).filter((value): value is Weights => value !== undefined);
+    const edgeSamples = edges.map((incidentEdges) => {
+      const half = incidentEdges[0]; if (!half) throw new Error("Missing edge");
+      return mean([cornerOn(half.face, vertexId), cornerOn(half.face, half.from === vertexId ? half.to : half.from)]);
+    });
+    return blend([[mean(faceSamples), 1 / n], [mean(edgeSamples), 2 / n], [self, (n - 3) / n]]);
+  };
+  const edgeAttribute = (faceIndex: number, from: number, to: number): Weights => {
+    const here = cornerOn(faceIndex, from); const there = cornerOn(faceIndex, to);
+    const incident = graph.edges.get(edgeKey(from, to)) ?? [];
+    const other = incident.length === 2 ? incident.find((edge) => edge.face !== faceIndex) : undefined;
+    if (!other || !samplesMatch(sources, here, cornerOn(other.face, from)) || !samplesMatch(sources, there, cornerOn(other.face, to))) return mean([here, there]);
+    const hereFace = faceCornerAverage[faceIndex]; const otherFace = faceCornerAverage[other.face];
+    if (!hereFace || !otherFace) return mean([here, there]);
+    return mean([here, there, hereFace, otherFace]);
+  };
   const faces: number[][] = []; const cornerWeights: Weights[][] = []; const materials: number[] = [];
   mesh.faces.forEach((face, index) => face.forEach((vertex, corner) => {
     const next = face[(corner + 1) % face.length]; const previous = face[(corner + face.length - 1) % face.length];
     const center = faceIds[index];
     const a = next === undefined ? undefined : edgeIds.get(edgeKey(vertex, next));
     const b = previous === undefined ? undefined : edgeIds.get(edgeKey(previous, vertex));
-    if (a === undefined || b === undefined || center === undefined) throw new Error("Invalid subdivision topology");
+    if (a === undefined || b === undefined || center === undefined || next === undefined || previous === undefined) throw new Error("Invalid subdivision topology");
     faces.push([vertex, a, center, b]);
-    const samples = data.corners[index] ?? []; const at = samples[corner]; const after = samples[(corner + 1) % face.length]; const before = samples[(corner + face.length - 1) % face.length];
-    if (!at || !after || !before) throw new Error("Missing corner attributes");
-    cornerWeights.push([at, mean([at, after]), mean(samples), mean([before, at])]); materials.push(data.materials[index] ?? 0);
+    const faceAverage = faceCornerAverage[index]; if (!faceAverage) throw new Error("Missing corner attributes");
+    cornerWeights.push([vertexAttribute(index, vertex), edgeAttribute(index, vertex, next), faceAverage, edgeAttribute(index, previous, vertex)]);
+    materials.push(data.materials[index] ?? 0);
   }));
   return { positions, faces, channels: { positions: positionWeights, corners: cornerWeights, materials } };
 }
@@ -90,7 +140,8 @@ export function modifyGeometry(geometry: BufferGeometry, modifier: MeshModifier)
   else {
     const projectedTriangles = mesh.faces.reduce((sum, face) => sum + face.length, 0) * 2 * 4 ** (modifier.levels - 1);
     if (projectedTriangles > MAX_MESH_OUTPUT_TRIANGLES) throw new Error("Subdivision would exceed the geometry limit; use fewer levels or a simpler mesh");
-    for (let i = 0; i < modifier.levels; i += 1) mesh = subdivide(mesh);
+    const sources = continuityChannels(geometry);
+    for (let i = 0; i < modifier.levels; i += 1) mesh = subdivide(mesh, sources);
   }
   checkBudget(mesh);
   return writeGeometry(geometry, mesh, modifier.type === "geometry.bevel" && (modifier.segments ?? 1) === 1);

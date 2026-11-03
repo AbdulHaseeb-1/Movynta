@@ -39,7 +39,7 @@ export class ImportModelQueryDto {
 
 export class RecordSceneEditDto {
   @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{1,64}$/) declare actionId?: string;
-  @ApiProperty({ description: "scene.transform_object and scene.delete_object commands for objects already in the project." })
+  @ApiProperty({ description: "Manual transforms, deletion, modifier stacks and new primitives. A later transform can reference a primitive created in the same batch." })
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(50)

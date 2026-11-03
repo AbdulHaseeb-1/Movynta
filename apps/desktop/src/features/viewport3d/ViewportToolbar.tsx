@@ -167,7 +167,7 @@ export function ViewportToolbar({
         <ToolButton
           tooltipSide={tooltipSide}
           label="Select"
-          hint="V"
+          hint="V · Drag empty space to box-select; Shift adds"
           shortcut="V"
           active={tool === "select"}
           onClick={() => dispatch(setViewportTool("select"))}

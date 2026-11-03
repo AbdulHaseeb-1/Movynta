@@ -3,6 +3,7 @@ import {
   Box3,
   Color,
   DirectionalLight,
+  DoubleSide,
   GridHelper,
   Mesh,
   MeshNormalMaterial,
@@ -24,7 +25,7 @@ import {
   type ViewSpec,
 } from "@movynta/editor-protocol";
 import type { Viewport } from "@/features/viewport3d";
-import { frameView, subjectOf, type CameraPose, type Subject } from "./framing";
+import { captureNear, frameView, guidePlacement, subjectOf, type CameraPose, type Subject } from "./framing";
 import { drawOverlay, type OverlayItem } from "./overlay";
 import { isInFrame, projectBounds } from "./screenBounds";
 import type { CaptureOptions, CaptureScene } from "./types";
@@ -35,7 +36,6 @@ const BACKGROUND = "#23262d";
 const JPEG_QUALITIES = [0.85, 0.65, 0.45];
 const JPEG_PREFIX = "data:image/jpeg;base64,";
 const MSAA_SAMPLES = 4;
-const NEAR = 0.02;
 const HEADLIGHT_INTENSITY = 1.4;
 const GRID_COLORS = [0x6b7280, 0x3b4048] as const;
 
@@ -116,10 +116,10 @@ function buildCamera(pose: CameraPose, aspect: number, reach: number): Perspecti
           (pose.orthographicHeight * aspect) / 2,
           pose.orthographicHeight / 2,
           -pose.orthographicHeight / 2,
-          NEAR,
+          captureNear(distance),
           far,
         )
-      : new PerspectiveCamera(pose.fov, aspect, NEAR, far);
+      : new PerspectiveCamera(pose.fov, aspect, captureNear(distance), far);
   camera.position.copy(pose.position);
   camera.up.copy(pose.up);
   camera.lookAt(pose.target);
@@ -195,7 +195,7 @@ function applyMode(scene: Viewport["scene"], mode: "solid" | "wireframe" | "norm
     if (isMesh(node)) meshes.push(node);
   });
   if (mode === "normals") {
-    const normals = new MeshNormalMaterial();
+    const normals = new MeshNormalMaterial({ side: DoubleSide });
     restorer.add(() => normals.dispose());
     for (const mesh of meshes) {
       const original = mesh.material;
@@ -229,11 +229,14 @@ function addHeadlight(scene: Viewport["scene"], restorer: Restorer): Directional
   return headlight;
 }
 
-/** A floor grid and axes for scale, sized to the scene, removed again when `restorer` runs. */
-function addGuides(scene: Viewport["scene"], span: number, restorer: Restorer): void {
-  const size = Math.max(Math.ceil(span * 2), 10);
-  const grid = new GridHelper(size, Math.min(size, 40), GRID_COLORS[0], GRID_COLORS[1]);
-  const axes = new AxesHelper(Math.max(span / 4, 1));
+/** A floor grid and axes for scale, placed on the framed subject, removed again when `restorer` runs. */
+function addGuides(scene: Viewport["scene"], framed: Subject, restorer: Restorer): void {
+  const placement = guidePlacement(framed);
+  const size = Math.max(Math.ceil(placement.size), 2);
+  const grid = new GridHelper(size, Math.min(Math.max(Math.round(size), 2), 40), GRID_COLORS[0], GRID_COLORS[1]);
+  const axes = new AxesHelper(placement.axisLength);
+  grid.position.copy(placement.floor);
+  axes.position.copy(placement.origin);
   scene.add(grid, axes);
   restorer.add(() => {
     scene.remove(grid, axes);
@@ -303,7 +306,7 @@ export function captureViews(viewport: Viewport, editor: CaptureScene, request: 
       // What the assistant asked to look at is shown even if the user hid it.
       for (const { object } of focus) for (let node: Object3D | null = object; node; node = node.parent) restorer.show(node);
       applyMode(scene, mode, restorer);
-      if (request.guides !== false) addGuides(scene, Math.max(sceneSubject.radius * 2, 4), restorer);
+      if (request.guides !== false) addGuides(scene, subject, restorer);
 
       const previousBackground = scene.background;
       scene.background = new Color(BACKGROUND);

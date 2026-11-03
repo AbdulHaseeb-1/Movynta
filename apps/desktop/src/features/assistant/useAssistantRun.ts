@@ -289,16 +289,6 @@ export function useAssistantRun(
       setStatus(errorMessage(error));
     }
   }
-  /** Starts a fresh conversation: clears the transcript and the agent session. */
-  function reset() {
-    if (inFlight.current) return;
-    session.current = undefined;
-    lastPrompt.current = "";
-    setMessages([]);
-    setApprovals([]);
-    setPhase("idle");
-    setStatus("Ready");
-  }
   /** Shows the saved chat of a reopened project and lets the assistant continue its session. */
   function hydrate(saved: SavedConversation) {
     session.current = saved.sessionId;
@@ -321,7 +311,6 @@ export function useAssistantRun(
     approvals,
     cancel,
     decide,
-    reset,
     hydrate,
     retry,
     canRetry: !busy && messages.some((message) => message.role === "user"),

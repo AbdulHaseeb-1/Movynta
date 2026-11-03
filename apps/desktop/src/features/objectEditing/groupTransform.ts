@@ -1,4 +1,5 @@
 import { Matrix4, Vector3, type Object3D } from "three";
+import { assignLocalMatrix } from "./shearFit";
 
 const delta = new Matrix4();
 const world = new Matrix4();
@@ -77,8 +78,13 @@ export class GroupTransform {
       world.multiplyMatrices(delta, start);
       const inverse = this.inverses[this.parentOf[index] ?? -1];
       if (inverse) world.premultiply(inverse);
-      world.decompose(object.position, object.quaternion, object.scale);
+      assignLocalMatrix(object, world, false);
     });
+  }
+
+  /** Folds a leftover shear into the meshes once, when the drag ends. */
+  commit(): void {
+    for (const object of this.objects) if (!object.matrixAutoUpdate) assignLocalMatrix(object, object.matrix, true);
   }
 
   end(): void {

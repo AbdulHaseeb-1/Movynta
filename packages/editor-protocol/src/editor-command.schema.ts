@@ -66,7 +66,7 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       ...commandBase,
       type: z.literal("geometry.create_primitive"),
       objectId: identifierSchema,
-      primitive: z.enum(["box", "sphere", "cylinder", "plane"]),
+      primitive: z.enum(["box", "sphere", "cylinder", "plane", "cone", "torus"]),
       size: z.number().positive().max(100),
       replaceExisting: z.boolean().default(false),
     })

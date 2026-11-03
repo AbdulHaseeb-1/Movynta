@@ -68,11 +68,37 @@ export function orbitDirection(azimuthDegrees: number, elevationDegrees: number)
   return new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), Math.cos(azimuth) * Math.cos(elevation));
 }
 
-/** Straight up, except when looking along it, where the picture's up is the far side of the floor. */
+/**
+ * Straight up until the view is actually vertical. A steep orbit keeps the picture's up in the same
+ * direction instead of snapping onto the floor a degree early. An exact top or bottom view still uses
+ * the far side of the floor, and a view that is only a hair off vertical keeps that side's heading.
+ */
 function upFor(towardCamera: Vector3): Vector3 {
   const unit = towardCamera.clone().normalize();
-  if (Math.abs(unit.y) < 0.999) return new Vector3(0, 1, 0);
+  const worldUp = new Vector3(0, 1, 0);
+  if (Math.abs(unit.dot(worldUp)) < 1 - 1e-6) return worldUp;
+  const horizontal = new Vector3(unit.x, 0, unit.z);
+  if (horizontal.lengthSq() > 1e-12) {
+    horizontal.normalize();
+    return unit.y > 0 ? horizontal.multiplyScalar(-1) : horizontal;
+  }
   return new Vector3(0, 0, unit.y > 0 ? -1 : 1);
+}
+
+/** Near plane for a capture. A close custom camera must not clip the subject it is aimed at. */
+export function captureNear(distance: number): number {
+  const safe = Math.max(distance, 1e-4);
+  return Math.min(0.02, safe * 0.05);
+}
+
+/** Where the capture grid and axes sit so they appear with the framed subject, not at the world origin. */
+export function guidePlacement(subject: Subject): { origin: Vector3; floor: Vector3; size: number; axisLength: number } {
+  return {
+    origin: subject.center.clone(),
+    floor: new Vector3(subject.center.x, subject.center.y - subject.radius, subject.center.z),
+    size: Math.max(subject.radius * 4, 2),
+    axisLength: Math.max(subject.radius, 0.5),
+  };
 }
 
 /** How far a perspective camera must stand to see a sphere of `radius` whole. */

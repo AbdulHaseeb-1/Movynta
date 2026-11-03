@@ -4,16 +4,31 @@ import {
   Object3D,
   Points,
   PointsMaterial,
+  Vector3,
+  type Matrix4,
 } from "three";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import type { EditorScene, ObjectTransform } from "@/features/assistant";
-import { watchClicks, type Viewport, type ViewportTool } from "@/features/viewport3d";
+import {
+  watchClicks,
+  type Viewport,
+  type ViewportTool,
+} from "@/features/viewport3d";
 import { GroupTransform, medianPosition, topLevel } from "./groupTransform";
+import { assignLocalMatrix, correctWorldRotation, hasNonUniformWorldScale } from "./shearFit";
 import { HANDLE_MODES, isHandleTool, type HandleMode } from "./handleModes";
 import { styleHandles } from "./handleStyle";
 import { pickObjectId, toNdc } from "./picking";
 import { bindShiftSnap } from "./shiftSnap";
 import { sameTransform } from "./transformMath";
+
+function rotationOf(controls: TransformControls): { axis: Vector3; angle: number } | undefined {
+  if (!("rotationAxis" in controls) || !("rotationAngle" in controls)) return undefined;
+  const axis: unknown = controls.rotationAxis;
+  const angle: unknown = controls.rotationAngle;
+  if (!(axis instanceof Vector3) || typeof angle !== "number" || !Number.isFinite(angle)) return undefined;
+  return { axis, angle };
+}
 
 const GIZMO_SIZE = 0.62;
 /** The dot that marks an object's origin, in the same orange as its outline. */
@@ -76,6 +91,8 @@ export class ObjectGizmo {
   private pivotFor: { ids: readonly string[]; revision: number } | undefined;
   private before: ObjectTransform | undefined;
   private dragged: Dragged[] = [];
+  /** World matrix of a single object when its drag began, so a world rotation can be rebuilt exactly. */
+  private dragWorld: Matrix4 | undefined;
 
   constructor(
     viewport: Viewport,
@@ -110,18 +127,32 @@ export class ObjectGizmo {
     viewport.scene.add(this.origin);
 
     // While a handle is dragged the camera must stay put.
+    let livePending = false;
+    let groupPending = false;
+    const flushLiveChange = () => {
+      if (groupPending) {
+        groupPending = false;
+        this.group.update(this.pivot);
+      } else if (livePending) this.correctSingleRotation();
+      if (!livePending) return;
+      livePending = false;
+      const id = this.editor.selection;
+      const transform = id ? this.editor.transformOf(id) : undefined;
+      if (id && transform) this.events.onLiveChange(id, transform);
+    };
     const onDragging = (event: { value?: unknown }) => {
       const dragging = event.value === true;
       viewport.controls.enabled = !dragging;
       if (dragging) this.beginDrag();
-      else this.endDrag();
+      else {
+        flushLiveChange();
+        this.endDrag();
+      }
     };
     this.controls.addEventListener("dragging-changed", onDragging);
     const onObjectChange = () => {
-      if (this.dragged.length > 0) this.group.update(this.pivot);
-      const id = this.editor.selection;
-      const transform = id ? this.editor.transformOf(id) : undefined;
-      if (id && transform) this.events.onLiveChange(id, transform);
+      if (this.dragged.length > 0) groupPending = true;
+      livePending = true;
     };
     this.controls.addEventListener("objectChange", onObjectChange);
 
@@ -130,14 +161,21 @@ export class ObjectGizmo {
       ignore: () => this.controls.axis !== null,
       onClick: (event) => {
         if (this.view.tool() === "pan") return;
-        const ndc = toNdc(event.clientX, event.clientY, dom.getBoundingClientRect());
+        const ndc = toNdc(
+          event.clientX,
+          event.clientY,
+          dom.getBoundingClientRect(),
+        );
         const hit = pickObjectId(this.editor, viewport.camera, ndc);
         if (!event.shiftKey) this.editor.select(hit ?? null);
         else if (hit !== undefined) this.editor.toggleSelection(hit);
       },
     });
 
-    const removeFrameListener = viewport.addFrameListener(() => this.sync());
+    const removeFrameListener = viewport.addFrameListener(() => {
+      flushLiveChange();
+      this.sync();
+    });
 
     this.cleanups.push(
       () => this.controls.removeEventListener("dragging-changed", onDragging),
@@ -164,6 +202,11 @@ export class ObjectGizmo {
 
   /** Remembers where everything is before a handle moves it. */
   private beginDrag() {
+    const target = this.controls.object;
+    if (target && target !== this.pivot) {
+      target.updateWorldMatrix(true, false);
+      this.dragWorld = target.matrixWorld.clone();
+    } else this.dragWorld = undefined;
     if (this.controls.object === this.pivot) {
       const selected: Dragged[] = [];
       for (const id of this.editor.selectedIds) {
@@ -173,7 +216,10 @@ export class ObjectGizmo {
       }
       const moving = new Set(topLevel(selected.map((item) => item.object)));
       this.dragged = selected.filter((item) => moving.has(item.object));
-      this.group.begin(this.pivot, this.dragged.map((item) => item.object));
+      this.group.begin(
+        this.pivot,
+        this.dragged.map((item) => item.object),
+      );
       return;
     }
     const id = this.editor.selection;
@@ -183,10 +229,14 @@ export class ObjectGizmo {
   /** Reports what the drag changed, if anything. */
   private endDrag() {
     const changes: ObjectChange[] = [];
+    if (this.dragged.length > 0) this.group.commit();
+    else if (this.controls.object && this.controls.object !== this.pivot && !this.controls.object.matrixAutoUpdate)
+      assignLocalMatrix(this.controls.object, this.controls.object.matrix, true);
     if (this.dragged.length > 0) {
       for (const { id, before } of this.dragged) {
         const after = this.editor.transformOf(id);
-        if (after && !sameTransform(before, after)) changes.push({ id, before, after });
+        if (after && !sameTransform(before, after))
+          changes.push({ id, before, after });
       }
       this.dragged = [];
       this.group.end();
@@ -197,13 +247,28 @@ export class ObjectGizmo {
         changes.push({ id, before: this.before, after });
       this.before = undefined;
     }
+    this.dragWorld = undefined;
     if (changes.length > 0) this.events.onCommit(changes);
+  }
+
+  /**
+   * The handles turn an object by its parent's rotation and ignore the parent's scale. When that scale
+   * is non-uniform, rebuild the same world rotation so the shape does not squash.
+   */
+  private correctSingleRotation(): void {
+    const object = this.controls.object;
+    if (!object || object === this.pivot || this.controls.mode !== "rotate" || this.controls.space !== "world") return;
+    if (!this.dragWorld || !hasNonUniformWorldScale(object)) return;
+    const rotation = rotationOf(this.controls);
+    if (!rotation) return;
+    correctWorldRotation(object, this.dragWorld, rotation.axis, rotation.angle);
   }
 
   /** Puts the pivot at the median point of what a drag would move, upright and unscaled. */
   private placePivot() {
     const { selectedIds: ids, currentRevision: revision } = this.editor;
-    if (this.pivotFor?.ids === ids && this.pivotFor.revision === revision) return;
+    if (this.pivotFor?.ids === ids && this.pivotFor.revision === revision)
+      return;
     this.pivotFor = { ids, revision };
     const objects = ids.flatMap((id) => this.editor.getObject(id) ?? []);
     medianPosition(topLevel(objects), this.pivot.position);
@@ -222,9 +287,14 @@ export class ObjectGizmo {
     const id = this.editor.selection;
     const target = id ? this.editor.getObject(id) : undefined;
 
-    if (this.outlinedFor?.ids !== ids || this.outlinedFor.revision !== revision) {
+    if (
+      this.outlinedFor?.ids !== ids ||
+      this.outlinedFor.revision !== revision
+    ) {
       this.outlinedFor = { ids, revision };
-      this.viewport.setOutlinedObjects(ids.flatMap((selectedId) => this.editor.getObject(selectedId) ?? []));
+      this.viewport.setOutlinedObjects(
+        ids.flatMap((selectedId) => this.editor.getObject(selectedId) ?? []),
+      );
     }
 
     const tool = this.view.tool();
@@ -233,8 +303,7 @@ export class ObjectGizmo {
       this.mode = HANDLE_MODES[tool];
       this.controls.setMode(this.mode);
     }
-    const showGizmo =
-      Boolean(target) && enabled && isHandleTool(tool);
+    const showGizmo = Boolean(target) && enabled && isHandleTool(tool);
     this.controls.getHelper().visible = showGizmo;
     this.controls.enabled = showGizmo;
     if (this.controls.dragging) return;

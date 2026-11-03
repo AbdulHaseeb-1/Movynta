@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Scene } from "three";
+import { Raycaster, Scene, Vector3 } from "three";
 import { EditorScene } from "./EditorScene";
 
 const box = {
@@ -11,6 +11,19 @@ const box = {
   replaceExisting: false,
 };
 describe("desktop editor protocol", () => {
+  it("renders and picks planes from both sides after creation and history replay", () => {
+    const command = { ...box, objectId: "sheet", primitive: "plane" };
+    for (const editor of [new EditorScene(new Scene(), "project"), new EditorScene(new Scene(), "reopened")]) {
+      expect(editor.execute("plane", 0, [command]).status).toBe("applied");
+      const object = editor.getObject("sheet");
+      if (!object) throw new Error("Plane was not created");
+      object.updateMatrixWorld(true);
+      for (const z of [2, -2]) {
+        const ray = new Raycaster(new Vector3(0, 0, z), new Vector3(0, 0, -Math.sign(z)));
+        expect(ray.intersectObject(object).length).toBeGreaterThan(0);
+      }
+    }
+  });
   it("creates real geometry, transforms it, and reports the new context", () => {
     const scene = new Scene();
     const editor = new EditorScene(scene, "project");

@@ -22,6 +22,8 @@ interface ChunkIndex {
   boxes: Float32Array;
   chunks: number;
   triangles: number;
+  positionVersion: number;
+  indexVersion: number;
 }
 
 const indexes = new WeakMap<BufferGeometry, ChunkIndex | null>();
@@ -34,6 +36,7 @@ const b = new Vector3();
 const c = new Vector3();
 const point = new Vector3();
 const bestPoint = new Vector3();
+const worldPoint = new Vector3();
 
 function isMesh(node: Object3D): node is Mesh {
   return node instanceof Mesh;
@@ -44,11 +47,29 @@ function positionOf(geometry: BufferGeometry): BufferAttribute | undefined {
   return position instanceof BufferAttribute && position.itemSize === 3 ? position : undefined;
 }
 
-/** Groups the triangles in file order and boxes each group. Once per geometry, then reused. */
+function usesMorph(mesh: Mesh): boolean {
+  const influences = mesh.morphTargetInfluences;
+  const targets = mesh.geometry.morphAttributes.position;
+  if (!influences || !targets || targets.length === 0) return false;
+  return influences.some((influence) => influence !== 0);
+}
+
+/** A triangle whose first corner lies on the same draw-range steps three.js walks. */
+function inDrawRange(geometry: BufferGeometry, elementCount: number, triangle: number): boolean {
+  const start = Math.max(0, geometry.drawRange.start);
+  const end = Math.min(elementCount, geometry.drawRange.start + geometry.drawRange.count);
+  const corner = triangle * 3;
+  return corner >= start && corner < end && (corner - start) % 3 === 0;
+}
+
+/** Groups the triangles in file order and boxes each group. Rebuilt when positions or indices change. */
 function indexOf(geometry: BufferGeometry): ChunkIndex | null {
-  const cached = indexes.get(geometry);
-  if (cached !== undefined) return cached;
   const position = positionOf(geometry);
+  const cached = indexes.get(geometry);
+  const positionVersion = position?.version ?? -1;
+  const indexVersion = geometry.getIndex()?.version ?? 0;
+  if (cached && cached.positionVersion === positionVersion && cached.indexVersion === indexVersion) return cached;
+  if (cached === null) return null;
   const indices = geometry.getIndex();
   const triangles = indices ? indices.count / 3 : position ? position.count / 3 : 0;
   if (!position || triangles < DENSE_TRIANGLES) {
@@ -81,7 +102,7 @@ function indexOf(geometry: BufferGeometry): ChunkIndex | null {
     }
     boxes.set([minX, minY, minZ, maxX, maxY, maxZ], chunk * 6);
   }
-  const built = { boxes, chunks, triangles };
+  const built = { boxes, chunks, triangles, positionVersion, indexVersion };
   indexes.set(geometry, built);
   return built;
 }
@@ -121,7 +142,7 @@ function raycastDense(this: Mesh, raycaster: Raycaster, intersects: Intersection
   const material = this.material;
   const index = indexOf(geometry);
   const position = positionOf(geometry);
-  if (!index || !position || Array.isArray(material)) {
+  if (!index || !position || Array.isArray(material) || usesMorph(this)) {
     Mesh.prototype.raycast.call(this, raycaster, intersects);
     return;
   }
@@ -133,14 +154,17 @@ function raycastDense(this: Mesh, raycaster: Raycaster, intersects: Intersection
   const iz = 1 / direction.z;
   const array = position.array;
   const indices = geometry.getIndex();
+  const elementCount = indices ? indices.count : position.count;
   const side = material.side;
-  // The nearest hit so far, as a distance along the ray, which also bounds which groups are worth testing.
+  // The nearest accepted hit. A hit outside near/far must not hide a farther one that is in range.
   let best = Infinity;
+  let limit = Infinity;
   for (let chunk = 0; chunk < index.chunks; chunk += 1) {
-    if (!crosses(index.boxes, chunk * 6, origin.x, origin.y, origin.z, ix, iy, iz, best)) continue;
+    if (!crosses(index.boxes, chunk * 6, origin.x, origin.y, origin.z, ix, iy, iz, limit)) continue;
     const first = chunk * CHUNK_TRIANGLES;
     const last = Math.min(index.triangles, first + CHUNK_TRIANGLES);
     for (let triangle = first; triangle < last; triangle += 1) {
+      if (!inDrawRange(geometry, elementCount, triangle)) continue;
       const i0 = (indices ? indices.getX(triangle * 3) : triangle * 3) * 3;
       const i1 = (indices ? indices.getX(triangle * 3 + 1) : triangle * 3 + 1) * 3;
       const i2 = (indices ? indices.getX(triangle * 3 + 2) : triangle * 3 + 2) * 3;
@@ -153,18 +177,16 @@ function raycastDense(this: Mesh, raycaster: Raycaster, intersects: Intersection
           ? localRay.intersectTriangle(c, b, a, true, point)
           : localRay.intersectTriangle(a, b, c, side === FrontSide, point);
       if (!hit) continue;
-      const distance = origin.distanceTo(point);
-      if (distance < best) {
-        best = distance;
-        bestPoint.copy(point);
-      }
+      worldPoint.copy(point).applyMatrix4(this.matrixWorld);
+      const distance = raycaster.ray.origin.distanceTo(worldPoint);
+      if (distance < raycaster.near || distance > raycaster.far || distance >= best) continue;
+      best = distance;
+      limit = origin.distanceTo(point);
+      bestPoint.copy(worldPoint);
     }
   }
   if (best === Infinity) return;
-  const world = bestPoint.applyMatrix4(this.matrixWorld);
-  const distance = raycaster.ray.origin.distanceTo(world);
-  if (distance < raycaster.near || distance > raycaster.far) return;
-  intersects.push({ distance, point: world.clone(), object: this });
+  intersects.push({ distance: best, point: bestPoint.clone(), object: this });
 }
 
 /**

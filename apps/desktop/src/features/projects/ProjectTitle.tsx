@@ -36,7 +36,7 @@ export function ProjectTitle({
     input.current?.select();
   }, [editing]);
   const label = name.trim() || UNTITLED_PROJECT;
-  const shared = "h-8 max-w-[min(320px,40vw)] rounded-full px-2.5 text-[13px] font-medium";
+  const shared = "h-7 max-w-[min(320px,40vw)] rounded-full px-2 text-xs font-medium";
 
   async function commit(event?: FormEvent) {
     event?.preventDefault();

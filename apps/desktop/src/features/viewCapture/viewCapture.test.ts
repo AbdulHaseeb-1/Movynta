@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Box3, OrthographicCamera, PerspectiveCamera, Vector3 } from "three";
 import type { ViewSpec } from "@movynta/editor-protocol";
-import { frameView, orbitDirection, subjectOf, type CameraPose, type CurrentCamera } from "./framing";
+import { captureNear, frameView, guidePlacement, orbitDirection, subjectOf, type CameraPose, type CurrentCamera } from "./framing";
 import { isInFrame, projectBounds } from "./screenBounds";
 
 const current: CurrentCamera = { position: new Vector3(5, 4, 7), target: new Vector3(0, 0, 0), fov: 45 };
@@ -63,6 +63,26 @@ describe("framing a view", () => {
     expect(pose.position.y).toBeGreaterThan(0);
     expect(pose.position.z).toBeGreaterThan(0);
     expect(frame({}).position.toArray()).toEqual(pose.position.toArray());
+  });
+
+  it("does not roll a steep orbit onto the floor", () => {
+    const pose = frame({ orbit: { azimuthDegrees: 90, elevationDegrees: 88 } });
+    expect(pose.up.toArray()).toEqual([0, 1, 0]);
+    const imageUp = new Vector3(0, 1, 0).applyQuaternion(cameraFor(pose).quaternion);
+    expect(imageUp.x).toBeLessThan(-0.9);
+    expect(Math.abs(imageUp.z)).toBeLessThan(0.2);
+  });
+
+  it("places capture guides on the framed subject and keeps a close camera's near plane in front of it", () => {
+    const farSubject = subjectOf(new Box3(new Vector3(29.5, -0.5, -0.5), new Vector3(30.5, 0.5, 0.5)));
+    const guides = guidePlacement(farSubject);
+    expect(guides.origin.x).toBeCloseTo(30);
+    expect(guides.floor.x).toBeCloseTo(30);
+    expect(guides.floor.y).toBeCloseTo(farSubject.center.y - farSubject.radius);
+    expect(guides.floor.y).toBeLessThan(0);
+    expect(captureNear(10)).toBeCloseTo(0.02);
+    expect(captureNear(0.01)).toBeCloseTo(0.0005);
+    expect(captureNear(0.01)).toBeLessThan(0.01);
   });
 
   it("circles the subject by azimuth and elevation, 0 degrees being the front", () => {

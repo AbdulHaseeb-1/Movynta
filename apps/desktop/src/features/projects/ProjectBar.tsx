@@ -32,14 +32,14 @@ export function ProjectBar({
         title="Back to home"
         className={cn(
           buttonVariants({ variant: "ghost", size: "icon" }),
-          "size-10 rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+          "size-8 rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
           surface,
         )}
       >
-        <ArrowLeft className="size-[18px]" />
+        <ArrowLeft className="size-4" />
       </Link>
       <div
-        className={cn("flex h-10 items-center gap-1 rounded-full pr-1 pl-2.5", surface)}
+        className={cn("flex h-8 items-center gap-1 rounded-full pr-1 pl-2", surface)}
       >
         {project ? (
           <>
@@ -70,7 +70,7 @@ export function ProjectBar({
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Project actions"
-                className="rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                className="size-7 rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
               >
                 <ChevronDown className="size-4" />
               </Button>

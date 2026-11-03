@@ -1,7 +1,12 @@
 import {
   BoxGeometry,
+  ConeGeometry,
+  DoubleSide,
+  FrontSide,
+  TorusGeometry,
   CylinderGeometry,
   Group,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
@@ -18,6 +23,7 @@ import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { copyTopology } from "../meshGeometry/meshTopology";
+import { assignLocalMatrix, settleShear } from "../objectEditing/shearFit";
 import { assertEditableMesh, inspectMesh, meshAtPath, evaluateStack, modifierStack, commitStack, copyModifierStack, disposeModifierStack, type ModifierStackState } from "../meshGeometry";
 import type { MeshInspectionRequest } from "@movynta/editor-protocol";
 
@@ -557,6 +563,8 @@ export class EditorScene {
     for (const object of staged.values())
       if (!object.parent || !stagedObjects.has(object.parent))
         this.scene.add(object);
+    // Reparent may have left an exact matrix that position, rotation and scale cannot store.
+    settleShear(staged.values());
     this.revision += 1;
     this.applied.add(proposalId);
     this.pruneSelection();
@@ -712,12 +720,16 @@ export class EditorScene {
           ? new SphereGeometry(size / 2, 24, 16)
           : command.primitive === "cylinder"
             ? new CylinderGeometry(size / 2, size / 2, size, 24)
+            : command.primitive === "cone"
+              ? new ConeGeometry(size / 2, size, 24)
+              : command.primitive === "torus"
+                ? new TorusGeometry(size * .35, size * .15, 12, 32)
             : command.primitive === "plane"
               ? new PlaneGeometry(size, size)
               : new BoxGeometry(size, size, size);
       object = new Mesh(
         geometry,
-        new MeshStandardMaterial({ color: "#b6aaa4", roughness: 0.65 }),
+        new MeshStandardMaterial({ color: "#b6aaa4", roughness: 0.65, side: command.primitive === "plane" ? DoubleSide : FrontSide }),
       );
       object.name = command.primitive;
     } else {
@@ -767,13 +779,16 @@ export class EditorScene {
       if (above === object)
         throw new Error("An object cannot be placed under itself or under something that hangs below it");
     object.updateWorldMatrix(true, false);
-    if (parent) {
-      parent.attach(object);
-      return;
-    }
     const world = object.matrixWorld.clone();
     object.removeFromParent();
-    world.decompose(object.position, object.quaternion, object.scale);
+    if (!parent) {
+      assignLocalMatrix(object, world, false);
+      return;
+    }
+    parent.updateWorldMatrix(true, false);
+    if (Math.abs(parent.matrixWorld.determinant()) < 1e-12) throw new Error("Parent transform cannot be inverted");
+    parent.add(object);
+    assignLocalMatrix(object, new Matrix4().copy(parent.matrixWorld).invert().multiply(world), false);
   }
 
   private transform(

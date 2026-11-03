@@ -5,6 +5,7 @@ import {
   LineSegments,
   ShaderMaterial,
   Vector3,
+  type Camera,
   type Scene,
 } from "three";
 import type { Viewport } from "./viewport";
@@ -106,6 +107,15 @@ export function addCoordinateSpace(scene: Scene): Group {
 
 const projected = new Vector3();
 
+/** Screen position of the world origin, or null when it is behind the camera. Fractions run from the top left. */
+export function originProjection(camera: Camera): { left: number; top: number } | null {
+  camera.updateMatrixWorld();
+  const viewZ = projected.set(0, 0, 0).applyMatrix4(camera.matrixWorldInverse).z;
+  if (viewZ >= 0) return null;
+  projected.set(0, 0, 0).project(camera);
+  return { left: (projected.x + 1) / 2, top: (1 - projected.y) / 2 };
+}
+
 // Keeps `anchor` at the screen position of the origin, where the highlighted lines cross.
 // Returns a function that stops the tracking.
 export function anchorToOrigin(
@@ -115,10 +125,14 @@ export function anchorToOrigin(
   const { camera } = viewport;
 
   const place = () => {
-    camera.updateMatrixWorld();
-    projected.set(0, 0, 0).project(camera);
-    anchor.style.left = `${((projected.x + 1) / 2) * 100}%`;
-    anchor.style.top = `${((1 - projected.y) / 2) * 100}%`;
+    const projectedOrigin = originProjection(camera);
+    if (!projectedOrigin) {
+      anchor.style.visibility = "hidden";
+      return;
+    }
+    anchor.style.visibility = "visible";
+    anchor.style.left = `${projectedOrigin.left * 100}%`;
+    anchor.style.top = `${projectedOrigin.top * 100}%`;
   };
 
   place();

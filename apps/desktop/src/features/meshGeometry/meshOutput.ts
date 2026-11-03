@@ -74,9 +74,10 @@ export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: b
         if (!Number.isInteger(joint) || joint < 0) throw new Error("Skin joint indices must be nonnegative integers");
         influences.set(joint, (influences.get(joint) ?? 0) + weight);
       }
-      const best = [...influences].filter(([, weight]) => weight > 1e-10).sort((a, b) => b[1] - a[1]).slice(0, 4);
+      // Rank by magnitude so a negative corrective weight is kept, then restore a unit sum.
+      const best = [...influences].filter(([, weight]) => Math.abs(weight) > 1e-10).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4);
       const total = best.reduce((sum, [, weight]) => sum + weight, 0);
-      if (total === 0) throw new Error("Skin interpolation produced no positive influences");
+      if (!(Math.abs(total) > 1e-8)) throw new Error("Skin interpolation produced no net influence");
       for (let i = 0; i < 4; i += 1) { joints.push(best[i]?.[0] ?? 0); weights.push((best[i]?.[1] ?? 0) / total); }
     }
     output.setAttribute("skinIndex", new Uint32BufferAttribute(joints, 4)); output.setAttribute("skinWeight", new Float32BufferAttribute(weights, 4));

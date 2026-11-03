@@ -10,6 +10,8 @@ interface TransformPanelProps {
   /** True while the assistant is working; the values are shown but cannot be changed. */
   disabled: boolean;
   onChange: (patch: Partial<ObjectTransform>) => void;
+  onPreview: (patch: Partial<ObjectTransform>) => void;
+  onPreviewEnd: (commit: boolean) => void;
   onDeselect: () => void;
   className?: string;
 }
@@ -22,6 +24,8 @@ export function TransformPanel({
   object,
   disabled,
   onChange,
+  onPreview,
+  onPreviewEnd,
   onDeselect,
   className,
 }: TransformPanelProps) {
@@ -55,13 +59,13 @@ export function TransformPanel({
           <X className="size-4" />
         </Button>
       </header>
-      <TransformFields transform={object.transform} disabled={disabled} onChange={onChange} />
+      <TransformFields transform={object.transform} disabled={disabled} onChange={onChange} onPreview={onPreview} onPreviewEnd={onPreviewEnd} />
       <p className="mt-2.5 text-[11px] leading-4 text-muted-foreground">
         {disabled
           ? "Wait for the assistant to finish to edit this object."
           : object.count > 1
             ? "The handles move all selected objects together. These values are the active object's."
-            : "G, R, and S select a transform tool. Hold Shift while dragging to snap."}
+            : "G, R, and S start a mouse transform. X, Y, or Z constrain the axis; click to confirm or Esc to cancel."}
       </p>
     </section>
   );

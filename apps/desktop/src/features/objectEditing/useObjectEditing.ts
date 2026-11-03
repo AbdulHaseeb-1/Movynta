@@ -9,6 +9,8 @@ import { ObjectGizmo, type ObjectChange } from "./ObjectGizmo";
 import { recordSceneEdit } from "./sceneEditApi";
 import { SelectionTools } from "./SelectionTools";
 import { changeSceneHistory } from "./sceneHistory";
+import { KeyboardTransform } from "./KeyboardTransform";
+import { NumericTransformPreview } from "./NumericTransformPreview";
 
 /** The active object, as the panel shows it, and how many objects are selected with it. */
 export interface SelectedObject {
@@ -29,12 +31,15 @@ interface ObjectEditingOptions {
 }
 
 export interface ObjectEditing {
+  transformHint: string;
   selected: SelectedObject | null;
   /** Why the last change could not be saved, until it is dismissed. */
   error: string;
   dismissError: () => void;
   /** Changes some parts of the selected object's transform, for example from typed values. */
   updateTransform: (patch: Partial<ObjectTransform>) => void;
+  previewTransform: (patch: Partial<ObjectTransform>) => void;
+  finishTransformPreview: (commit: boolean) => void;
   deselect: () => void;
   /** Deletes every selected object immediately. */
   requestDelete: () => void;
@@ -121,7 +126,9 @@ export function useObjectEditing({
 
   const [selected, setSelected] = useState<SelectedObject | null>(null);
   const [error, setError] = useState("");
+  const [transformHint, setTransformHint] = useState("");
   const historyBusy = useRef(false);
+  const numericPreview = useRef<NumericTransformPreview | null>(null);
 
   const save = useCallback(
     (
@@ -178,13 +185,18 @@ export function useObjectEditing({
       view,
     );
     const selecting = new SelectionTools(viewport, scene, view);
+    const keyboard = new KeyboardTransform(viewport, scene, view, onTransformCommit, setTransformHint, (id, transform) => setSelected((previous) => previous?.id === id ? { ...previous, transform } : previous));
     const unsubscribe = scene.onChange(() => {
+      if (numericPreview.current && !numericPreview.current.valid()) { numericPreview.current.finish(false); numericPreview.current = null; }
       const next = describe(scene);
       setSelected(next);
     });
     return () => {
       unsubscribe();
       selecting.dispose();
+      keyboard.dispose();
+      numericPreview.current?.finish(false);
+      numericPreview.current = null;
       handles.dispose();
     };
   }, [viewport, scene, onTransformCommit]);
@@ -244,11 +256,31 @@ export function useObjectEditing({
     [scene, save],
   );
 
+  const previewTransform = useCallback((patch: Partial<ObjectTransform>) => {
+    if (!scene || !scene.selection || !current.current.enabled || historyBusy.current || scene.requiresRecovery) return;
+    if (!scene.hasProject) { setError(SAVE_FIRST); return; }
+    try {
+      numericPreview.current ??= new NumericTransformPreview(scene, scene.selection);
+      const transform = numericPreview.current.preview(patch);
+      if (transform) setSelected((previous) => previous?.id === scene.selection ? { ...previous, transform } : previous);
+    } catch (failure) { setError(errorMessage(failure)); }
+  }, [scene]);
+  const finishTransformPreview = useCallback((commit: boolean) => {
+    const preview = numericPreview.current; numericPreview.current = null;
+    if (!scene || !preview) return;
+    const change = preview.finish(commit && current.current.enabled && !historyBusy.current);
+    const updatedSelection = describe(scene); setSelected(updatedSelection);
+    if (change) save({ kind: "transform", changes: [change] });
+  }, [scene, save]);
+
   return {
+    transformHint,
     selected,
     error,
     dismissError: () => setError(""),
     updateTransform,
+    previewTransform,
+    finishTransformPreview,
     deselect: () => scene?.select(null),
     requestDelete,
   };

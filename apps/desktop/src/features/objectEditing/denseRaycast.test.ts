@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   BoxGeometry,
+  BufferGeometry,
   DoubleSide,
+  Float32BufferAttribute,
   IcosahedronGeometry,
   Mesh,
   MeshStandardMaterial,
@@ -89,5 +91,85 @@ describe("accelerated ray tests on dense meshes", () => {
     const hits: Intersection[] = [];
     mesh.raycast(new Raycaster(new Vector3(40, 40, 8), new Vector3(0, 0, -1)), hits);
     expect(hits).toHaveLength(0);
+  });
+
+  it("follows a morph target instead of the rest positions", () => {
+    const make = (influence: number) => {
+      const geometry = new IcosahedronGeometry(1, 40);
+      const position = geometry.getAttribute("position");
+      const delta = new Float32Array(position.count * 3);
+      for (let index = 0; index < position.count; index += 1) delta[index * 3 + 1] = 3;
+      geometry.morphAttributes.position = [new Float32BufferAttribute(delta, 3)];
+      geometry.morphTargetsRelative = true;
+      const mesh = new Mesh(geometry, new MeshStandardMaterial({ side: DoubleSide }));
+      mesh.morphTargetInfluences = [influence];
+      mesh.updateMatrixWorld(true);
+      return mesh;
+    };
+    const morphed = make(1);
+    const rest = make(0);
+    const raycaster = new Raycaster(new Vector3(0, 8, 0), new Vector3(0, -1, 0));
+    const expected = nearestDistance(morphed, raycaster);
+    const resting = nearestDistance(rest, raycaster);
+    expect(expected).toBeDefined();
+    expect(resting).toBeDefined();
+    expect(Math.abs((expected ?? 0) - (resting ?? 0))).toBeGreaterThan(1);
+    const accelerated = make(1);
+    accelerateRaycasts(accelerated);
+    expect(nearestDistance(accelerated, raycaster)).toBeCloseTo(expected ?? -1, 4);
+  });
+
+  it("honors draw range and a near plane that hides only the closer hit", () => {
+    const triangles = DENSE_TRIANGLES + 2;
+    const values = new Float32Array(triangles * 9);
+    for (let triangle = 0; triangle < triangles; triangle += 1) {
+      const offset = triangle * 9;
+      values[offset] = 40;
+      values[offset + 1] = triangle;
+      values[offset + 3] = 40.2;
+      values[offset + 4] = triangle;
+      values[offset + 6] = 40;
+      values[offset + 7] = triangle + 0.2;
+    }
+    // A close triangle first, then a farther one on the same ray. The rest sit off to the side.
+    values.set([-1, -1, 3, 1, -1, 3, 0, 1, 3], 9);
+    values.set([-1, -1, 0, 1, -1, 0, 0, 1, 0], (triangles - 1) * 9);
+    const geometry = new BufferGeometry().setAttribute("position", new Float32BufferAttribute(values, 3));
+    const raycaster = new Raycaster(new Vector3(0, 0, 5), new Vector3(0, 0, -1));
+    const reference = new Mesh(geometry, new MeshStandardMaterial({ side: DoubleSide }));
+    const accelerated = new Mesh(geometry.clone(), new MeshStandardMaterial({ side: DoubleSide }));
+    accelerateRaycasts(accelerated);
+    expect(nearestDistance(accelerated, raycaster)).toBeCloseTo(nearestDistance(reference, raycaster) ?? -1, 4);
+
+    geometry.setDrawRange(0, 3);
+    accelerated.geometry.setDrawRange(0, 3);
+    const clipped = new Raycaster(new Vector3(0, 0, 5), new Vector3(0, 0, -1));
+    expect(nearestDistance(reference, clipped)).toBeUndefined();
+    expect(nearestDistance(accelerated, clipped)).toBeUndefined();
+
+    geometry.setDrawRange(0, Infinity);
+    accelerated.geometry.setDrawRange(0, Infinity);
+    const near = new Raycaster(new Vector3(0, 0, 5), new Vector3(0, 0, -1));
+    near.near = 3;
+    expect(nearestDistance(reference, near)).toBeCloseTo(5, 4);
+    expect(nearestDistance(accelerated, near)).toBeCloseTo(5, 4);
+  });
+
+  it("rebuilds its boxes after the positions move", () => {
+    const reference = dense();
+    const accelerated = dense();
+    accelerateRaycasts(accelerated);
+    for (const mesh of [reference, accelerated]) {
+      const position = mesh.geometry.getAttribute("position");
+      for (let index = 0; index < position.count; index += 1) position.setX(index, position.getX(index) + 20);
+      position.needsUpdate = true;
+    }
+    reference.updateMatrixWorld(true);
+    const vertex = new Vector3().fromBufferAttribute(reference.geometry.getAttribute("position"), 100).applyMatrix4(reference.matrixWorld);
+    const origin = vertex.clone().add(new Vector3(0, 0, 3));
+    const raycaster = new Raycaster(origin, vertex.clone().sub(origin).normalize());
+    const expected = nearestDistance(reference, raycaster);
+    expect(expected).toBeDefined();
+    expect(nearestDistance(accelerated, raycaster)).toBeCloseTo(expected ?? -1, 4);
   });
 });

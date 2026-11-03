@@ -54,6 +54,8 @@ Prepared assistant edits also have a smoke benchmark in `EditorScene.prepared.te
 | `editor/execute` | `EditorScene` transforms, deletes, restore, context reads | HIGH | O(batch); restore O(steps); context O(objects) |
 | `editor/selection` | Group drag step, rectangle select, select all, many objects at once | HIGH | O(selected objects); rectangle O(objects) |
 | `editor/pick` | `pickObjectId` on many objects and on one dense mesh | HIGH | O(objects), O(triangles hit) |
+| `editor/componentHighlight` | Building Edit-mode face highlights for varying selection and mesh sizes | HIGH | O(selected face triangles); index construction excluded |
+| `editor/componentPreparation` | Repeated preparation of unchanged meshes when switching selection modes | HIGH | O(mesh size) for a new picking buffer; topology parsing and triangulation cached |
 | `editor/frame` | Per-frame gizmo sync and the panel's number helpers | HIGH | O(1) |
 | `importer/import` | `prepareModel`, OBJ and STL reading, naming | HIGH | O(vertices), O(file) |
 | `projects/helpers` | Store reducers, chat restore, card text | MEDIUM | O(items) |

@@ -1,5 +1,6 @@
 import {
   Box3,
+  DoubleSide,
   Mesh,
   MeshBasicMaterial,
   OrthographicCamera,
@@ -20,7 +21,7 @@ import {
  */
 const OUTLINE_COLOR = [1.0, 0.608, 0.129] as const;
 /** The thickness of the line in device pixels at the default pixel ratio of 1. */
-const THICKNESS_PIXELS = 2;
+const THICKNESS_PIXELS = 1.25;
 /** The mask is drawn at this fraction of the canvas size, which is all an outline needs. */
 const MASK_SCALE = 0.85;
 /** Objects take part in the outline by being on this camera layer; the main pass ignores layers. */
@@ -126,7 +127,7 @@ export function createOutlineRenderer(
   let localBoxes: Box3[] = [];
   const corners = Array.from({ length: 8 }, () => new Vector3());
   const mask = new WebGLRenderTarget(1, 1, { depthBuffer: true });
-  const maskMaterial = new MeshBasicMaterial({ color: 0xffffff });
+  const maskMaterial = new MeshBasicMaterial({ color: 0xffffff, side: DoubleSide });
   // Held directly, so a frame can update them without looking them up by name.
   const texel = { value: new Vector2(1, 1) };
   const radius = { value: THICKNESS_PIXELS };

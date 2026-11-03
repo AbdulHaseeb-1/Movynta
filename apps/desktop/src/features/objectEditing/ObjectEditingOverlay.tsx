@@ -49,6 +49,8 @@ export function ObjectEditingOverlay({
           object={editing.selected}
           disabled={disabled}
           onChange={editing.updateTransform}
+          onPreview={editing.previewTransform}
+          onPreviewEnd={editing.finishTransformPreview}
           onDeselect={editing.deselect}
           className="min-h-0 w-full overflow-y-auto"
         />

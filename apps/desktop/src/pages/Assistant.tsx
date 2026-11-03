@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, SlidersHorizontal, Wrench } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
-import { useAppDispatch } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   CoordinateViewport,
@@ -26,6 +26,7 @@ import {
 } from "@/features/importer";
 import {
   ObjectEditingOverlay,
+  ModifierPanel,
   ToolHint,
   useObjectEditing,
 } from "@/features/objectEditing";
@@ -47,6 +48,8 @@ import {
 } from "@/features/projects";
 import { errorMessage } from "@/lib/backend";
 import { cn } from "@/lib/utils";
+import { WorkspacePanel } from "@/components/WorkspacePanel";
+import { AddShapeMenu, useComponentSelection, DesignModeMenu, DesignWorkspacePanel, setDesignMode, setPanelOpen as setWorkspacePanelOpen } from "@/features/designWorkspace";
 
 /** A saved project, fetched in full before the workspace shows it. */
 interface SavedProject {
@@ -67,9 +70,12 @@ interface WorkspaceProps {
 function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const designMode = useAppSelector((state) => state.designWorkspace.mode);
   const [prompt, setPrompt] = useState("");
+  const [modifierBusy, setModifierBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(false);
+  const panelOpen = useAppSelector((state) => state.designWorkspace.panels.assistant);
+  const setPanelOpen = useCallback((open: boolean) => dispatch(setWorkspacePanelOpen({ id: "assistant", open })), [dispatch]);
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [editorScene, setEditorScene] = useState<EditorScene | null>(null);
   const [project, setProject] = useState<Project | undefined>(undefined);
@@ -105,9 +111,10 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const editing = useObjectEditing({
     viewport,
     scene: editorScene,
-    disabled: run.busy || opening !== "ready",
+    disabled: run.busy || modifierBusy || opening !== "ready" || designMode === "edit",
     saves,
   });
+  useComponentSelection(viewport, editorScene, run.busy || modifierBusy || opening !== "ready");
 
   const importer = useModelImport({
     saves,
@@ -116,7 +123,6 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     // A model is content like any prompt: the workspace leaves its blank state and offers the chat.
     onImported: () => {
       setSubmitted(true);
-      setPanelOpen(true);
     },
   });
 
@@ -151,7 +157,6 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     const hasContent =
       data.conversation.messages.length > 0 || data.steps.length > 0;
     setSubmitted(hasContent);
-    setPanelOpen(data.conversation.messages.length > 0);
     setOpening("ready");
   }, []);
 
@@ -194,6 +199,10 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     viewport?.setAssistantPanelOpen(panelOpen);
   }, [viewport, panelOpen]);
 
+  useEffect(() => {
+    dispatch(setDesignMode("object"));
+  }, [dispatch]);
+
   function handleSubmit() {
     const message = prompt.trim();
     if (!message || run.busy) return;
@@ -204,12 +213,6 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       window.requestAnimationFrame(() => setPanelOpen(true)),
     );
     void run.submit(message);
-  }
-
-  function handleNewChat() {
-    run.reset();
-    setSubmitted(false);
-    setPanelOpen(false);
   }
 
   function handleSuggestion(suggestion: string) {
@@ -278,7 +281,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
           </section>
         )}
       </CoordinateViewport>
-      {submitted && (
+      {submitted && designMode === "object" && (
         // The tools sit at the bottom of the free part of the view: clear of the chat on the left and of
         // the object's values on the right, and centered under the work.
         <div
@@ -287,11 +290,11 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
             panelOpen ? "left-[340px]" : "left-4",
           )}
         >
-          <ToolHint hasSelection={editing.selected !== null} />
+          {editing.transformHint ? <output className="pointer-events-none rounded-full bg-popover px-3 py-2 text-xs text-popover-foreground shadow-xl">{editing.transformHint}</output> : <ToolHint hasSelection={editing.selected !== null} />}
           <ViewportToolbar
             viewport={viewport}
             hasSelection={editing.selected !== null}
-            disabled={run.busy}
+            disabled={run.busy || modifierBusy}
             onDelete={editing.requestDelete}
             orientation="horizontal"
             className="animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none"
@@ -302,31 +305,37 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       {submitted && (
         <AssistantPanel
           run={run}
-          onNewChat={handleNewChat}
           open={panelOpen}
           onOpenChange={setPanelOpen}
           composer={composer("panel")}
           className="absolute top-[64px] bottom-4 left-4 z-20 animate-in fade-in zoom-in-95 duration-300 motion-reduce:animate-none"
         />
       )}
-      <ProjectBar
-        project={project}
-        onAction={actions.perform}
-        onRename={renameProject}
-        className="absolute top-4 left-4 z-20"
-      />
-      {/* One column down the right edge: Import, then the selected object's values, then nothing else. */}
-      <div className="pointer-events-none absolute top-4 right-4 bottom-20 z-20 flex w-[272px] flex-col items-end gap-3">
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+        <ProjectBar project={project} onAction={actions.perform} onRename={renameProject} />
+        <DesignModeMenu />
+        <AddShapeMenu scene={editorScene} ensureProject={ensureProject} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} onAdded={() => setSubmitted(true)} />
+      </div>
+      {/* Panel launchers stay compact until opened. */}
+      <div className="pointer-events-none absolute top-4 right-4 bottom-20 z-20 flex w-[272px] flex-col items-end gap-3 overflow-y-auto">
         <ImportButton
           importer={importer}
-          disabled={run.busy || opening !== "ready"}
+          disabled={run.busy || modifierBusy || opening !== "ready"}
           className="pointer-events-auto w-full shrink-0"
         />
+        <DesignWorkspacePanel scene={editorScene} />
+        <WorkspacePanel panelId="modifiers" label="modifiers" icon={Wrench} forceOpen={modifierBusy}>
+          {editing.selected ? <ModifierPanel scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} /> : <p className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">Select an object to view its modifiers.</p>}
+        </WorkspacePanel>
+        {designMode === "object" && <WorkspacePanel panelId="properties" label="properties" icon={SlidersHorizontal} forceOpen={Boolean(editing.error)}>
+          {editing.selected || editing.error ? (
         <ObjectEditingOverlay
           editing={editing}
-          disabled={run.busy}
-          className="w-full origin-top-right scale-[0.7]"
+          disabled={run.busy || modifierBusy}
+          className="w-full"
         />
+          ) : <p className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">Select an object to view its properties.</p>}
+        </WorkspacePanel>}
       </div>
       {opening !== "ready" && (
         <div

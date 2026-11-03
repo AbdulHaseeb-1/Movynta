@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, SquarePen, X } from "lucide-react";
+import { ArrowDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,12 +21,10 @@ const STICK_THRESHOLD = 48;
 function HeaderButton({
   label,
   onClick,
-  disabled,
   children,
 }: {
   label: string;
   onClick: () => void;
-  disabled?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -38,7 +36,6 @@ function HeaderButton({
           size="icon-sm"
           className="text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
           onClick={onClick}
-          disabled={disabled}
           aria-label={label}
         >
           {children}
@@ -51,7 +48,6 @@ function HeaderButton({
 
 interface AssistantPanelProps {
   run: AssistantRun;
-  onNewChat: () => void;
   className?: string;
   /** The message composer, shown pinned to the bottom of the pane. */
   composer?: ReactNode;
@@ -63,7 +59,6 @@ interface AssistantPanelProps {
 /** Conversation pane: transcript with inline tool calls, approvals, and the composer. */
 export function AssistantPanel({
   run,
-  onNewChat,
   className,
   composer,
   open,
@@ -107,12 +102,12 @@ export function AssistantPanel({
             "transition-[width,height,border-radius] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
             open
               ? "h-full w-[min(400px,calc(100vw-32px))] rounded-3xl"
-              : "h-10 w-10 rounded-xl",
+              : "h-8 w-8 rounded-xl",
           )}
         >
           <div
             className={cn(
-              "absolute top-0 left-0 grid size-10 place-items-center transition-opacity duration-200 ease-in-out motion-reduce:transition-none",
+              "absolute top-0 left-0 grid size-8 place-items-center transition-opacity duration-200 ease-in-out motion-reduce:transition-none",
               open ? "pointer-events-none opacity-0" : "opacity-100 delay-300",
             )}
             inert={open}
@@ -123,7 +118,7 @@ export function AssistantPanel({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-10 rounded-xl hover:bg-foreground/10"
+                  className="size-8 rounded-xl hover:bg-foreground/10"
                   aria-label={`Open ${ASSISTANT_NAME}`}
                   aria-expanded={open}
                   aria-controls="assistant-panel"
@@ -133,7 +128,7 @@ export function AssistantPanel({
                     src={LOGO_SRC}
                     alt=""
                     draggable={false}
-                    className="size-5 object-contain"
+                    className="size-4 object-contain"
                   />
                 </Button>
               </TooltipTrigger>
@@ -160,13 +155,6 @@ export function AssistantPanel({
               <h2 className="min-w-0 flex-1 truncate text-[14px] font-medium tracking-tight">
                 {ASSISTANT_NAME}
               </h2>
-              <HeaderButton
-                label="New chat"
-                onClick={onNewChat}
-                disabled={run.busy}
-              >
-                <SquarePen className="size-3.5" />
-              </HeaderButton>
               <HeaderButton
                 label={`Close ${ASSISTANT_NAME}`}
                 onClick={() => onOpenChange(false)}
