@@ -8,7 +8,7 @@ export type MeshModifier = { type: "geometry.bevel"; width: number; segments?: n
 import { blend, evaluate, mean, type Weights } from "./meshWeights";
 import { writeGeometry } from "./meshOutput";
 import { bevelSurface } from "./meshBevel";
-import { subdivideLinear, subdivideLoop } from "./meshSubdivision";
+import { splitConcaveFaces, subdivideLinear, subdivideLoop } from "./meshSubdivision";
 
 function average(values: readonly Vector3[]): Vector3 {
   const result = new Vector3(); for (const value of values) result.add(value);
@@ -23,7 +23,9 @@ function samplesMatch(sources: readonly ContinuityChannel[], left: Weights, righ
     if (Math.abs(evaluate(source, left, component) - evaluate(source, right, component)) > 1e-5) return false;
   return true;
 }
-function subdivide(mesh: PolygonMesh, sources: readonly ContinuityChannel[]): PolygonMesh {
+function subdivide(input: PolygonMesh, sources: readonly ContinuityChannel[]): PolygonMesh {
+  // Concave faces are triangulated first: the face-centre point would otherwise fall outside the polygon.
+  const mesh = splitConcaveFaces(input);
   const graph = topology(mesh); assertManifold(mesh, graph);
   if (graph.vertexFaces.some((faces) => faces.length > 64)) throw new Error("Subdivision supports vertex valence up to 64; simplify extraordinary vertices first");
   const data = channels(mesh);

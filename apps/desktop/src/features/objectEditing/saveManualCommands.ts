@@ -13,10 +13,13 @@ export async function saveManualCommands(
   const id = `manual_${crypto.randomUUID()}`;
   const revision = scene.currentRevision;
   const prepared = scene.executePrepared(id, revision, commands, "prepare");
-  if (prepared.status !== "applied")
+  if (prepared.status !== "applied") {
+    // Geometry failures carry the reason (for example a non-manifold or inconsistently wound mesh); show it.
+    const reason = "message" in prepared && typeof prepared.message === "string" ? prepared.message : "";
     throw new Error(
-      "The edit could not be prepared. Check the geometry and parameters.",
+      reason || "The edit could not be prepared. Check the geometry and parameters.",
     );
+  }
   try {
     try {
       await recordSceneEdit(scene.projectId, commands, id);

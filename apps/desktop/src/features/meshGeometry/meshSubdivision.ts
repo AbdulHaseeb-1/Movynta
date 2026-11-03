@@ -1,6 +1,6 @@
 import { Vector3 } from "three";
 import { triangulate } from "./meshOutput";
-import { assertManifold, channels, edgeKey, point, topology, type ContinuityChannel, type PolygonMesh } from "./meshTopology";
+import { assertManifold, channels, edgeKey, faceNormal, point, topology, type ContinuityChannel, type PolygonMesh } from "./meshTopology";
 import { blend, evaluate, mean, type Weights } from "./meshWeights";
 
 /** Original Loop vertex weight. Valence 3 is exactly 3/16. */
@@ -19,7 +19,23 @@ function samplesMatch(sources: readonly ContinuityChannel[], left: Weights, righ
     if (Math.abs(evaluate(source, left, component) - evaluate(source, right, component)) > 1e-5) return false;
   return true;
 }
-function asTriangles(mesh: PolygonMesh): PolygonMesh {
+/** A face is convex when every corner turns the same way as its normal. */
+function isConvex(mesh: PolygonMesh, face: readonly number[]): boolean {
+  const normal = faceNormal(mesh, face);
+  for (let i = 0; i < face.length; i += 1) {
+    const a = point(mesh, face[i]); const b = point(mesh, face[(i + 1) % face.length]); const c = point(mesh, face[(i + 2) % face.length]);
+    const first = b.clone().sub(a); const second = c.clone().sub(b);
+    const scale = first.length() * second.length();
+    if (scale > 0 && first.cross(second).dot(normal) < -1e-9 * scale) return false;
+  }
+  return true;
+}
+
+/**
+ * Splits the faces selected by `shouldSplit` into triangles and keeps every other face as it is.
+ * Corner attributes follow each triangle corner, so UVs, colors and materials are preserved.
+ */
+function splitFaces(mesh: PolygonMesh, shouldSplit: (face: readonly number[]) => boolean): PolygonMesh {
   const data = channels(mesh);
   const faces: number[][] = [];
   const corners: Weights[][] = [];
@@ -27,6 +43,10 @@ function asTriangles(mesh: PolygonMesh): PolygonMesh {
   mesh.faces.forEach((face, faceIndex) => {
     const samples = data.corners[faceIndex];
     if (!samples || samples.length !== face.length) throw new Error("Missing corner attributes");
+    if (!shouldSplit(face)) {
+      faces.push([...face]); corners.push(samples); materials.push(data.materials[faceIndex] ?? 0);
+      return;
+    }
     const triangles = triangulate(mesh, face);
     if (triangles.length === 0) throw new Error("Mesh has a degenerate face");
     for (const triangle of triangles) {
@@ -46,8 +66,21 @@ function asTriangles(mesh: PolygonMesh): PolygonMesh {
   return { positions: mesh.positions, faces, channels: { positions: data.positions, corners, materials } };
 }
 
+function asTriangles(mesh: PolygonMesh): PolygonMesh {
+  return splitFaces(mesh, () => true);
+}
+
+/**
+ * Subdivision places a new point at the centre of each face. For a concave face that point can lie
+ * outside the polygon (on an L or U notch), so those faces are triangulated first. Convex faces are kept.
+ */
+export function splitConcaveFaces(mesh: PolygonMesh): PolygonMesh {
+  return splitFaces(mesh, (face) => !isConvex(mesh, face));
+}
+
 /** Midpoint subdivision. Original vertices stay where they are. */
-export function subdivideLinear(mesh: PolygonMesh): PolygonMesh {
+export function subdivideLinear(input: PolygonMesh): PolygonMesh {
+  const mesh = splitConcaveFaces(input);
   const graph = topology(mesh);
   assertManifold(mesh, graph);
   const data = channels(mesh);

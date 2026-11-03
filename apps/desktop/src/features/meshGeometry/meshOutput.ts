@@ -10,16 +10,41 @@ function sample(attribute: Attribute, weights: Weights, component: number): numb
   return value;
 }
 
+/** Cosine between a triangle's normal and the face normal; 0 for a degenerate triangle. Negative means folded. */
+function facing(mesh: PolygonMesh, face: readonly number[], triangle: readonly number[], normal: Vector3): number {
+  const [a, b, c] = triangle.map((corner) => point(mesh, face[corner]));
+  if (!a || !b || !c) return -1;
+  const cross = b.clone().sub(a).cross(c.clone().sub(a)); const length = cross.length();
+  return length === 0 ? 0 : cross.dot(normal) / length;
+}
+
+/**
+ * A non-planar quad can fold when projected onto one plane. Split it along the diagonal whose two
+ * triangles both face the quad normal; returns undefined when neither diagonal avoids a fold.
+ */
+function quadDiagonal(mesh: PolygonMesh, face: readonly number[], normal: Vector3): number[][] | undefined {
+  const options = [[[0, 1, 2], [0, 2, 3]], [[0, 1, 3], [1, 2, 3]]];
+  let best: number[][] | undefined; let bestScore = -Infinity;
+  for (const option of options) {
+    const score = Math.min(...option.map((triangle) => facing(mesh, face, triangle, normal)));
+    if (score > bestScore) { best = option; bestScore = score; }
+  }
+  return bestScore >= -1e-9 ? best : undefined;
+}
+
 /** Triangulate in the dominant plane, preserving winding even for concave control faces. */
 export function triangulate(mesh: PolygonMesh, face: readonly number[]): number[][] {
   if (face.length === 3) return [[0, 1, 2]];
   const normal = faceNormal(mesh, face);
   const axis = Math.abs(normal.x) > Math.abs(normal.y) ? (Math.abs(normal.x) > Math.abs(normal.z) ? 0 : 2) : (Math.abs(normal.y) > Math.abs(normal.z) ? 1 : 2);
   const contour = face.map((id) => { const p = point(mesh, id); return axis === 0 ? new Vector2(p.y, p.z) : axis === 1 ? new Vector2(p.x, p.z) : new Vector2(p.x, p.y); });
-  return ShapeUtils.triangulateShape(contour, []).map((triangle) => {
+  const projected = ShapeUtils.triangulateShape(contour, []).map((triangle) => {
     const [a, b, c] = triangle.map((corner) => point(mesh, face[corner]));
     return a && b && c && b.clone().sub(a).cross(c.clone().sub(a)).dot(normal) < 0 ? [...triangle].reverse() : triangle;
   });
+  // Quads keep their own vertex order so neighbouring triangles agree on winding even when the quad is non-planar.
+  if (face.length === 4) return quadDiagonal(mesh, face, normal) ?? (projected.length === 2 ? projected : []);
+  return projected;
 }
 
 /** Render corners are distinct from control vertices, so UV and material seams remain intact. */
@@ -45,7 +70,7 @@ export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: b
       return index;
     };
     const triangles = triangulate(mesh, face);
-    if (triangles.length !== face.length - 2) throw new Error("Face cannot be triangulated without losing corners; reduce bevel width or repair the mesh");
+    if (triangles.length !== face.length - 2) throw new Error("A result face is degenerate or self-intersecting and cannot be triangulated; repair the source mesh or change the modifier settings");
     if (flat) {
       for (const triangle of triangles) for (const corner of triangle) indices.push(emit(corner));
     } else {
