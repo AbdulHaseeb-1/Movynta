@@ -2,10 +2,13 @@ import { Vector3, type BufferGeometry, type Mesh } from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import { assertManifold, channels, continuityChannels, edgeKey, point, readTopology, topology, type ContinuityChannel, type PolygonMesh } from "./meshTopology";
 
-export type MeshModifier = { type: "geometry.bevel"; width: number; segments?: number } | { type: "geometry.subdivide"; levels: number };
+export type SubdivisionMethod = "catmull-clark" | "linear" | "loop";
+export type BevelProfile = "chamfer" | "round";
+export type MeshModifier = { type: "geometry.bevel"; width: number; segments?: number; profile?: BevelProfile; angle?: number } | { type: "geometry.subdivide"; levels: number; method?: SubdivisionMethod };
 import { blend, evaluate, mean, type Weights } from "./meshWeights";
 import { writeGeometry } from "./meshOutput";
 import { bevelSurface } from "./meshBevel";
+import { subdivideLinear, subdivideLoop } from "./meshSubdivision";
 
 function average(values: readonly Vector3[]): Vector3 {
   const result = new Vector3(); for (const value of values) result.add(value);
@@ -136,13 +139,20 @@ export function assertEditableMesh(mesh: Mesh): void {
 
 export function modifyGeometry(geometry: BufferGeometry, modifier: MeshModifier): BufferGeometry {
   let mesh = readTopology(geometry);
-  if (modifier.type === "geometry.bevel") mesh = bevelSurface(mesh, modifier.width, modifier.segments ?? 1);
+  const profile = modifier.type === "geometry.bevel" ? modifier.profile ?? "round" : "round";
+  const segments = modifier.type === "geometry.bevel" ? modifier.segments ?? 1 : 1;
+  if (modifier.type === "geometry.bevel") mesh = bevelSurface(mesh, modifier.width, segments, profile, modifier.angle ?? 0);
   else {
     const projectedTriangles = mesh.faces.reduce((sum, face) => sum + face.length, 0) * 2 * 4 ** (modifier.levels - 1);
     if (projectedTriangles > MAX_MESH_OUTPUT_TRIANGLES) throw new Error("Subdivision would exceed the geometry limit; use fewer levels or a simpler mesh");
     const sources = continuityChannels(geometry);
-    for (let i = 0; i < modifier.levels; i += 1) mesh = subdivide(mesh, sources);
+    const method = modifier.method ?? "catmull-clark";
+    for (let i = 0; i < modifier.levels; i += 1) {
+      if (method === "linear") mesh = subdivideLinear(mesh);
+      else if (method === "loop") mesh = subdivideLoop(mesh, sources);
+      else mesh = subdivide(mesh, sources);
+    }
   }
   checkBudget(mesh);
-  return writeGeometry(geometry, mesh, modifier.type === "geometry.bevel" && (modifier.segments ?? 1) === 1);
+  return writeGeometry(geometry, mesh, modifier.type === "geometry.bevel" && (profile === "chamfer" || segments === 1));
 }

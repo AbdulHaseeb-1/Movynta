@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { meshPathSchema } from "./mesh.schema.js";
-import { modifierListSchema } from "./modifier.schema.js";
+import { bevelProfileSchema, modifierListSchema, subdivisionMethodSchema } from "./modifier.schema.js";
 
 /** Upper bound for commands in one proposal. Larger batches always require approval. */
 export const MAX_COMMANDS_PER_PROPOSAL = 200;
@@ -29,12 +29,15 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
   z.object({ ...commandBase, type: z.literal("geometry.bevel"), objectId: identifierSchema,
     meshPath: meshPathSchema.default([]), width: z.number().finite().positive().max(100),
     segments: z.number().int().min(1).max(8).optional(),
+    profile: bevelProfileSchema.optional(),
+    angle: z.number().finite().min(0).max(180).optional(),
   }).strict(),
   z.object({ ...commandBase, type: z.literal("geometry.set_modifiers"), objectId: identifierSchema,
     meshPath: meshPathSchema.default([]), modifiers: modifierListSchema,
   }).strict(),
   z.object({ ...commandBase, type: z.literal("geometry.subdivide"), objectId: identifierSchema,
     meshPath: meshPathSchema.default([]), levels: z.number().int().min(1).max(3),
+    method: subdivisionMethodSchema.optional(),
   }).strict(),
   z
     .object({

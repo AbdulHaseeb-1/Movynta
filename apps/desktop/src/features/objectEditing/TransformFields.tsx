@@ -26,7 +26,7 @@ export function TransformFields({ transform, disabled, onChange, onPreview, onPr
   const degrees = radiansToDegrees(rotation);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1">
       <Row label="Location">
         {AXES.map(({ label, index }) => (
           <NumberField
@@ -82,9 +82,9 @@ export function TransformFields({ transform, disabled, onChange, onPreview, onPr
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <div className="grid grid-cols-3 gap-1.5">{children}</div>
+    <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] items-center gap-1">
+      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <div className="grid grid-cols-3 gap-1">{children}</div>
     </div>
   );
 }

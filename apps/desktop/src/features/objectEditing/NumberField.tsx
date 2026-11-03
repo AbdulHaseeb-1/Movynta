@@ -78,7 +78,7 @@ export function NumberField({
   return (
     <label
       className={cn(
-        "flex h-7 min-w-0 items-center gap-1.5 rounded-md bg-foreground/[0.07] px-2 focus-within:bg-foreground/[0.12] focus-within:outline-2 focus-within:outline-ring",
+        "flex h-6 min-w-0 items-center gap-1 rounded-md bg-foreground/[0.07] px-1.5 focus-within:bg-foreground/[0.12] focus-within:outline-2 focus-within:outline-ring",
         disabled && "opacity-50",
         className,
       )}

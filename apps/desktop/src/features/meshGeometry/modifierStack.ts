@@ -14,7 +14,9 @@ export function evaluateStack(mesh: Mesh, modifiers: MeshModifierSpec[], previou
   try {
     for (const modifier of modifiers) {
       if (!modifier.enabled) continue;
-      const operation: MeshModifier = modifier.kind === "bevel" ? { type: "geometry.bevel", width: modifier.width, segments: modifier.segments } : { type: "geometry.subdivide", levels: modifier.levels };
+      const operation: MeshModifier = modifier.kind === "bevel"
+        ? { type: "geometry.bevel", width: modifier.width, segments: modifier.segments, ...(modifier.profile === undefined ? {} : { profile: modifier.profile }), ...(modifier.angle === undefined ? {} : { angle: modifier.angle }) }
+        : { type: "geometry.subdivide", levels: modifier.levels, ...(modifier.method === undefined ? {} : { method: modifier.method }) };
       const next = modifyGeometry(geometry, operation); geometry.dispose(); geometry = next;
     }
     return { base, modifiers, geometry };

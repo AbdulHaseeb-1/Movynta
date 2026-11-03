@@ -114,3 +114,79 @@ describe("live modifier stack", () => {
     expect(set("invalid", [{ ...bevel, width: 99 }]).status).toBe("failed"); expect(mesh.geometry).toBe(before);
   });
 });
+
+function nearest(geometry: BufferGeometry, target: readonly [number, number, number]): number {
+  const position = geometry.getAttribute("position");
+  let best = Infinity;
+  for (let i = 0; i < position.count; i += 1) {
+    const dx = position.getX(i) - target[0];
+    const dy = position.getY(i) - target[1];
+    const dz = position.getZ(i) - target[2];
+    best = Math.min(best, dx * dx + dy * dy + dz * dz);
+  }
+  return Math.sqrt(best);
+}
+function edgeReach(geometry: BufferGeometry): number {
+  const position = geometry.getAttribute("position");
+  let best = 0;
+  for (let i = 0; i < position.count; i += 1) {
+    const axes = [Math.abs(position.getX(i)), Math.abs(position.getY(i)), Math.abs(position.getZ(i))].sort((a, b) => a - b);
+    best = Math.max(best, axes[1] ?? 0);
+  }
+  return best;
+}
+
+describe("named subdivision and bevel profiles", () => {
+  it("keeps a cube's corners with linear subdivision and smooths them with Loop", () => {
+    const source = new BoxGeometry(2, 2, 2);
+    const linear = modifyGeometry(source, { type: "geometry.subdivide", levels: 1, method: "linear" });
+    const cage = readTopology(linear);
+    expect(cage.positions).toHaveLength(26);
+    expect(cage.faces).toHaveLength(24);
+    expect(nearest(linear, [1, 1, 1])).toBeLessThan(1e-5);
+    expect(() => { const mesh = readTopology(linear); assertManifold(mesh, topology(mesh), true); }).not.toThrow();
+    const triangle = new BufferGeometry();
+    triangle.setAttribute("position", new Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
+    triangle.setIndex([0, 1, 2]);
+    const boundary = modifyGeometry(triangle, { type: "geometry.subdivide", levels: 1, method: "loop" });
+    expect(readTopology(boundary).faces).toHaveLength(4);
+    expect(nearest(boundary, [0.125, 0.125, 0])).toBeLessThan(1e-6);
+    expect(nearest(boundary, [0.5, 0, 0])).toBeLessThan(1e-6);
+    const solid = new BufferGeometry();
+    solid.setAttribute("position", new Float32BufferAttribute([1, 1, 1, 1, -1, -1, -1, 1, -1, -1, -1, 1], 3));
+    solid.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 1, 1, 3, 2]);
+    const looped = modifyGeometry(solid, { type: "geometry.subdivide", levels: 1, method: "loop" });
+    expect(nearest(looped, [0.25, 0.25, 0.25])).toBeLessThan(1e-6);
+    expect(nearest(looped, [0.5, 0, 0])).toBeLessThan(1e-6);
+    expect(() => { const mesh = readTopology(looped); assertManifold(mesh, topology(mesh), true); }).not.toThrow();
+  });
+  it("cuts a flat chamfer and can ignore edges below the angle limit", () => {
+    const source = new BoxGeometry(2, 2, 2);
+    const round = modifyGeometry(source, { type: "geometry.bevel", width: 0.2, segments: 4, profile: "round", angle: 0 });
+    const chamfer = modifyGeometry(source, { type: "geometry.bevel", width: 0.2, segments: 4, profile: "chamfer", angle: 0 });
+    expect(edgeReach(round)).toBeGreaterThan(edgeReach(chamfer) + 0.03);
+    const sharp = modifyGeometry(source, { type: "geometry.bevel", width: 0.2, segments: 1, angle: 30 });
+    const untouched = modifyGeometry(source, { type: "geometry.bevel", width: 0.2, segments: 1, angle: 180 });
+    expect(sharp.getAttribute("position").count).toBeGreaterThan(untouched.getAttribute("position").count);
+  });
+  it("keeps the named method and bevel profile on the live stack", () => {
+    const editor = new EditorScene(new Scene(), "p");
+    const mesh = new Mesh(new BoxGeometry(2, 2, 2));
+    editor.importObject("mesh", mesh);
+    const applied = editor.execute("stack", editor.currentRevision, [{
+      commandId: "stack",
+      type: "geometry.set_modifiers",
+      objectId: "mesh",
+      modifiers: [
+        { id: "edge", kind: "bevel", enabled: true, width: 0.2, segments: 4, profile: "chamfer", angle: 30 },
+        { id: "dense", kind: "subdivision", enabled: true, levels: 1, method: "linear" },
+      ],
+    }]);
+    expect(applied.status).toBe("applied");
+    expect(editor.context({ objectId: "mesh", meshPath: [], offset: 0, limit: 1 }).meshInspection?.modifiers).toEqual([
+      { id: "edge", kind: "bevel", enabled: true, width: 0.2, segments: 4, profile: "chamfer", angle: 30 },
+      { id: "dense", kind: "subdivision", enabled: true, levels: 1, method: "linear" },
+    ]);
+    expect(readTopology(mesh.geometry).positions.some((point) => Math.abs(Math.abs(point.x) - 1) < 1e-4 && Math.abs(Math.abs(point.y) - 1) < 1e-4 && Math.abs(Math.abs(point.z) - 1) < 1e-4)).toBe(false);
+  });
+});

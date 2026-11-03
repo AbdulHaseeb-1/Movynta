@@ -20,16 +20,21 @@ function inside(p: Vector2, polygon: readonly Vector2[]): boolean {
   return result;
 }
 
-/** Face offsets, rounded edge strips and local vertex patches. Open boundaries remain open. */
-export function bevelSurface(mesh: PolygonMesh, width: number, segments: number): PolygonMesh {
+/** Face offsets, edge strips and local vertex patches. Open boundaries remain open. */
+export function bevelSurface(mesh: PolygonMesh, width: number, segments: number, profile: "chamfer" | "round" = "round", angle = 0): PolygonMesh {
   if (!Number.isFinite(width) || width <= 0 || !Number.isInteger(segments) || segments < 1 || segments > 8) throw new Error("Bevel needs positive width and 1–8 segments");
+  if (profile !== "chamfer" && profile !== "round") throw new Error("Bevel profile must be chamfer or round");
+  if (!Number.isFinite(angle) || angle < 0 || angle > 180) throw new Error("Bevel angle must be between 0 and 180 degrees");
   const graph = topology(mesh); assertManifold(mesh, graph);
   const data = channels(mesh); const normals = mesh.faces.map((face) => faceNormal(mesh, face));
+  const limit = angle * Math.PI / 180;
   const active = new Set<string>();
   for (const [key, incident] of graph.edges) {
     const [a, b] = incident; if (!a || !b) continue;
     const na = normals[a.face]; const nb = normals[b.face];
-    if (na && nb) active.add(key);
+    if (!na || !nb) continue;
+    const turn = Math.acos(Math.min(1, Math.max(-1, na.dot(nb))));
+    if (turn + 1e-8 >= limit) active.add(key);
   }
   if (active.size === 0) return mesh;
   if (active.size * segments * 4 + mesh.faces.reduce((sum, face) => sum + face.length, 0) * 2 > MAX_MESH_OUTPUT_TRIANGLES) throw new Error("Bevel would exceed the geometry limit");
@@ -105,7 +110,10 @@ export function bevelSurface(mesh: PolygonMesh, width: number, segments: number)
       const anchorWeights = blend([[sv, 1 - tEdge], [sn, tEdge]]);
       const ids = [start];
       for (let i = 1; i < segments; i += 1) {
-        const t = i / segments; const left = (1 - t) ** 2; const center = 2 * t * (1 - t); const right = t * t;
+        const t = i / segments;
+        const left = profile === "chamfer" ? 1 - t : (1 - t) ** 2;
+        const center = profile === "chamfer" ? 0 : 2 * t * (1 - t);
+        const right = profile === "chamfer" ? t : t * t;
         const p = pa.clone().multiplyScalar(left).addScaledVector(anchor, center).addScaledVector(pb, right);
         const id = addPoint(p, blend([[sa, left], [anchorWeights, center], [sb, right]]), vertex);
         // New strip UVs and other face-varying values interpolate the adjacent source corners.

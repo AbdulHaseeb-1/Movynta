@@ -588,8 +588,8 @@ export class EditorScene {
         let id = command.commandId;
         for (let suffix = 1; entries.some((entry) => entry.id === id); suffix += 1) id = `${command.commandId.slice(0, 50)}_${suffix}`;
         const modifiers = command.type === "geometry.set_modifiers" ? command.modifiers : [...entries, command.type === "geometry.bevel"
-          ? { id, kind: "bevel" as const, enabled: true, width: command.width, segments: command.segments ?? 1 }
-          : { id, kind: "subdivision" as const, enabled: true, levels: command.levels }];
+          ? { id, kind: "bevel" as const, enabled: true, width: command.width, segments: command.segments ?? 1, ...(command.profile ? { profile: command.profile } : {}), ...(command.angle === undefined ? {} : { angle: command.angle }) }
+          : { id, kind: "subdivision" as const, enabled: true, levels: command.levels, ...(command.method ? { method: command.method } : {}) }];
         if (modifiers.length > 8) throw new Error("A mesh supports at most eight modifiers");
         const next = evaluateStack(mesh, modifiers, existing);
         staged.set(mesh, next);

@@ -36,6 +36,11 @@ describe("editor command schema", () => {
     expect(result[0]).toMatchObject({ meshPath: [] });
     for (const levels of [0, 4, 1.5]) expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.subdivide", objectId: "a", levels }]).success).toBe(false);
     for (const width of [0, -1, Number.NaN, 101]) expect(editorCommandListSchema.safeParse([{ commandId: "b", type: "geometry.bevel", objectId: "a", width }]).success).toBe(false);
+    expect(editorCommandListSchema.parse([{ commandId: "s", type: "geometry.subdivide", objectId: "a", levels: 1 }])[0]).not.toHaveProperty("method");
+    expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.subdivide", objectId: "a", levels: 1, method: "loop" }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.subdivide", objectId: "a", levels: 1, method: "nurbs" }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ commandId: "b", type: "geometry.bevel", objectId: "a", width: .1, profile: "chamfer", angle: 30 }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ commandId: "b", type: "geometry.bevel", objectId: "a", width: .1, angle: 181 }]).success).toBe(false);
   });
   it("accepts a valid mixed batch", () => {
     const parsed = editorCommandListSchema.safeParse([

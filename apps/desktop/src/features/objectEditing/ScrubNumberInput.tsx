@@ -40,7 +40,7 @@ export function ScrubNumberInput({
   return (
     <label
       htmlFor={id}
-      className={cn("text-[10px] text-muted-foreground", className)}
+      className={cn("flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground", className)}
     >
       <span
         role="spinbutton"
@@ -51,7 +51,7 @@ export function ScrubNumberInput({
         aria-valuemax={max}
         aria-disabled={disabled}
         className={cn(
-          "touch-none select-none",
+          "shrink-0 touch-none select-none",
           !disabled && "cursor-ew-resize",
         )}
         title="Drag left or right to adjust; hold Shift for precision. Click the number to type."
@@ -79,7 +79,7 @@ export function ScrubNumberInput({
         step={step}
         value={Number.isFinite(value) ? value : ""}
         disabled={disabled}
-        className="mt-1 h-7 px-2 text-xs"
+        className="h-6 min-w-0 flex-1 px-1.5 text-xs"
         onChange={(event) => onChange(event.target.valueAsNumber)}
         onKeyDown={(event) => {
           if (event.key === "Escape") {

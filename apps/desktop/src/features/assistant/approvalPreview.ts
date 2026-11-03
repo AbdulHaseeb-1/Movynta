@@ -10,6 +10,8 @@ const commandSchema = z.looseObject({
   width: z.number().optional(),
   levels: z.number().optional(),
   segments: z.number().optional(),
+  method: z.string().optional(),
+  profile: z.string().optional(),
   modifiers: z.array(z.unknown()).optional(),
 });
 
@@ -41,9 +43,9 @@ function describeCommand(command: Command): string {
     case "scene.delete_object":
       return `Delete ${target}`;
     case "geometry.bevel":
-      return `Bevel ${target} (width ${command.width ?? "?"}, ${command.segments ?? 1} segments); adds a live modifier`;
+      return `Bevel ${target} (${command.profile ?? "round"}, width ${command.width ?? "?"}, ${command.segments ?? 1} segments); adds a live modifier`;
     case "geometry.subdivide":
-      return `Subdivide ${target} (${command.levels ?? "?"} Catmull–Clark levels); adds a live modifier`;
+      return `Subdivide ${target} (${command.levels ?? "?"} ${command.method === "linear" ? "Linear" : command.method === "loop" ? "Loop" : "Catmull–Clark"} levels); adds a live modifier`;
     case "geometry.set_modifiers":
       return `Set the modifier stack on ${target} (${command.modifiers?.length ?? 0} modifiers)`;
     case "geometry.create_primitive":

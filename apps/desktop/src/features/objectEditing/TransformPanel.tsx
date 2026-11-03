@@ -33,11 +33,11 @@ export function TransformPanel({
     <section
       aria-label="Selected object"
       className={cn(
-        "pointer-events-auto rounded-xl bg-black/60 p-3 text-xs text-foreground shadow-2xl backdrop-blur-2xl backdrop-saturate-150",
+        "pointer-events-auto rounded-xl border border-border bg-card/95 p-2 text-xs text-foreground shadow-xl",
         className,
       )}
     >
-      <header className="mb-2.5 flex items-center gap-2">
+      <header className="mb-1.5 flex items-center gap-2">
         <Box className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <h2 className="min-w-0 flex-1 truncate text-[13px] font-medium" title={object.name}>
           {object.name}
@@ -60,13 +60,14 @@ export function TransformPanel({
         </Button>
       </header>
       <TransformFields transform={object.transform} disabled={disabled} onChange={onChange} onPreview={onPreview} onPreviewEnd={onPreviewEnd} />
-      <p className="mt-2.5 text-[11px] leading-4 text-muted-foreground">
-        {disabled
-          ? "Wait for the assistant to finish to edit this object."
-          : object.count > 1
-            ? "The handles move all selected objects together. These values are the active object's."
-            : "G, R, and S start a mouse transform. X, Y, or Z constrain the axis; click to confirm or Esc to cancel."}
-      </p>
+      {!disabled && <p className="mt-1.5 text-[10px] text-muted-foreground">G, R, and S transform. X, Y, or Z lock an axis.</p>}
+      {(disabled || object.count > 1) && (
+        <p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">
+          {disabled
+            ? "Wait for the assistant to finish to edit this object."
+            : "Values are the active object. Handles move the whole selection."}
+        </p>
+      )}
     </section>
   );
 }
