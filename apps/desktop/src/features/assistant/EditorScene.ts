@@ -90,6 +90,17 @@ export interface UserEdit {
   commands: unknown[];
 }
 
+/** What a list of the scene's objects needs to show about each one. */
+export interface OutlineEntry {
+  id: string;
+  name: string;
+  kind: "mesh" | "empty";
+  /** The object it hangs under, or null at the top level. */
+  parentId: string | null;
+  /** The object's own flag. It is drawn only if every object above it is visible too. */
+  visible: boolean;
+}
+
 /** Whether an id is taken, without copying the ids. */
 export interface IdLookup {
   has: (id: string) => boolean;
@@ -140,6 +151,12 @@ export class EditorScene {
   private objects = new Map<string, Object3D>();
   private readonly applied = new Set<string>();
   private revision = 0;
+  /**
+   * Counts the changes to the scene itself: it goes up for a batch, an import, a restore or a reset, and not for a
+   * selection. A list of the objects stays valid while it is unchanged; the revision cannot say so because a
+   * reset starts it again from 0.
+   */
+  private structureVersion = 0;
   private prepared: { id: string; revision: number; candidate: EditorScene } | undefined;
   private recoveryNeeded = false;
   get requiresRecovery(): boolean { return this.recoveryNeeded; }
@@ -175,6 +192,11 @@ export class EditorScene {
     return this.revision;
   }
 
+  /** Changes whenever the objects, their names, parents or visibility may have changed, never for a selection. */
+  get version(): number {
+    return this.structureVersion;
+  }
+
   /** The id of the active object: the one chosen last, which the panel and the handles follow. */
   get selection(): string | null {
     return this.selected[this.selected.length - 1] ?? null;
@@ -194,7 +216,8 @@ export class EditorScene {
     return () => this.listeners.delete(listener);
   }
 
-  private notify() {
+  private notify(structural = true) {
+    if (structural) this.structureVersion += 1;
     for (const listener of this.listeners) listener();
   }
 
@@ -278,7 +301,7 @@ export class EditorScene {
   private setSelection(next: readonly string[]) {
     if (next.length === this.selected.length && next.every((id, at) => id === this.selected[at])) return;
     this.selected = next;
-    this.notify();
+    this.notify(false);
   }
 
   /** Drops objects that no longer exist from the selection. */
@@ -571,6 +594,22 @@ export class EditorScene {
     } catch {
       return { ...this.focus, componentSelection: null };
     }
+  }
+
+  /** Every object with just what a list shows, without the bounds and mesh work `context` does. */
+  outline(): OutlineEntry[] {
+    const entries: OutlineEntry[] = [];
+    for (const [id, object] of this.objects) {
+      const parent = object.parent;
+      entries.push({
+        id,
+        name: object.name,
+        kind: object instanceof Mesh ? "mesh" : "empty",
+        parentId: parent && parent !== this.scene ? (this.ids.get(parent) ?? null) : null,
+        visible: object.visible,
+      });
+    }
+    return entries;
   }
 
   context(inspection?: MeshInspectionRequest) {
