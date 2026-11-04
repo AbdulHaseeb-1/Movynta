@@ -168,6 +168,14 @@ describe("extrude region", () => {
     expect(hardCageVertices(sphere, readTopology(sphere)).size).toBe(0);
   });
 
+  it("keeps the mesh closed when two selected faces touch only at a corner", () => {
+    // Two faces of a sphere that share one vertex and no edge. Each gets its own moved copy of that vertex.
+    const sphere = readTopology(new SphereGeometry(1, 8, 6));
+    const result = extrudeRegion(sphere, "face", ["12", "31"], new Vector3(0.3, 0.7, 0.2));
+    expect(() => assertManifold(result.mesh, topology(result.mesh), true)).not.toThrow();
+    expect(result.walls).toHaveLength(6);
+  });
+
   it("extrudes both vertices of an edge and rejects a lone vertex or a zero offset", () => {
     const mesh: PolygonMesh = {
       positions: [new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0)],

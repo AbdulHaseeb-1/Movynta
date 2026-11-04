@@ -2,7 +2,7 @@ import { Vector3, type BufferAttribute, type BufferGeometry, type InterleavedBuf
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import { writeShadedGeometry } from "./meshOutput";
 import { basis, type Weights } from "./meshWeights";
-import { channels, edgeKey, faceNormal, point, topology, type HalfEdge, type PolygonMesh, type SurfaceChannels } from "./meshTopology";
+import { channels, edgeKey, faceNormal, point, topology, type HalfEdge, type PolygonMesh, type SurfaceChannels, type Topology } from "./meshTopology";
 
 export type ExtrudeKind = "vertex" | "edge" | "face";
 export interface ExtrudeResult {
@@ -24,6 +24,7 @@ interface Draft {
   faces: number[][];
   corners: Weights[][];
   materials: number[];
+  /** One moved copy per vertex, for edge and vertex extrudes. Face extrudes split by fan instead. */
   copies: Map<number, number>;
   walls: number[];
 }
@@ -32,6 +33,20 @@ interface Span {
   /** The half-edge that grows the wall; its face decides the wall's side. */
   half: HalfEdge;
   incident: HalfEdge[];
+}
+
+/** One wall. `bottom` stays on the unmoved side and `top` on the moved side; `from` and `to` are the originals under them. */
+interface WallSpec {
+  faceIndex: number;
+  from: number;
+  to: number;
+  bottom: readonly [number, number];
+  top: readonly [number, number];
+}
+
+/** A run of selected faces around one vertex that touch each other through an edge at that vertex. */
+interface Fan {
+  vertex: number;
 }
 
 function requireOffset(offset: Vector3): void {
@@ -56,14 +71,26 @@ function draftFrom(mesh: PolygonMesh, data: SurfaceChannels): Draft {
   };
 }
 
-function copyVertex(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, vertex: number, offset: Vector3): number {
-  const known = draft.copies.get(vertex);
-  if (known !== undefined) return known;
+/** A new vertex at the original position plus `offset`, carrying the original vertex's weights. */
+function addVertex(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, vertex: number, offset: Vector3): number {
   const id = draft.positions.length;
-  draft.copies.set(vertex, id);
   draft.positions.push(point(mesh, vertex).clone().add(offset));
   draft.weights.push(new Map(data.positions[vertex] ?? basis(vertex)));
   return id;
+}
+
+function copyVertex(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, vertex: number, offset: Vector3): number {
+  const known = draft.copies.get(vertex);
+  if (known !== undefined) return known;
+  const id = addVertex(draft, mesh, data, vertex, offset);
+  draft.copies.set(vertex, id);
+  return id;
+}
+
+function copyOf(draft: Draft, vertex: number): number {
+  const copy = draft.copies.get(vertex);
+  if (copy === undefined) throw new Error("Missing extruded vertex");
+  return copy;
 }
 
 function cornerWeight(mesh: PolygonMesh, data: SurfaceChannels, faceIndex: number, vertex: number): Weights {
@@ -93,21 +120,20 @@ function assertWallArea(positions: readonly Vector3[], a: number, b: number, aTo
   if (!(sine > MIN_WALL_SINE)) throw new ZeroAreaWallError();
 }
 
-/** Grows the quad [a, b, b', a'] on edge a→b of `faceIndex`. Its bottom runs a→b, so the caller chooses the winding. */
-function addWall(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, faceIndex: number, a: number, b: number): void {
-  const start = draft.copies.get(a);
-  const end = draft.copies.get(b);
-  if (start === undefined || end === undefined) throw new Error("Missing extruded vertex");
-  assertWallArea(draft.positions, a, b, start);
+/** Adds the quad [bottom[0], bottom[1], top[1], top[0]]. Its bottom runs from→to, so the caller chooses the winding. */
+function addWall(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, wall: WallSpec): void {
+  const [a, b] = wall.bottom;
+  const [aTop, bTop] = wall.top;
+  assertWallArea(draft.positions, a, b, aTop);
   draft.walls.push(draft.faces.length);
-  draft.faces.push([a, b, end, start]);
+  draft.faces.push([a, b, bTop, aTop]);
   draft.corners.push([
-    cornerWeight(mesh, data, faceIndex, a),
-    cornerWeight(mesh, data, faceIndex, b),
-    cornerWeight(mesh, data, faceIndex, b),
-    cornerWeight(mesh, data, faceIndex, a),
+    cornerWeight(mesh, data, wall.faceIndex, wall.from),
+    cornerWeight(mesh, data, wall.faceIndex, wall.to),
+    cornerWeight(mesh, data, wall.faceIndex, wall.to),
+    cornerWeight(mesh, data, wall.faceIndex, wall.from),
   ]);
-  draft.materials.push(data.materials[faceIndex] ?? 0);
+  draft.materials.push(data.materials[wall.faceIndex] ?? 0);
 }
 
 function centerOf(mesh: PolygonMesh): Vector3 {
@@ -159,12 +185,71 @@ function orientWall(draft: Draft, preferred: Vector3, center: Vector3): void {
  * points away from the solid instead.
  */
 function growWall(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, center: Vector3, edge: HalfEdge, incident: readonly HalfEdge[]): void {
+  const start = copyOf(draft, edge.from);
+  const end = copyOf(draft, edge.to);
   if (incident.length === 1) {
-    addWall(draft, mesh, data, edge.face, edge.to, edge.from);
+    addWall(draft, mesh, data, { faceIndex: edge.face, from: edge.to, to: edge.from, bottom: [edge.to, edge.from], top: [end, start] });
     return;
   }
-  addWall(draft, mesh, data, edge.face, edge.from, edge.to);
+  addWall(draft, mesh, data, { faceIndex: edge.face, from: edge.from, to: edge.to, bottom: [edge.from, edge.to], top: [start, end] });
   orientWall(draft, adjacentNormal(mesh, incident), center);
+}
+
+/**
+ * Groups the selected faces around each vertex into fans: runs of selected faces that touch each other through an edge at
+ * that vertex. A vertex where the selection touches itself twice gets one moved copy per run, so the cap stays in pieces
+ * that do not share a vertex. The unselected side keeps its vertices; the walls between the two sides close around them.
+ */
+function fansOf(mesh: PolygonMesh, graph: Topology, selected: ReadonlySet<number>): { fans: Fan[]; fanAt: Map<string, number> } {
+  const nodes = new Map<string, number>();
+  const parent: number[] = [];
+  const node = (face: number, vertex: number): number => {
+    const key = `${face}:${vertex}`;
+    const known = nodes.get(key);
+    if (known !== undefined) return known;
+    const id = parent.length;
+    parent.push(id);
+    nodes.set(key, id);
+    return id;
+  };
+  const root = (id: number): number => {
+    let current = id;
+    let next = parent[current];
+    while (next !== undefined && next !== current) {
+      current = next;
+      next = parent[current];
+    }
+    return current;
+  };
+  const join = (a: number, b: number): void => {
+    const ra = root(a);
+    const rb = root(b);
+    if (ra !== rb) parent[rb] = ra;
+  };
+  for (const face of selected) for (const vertex of mesh.faces[face] ?? []) node(face, vertex);
+  for (const incident of graph.edges.values()) {
+    const first = incident[0];
+    const head = incident.find((half) => selected.has(half.face));
+    if (!first || !head) continue;
+    for (const vertex of [first.from, first.to]) {
+      for (const half of incident) if (selected.has(half.face)) join(node(head.face, vertex), node(half.face, vertex));
+    }
+  }
+  const fans: Fan[] = [];
+  const fanOfRoot = new Map<number, number>();
+  const fanAt = new Map<string, number>();
+  for (const face of [...selected].sort((a, b) => a - b)) {
+    for (const vertex of mesh.faces[face] ?? []) {
+      const component = root(node(face, vertex));
+      let fan = fanOfRoot.get(component);
+      if (fan === undefined) {
+        fan = fans.push({ vertex }) - 1;
+        fanOfRoot.set(component, fan);
+      }
+      fanAt.set(`${face}:${vertex}`, fan);
+    }
+  }
+  return { fans, fanAt };
 }
 
 function uniqueIds(ids: readonly string[], label: string): void {
@@ -288,7 +373,8 @@ export function checkExtrudeSelection(mesh: PolygonMesh, kind: ExtrudeKind, ids:
 }
 
 /**
- * Blender Extrude Region. Faces are rewired onto one copied cap and the boundary grows walls.
+ * Blender Extrude Region. Faces move as one cap, and the boundary grows walls. A vertex where the region touches
+ * itself gets a copy for each run of faces, so the cap stays in pieces that do not share a vertex.
  * Edges grow a quad. Vertices joined by an edge grow that same quad. One offset moves the whole region.
  */
 export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonly string[], offset: Vector3): ExtrudeResult {
@@ -299,20 +385,28 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
   if (kind === "face") {
     const faces = parseFaces(mesh, ids);
     const selected = new Set(faces);
-    for (const face of selected) for (const vertex of mesh.faces[face] ?? []) copyVertex(draft, mesh, data, vertex, offset);
-    for (const face of selected) {
-      const source = draft.faces[face];
-      if (!source) throw new Error("Unknown face");
-      draft.faces[face] = source.map((vertex) => {
-        const copy = draft.copies.get(vertex);
-        if (copy === undefined) throw new Error("Missing extruded vertex");
-        return copy;
-      });
-    }
-    for (const incident of topology(mesh).edges.values()) {
+    const graph = topology(mesh);
+    const { fans, fanAt } = fansOf(mesh, graph, selected);
+    // One moved vertex per fan. Unselected faces keep their vertices, so the walls close around them.
+    const moved = fans.map((fan) => addVertex(draft, mesh, data, fan.vertex, offset));
+    const movedAt = (face: number, vertex: number): number => {
+      const fan = fanAt.get(`${face}:${vertex}`);
+      const id = fan === undefined ? undefined : moved[fan];
+      if (id === undefined) throw new Error("Missing extruded vertex");
+      return id;
+    };
+    for (const face of selected) draft.faces[face] = (mesh.faces[face] ?? []).map((vertex) => movedAt(face, vertex));
+    for (const incident of graph.edges.values()) {
       const boundary = incident.filter((edge) => selected.has(edge.face));
       const half = boundary.length === 1 ? boundary[0] : undefined;
-      if (half) addWall(draft, mesh, data, half.face, half.from, half.to);
+      if (!half) continue;
+      addWall(draft, mesh, data, {
+        faceIndex: half.face,
+        from: half.from,
+        to: half.to,
+        bottom: [half.from, half.to],
+        top: [movedAt(half.face, half.from), movedAt(half.face, half.to)],
+      });
     }
     return finish(draft, kind, faces.map(String));
   }
@@ -325,12 +419,7 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
       copyVertex(draft, mesh, data, edge.to, offset);
       growWall(draft, mesh, data, center, edge, graph.edges.get(edgeKey(edge.from, edge.to)) ?? []);
     }
-    const selection = edges.map((edge) => {
-      const from = draft.copies.get(edge.from);
-      const to = draft.copies.get(edge.to);
-      if (from === undefined || to === undefined) throw new Error("Missing extruded vertex");
-      return edgeKey(from, to);
-    });
+    const selection = edges.map((edge) => edgeKey(copyOf(draft, edge.from), copyOf(draft, edge.to)));
     return finish(draft, kind, selection);
   }
   const vertices = parseVertices(mesh, ids);
@@ -342,11 +431,7 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
     copyVertex(draft, mesh, data, half.to, offset);
     growWall(draft, mesh, data, center, half, incident);
   }
-  const selection = vertices.map((vertex) => {
-    const copy = draft.copies.get(vertex);
-    if (copy === undefined) throw new Error("Missing extruded vertex");
-    return String(copy);
-  });
+  const selection = vertices.map((vertex) => String(copyOf(draft, vertex)));
   return finish(draft, kind, selection);
 }
 
