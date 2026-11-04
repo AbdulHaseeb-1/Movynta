@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { Box, Layers3, MousePointer2 } from "lucide-react";
-import { useAppSelector } from "@/app/hooks";
-import { ComponentToolbar } from "./ComponentToolbar";
+import { Box, Layers3 } from "lucide-react";
 import type { EditorScene } from "@/features/assistant";
 import { cn } from "@/lib/utils";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
@@ -11,9 +9,6 @@ interface DesignWorkspacePanelProps {
 }
 
 export function DesignWorkspacePanel({ scene }: DesignWorkspacePanelProps) {
-  const { mode, componentError } = useAppSelector(
-    (state) => state.designWorkspace,
-  );
   const [, refresh] = useState(0);
   useEffect(
     () => scene?.onChange(() => refresh((value) => value + 1)),
@@ -23,16 +18,6 @@ export function DesignWorkspacePanel({ scene }: DesignWorkspacePanelProps) {
 
   return (
     <div className="pointer-events-auto w-full space-y-3">
-      {mode === "edit" && (
-        <WorkspacePanel
-          panelId="meshSelection"
-          label="mesh selection"
-          icon={MousePointer2}
-          forceOpen={Boolean(componentError)}
-        >
-          <ComponentToolbar />
-        </WorkspacePanel>
-      )}
       <WorkspacePanel panelId="scene" label="scene" icon={Layers3}>
         <section
           aria-label="Scene objects"

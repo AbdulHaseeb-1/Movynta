@@ -60,11 +60,8 @@ export class ComponentSelection {
   ) {
     this.kind = kind;
     this.onSelect = onSelect;
-    const tint = new Color(
-      getComputedStyle(document.documentElement)
-        .getPropertyValue("--brand")
-        .trim(),
-    );
+    // Match the object-selection outline; the neutral mesh wire is black.
+    const tint = new Color(0xff9b21);
     const visit = (node: Object3D, path: number[]) => {
       if (isEditableTarget(node)) {
         if ("isSkinnedMesh" in node)
@@ -91,9 +88,7 @@ export class ComponentSelection {
             new Float32BufferAttribute(lines, 3),
           ),
           new LineBasicMaterial({
-            color: tint,
-            transparent: true,
-            opacity: 0.25,
+            color: 0x000000,
             depthTest: true,
           }),
         );
@@ -104,11 +99,9 @@ export class ComponentSelection {
             new Points(
               new BufferGeometry().setFromPoints(data.mesh.positions),
               new PointsMaterial({
-                color: tint,
+                color: 0x000000,
                 size: 4,
                 sizeAttenuation: false,
-                transparent: true,
-                opacity: 0.55,
               }),
             ),
           );
@@ -266,6 +259,30 @@ export class ComponentSelection {
       selected.renderOrder = 1000;
       selected.raycast = () => undefined;
       target.overlay.add(selected);
+      if (this.kind === "face") {
+        const outline: number[] = [];
+        for (const id of this.selected.ids) {
+          const face = target.data.mesh.faces[Number(id)];
+          if (!face) continue;
+          face.forEach((vertex, index) => {
+            const next = face[(index + 1) % face.length];
+            const a = target.data.mesh.positions[vertex];
+            const b =
+              next === undefined ? undefined : target.data.mesh.positions[next];
+            if (a && b) outline.push(a.x, a.y, a.z, b.x, b.y, b.z);
+          });
+        }
+        const border = new LineSegments(
+          new BufferGeometry().setAttribute(
+            "position",
+            new Float32BufferAttribute(outline, 3),
+          ),
+          new LineBasicMaterial({ color: tint, depthTest: false }),
+        );
+        border.renderOrder = 1001;
+        border.raycast = () => undefined;
+        target.overlay.add(border);
+      }
     }
   }
   private disposeObject(object: Object3D) {

@@ -1,4 +1,3 @@
-import { CircleDot, Minus, Square } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,43 +7,38 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { setComponentKind } from "./workspaceSlice";
+import { MeshSelectionIcon } from "./MeshSelectionIcon";
 
 export function ComponentToolbar() {
   const dispatch = useAppDispatch();
-  const { componentKind, componentSelection, componentError } = useAppSelector(
+  const { componentKind, componentError } = useAppSelector(
     (state) => state.designWorkspace,
   );
   return (
-    <section
-      aria-label="Mesh selection"
-      className="rounded-xl border border-border bg-card/95 p-3 shadow-xl"
-    >
-      <header className="mb-2 flex items-center justify-between">
-        <h2 className="text-xs font-medium">Mesh selection</h2>
-        <span className="text-[10px] text-muted-foreground">
-          {componentSelection?.ids.length ?? 0} selected
-        </span>
-      </header>
+    <div className="relative">
       <TooltipProvider>
-        <div className="flex gap-1">
+        <fieldset
+          aria-label="Mesh selection"
+          className="flex h-8 items-center gap-0.5 rounded-full border border-border bg-card p-0.5 shadow-xl"
+        >
           {(
             [
-              ["vertex", "Vertices", CircleDot],
-              ["edge", "Edges", Minus],
-              ["face", "Faces", Square],
+              ["vertex", "Vertices"],
+              ["edge", "Edges"],
+              ["face", "Faces"],
             ] as const
-          ).map(([kind, label, Icon]) => (
+          ).map(([kind, label]) => (
             <Tooltip key={kind}>
               <TooltipTrigger asChild>
                 <Button
                   size="icon-sm"
                   variant={componentKind === kind ? "secondary" : "ghost"}
-                  className="h-7 flex-1 [&_svg]:size-3.5"
+                  className="size-7 rounded-full [&_svg]:size-4"
                   aria-label={`Select ${label.toLowerCase()}`}
                   aria-pressed={componentKind === kind}
                   onClick={() => dispatch(setComponentKind(kind))}
                 >
-                  <Icon />
+                  <MeshSelectionIcon kind={kind} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -52,18 +46,16 @@ export function ComponentToolbar() {
               </TooltipContent>
             </Tooltip>
           ))}
-        </div>
+        </fieldset>
       </TooltipProvider>
-      <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-        Select an object, then click its{" "}
-        {componentKind === "vertex" ? "vertices" : `${componentKind}s`}.
-        Shift-click adds or removes.
-      </p>
       {componentError && (
-        <p role="alert" className="mt-2 text-[11px] leading-4">
+        <p
+          role="alert"
+          className="absolute top-10 left-0 w-64 rounded-lg border border-border bg-popover p-3 text-xs shadow-xl"
+        >
           {componentError}
         </p>
       )}
-    </section>
+    </div>
   );
 }
