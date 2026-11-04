@@ -7,6 +7,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { ServiceUnavailableError } from "../../common/errors/app-error.js";
 import type { ProviderCredentials } from "./providers.types.js";
 import { providerEndpoint } from "./provider-endpoint.js";
+import { chatCompletionsFetch } from "./chat-completions-fetch.js";
 import { noRedirectFetch } from "./no-redirect-fetch.js";
 import { chatgptModel } from "./chatgpt/chatgpt-model.js";
 
@@ -28,7 +29,7 @@ export class ProviderTransport {
           openAIClient: new OpenAI({
             apiKey,
             baseURL: baseUrl,
-            fetch: noRedirectFetch,
+            fetch: chatCompletionsFetch(),
           }),
           useResponses: false,
         }).getModel(model);

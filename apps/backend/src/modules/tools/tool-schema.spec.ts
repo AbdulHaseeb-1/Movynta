@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { meshInspectionRequestSchema } from "@movynta/editor-protocol";
 import { editorCommandListSchema, MAX_COMMANDS_PER_PROPOSAL } from "../../shared/schemas/editor-command.schema.js";
 import type { EditorContext } from "../../shared/types/editor-context.types.js";
 import { editorContextSchema } from "../../shared/schemas/editor-context.schema.js";
@@ -26,10 +27,68 @@ const sceneWith = (ids: string[]): EditorContext => ({
 });
 
 describe("editor command schema", () => {
+  it("validates shape-specific dimensions and face queries", () => {
+    const primitive = { commandId: "p", type: "geometry.create_primitive", objectId: "shape", size: 2 };
+    expect(editorCommandListSchema.safeParse([{ ...primitive, primitive: "cylinder", options: { radiusTop: 0, radiusBottom: 1, height: 4, radialSegments: 32 } }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...primitive, primitive: "icosahedron", options: { radius: 3, detail: 2 } }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...primitive, primitive: "box", options: { radius: 1 } }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...primitive, primitive: "cylinder", options: { radiusTop: 0, radiusBottom: 0 } }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...primitive, primitive: "torus", options: { radius: 1, tube: 2 } }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...primitive, primitive: "sphere", options: { widthSegments: 128, heightSegments: 128 } }]).success).toBe(false);
+    expect(meshInspectionRequestSchema.safeParse({ objectId: "shape", faceQuery: { normal: [0, 1, 0], centerMin: [-1, 0, -1] }, includeSamples: false }).success).toBe(true);
+    expect(meshInspectionRequestSchema.safeParse({ objectId: "shape", faceQuery: { normal: [0, 0, 0] } }).success).toBe(false);
+    expect(meshInspectionRequestSchema.safeParse({ objectId: "shape", faceQuery: { centerMin: [2, 0, 0], centerMax: [1, 1, 1] } }).success).toBe(false);
+  });
+  it("validates bounded custom polygon meshes", () => {
+    const mesh = { commandId: "m", type: "geometry.create_mesh", objectId: "shape", vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]], faces: [[0, 1, 2]] };
+    expect(editorCommandListSchema.safeParse([mesh]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...mesh, faces: [[0, 1, 4]] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...mesh, faces: [[0, 1, 1]] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...mesh, vertices: [[10001, 0, 0], [1, 0, 0], [0, 1, 0]] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...mesh, vertices: [...mesh.vertices, [0, 0, 1]] }]).success).toBe(false);
+  });
+  it("requires exactly one extrusion direction and restricts normal distance to faces", () => {
+    const command = { commandId: "ex", type: "geometry.extrude", objectId: "box", kind: "face", ids: ["0"] };
+    expect(editorCommandListSchema.safeParse([{ ...command, componentView: "base", normalDistance: -0.5 }]).success).toBe(true);
+    for (const fields of [{}, { normalDistance: 0 }, { offset: [0, 0, 0] }, { normalDistance: 1, offset: [0, 1, 0] },
+      { kind: "edge", ids: ["0_1"], normalDistance: 1 }, { componentView: "evaluated", offset: [0, 1, 0] }]) {
+      expect(editorCommandListSchema.safeParse([{ ...command, ...fields }]).success).toBe(false);
+    }
+  });
+  it("validates shaped extrusion and anchors a live extrusion to the first stack entry", () => {
+    const base = { commandId: "ex", type: "geometry.extrude", objectId: "box", kind: "face", ids: ["0"] };
+    expect(editorCommandListSchema.safeParse([{ ...base, normalDistance: 1, capScale: 0.5, twistDegrees: 15, closeOpenSurface: true }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, offset: [0, 1, 0], closeOpenSurface: true }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...base, kind: "edge", ids: ["0_1"], offset: [0, 1, 0], capScale: 0.5 }]).success).toBe(false);
+    const extrusion = { id: "ext", kind: "extrusion", ids: ["0"], normalDistance: 1, baseKey: "0123456789abcdef" };
+    const subdivision = { id: "sub", kind: "subdivision", levels: 1 };
+    const command = { commandId: "stack", type: "geometry.set_modifiers", objectId: "box" };
+    expect(editorCommandListSchema.safeParse([{ ...command, modifiers: [extrusion, subdivision] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...command, modifiers: [subdivision, extrusion] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...command, modifiers: [{ ...extrusion, baseKey: "invalid" }] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...base, normalDistance: 1, normalMode: "individual", capScaleXY: [0.5, 1.2], capRotationDegrees: [20, 0, 0] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, normalDistance: 1, capScale: 1, capScaleXY: [1, 2] }]).success).toBe(false);
+    const { normalDistance: _normalDistance, ...live } = extrusion;
+    expect(editorCommandListSchema.safeParse([{ ...command, modifiers: [{ ...live, componentKind: "edge", ids: ["0_1"], offset: [0, 1, 0] }] }]).success).toBe(true);
+    const fill = { commandId: "fill", type: "geometry.fill_hole", objectId: "box", ids: ["0_1", "1_2", "0_2"] };
+    expect(editorCommandListSchema.safeParse([fill]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...fill, ids: ["0", "1", "2"] }]).success).toBe(false);
+  });
+  it("accepts explicit base or evaluated mesh inspection and rejects other views", () => {
+    expect(meshInspectionRequestSchema.parse({ objectId: "a", view: "base" }).view).toBe("base");
+    expect(meshInspectionRequestSchema.parse({ objectId: "a", view: "evaluated" }).view).toBe("evaluated");
+    expect(meshInspectionRequestSchema.safeParse({ objectId: "a", view: "other" }).success).toBe(false);
+    expect(meshInspectionRequestSchema.safeParse({ objectId: "a" }).success).toBe(true);
+  });
   it("accepts rounded bevels and bounded live stacks and rejects duplicate ids", () => {
     const stack = [{ id: "smooth", kind: "subdivision", enabled: false, levels: 2 }];
     expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.set_modifiers", objectId: "mesh", modifiers: stack }]).success).toBe(true);
     expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.set_modifiers", objectId: "mesh", modifiers: [...stack, ...stack] }]).success).toBe(false);
+    const cut = { id: "cut", kind: "boolean", operandObjectId: "cutter" };
+    expect(editorCommandListSchema.parse([{ commandId: "s", type: "geometry.set_modifiers", objectId: "mesh", modifiers: [cut] }])[0]).toMatchObject({ modifiers: [{ operation: "difference", operandMeshPath: [] }] });
+    expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.set_modifiers", objectId: "mesh", modifiers: [{ ...cut, operation: "union" }] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.set_modifiers", objectId: "mesh", modifiers: [{ ...cut, operation: "carve" }] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.set_modifiers", objectId: "mesh", modifiers: [{ id: "cut", kind: "boolean" }] }]).success).toBe(false);
     for (const segments of [0, 9, 1.5]) expect(editorCommandListSchema.safeParse([{ commandId: "b", type: "geometry.bevel", objectId: "mesh", width: .1, segments }]).success).toBe(false);
   });
   it("validates bounded bevel/subdivision parameters and supplies the root mesh path", () => {
@@ -49,6 +108,13 @@ describe("editor command schema", () => {
     expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: [] }]).success).toBe(false);
     const focus = { ...emptyScene, designFocus: { mode: "edit", componentKind: "face", componentSelection: { objectId: "a", meshPath: [0], kind: "face", ids: ["0", "3_4"], modifiersEnabled: false } } };
     expect(editorContextSchema.safeParse(focus).success).toBe(true);
+    const selection = focus.designFocus.componentSelection;
+    expect(editorContextSchema.safeParse({
+      ...focus, designFocus: { ...focus.designFocus, componentSelection: { ...selection, baseFaceIds: ["0", "2"] } },
+    }).success).toBe(true);
+    expect(editorContextSchema.safeParse({
+      ...focus, designFocus: { ...focus.designFocus, componentSelection: { ...selection, baseFaceIds: ["0_1"] } },
+    }).success).toBe(false);
     expect(editorContextSchema.safeParse({ ...focus, designFocus: { mode: "edit", componentKind: "face", componentSelection: { objectId: "a", meshPath: [], kind: "face", ids: ["0"] } } }).success).toBe(false);
     expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: ["0_1"] }]).success).toBe(false);
   });

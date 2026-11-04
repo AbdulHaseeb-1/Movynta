@@ -14,6 +14,8 @@ describe("ApprovalPolicy", () => {
     expect(policy.requiresApproval([{ commandId: "s", type: "geometry.subdivide", objectId: "a", meshPath: [], levels: 1 }])).toBe(true);
     expect(policy.requiresApproval([{ commandId: "e", type: "geometry.extrude", objectId: "a", meshPath: [], kind: "face", ids: ["0"], offset: [0, 1, 0] }])).toBe(true);
     expect(policy.requiresApproval([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", meshPath: [], ids: ["0"] }])).toBe(true);
+    expect(policy.requiresApproval([{ commandId: "m", type: "geometry.transform_faces", objectId: "a", meshPath: [], ids: ["0"], space: "local", transform: { scale: [2, 1, 1] } }])).toBe(true);
+    expect(policy.requiresApproval([{ commandId: "b", type: "geometry.boolean", objectId: "a", meshPath: [], operandObjectId: "b", operandMeshPath: [], operation: "difference" }])).toBe(true);
   });
   it("does not ask for approval for read-only creation and transforms", () => {
     expect(policy.requiresApproval([create("a"), { commandId: "t", type: "scene.transform_object", objectId: "a", transform: { position: [1, 0, 0] } }])).toBe(false);

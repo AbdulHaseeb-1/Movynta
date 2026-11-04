@@ -39,6 +39,13 @@ describe("classifyFailure", () => {
     expect(classifyFailure(new Error("anything"), true).code).toBe("run_timeout");
   });
 
+  it("explains an empty length stop from Chat Completions", () => {
+    const error = new Error("Chat Completions response terminated with finish_reason='length' but produced no assistant text, tool call, or refusal.");
+    const failure = classifyFailure(error, false);
+    expect(failure.code).toBe("model_output_truncated");
+    expect(failure.message).toContain("output limit");
+  });
+
   it("falls back to a generic failure", () => {
     expect(classifyFailure(new Error("boom"), false).code).toBe("run_failed");
   });

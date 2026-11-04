@@ -49,6 +49,7 @@ export const viewSpecSchema = z
 export const viewCaptureRequestSchema = z
   .object({
     views: z.array(viewSpecSchema).min(1).max(MAX_CAPTURE_VIEWS),
+    proposalId: identifierSchema.optional(),
     focus: z.array(identifierSchema).max(MAX_CAPTURE_OBJECTS).optional(),
     highlight: z.array(identifierSchema).max(MAX_CAPTURE_OBJECTS).optional(),
     isolate: z.boolean().optional(),

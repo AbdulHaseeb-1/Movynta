@@ -1,7 +1,10 @@
-import { Grid2x2 } from "lucide-react";
+import { BoxSelect, Grid2x2, Move } from "lucide-react";
+import { useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { EditorScene } from "@/features/assistant";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import type { FaceTool } from "@/features/objectEditing/ExtrudeGesture";
 import {
   Tooltip,
   TooltipContent,
@@ -16,14 +19,23 @@ import { subdivideSelectedFaces } from "./subdivideSelection";
 interface ComponentToolbarProps {
   scene: EditorScene | null;
   saves: SerialQueue;
+  start: (tool: FaceTool) => void;
 }
 
-export function ComponentToolbar({ scene, saves }: ComponentToolbarProps) {
+export function ComponentToolbar({ scene, saves, start }: ComponentToolbarProps) {
   const dispatch = useAppDispatch();
+  const [extrudeTooltip, setExtrudeTooltip] = useState(false);
+  const suppressExtrudeTooltip = useRef(false);
+  const extrudeMenuOpen = useRef(false);
   const { componentKind, componentError, componentSelection } = useAppSelector(
     (state) => state.designWorkspace,
   );
   const canSubdivide = componentKind === "face" && (componentSelection?.ids.length ?? 0) > 0;
+  const selected = scene !== null && (componentSelection?.ids.length ?? 0) > 0;
+  const startTool = (tool: FaceTool) => {
+    dispatch(setComponentError(""));
+    start(tool);
+  };
   const subdivide = () => {
     if (!scene || !componentSelection) return;
     dispatch(setComponentError(""));
@@ -57,10 +69,48 @@ export function ComponentToolbar({ scene, saves }: ComponentToolbarProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {label} · Shift-click to add or remove
+                {label} · Shift-click to add or remove · B for box select
               </TooltipContent>
             </Tooltip>
           ))}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4"
+                aria-label="Move selected faces" disabled={!selected || componentKind !== "face"}
+                onClick={() => startTool("move")}>
+                <Move />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Move selected faces · G</TooltipContent>
+          </Tooltip>
+          <DropdownMenu onOpenChange={(open) => {
+            extrudeMenuOpen.current = open;
+            if (open) suppressExtrudeTooltip.current = true;
+            setExtrudeTooltip(false);
+          }}>
+            <Tooltip open={extrudeTooltip} onOpenChange={(open) => setExtrudeTooltip(open && !suppressExtrudeTooltip.current)}>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4" aria-label="Extrusion tools" disabled={!selected}
+                    onPointerEnter={() => {
+                      if (!extrudeMenuOpen.current) suppressExtrudeTooltip.current = false;
+                    }}
+                    onBlur={() => {
+                      if (!extrudeMenuOpen.current) suppressExtrudeTooltip.current = false;
+                    }}>
+                    <BoxSelect />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Extrusion tools · E</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => startTool("extrude")}>Extrude region <span className="ml-auto text-muted-foreground">E</span></DropdownMenuItem>
+              <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("normals")}>Extrude along vertex normals</DropdownMenuItem>
+              <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("individual")}>Extrude individual faces</DropdownMenuItem>
+              <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("solid")}>Extrude planar sheet as solid</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

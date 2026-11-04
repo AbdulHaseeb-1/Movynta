@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { meshInspectionRequestSchema, viewCaptureRequestSchema } from "@movynta/editor-protocol";
+import { editorCommandListSchema, identifierSchema, meshInspectionRequestSchema, viewCaptureRequestSchema } from "@movynta/editor-protocol";
 import {
   BACKEND_URL,
   backendToken,
@@ -44,6 +44,12 @@ function executeSafely(editor: EditorScene, request: ExecutionRequest) {
  * Answers a request to look at the scene. A view that cannot be drawn is an answer, not a reason to drop the
  * connection, so the assistant is told why and can ask differently.
  */
+const viewCandidateSchema = z.object({
+  proposalId: identifierSchema,
+  revision: z.number().int().nonnegative(),
+  commands: editorCommandListSchema,
+}).strict().optional();
+
 function answerViewRequest(
   data: Record<string, unknown>,
   capture: ViewCaptureHandler | null,
@@ -54,7 +60,9 @@ function answerViewRequest(
   try {
     if (!capture) throw new Error("The viewport is not available");
     const request = viewCaptureRequestSchema.parse(data["request"]);
-    const result = capture(request, { withImages: data["withImages"] === true });
+    const candidate = viewCandidateSchema.parse(data["candidate"]);
+    if (request.proposalId !== candidate?.proposalId) throw new Error("The proposal preview was not supplied by the backend");
+    const result = capture(request, { withImages: data["withImages"] === true, ...(candidate ? { candidate } : {}) });
     // The chat shows the user what the assistant is about to see, found again by the id the backend gave this capture.
     const captureId = data["captureId"];
     if (typeof captureId === "string") rememberCapture(captureId, result.images);

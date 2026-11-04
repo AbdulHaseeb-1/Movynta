@@ -164,6 +164,21 @@ describe("command proposals", () => {
     await expect(service.propose(run, { summary: "Calculated layout", commands: [addBox], expectedRevision: 3 })).rejects.toThrow(ConflictError);
   });
 
+  it("requires a current inspection revision for an explicit base-cage extrusion", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
+    const command: EditorCommand = {
+      commandId: "ex", type: "geometry.extrude", objectId: "mesh", meshPath: [],
+      kind: "face", ids: ["0"], componentView: "base", normalDistance: 1,
+    };
+    const input = { summary: "Extrude a base face", commands: [command] };
+    await expect(service.propose(run, input)).rejects.toThrow("require expectedRevision");
+    await expect(service.propose(run, { ...input, expectedRevision: 3 })).rejects.toThrow(ConflictError);
+    await expect(service.propose(run, { ...input, expectedRevision: 4 })).resolves.toMatchObject({
+      strictRevision: true, requiresApproval: true,
+    });
+  });
+
   it("persists strict revisions and refuses to rebase calculated layouts", async () => {
     const { bridge, service, run } = setup();
     const proposal = await service.propose(run, { summary: "Calculated layout", commands: [addBox], expectedRevision: 4 });

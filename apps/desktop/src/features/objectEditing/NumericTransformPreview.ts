@@ -24,13 +24,16 @@ export class NumericTransformPreview {
     const current = this.scene.transformOf(this.id); if (!current) return undefined;
     const next = { ...current, ...patch };
     if (![...next.position, ...next.rotation, ...next.scale].every(Number.isFinite) || next.scale.some((value) => value <= 0)) return undefined;
-    this.apply(next); return next;
+    this.apply(next);
+    this.scene.previewBooleans();
+    return next;
   }
   finish(commit: boolean): ObjectChange | undefined {
     if (this.scene.currentRevision !== this.revision || this.scene.getObject(this.id) !== this.object) return undefined;
     const eligible = this.valid();
     const after = eligible ? this.scene.transformOf(this.id) : undefined;
     this.apply(this.before);
+    this.scene.previewBooleans();
     return commit && eligible && after && !sameTransform(this.before, after) ? { id: this.id, before: this.before, after } : undefined;
   }
 }

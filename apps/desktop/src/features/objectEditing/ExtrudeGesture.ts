@@ -1,16 +1,56 @@
-import { DoubleSide, SkinnedMesh, Vector2, Vector3, type BufferGeometry, type Camera, type Material, type Mesh } from "three";
+import {
+  DoubleSide,
+  Euler,
+  Quaternion,
+  SkinnedMesh,
+  Vector2,
+  Vector3,
+  type BufferGeometry,
+  type Camera,
+  type Material,
+  type Mesh,
+} from "three";
 import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
 import { meshAtPath, modifierStack } from "@/features/meshGeometry";
-import { checkExtrudeSelection, extrudeRegion, writeExtrudedGeometry, ZeroAreaWallError, type ExtrudeKind } from "@/features/meshGeometry/meshExtrude";
-import { readTopology, type PolygonMesh } from "@/features/meshGeometry/meshTopology";
+import {
+  checkExtrudeSelection,
+  extrudeAlongRegionNormal,
+  extrudeRegion,
+  regionNormal,
+  writeExtrudedGeometry,
+  ZeroAreaWallError,
+  type ExtrudeKind,
+} from "@/features/meshGeometry/meshExtrude";
+import {
+  readTopology,
+  faceNormal,
+  type PolygonMesh,
+} from "@/features/meshGeometry/meshTopology";
+import { faceTransformSelection, transformFaces, type FaceTransform } from "@/features/meshGeometry/meshFaceTransform";
+import { ExtrudeFacePreview } from "@/features/meshGeometry/extrudeFacePreview";
+import { FaceTransformPreview } from "@/features/meshGeometry/faceTransformPreview";
+import { ExtrudePreviewOverlay } from "./ExtrudePreviewOverlay";
 
 type Axis = "x" | "y" | "z";
-const AXIS = { x: new Vector3(1, 0, 0), y: new Vector3(0, 1, 0), z: new Vector3(0, 0, 1) };
+type ExtrudeMode = "move" | "scale" | "rotate";
+export type FaceTool = ExtrudeMode | "extrude" | "normals" | "individual" | "solid";
+interface CapShape { capScale?: number; twistDegrees?: number; capRotationDegrees?: number[] }
+const AXIS = {
+  x: new Vector3(1, 0, 0),
+  y: new Vector3(0, 1, 0),
+  z: new Vector3(0, 0, 1),
+};
 let active = false;
+let previewMesh: Mesh | null = null;
 
 /** True while E has started an extrude grab, so Escape can cancel that grab. */
-export function extrudeIsActive(): boolean { return active; }
+export function extrudeIsActive(): boolean {
+  return active;
+}
+export function extrudeHasPreview(mesh: Mesh): boolean {
+  return previewMesh === mesh;
+}
 
 export interface ExtrudeTarget {
   objectId: string;
@@ -27,7 +67,14 @@ export interface ExtrudeCommit {
   selection: string[];
   /** The scene revision the preview was computed on. The ids are only valid for that revision. */
   revision: number;
+  shape?: CapShape;
+  normalDistance?: number;
+  normalMode?: "vertex" | "individual";
+  closeOpenSurface?: true;
 }
+export type FaceTransformCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & {
+  transform: FaceTransform;
+};
 interface Session {
   mesh: Mesh;
   original: BufferGeometry;
@@ -38,11 +85,24 @@ interface Session {
   meshPath: number[];
   origin: Vector3;
   axis: Axis | null;
+  mode: ExtrudeMode;
+  tool: FaceTool;
+  normal: Vector3 | null;
+  useNormal: boolean;
+  normalDistance: number;
+  faceSelection: ReturnType<typeof faceTransformSelection> | null;
+  transform: FaceTransform | null;
+  shape: CapShape;
+  shapeBase: CapShape;
+  moveBase: Vector3;
   start: Vector2 | null;
   current: Vector2 | null;
   revision: number;
   cameraEnabled: boolean;
   preview: BufferGeometry | null;
+  facePreview: ExtrudeFacePreview | null;
+  transformPreview: FaceTransformPreview | null;
+  overlay: ExtrudePreviewOverlay | null;
   offset: Vector3 | null;
   selection: string[] | null;
   /** Why the pointer's current offset cannot be built. The last valid preview stays on screen and is what confirm keeps. */
@@ -50,18 +110,39 @@ interface Session {
   restoreMaterial: () => void;
 }
 function isTyping(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+  );
 }
-function grabWorldDelta(camera: Camera, rect: DOMRect, origin: Vector3, start: Vector2, current: Vector2, axis: Vector3 | null): Vector3 {
+function grabWorldDelta(
+  camera: Camera,
+  rect: DOMRect,
+  origin: Vector3,
+  start: Vector2,
+  current: Vector2,
+  axis: Vector3 | null,
+): Vector3 {
   const delta = current.clone().sub(start);
   const projected = origin.clone().project(camera);
   if (axis) {
     const tip = origin.clone().add(axis).project(camera);
-    const screen = new Vector2(((tip.x - projected.x) * rect.width) / 2, (-(tip.y - projected.y) * rect.height) / 2);
-    const amount = screen.lengthSq() < 4 ? delta.x / 100 : delta.dot(screen) / screen.lengthSq();
+    const screen = new Vector2(
+      ((tip.x - projected.x) * rect.width) / 2,
+      (-(tip.y - projected.y) * rect.height) / 2,
+    );
+    const amount =
+      screen.lengthSq() < 4
+        ? delta.x / 100
+        : delta.dot(screen) / screen.lengthSq();
     return axis.clone().multiplyScalar(amount);
   }
-  const target = new Vector3(projected.x + (delta.x * 2) / rect.width, projected.y - (delta.y * 2) / rect.height, projected.z).unproject(camera);
+  const target = new Vector3(
+    projected.x + (delta.x * 2) / rect.width,
+    projected.y - (delta.y * 2) / rect.height,
+    projected.z,
+  ).unproject(camera);
   return target.sub(origin);
 }
 function toLocalOffset(mesh: Mesh, worldDelta: Vector3): Vector3 {
@@ -72,7 +153,37 @@ function toLocalOffset(mesh: Mesh, worldDelta: Vector3): Vector3 {
   mesh.worldToLocal(moved);
   return moved.sub(origin);
 }
-function componentOrigin(mesh: Mesh, cage: PolygonMesh, kind: ExtrudeKind, ids: readonly string[]): Vector3 {
+function faceGestureTransform(
+  mode: ExtrudeMode, camera: Camera, rect: DOMRect, origin: Vector3,
+  start: Vector2, current: Vector2, axis: Vector3 | null,
+): FaceTransform | null {
+  if (mode === "move") {
+    const move = grabWorldDelta(camera, rect, origin, start, current, axis);
+    return move.lengthSq() > 1e-12 ? { position: move.toArray() } : null;
+  }
+  const projected = origin.clone().project(camera);
+  const center = new Vector2(rect.left + (projected.x + 1) * rect.width / 2, rect.top + (1 - projected.y) * rect.height / 2);
+  const from = start.clone().sub(center);
+  const to = current.clone().sub(center);
+  const delta = (current.x - start.x) - (current.y - start.y);
+  if (mode === "scale") {
+    const factor = Math.min(100, Math.max(0.001, from.length() < 8 ? Math.exp(delta / 150) : to.length() / from.length()));
+    if (Math.abs(factor - 1) < 1e-8) return null;
+    return { scale: axis ? new Vector3(1, 1, 1).addScaledVector(axis, factor - 1).toArray() : [factor, factor, factor] };
+  }
+  const direction = axis ?? camera.getWorldDirection(new Vector3()).negate();
+  const angle = from.length() < 8 || to.length() < 8
+    ? delta * Math.PI / 360 : -Math.atan2(from.cross(to), from.dot(to));
+  if (Math.abs(angle) < 1e-8) return null;
+  const euler = new Euler().setFromQuaternion(new Quaternion().setFromAxisAngle(direction, angle));
+  return { rotation: [euler.x, euler.y, euler.z] };
+}
+function componentOrigin(
+  mesh: Mesh,
+  cage: PolygonMesh,
+  kind: ExtrudeKind,
+  ids: readonly string[],
+): Vector3 {
   const local = new Vector3();
   let count = 0;
   const add = (index: number) => {
@@ -82,13 +193,19 @@ function componentOrigin(mesh: Mesh, cage: PolygonMesh, kind: ExtrudeKind, ids: 
     count += 1;
   };
   if (kind === "vertex") for (const id of ids) add(Number(id));
-  else if (kind === "edge") for (const id of ids) id.split("_").forEach((vertex) => add(Number(vertex)));
-  else for (const id of ids) for (const vertex of cage.faces[Number(id)] ?? []) add(vertex);
+  else if (kind === "edge")
+    for (const id of ids)
+      id.split("_").forEach((vertex) => add(Number(vertex)));
+  else
+    for (const id of ids)
+      for (const vertex of cage.faces[Number(id)] ?? []) add(vertex);
   if (count > 0) local.multiplyScalar(1 / count);
   return mesh.localToWorld(local);
 }
 function revealBackfaces(mesh: Mesh): () => void {
-  const materials: Material[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  const materials: Material[] = Array.isArray(mesh.material)
+    ? mesh.material
+    : [mesh.material];
   const previous = materials.map((material) => material.side);
   for (const material of materials) {
     material.side = DoubleSide;
@@ -103,12 +220,22 @@ function revealBackfaces(mesh: Mesh): () => void {
     });
   };
 }
-function hint(axis: Axis | null): string {
-  return `Extrude${axis ? ` · ${axis.toUpperCase()}` : ""}  ·  X/Y/Z constrain  ·  Click or Enter confirm  ·  Esc cancel`;
+function hint(session: Session): string {
+  const transforming = session.faceSelection !== null;
+  const mode = transforming ? `${session.mode[0]?.toUpperCase() ?? ""}${session.mode.slice(1)} faces`
+    : session.mode === "scale" ? "Scale cap" : session.mode === "rotate" ? "Rotate cap"
+    : session.tool === "normals" ? "Extrude along normals" : session.tool === "individual" ? "Extrude individual faces"
+    : session.tool === "solid" ? "Extrude solid sheet" : "Extrude";
+  const special = session.tool === "individual" || session.tool === "normals" || session.tool === "solid";
+  const controls = session.kind === "face" && session.offset?.lengthSq()
+    ? "G move · S scale · R rotate · X/Y/Z set axis"
+    : special ? "Move pointer to set distance" : "X/Y/Z constrain";
+  return `${mode}${session.axis ? ` · ${session.axis.toUpperCase()}` : ""}  ·  ${controls}  ·  Click or Enter confirm  ·  Esc cancel`;
 }
 
 /** Edit-mode E: extrude the region, then grab it with the same axis keys as G. */
 export class ExtrudeGesture {
+  readonly start: (tool: FaceTool) => void;
   private session: Session | undefined;
   private pointer: Vector2 | null = null;
   private readonly cleanups: (() => void)[] = [];
@@ -121,6 +248,7 @@ export class ExtrudeGesture {
     onCommit: (commit: ExtrudeCommit) => void,
     onError: (error: unknown) => void,
     status: (text: string) => void,
+    onTransform?: (commit: FaceTransformCommit) => void,
   ) {
     const dom = viewport.renderer.domElement;
     let pendingMove = false;
@@ -128,9 +256,15 @@ export class ExtrudeGesture {
       const session = this.session;
       if (!session) return;
       // Undo only our own preview. If another edit has replaced the displayed geometry, that result stays.
-      if (session.preview && session.mesh.geometry === session.preview) session.mesh.geometry = session.original;
+      if (session.preview && session.mesh.geometry === session.preview)
+        session.mesh.geometry = session.original;
+      session.overlay?.dispose();
+      session.overlay = null;
+      if (previewMesh === session.mesh) previewMesh = null;
       session.preview?.dispose();
       session.preview = null;
+      session.facePreview = null;
+      session.transformPreview = null;
     };
     const stop = (session: Session) => {
       restore();
@@ -144,14 +278,36 @@ export class ExtrudeGesture {
     const end = (confirmed: boolean) => {
       const session = this.session;
       if (!session) return;
+      const valid = confirmed && live(session) && !session.blocked;
       const offset = session.offset;
       const selection = session.selection;
-      const commit = confirmed && offset && selection && offset.lengthSq() > 1e-12 ? {
-        objectId: session.objectId, meshPath: session.meshPath, kind: session.kind, ids: session.ids,
-        offset: [offset.x, offset.y, offset.z] as [number, number, number], selection, revision: session.revision,
+      const faceCommit = valid && session.transform && selection ? {
+        objectId: session.objectId, meshPath: session.meshPath, ids: session.ids,
+        selection, revision: session.revision, transform: session.transform,
       } : null;
+      const commit =
+        valid && offset && selection && offset.lengthSq() > 1e-12
+          ? {
+              objectId: session.objectId,
+              meshPath: session.meshPath,
+              kind: session.kind,
+              ids: session.ids,
+              offset: [offset.x, offset.y, offset.z] as [
+                number,
+                number,
+                number,
+              ],
+              selection,
+              revision: session.revision,
+              ...(Object.keys(session.shape).length ? { shape: session.shape } : {}),
+              ...(session.tool === "normals" ? { normalMode: "vertex" as const, normalDistance: session.normalDistance } : {}),
+              ...(session.tool === "individual" ? { normalMode: "individual" as const, normalDistance: session.normalDistance } : {}),
+              ...(session.tool === "solid" ? { closeOpenSurface: true as const, normalDistance: session.normalDistance } : {}),
+            }
+          : null;
       stop(session);
       if (commit) onCommit(commit);
+      if (faceCommit) onTransform?.(faceCommit);
     };
     const update = () => {
       const session = this.session;
@@ -159,7 +315,60 @@ export class ExtrudeGesture {
       const rect = dom.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
       try {
-        const offset = toLocalOffset(session.mesh, grabWorldDelta(viewport.camera, rect, session.origin, session.start, session.current, session.axis ? AXIS[session.axis] : null));
+        const delta = session.current.x - session.start.x - (session.current.y - session.start.y);
+        const axis = session.axis ? AXIS[session.axis] : null;
+        const worldNormal = session.useNormal && session.normal
+          ? session.normal.clone().transformDirection(session.mesh.matrixWorld) : null;
+        if (session.faceSelection) {
+          const transform = faceGestureTransform(session.mode, viewport.camera, rect, session.origin, session.start, session.current, axis);
+          if (!transform) {
+            restore();
+            session.transform = null;
+            session.blocked = null;
+            return;
+          }
+          const result = transformFaces(session.cage, session.ids, transform, session.mesh.matrixWorld, session.faceSelection);
+          if (session.transformPreview) {
+            session.transformPreview.update(result);
+            session.overlay?.update();
+          } else if (Object.values(session.original.morphAttributes).every((targets) => !targets?.length)) {
+            const prepared = new FaceTransformPreview(session.original, result, session.faceSelection.vertices);
+            showPreview(session, result, prepared);
+            session.transformPreview = prepared;
+          } else {
+            showPreview(session, result);
+          }
+          session.transform = transform;
+          session.blocked = null;
+          return;
+        }
+        const offset = session.mode !== "move" && session.offset ? session.offset : toLocalOffset(
+          session.mesh,
+          grabWorldDelta(
+            viewport.camera,
+            rect,
+            session.origin,
+            session.start,
+            session.current,
+            axis ?? worldNormal,
+          ),
+        ).add(session.moveBase);
+        const shape = { ...session.shapeBase };
+        if (session.mode === "scale") {
+          shape.capScale = Math.min(100, Math.max(0.01, (shape.capScale ?? 1) * Math.exp(delta / 180)));
+        } else if (session.mode === "rotate" && axis) {
+          const previous = shape.capRotationDegrees ?? [0, 0, 0];
+          const r = Math.PI / 180;
+          const orientation = new Quaternion().setFromAxisAngle(axis, delta * r / 2)
+            .multiply(new Quaternion().setFromEuler(new Euler((previous[0] ?? 0) * r, (previous[1] ?? 0) * r, (previous[2] ?? 0) * r)));
+          const euler = new Euler().setFromQuaternion(orientation);
+          shape.capRotationDegrees = [euler.x / r, euler.y / r, euler.z / r].map((angle) => Math.max(-180, Math.min(180, angle)));
+        } else if (session.mode === "rotate") {
+          shape.twistDegrees = Math.min(180, Math.max(-180, (shape.twistDegrees ?? 0) + delta * 0.5));
+        }
+        const shaped = Object.keys(shape).length > 0;
+        const special = session.tool === "individual" || session.tool === "normals" || session.tool === "solid";
+        const distance = session.normal ? offset.dot(session.normal) : 0;
         if (offset.lengthSq() <= 1e-12) {
           restore();
           session.offset = offset;
@@ -167,83 +376,243 @@ export class ExtrudeGesture {
           session.blocked = null;
         } else {
           try {
-            const result = extrudeRegion(session.cage, session.kind, session.ids, offset);
-            const preview = writeExtrudedGeometry(session.original, result);
-            session.preview?.dispose();
-            session.preview = preview;
-            session.mesh.geometry = preview;
+            if (session.facePreview && !shaped) {
+              session.facePreview.update(offset);
+              session.overlay?.update();
+            } else {
+              const result = special ? extrudeAlongRegionNormal(session.cage, session.ids, distance, {
+                ...shape,
+                ...(session.tool === "individual" ? { normalMode: "individual" } : {}),
+                ...(session.tool === "normals" ? { normalMode: "vertex" } : {}),
+                ...(session.tool === "solid" ? { closeOpenSurface: true } : {}),
+              }) : extrudeRegion(
+                session.cage,
+                session.kind,
+                session.ids,
+                offset,
+                shaped ? shape : undefined,
+              );
+              const supportsReuse =
+                session.kind === "face" && !shaped && !special &&
+                Object.values(session.original.morphAttributes).every(
+                  (targets) => !targets?.length,
+                );
+              const supportsShapedReuse = session.kind === "face" && (shaped || special) && session.tool !== "solid" &&
+                Object.values(session.original.morphAttributes).every((targets) => !targets?.length);
+              if (supportsShapedReuse && session.transformPreview) {
+                session.transformPreview.update(result);
+                session.overlay?.update();
+              } else if (supportsShapedReuse) {
+                const vertices = new Set(result.selection.flatMap((id) => result.mesh.faces[Number(id)] ?? []));
+                const prepared = new FaceTransformPreview(session.original, result, vertices);
+                showPreview(session, result, prepared);
+                session.transformPreview = prepared;
+              } else {
+                const facePreview = supportsReuse ? new ExtrudeFacePreview(session.original, result, offset) : null;
+                showPreview(session, result, facePreview);
+              }
+            }
             session.offset = offset;
-            session.selection = result.selection;
+            session.normalDistance = distance;
+            session.shape = shape;
             session.blocked = null;
           } catch (error) {
-            if (!(error instanceof ZeroAreaWallError)) throw error;
+            if (!(error instanceof ZeroAreaWallError) && !(shaped && session.preview && error instanceof Error)) throw error;
             // A grab along an edge is not a failure. Keep the last valid preview and say why it did not follow.
             session.blocked = error.message;
           }
         }
-        status(session.blocked ? `${hint(session.axis)}  ·  ${session.blocked}` : hint(session.axis));
+        status(
+          session.blocked
+            ? `${hint(session)}  ·  ${session.blocked}`
+            : hint(session),
+        );
       } catch (error) {
+        if (this.session?.faceSelection && this.session.preview && error instanceof Error) {
+          this.session.blocked = error.message;
+          status(`${hint(this.session)} · ${error.message}`);
+          return;
+        }
         if (this.session) stop(this.session);
         onError(error);
       }
+    };
+    const showPreview = (session: Session, result: ReturnType<typeof extrudeRegion>, prepared: ExtrudeFacePreview | FaceTransformPreview | null = null) => {
+      const preview = prepared?.geometry ?? writeExtrudedGeometry(session.original, result);
+      let overlay: ExtrudePreviewOverlay;
+      try {
+        overlay = new ExtrudePreviewOverlay(viewport.scene, session.mesh, result, session.kind);
+      } catch (error) {
+        preview.dispose();
+        throw error;
+      }
+      session.overlay?.dispose();
+      session.preview?.dispose();
+      session.facePreview = prepared instanceof ExtrudeFacePreview ? prepared : null;
+      session.overlay = overlay;
+      session.preview = preview;
+      session.mesh.geometry = preview;
+      previewMesh = session.mesh;
+      session.selection = result.selection;
     };
     const flush = () => {
       if (!pendingMove) return;
       pendingMove = false;
       update();
     };
-    const live = (session: Session) => enabled() && editor.currentRevision === session.revision
-      && (session.mesh.geometry === session.original || session.mesh.geometry === session.preview);
-    const begin = () => {
+    const live = (session: Session) =>
+      enabled() && editing() && editor.selection === session.objectId &&
+      editor.currentRevision === session.revision &&
+      (session.mesh.geometry === session.original ||
+        session.mesh.geometry === session.preview);
+    this.start = (tool) => {
+      if (!enabled() || !editing() || this.session) return;
       const selected = target();
-      if (!selected || selected.ids.length === 0 || editor.selection !== selected.objectId) return;
+      const transforming = tool === "move" || tool === "scale" || tool === "rotate";
+      if (
+        !selected ||
+        selected.ids.length === 0 ||
+        editor.selection !== selected.objectId ||
+        (tool !== "extrude" && selected.kind !== "face")
+      )
+        return;
       try {
-        const mesh = meshAtPath(editor.getObject(selected.objectId), selected.meshPath);
-        if (mesh instanceof SkinnedMesh) throw new Error("Extrude on skinned meshes is not supported yet.");
-        if ((modifierStack(mesh)?.modifiers ?? []).some((modifier) => modifier.enabled)) throw new Error("Disable modifiers before editing components, so the selection matches the base mesh");
+        const mesh = meshAtPath(
+          editor.getObject(selected.objectId),
+          selected.meshPath,
+        );
+        if (mesh instanceof SkinnedMesh)
+          throw new Error("Component edits on skinned meshes are not supported yet.");
+        if (
+          (modifierStack(mesh)?.modifiers ?? []).some(
+            (modifier) => modifier.enabled,
+          )
+        )
+          throw new Error(
+            "Disable modifiers before editing components, so the selection matches the base mesh",
+          );
         const cage = readTopology(mesh.geometry);
-        checkExtrudeSelection(cage, selected.kind, selected.ids);
+        const faceSelection = transforming ? faceTransformSelection(cage, selected.ids) : null;
+        if (!faceSelection) checkExtrudeSelection(cage, selected.kind, selected.ids);
+        let normal: Vector3 | null = null;
+        if (!transforming && selected.kind === "face") {
+          try {
+            normal = regionNormal(cage, selected.ids);
+          } catch (error) {
+            if (tool === "solid" || tool === "normals") throw error;
+            if (tool === "individual") normal = faceNormal(cage, cage.faces[Number(selected.ids[0])] ?? []);
+          }
+        }
         mesh.updateWorldMatrix(true, false);
         this.session = {
-          mesh, original: mesh.geometry, cage, kind: selected.kind, ids: [...selected.ids], objectId: selected.objectId,
-          meshPath: [...selected.meshPath], origin: componentOrigin(mesh, cage, selected.kind, selected.ids), axis: null,
-          start: this.pointer?.clone() ?? null, current: this.pointer?.clone() ?? null, revision: editor.currentRevision,
-          cameraEnabled: viewport.controls.enabled, preview: null, offset: null, selection: null, blocked: null,
-          restoreMaterial: selected.kind === "face" ? () => undefined : revealBackfaces(mesh),
+          mesh,
+          original: mesh.geometry,
+          cage,
+          kind: selected.kind,
+          ids: [...selected.ids],
+          objectId: selected.objectId,
+          meshPath: [...selected.meshPath],
+          origin: faceSelection ? mesh.localToWorld(faceSelection.pivot.clone()) : componentOrigin(mesh, cage, selected.kind, selected.ids),
+          axis: null,
+          mode: transforming ? tool : "move",
+          tool,
+          normal,
+          useNormal: normal !== null,
+          normalDistance: 0,
+          faceSelection,
+          transform: null,
+          shape: {},
+          shapeBase: {},
+          moveBase: new Vector3(),
+          start: this.pointer?.clone() ?? null,
+          current: this.pointer?.clone() ?? null,
+          revision: editor.currentRevision,
+          cameraEnabled: viewport.controls.enabled,
+          preview: null,
+          facePreview: null,
+          transformPreview: null,
+          overlay: null,
+          offset: null,
+          selection: null,
+          blocked: null,
+          restoreMaterial:
+            selected.kind === "face" ? () => undefined : revealBackfaces(mesh),
         };
         active = true;
         viewport.controls.enabled = false;
-        status(hint(null));
-      } catch (error) { onError(error); }
+        status(hint(this.session));
+      } catch (error) {
+        onError(error);
+      }
     };
     const keydown = (event: KeyboardEvent) => {
-      if (isTyping(event.target) || event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+      if (
+        isTyping(event.target) ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        event.repeat
+      )
+        return;
       const key = event.key.toLowerCase();
       const session = this.session;
       if (session) {
-        if (!["escape", "enter", "x", "y", "z", "g", "s", "r", "e"].includes(key)) return;
+        if (
+          !["escape", "enter", "x", "y", "z", "g", "s", "r", "e"].includes(key)
+        )
+          return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (key === "escape") { pendingMove = false; end(false); }
-        else if (key === "enter") { flush(); end(true); }
-        else if (key === "x" || key === "y" || key === "z") {
+        if (key === "escape") {
+          pendingMove = false;
+          end(false);
+        } else if (key === "enter") {
+          flush();
+          if (!session.blocked) end(true);
+        } else if ((key === "g" || key === "s" || key === "r") && session.kind === "face" && !session.faceSelection) {
+          flush();
+          if (this.session !== session) return;
+          if (!session.offset || session.offset.lengthSq() <= 1e-12) {
+            if (key === "g" && session.tool === "extrude") {
+              session.useNormal = false;
+              session.axis = null;
+              update();
+            }
+            return;
+          }
+          session.mode = key === "g" ? "move" : key === "s" ? "scale" : "rotate";
+          session.axis = null;
+          session.useNormal = session.tool !== "extrude" && session.normal !== null;
+          session.shapeBase = { ...session.shape };
+          session.moveBase.copy(session.offset);
+          session.start = this.pointer?.clone() ?? null;
+          session.current = this.pointer?.clone() ?? null;
+          session.blocked = null;
+          status(hint(session));
+        } else if (key === "x" || key === "y" || key === "z") {
+          if (!session.faceSelection && (session.mode === "scale" || (session.mode === "move" && session.tool !== "extrude"))) return;
           session.axis = session.axis === key ? null : key;
+          if (!session.faceSelection && session.mode === "move") session.useNormal = false;
           pendingMove = false;
           update();
-          if (this.session === session) status(hint(session.axis));
+          if (this.session === session && !session.blocked) status(hint(session));
         }
         return;
       }
-      if (key !== "e" || !enabled() || !editing()) return;
+      const tool = key === "e" ? "extrude" : key === "g" ? "move" : key === "r" ? "rotate" : key === "s" ? "scale" : null;
+      if (!tool || !enabled() || !editing() || (tool !== "extrude" && target()?.kind !== "face")) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      begin();
+      this.start(tool);
     };
     const move = (event: PointerEvent) => {
       this.pointer = new Vector2(event.clientX, event.clientY);
       const session = this.session;
       if (!session) return;
-      if (!live(session)) { end(false); return; }
+      if (!live(session)) {
+        end(false);
+        return;
+      }
       session.start ??= this.pointer.clone();
       session.current = this.pointer.clone();
       pendingMove = true;
@@ -257,19 +626,30 @@ export class ExtrudeGesture {
       blockContextMenu = event.button === 2;
       if (event.button === 0) flush();
       else pendingMove = false;
-      end(event.button === 0);
+      if (event.button === 2 || !this.session?.blocked) end(event.button === 0);
     };
-    const contextmenu = (event: MouseEvent) => { if (this.session || blockContextMenu) event.preventDefault(); blockContextMenu = false; };
+    const contextmenu = (event: MouseEvent) => {
+      if (this.session || blockContextMenu) event.preventDefault();
+      blockContextMenu = false;
+    };
     const blur = () => end(false);
     window.addEventListener("keydown", keydown, true);
     window.addEventListener("pointermove", move, true);
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("contextmenu", contextmenu, true);
     window.addEventListener("blur", blur);
-    const unsubscribe = editor.onChange(() => { if (this.session && editor.currentRevision !== this.session.revision) end(false); });
+    const unsubscribe = editor.onChange(() => {
+      if (this.session && !live(this.session))
+        end(false);
+    });
     // Ends the preview before another change or inspection reads the displayed geometry, so it sees the committed cage.
-    const unsubscribeBefore = editor.onBeforeChange(() => { if (this.session) end(false); });
-    const stopFrame = viewport.addFrameListener(() => { if (this.session && !enabled()) end(false); else flush(); });
+    const unsubscribeBefore = editor.onBeforeChange(() => {
+      if (this.session) end(false);
+    });
+    const stopFrame = viewport.addFrameListener(() => {
+      if (this.session && !live(this.session)) end(false);
+      else flush();
+    });
     this.cleanups.push(
       () => window.removeEventListener("keydown", keydown, true),
       () => window.removeEventListener("pointermove", move, true),
@@ -282,5 +662,7 @@ export class ExtrudeGesture {
       () => end(false),
     );
   }
-  dispose() { for (const cleanup of this.cleanups) cleanup(); }
+  dispose() {
+    for (const cleanup of this.cleanups) cleanup();
+  }
 }

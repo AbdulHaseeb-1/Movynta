@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { viewCaptureRequestSchema, type CapturedImage, type ViewCaptureResult } from "@movynta/editor-protocol";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
+import type { CommandProposalService } from "../../editor-bridge/proposals/command-proposal.service.js";
+import { ConflictError } from "../../../common/errors/app-error.js";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 import { RichToolResult } from "../tool-result.js";
 
@@ -36,12 +38,16 @@ function describeCapture(result: ViewCaptureResult, imagesSent: boolean) {
   };
 }
 
-export function createViewportTools({ bridge }: { readonly bridge: EditorBridge }): ToolDefinition[] {
+export function createViewportTools({ bridge, proposals }: {
+  readonly bridge: EditorBridge;
+  readonly proposals: Pick<CommandProposalService, "require">;
+}): ToolDefinition[] {
   return [
     defineTool({
       name: VIEWPORT_CAPTURE_TOOL_NAME,
       description: [
         "Look at the scene. Draws the live editor scene from one or more points of view and returns the images, plus where each object sits in every image, so you can review shapes, proportions, placement and surface problems that the object list cannot show. Nothing in the scene changes.",
+        "To review an unapplied proposal from this run, pass its proposalId. The editor validates and draws an isolated candidate at that proposal's revision. Capture the live scene and the candidate with matching cameras to compare them before asking for approval.",
         "views: 1 to 6 per call. Each view is a preset (front, back, left, right, top, bottom, isometric, or current for the user's own view), an orbit (azimuthDegrees: 0 looks at the front from +Z, 90 from +X, 180 from the back; elevationDegrees: 0 is level, 90 is straight down), or an exact camera (position, target, optional fov). Y is up.",
         "Presets and orbits circle and frame the focused objects, or the whole scene when focus is empty; zoom above 1 moves closer. Axis presets are orthographic so proportions are true; set projection to change that.",
         "focus lists the object ids to frame and report exact bounds for. highlight boxes objects in the image. isolate true draws only the focused objects. mode is solid (default), wireframe (mesh structure) or normals (surface direction, which shows flipped or faceted faces).",
@@ -55,14 +61,23 @@ export function createViewportTools({ bridge }: { readonly bridge: EditorBridge 
         const withImages = context.supportsToolImages;
         // The editor files the pictures it draws under this id, and the chat finds them there to show the user.
         const captureId = `cap_${randomUUID()}`;
-        const result = await bridge.captureViews(context.clientId, request, { withImages, captureId });
+        const proposal = request.proposalId ? proposals.require(context.runId, request.proposalId) : undefined;
+        if (proposal && (proposal.status !== "proposed" || proposal.clientId !== context.clientId || proposal.projectId !== context.projectId)) {
+          throw new ConflictError("Only a pending proposal for this editor can be previewed.");
+        }
+        const candidate = proposal
+          ? { proposalId: proposal.id, revision: proposal.baseRevision, commands: proposal.commands }
+          : undefined;
+        const result = await bridge.captureViews(context.clientId, request, {
+          withImages, captureId, ...(candidate ? { candidate } : {}),
+        });
         const images = withImages ? result.images.filter((image) => image.data.length > 0) : [];
         context.events.emit("viewport.captured", {
           captureId,
           views: result.images.map((image) => ({ label: image.label, width: image.width, height: image.height })),
           imagesSent: images.length > 0,
         });
-        const description = describeCapture(result, images.length > 0);
+        const description = { ...describeCapture(result, images.length > 0), ...(candidate ? { proposalId: candidate.proposalId } : {}) };
         if (images.length === 0) return description;
         return new RichToolResult(
           JSON.stringify(description),

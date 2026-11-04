@@ -8,6 +8,11 @@ const program = `return Array.from({ length: 20 }, (_, i) => ({
 }));`;
 
 describe("isolated procedural runner", () => {
+  it("generates a structured mesh through the isolated command path", async () => {
+    const commands = await generateCommands(`const vertices = [[0,0,0],[1,0,0],[0,1,0]];
+      return [{ commandId: 'mesh', type: 'geometry.create_mesh', objectId: 'custom', vertices, faces: [[0,1,2]] }];`, scene);
+    expect(commands).toMatchObject([{ type: "geometry.create_mesh", objectId: "custom", faces: [[0, 1, 2]] }]);
+  });
   it("calculates a procedural layout and does not mutate the input snapshot", async () => {
     const commands = await generateCommands(`scene.objects.push({id: 'local'}); ${program}`, scene);
     expect(commands).toHaveLength(20);

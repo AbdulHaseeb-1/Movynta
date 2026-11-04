@@ -56,6 +56,11 @@ Prepared assistant edits also have a smoke benchmark in `EditorScene.prepared.te
 | `editor/pick` | `pickObjectId` on many objects and on one dense mesh | HIGH | O(objects), O(triangles hit) |
 | `editor/componentHighlight` | Building Edit-mode face highlights for varying selection and mesh sizes | HIGH | O(selected face triangles); index construction excluded |
 | `editor/componentPreparation` | Repeated preparation of unchanged meshes when switching selection modes | HIGH | O(mesh size) for a new picking buffer; topology parsing and triangulation cached |
+| `editor/extrudePreview` | Full face extrusion rebuild and repeated prepared preview updates, with and without the selection overlay | HIGH | O(mesh size); excludes GPU rendering and initial preparation from the prepared cases |
+| `editor/faceModeling` | Face move with shaded preview, prepared face move with overlay, and a rounded cylindrical Boolean cut | HIGH | CPU work only, excluding GPU rendering |
+| `editor/faceQuery` | Inspection of a dense mesh filtered by face normal and center | HIGH | Cached topology, full query and response construction |
+| `editor/customMesh` | Validation and generation of a large structured polygon mesh | HIGH | CPU work only, including topology and render buffers |
+| `editor/meshRepair` | Triangulation and validation of a warped hole boundary with up to 256 edges | MEDIUM | O(mesh size + boundary edges²); excludes rendering and buffer upload |
 | `editor/frame` | Per-frame gizmo sync and the panel's number helpers | HIGH | O(1) |
 | `importer/import` | `prepareModel`, OBJ and STL reading, naming | HIGH | O(vertices), O(file) |
 | `projects/helpers` | Store reducers, chat restore, card text | MEDIUM | O(items) |

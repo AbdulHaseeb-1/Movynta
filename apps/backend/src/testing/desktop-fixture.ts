@@ -83,6 +83,20 @@ export async function startDesktopFixture() {
       [assistantMessage("The mesh is beveled and subdivided.")],
     );
   }
+  function enqueueRoundedCut() {
+    server.model.enqueue(
+      [functionCall("editor__propose_commands", { summary: "Cut and round the target", commands: [
+        { commandId: "cut", type: "geometry.boolean", objectId: "target", operandObjectId: "cutter" },
+        { commandId: "round", type: "geometry.bevel", objectId: "target", profile: "circular", width: 0.035, segments: 4 },
+      ] }, { callId: "propose-cut" })],
+      modelResponder((call) => {
+        const proposalId = JSON.stringify(call.request.input).match(/prp_[0-9a-f-]{36}/g)?.at(-1);
+        if (!proposalId) throw new Error("Missing Boolean proposal");
+        return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-cut" })];
+      }),
+      [assistantMessage("The target is cut and rounded.")],
+    );
+  }
   return {
     modelSelections,
     port: Number(new URL(server.baseUrl).port),
@@ -90,6 +104,7 @@ export async function startDesktopFixture() {
     close: () => server.close(),
     enqueueCreation,
     enqueueMeshModifiers,
+    enqueueRoundedCut,
     loseNextCommit: () => { loseCommit = true; },
   };
 }

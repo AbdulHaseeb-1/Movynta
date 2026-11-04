@@ -13,7 +13,27 @@ const commandSchema = z.looseObject({
   method: z.string().optional(),
   profile: z.string().optional(),
   kind: z.string().optional(),
+  operation: z.enum(["difference", "union", "intersect"]).optional(),
+  operandObjectId: z.string().optional(),
+  normalDistance: z.number().optional(),
+  offset: z.array(z.number()).length(3).optional(),
+  space: z.enum(["local", "world"]).optional(),
+  transform: z.object({
+    position: z.array(z.number()).length(3).optional(),
+    rotation: z.array(z.number()).length(3).optional(),
+    scale: z.array(z.number()).length(3).optional(),
+  }).optional(),
+  capScale: z.number().optional(),
+  capScaleXY: z.array(z.number()).length(2).optional(),
+  capRotationDegrees: z.array(z.number()).length(3).optional(),
+  normalMode: z.enum(["region", "individual", "vertex"]).optional(),
+  ids: z.array(z.string()).optional(),
+  steps: z.number().optional(),
+  twistDegrees: z.number().optional(),
+  closeOpenSurface: z.boolean().optional(),
   modifiers: z.array(z.unknown()).optional(),
+  vertices: z.array(z.unknown()).optional(),
+  faces: z.array(z.unknown()).optional(),
 });
 
 const previewSchema = z.looseObject({
@@ -49,12 +69,40 @@ function describeCommand(command: Command): string {
       return `Subdivide ${target} (${command.levels ?? "?"} ${command.method === "linear" ? "Linear" : command.method === "loop" ? "Loop" : "Catmull–Clark"} levels); adds a live modifier`;
     case "geometry.set_modifiers":
       return `Set the modifier stack on ${target} (${command.modifiers?.length ?? 0} modifiers)`;
-    case "geometry.extrude":
-      return `Extrude the selected ${command.kind ?? "components"} of ${target}`;
+    case "geometry.boolean":
+      return `Boolean ${command.operation ?? "difference"} on ${target} using ${command.operandObjectId ?? "operand"}`;
+    case "geometry.extrude": {
+      const details = [
+        command.normalDistance === undefined ? "" : `normal distance ${command.normalDistance}`,
+        command.offset ? `local offset [${command.offset.join(", ")}]` : "",
+        command.capScale === undefined ? "" : `cap scale ${command.capScale}`,
+        command.capScaleXY ? `cap scale X/Y ${command.capScaleXY.join(" / ")}` : "",
+        command.capRotationDegrees ? `cap rotation ${command.capRotationDegrees.join(" / ")}°` : "",
+        command.normalMode === "individual" ? "individual face normals" : "",
+        command.normalMode === "vertex" ? "vertex normals" : "",
+        (command.steps ?? 1) > 1 ? `${command.steps} steps` : "",
+        command.twistDegrees === undefined ? "" : `twist ${command.twistDegrees}°`,
+        command.closeOpenSurface ? "close the source sheet" : "",
+      ].filter(Boolean);
+      return `Extrude ${command.kind ?? "components"} of ${target}${command.ids ? ` (${command.ids.length} components)` : ""}${details.length ? ` (${details.join(", ")})` : ""}`;
+    }
+    case "geometry.transform_faces": {
+      const transform = command.transform;
+      const details = [
+        transform?.position ? `move [${transform.position.join(", ")}]` : "",
+        transform?.rotation ? `rotate [${transform.rotation.join(", ")}] radians` : "",
+        transform?.scale ? `scale [${transform.scale.join(", ")}]` : "",
+      ].filter(Boolean);
+      return `Transform faces of ${target}${command.ids ? ` (${command.ids.length})` : ""}${details.length ? ` · ${command.space ?? "local"} · ${details.join(", ")}` : ""}`;
+    }
     case "geometry.subdivide_faces":
       return `Subdivide the selected faces of ${target}`;
+    case "geometry.fill_hole":
+      return `Fill the selected boundary loop on ${target}`;
     case "geometry.create_primitive":
       return `Add a ${command.primitive ?? "shape"} to ${target}${command.size === undefined ? "" : ` (size ${command.size})`}`;
+    case "geometry.create_mesh":
+      return `Add mesh ${command.name ?? target} (${command.vertices?.length ?? 0} vertices, ${command.faces?.length ?? 0} faces)`;
     default:
       return command.type;
   }

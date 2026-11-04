@@ -31,6 +31,7 @@ export const designFocusSchema = z
         kind: z.enum(["vertex", "edge", "face"]),
         ids: z.array(z.string().regex(/^\d{1,10}(_\d{1,10})?$/)).max(4096),
         modifiersEnabled: z.boolean(),
+        baseFaceIds: z.array(z.string().regex(/^\d{1,10}$/)).min(1).max(4096).optional(),
       })
       .strict()
       .nullable(),

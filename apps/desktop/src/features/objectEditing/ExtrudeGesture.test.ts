@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BoxGeometry, Mesh, PerspectiveCamera, Scene, type BufferGeometry, type Object3D } from "three";
+import {
+  BoxGeometry,
+  Mesh,
+  PerspectiveCamera,
+  Scene,
+  type BufferGeometry,
+  type Object3D,
+} from "three";
 import type { Viewport } from "@/features/viewport3d";
 import { EditorScene } from "@/features/assistant/EditorScene";
-import { faceNormal, readTopology } from "@/features/meshGeometry/meshTopology";
-import { ExtrudeGesture, type ExtrudeCommit } from "./ExtrudeGesture";
+import { assertManifold, faceNormal, readTopology, topology } from "@/features/meshGeometry/meshTopology";
+import { ExtrudeGesture, type ExtrudeCommit, type FaceTransformCommit } from "./ExtrudeGesture";
 
 beforeEach(() => {
   vi.stubGlobal("window", new EventTarget());
@@ -24,16 +31,57 @@ function fixture(editing = true) {
   camera.updateProjectionMatrix();
   const controls = { enabled: true };
   let frame: () => void = () => undefined;
-  const renderer = { domElement: { getBoundingClientRect: () => ({ width: 800, height: 800, left: 0, top: 0 }) } };
+  const viewportScene = new Scene();
+  const renderer = {
+    domElement: {
+      getBoundingClientRect: () => ({
+        width: 800,
+        height: 800,
+        left: 0,
+        top: 0,
+      }),
+    },
+  };
   // eslint-disable-next-line typescript/no-unsafe-type-assertion -- Minimal viewport fixture avoids creating a GPU context.
-  const viewport = { camera, controls, renderer, addFrameListener: (listener: () => void) => { frame = listener; return () => undefined; } } as unknown as Viewport;
+  const viewport = {
+    scene: viewportScene,
+    camera,
+    controls,
+    renderer,
+    addFrameListener: (listener: () => void) => {
+      frame = listener;
+      return () => undefined;
+    },
+  } as unknown as Viewport;
   const commits = vi.fn<(commit: ExtrudeCommit) => void>();
+  const transforms = vi.fn<(commit: FaceTransformCommit) => void>();
   const errors = vi.fn();
   const status = vi.fn();
-  const gesture = new ExtrudeGesture(viewport, scene, () => true, () => editing, () => ({ objectId: "box", meshPath: [], kind: "face", ids: [String(face)] }), commits, errors, status);
+  const gesture = new ExtrudeGesture(
+    viewport,
+    scene,
+    () => true,
+    () => editing,
+    () => ({
+      objectId: "box",
+      meshPath: [],
+      kind: "face",
+      ids: [String(face)],
+    }),
+    commits,
+    errors,
+    status,
+    transforms,
+  );
   const key = (value: string) => {
     const event = new Event("keydown", { cancelable: true });
-    Object.assign(event, { key: value, ctrlKey: false, metaKey: false, altKey: false, repeat: false });
+    Object.assign(event, {
+      key: value,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      repeat: false,
+    });
     window.dispatchEvent(event);
   };
   const move = (x: number, y: number) => {
@@ -42,7 +90,18 @@ function fixture(editing = true) {
     window.dispatchEvent(event);
     frame();
   };
-  return { scene, mesh, commits, errors, status, gesture, key, move };
+  return {
+    scene,
+    mesh,
+    viewportScene,
+    commits,
+    transforms,
+    errors,
+    status,
+    gesture,
+    key,
+    move,
+  };
 }
 
 /** Index of the cage face that points up, for extruding the top of the box. */
@@ -62,11 +121,31 @@ function isMeshObject(object: Object3D | undefined): object is Mesh {
 function highestY(geometry: BufferGeometry): number {
   const position = geometry.getAttribute("position");
   let highest = Number.NEGATIVE_INFINITY;
-  for (let i = 0; i < position.count; i += 1) highest = Math.max(highest, position.getY(i));
+  for (let i = 0; i < position.count; i += 1)
+    highest = Math.max(highest, position.getY(i));
   return highest;
 }
 
 describe("extrude shortcut", () => {
+  it("moves the selected-face overlay with a reused preview and removes it on cancel", () => {
+    const f = fixture();
+    f.move(400, 400);
+    f.key("e");
+    f.move(500, 430);
+    const group = f.viewportScene.children[0];
+    const fill = group?.children.find(isMeshObject);
+    if (!fill) throw new Error("Missing preview face overlay");
+    const initial = fill.geometry.getAttribute("position").getY(0);
+    const geometry = f.mesh.geometry;
+    f.move(550, 450);
+    expect(f.mesh.geometry).toBe(geometry);
+    expect(fill.geometry.getAttribute("position").getY(0)).not.toBeCloseTo(
+      initial,
+    );
+    f.key("Escape");
+    expect(f.viewportScene.children).toHaveLength(0);
+    f.gesture.dispose();
+  });
   it("starts a grab from E and confirms the offset", () => {
     const f = fixture();
     f.move(400, 400);
@@ -77,7 +156,11 @@ describe("extrude shortcut", () => {
     f.move(500, 430);
     f.key("Enter");
     expect(f.commits).toHaveBeenCalledOnce();
-    expect(f.commits.mock.calls[0]?.[0].offset.some((value) => Math.abs(value) > 1e-6)).toBe(true);
+    expect(
+      f.commits.mock.calls[0]?.[0].offset.some(
+        (value) => Math.abs(value) > 1e-6,
+      ),
+    ).toBe(true);
     expect(f.commits.mock.calls[0]?.[0].revision).toBe(revision);
     expect(f.mesh.geometry.getAttribute("position").count).toBe(24);
     f.gesture.dispose();
@@ -99,21 +182,114 @@ describe("extrude shortcut", () => {
     objects.gesture.dispose();
   });
 
-  it("keeps the last valid preview while the pointer runs along an edge, and confirms that preview", () => {
+  it("keeps the last valid preview while blocked and requires a valid pointer before confirming", () => {
     const f = fixture();
     f.move(400, 400);
     f.key("e");
+    f.key("x");
+    f.key("x");
     f.move(500, 430);
     const valid = f.mesh.geometry;
     expect(valid.getAttribute("position").count).not.toBe(24);
     // Straight across the screen runs along the top face's x edges, so that offset is blocked.
     f.move(500, 400);
-    expect(f.status).toHaveBeenLastCalledWith(expect.stringContaining("no area"));
+    expect(f.status).toHaveBeenLastCalledWith(
+      expect.stringContaining("no area"),
+    );
     expect(f.mesh.geometry).toBe(valid);
     f.key("Enter");
     expect(f.errors).not.toHaveBeenCalled();
+    expect(f.commits).not.toHaveBeenCalled();
+    f.move(500, 430);
+    f.key("Enter");
     expect(f.commits).toHaveBeenCalledOnce();
     expect(f.commits.mock.calls[0]?.[0].offset[1]).not.toBe(0);
+    f.gesture.dispose();
+  });
+
+  it("moves selected faces without extrusion and saves the same cage", () => {
+    const f = fixture();
+    f.move(400, 400);
+    f.key("g");
+    f.key("y");
+    f.move(400, 350);
+    const rendered = f.mesh.geometry;
+    f.move(400, 325);
+    expect(f.mesh.geometry).toBe(rendered);
+    const previewPositions = Array.from(rendered.getAttribute("position").array);
+    const preview = readTopology(rendered);
+    expect(preview.faces).toHaveLength(6);
+    expect(highestY(f.mesh.geometry)).toBeGreaterThan(1);
+    f.key("Enter");
+    const commit = f.transforms.mock.calls[0]?.[0];
+    if (!commit) throw new Error("Missing face move");
+    expect(f.scene.execute("move", commit.revision, [{
+      commandId: "move", type: "geometry.transform_faces", objectId: commit.objectId,
+      meshPath: commit.meshPath, ids: commit.ids, space: "world", transform: commit.transform,
+    }]).status).toBe("applied");
+    expect(Array.from(f.mesh.geometry.getAttribute("position").array)).toEqual(previewPositions);
+    expect(f.commits).not.toHaveBeenCalled();
+    f.gesture.dispose();
+  });
+
+  it("scales then tilts the cap and commits both controls", () => {
+    const f = fixture();
+    f.move(400, 400);
+    f.key("e");
+    f.move(500, 350);
+    f.key("s");
+    f.move(460, 350);
+    f.key("r");
+    f.key("x");
+    f.move(480, 350);
+    const preview = Array.from(f.mesh.geometry.getAttribute("position").array);
+    const previewUvs = Array.from(f.mesh.geometry.getAttribute("uv").array);
+    f.key("Enter");
+    const commit = f.commits.mock.calls[0]?.[0];
+    if (!commit) throw new Error("Missing shaped extrusion");
+    expect(commit.shape?.capScale).toBeLessThan(1);
+    expect(commit.shape?.capRotationDegrees?.[0]).toBeCloseTo(10);
+    expect(f.scene.execute("shape", commit.revision, [{
+      commandId: "shape", type: "geometry.extrude", kind: "face", objectId: commit.objectId,
+      ids: commit.ids, offset: commit.offset, ...commit.shape,
+    }]).status).toBe("applied");
+    expect(Array.from(f.mesh.geometry.getAttribute("position").array)).toEqual(preview);
+    expect(Array.from(f.mesh.geometry.getAttribute("uv").array)).toEqual(previewUvs);
+    f.gesture.dispose();
+  });
+
+  it("repeats extrusion on the returned cap and then moves it in one component batch", () => {
+    const f = fixture();
+    const id = String(topFaceOf(f.mesh.geometry));
+    const result = f.scene.execute("repeat", f.scene.currentRevision, [
+      { commandId: "repeat", type: "geometry.extrude", objectId: "box", kind: "face", ids: [id], normalDistance: 1, steps: 3 },
+      { commandId: "shift", type: "geometry.transform_faces", objectId: "box", ids: [id], transform: { position: [0, 0.5, 0] } },
+    ]);
+    expect("message" in result ? result.message : undefined).toBeUndefined();
+    expect(result.status).toBe("applied");
+    const cage = readTopology(f.mesh.geometry);
+    expect(cage.faces).toHaveLength(18);
+    expect(highestY(f.mesh.geometry)).toBeCloseTo(4.5);
+    expect(() => assertManifold(cage, topology(cage), true)).not.toThrow();
+    f.gesture.dispose();
+  });
+
+  it.each(["normals", "individual"] as const)("previews and commits the %s mode from the edit menu", (mode) => {
+    const f = fixture();
+    f.move(400, 400);
+    f.gesture.start(mode);
+    f.move(400, 350);
+    const preview = readTopology(f.mesh.geometry);
+    f.key("Enter");
+    const commit = f.commits.mock.calls[0]?.[0];
+    if (!commit) throw new Error("Missing normal extrusion");
+    expect(commit.normalMode).toBe(mode === "normals" ? "vertex" : "individual");
+    const result = f.scene.execute("normal", commit.revision, [{
+      commandId: "normal", type: "geometry.extrude", objectId: "box", kind: "face",
+      ids: commit.ids, normalDistance: commit.normalDistance, normalMode: commit.normalMode,
+    }]);
+    expect(result.status).toBe("applied");
+    expect(readTopology(f.mesh.geometry).positions).toEqual(preview.positions);
     f.gesture.dispose();
   });
 
@@ -125,7 +301,16 @@ describe("extrude shortcut", () => {
     f.key("e");
     f.move(500, 430);
     expect(f.mesh.geometry).not.toBe(committed);
-    const applied = f.scene.execute("extrude", f.scene.currentRevision, [{ commandId: "other", type: "geometry.extrude", objectId: "box", kind: "face", ids: [String(top)], offset: [0, 1, 0] }]);
+    const applied = f.scene.execute("extrude", f.scene.currentRevision, [
+      {
+        commandId: "other",
+        type: "geometry.extrude",
+        objectId: "box",
+        kind: "face",
+        ids: [String(top)],
+        offset: [0, 1, 0],
+      },
+    ]);
     expect(applied.status).toBe("applied");
     expect(f.commits).not.toHaveBeenCalled();
     // The committed top face rises from y=1 to y=2. Built on the preview, the cap would sit higher.
@@ -140,10 +325,29 @@ describe("extrude shortcut", () => {
     f.key("e");
     f.move(500, 430);
     const revision = f.scene.currentRevision;
-    const commands = [{ commandId: "prepared", type: "geometry.extrude", objectId: "box", kind: "face", ids: [String(top)], offset: [0, 1, 0] }];
-    expect(f.scene.executePrepared("prepared-proposal", revision, commands, "prepare").status).toBe("applied");
+    const commands = [
+      {
+        commandId: "prepared",
+        type: "geometry.extrude",
+        objectId: "box",
+        kind: "face",
+        ids: [String(top)],
+        offset: [0, 1, 0],
+      },
+    ];
+    expect(
+      f.scene.executePrepared(
+        "prepared-proposal",
+        revision,
+        commands,
+        "prepare",
+      ).status,
+    ).toBe("applied");
     expect(f.commits).not.toHaveBeenCalled();
-    expect(f.scene.executePrepared("prepared-proposal", revision, commands, "commit").status).toBe("applied");
+    expect(
+      f.scene.executePrepared("prepared-proposal", revision, commands, "commit")
+        .status,
+    ).toBe("applied");
     expect(highestY(boxGeometry(f.scene))).toBeCloseTo(2);
     f.gesture.dispose();
   });
@@ -169,7 +373,7 @@ describe("extrude shortcut", () => {
     f.key("x");
     expect(f.status).toHaveBeenLastCalledWith(expect.stringContaining("· X"));
     f.key("x");
-    expect(f.status.mock.lastCall?.[0]).not.toContain("· X");
+    expect(f.status.mock.lastCall?.[0]).not.toContain("Extrude · X");
     f.gesture.dispose();
   });
 });

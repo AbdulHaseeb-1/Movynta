@@ -66,6 +66,11 @@ export interface ViewCaptureOptions {
   readonly withImages: boolean;
   /** Names this capture. The editor files the pictures under it so the chat can show what the assistant saw. */
   readonly captureId: string;
+  readonly candidate?: {
+    readonly proposalId: string;
+    readonly revision: number;
+    readonly commands: readonly EditorCommand[];
+  };
 }
 
 /** The subset of a WebSocket the bridge needs. Keeps the transport swappable and testable. */

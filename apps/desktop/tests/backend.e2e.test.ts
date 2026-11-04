@@ -12,9 +12,13 @@ import {
 import { backendRequest, setBackendToken } from "../src/lib/backend";
 import { providersSchema } from "../src/features/providers";
 import { changeSceneHistory } from "../src/features/objectEditing/sceneHistory";
+import { saveManualCommands } from "../src/features/objectEditing/saveManualCommands";
+import { ensureManifold } from "../src/features/meshGeometry/meshBoolean";
+import { assertManifold, faceNormal, readTopology, topology } from "../src/features/meshGeometry/meshTopology";
 
 let fixture: Awaited<ReturnType<typeof startDesktopFixture>>;
 beforeAll(async () => {
+  await ensureManifold();
   vi.stubGlobal("window", globalThis);
   fixture = await startDesktopFixture();
   setBackendToken(fixture.token, fixture.port);
@@ -74,6 +78,57 @@ describe("real desktop/backend protocol", () => {
       expect(displayed).toBeInstanceOf(Mesh);
       if (displayed instanceof Mesh) expect(displayed.geometry).not.toBe(original);
       expect(editor.context({ objectId: "model", meshPath: [0], offset: 0, limit: 1 }).meshInspection?.stats?.faces).toBe(96);
+    } finally { connection.close(); abort.abort(); }
+  }, 30000);
+  it("applies an approved rounded Boolean batch and persists a manual cutter face move", async () => {
+    const project = await backendRequest("/projects", z.object({ id: z.string() }), "POST", {});
+    const editor = new EditorScene(new Scene(), project.id);
+    const abort = new AbortController();
+    const connection = await connectEditor(editor, abort.signal);
+    try {
+      await saveManualCommands(editor, [
+        { commandId: "target", type: "geometry.create_primitive", objectId: "target", primitive: "box", size: 1 },
+        { commandId: "cutter", type: "geometry.create_primitive", objectId: "cutter", primitive: "box", size: 1 },
+        { commandId: "place", type: "scene.transform_object", objectId: "cutter", transform: { position: [0.5, 0.5, 0.5] } },
+      ]);
+      fixture.enqueueRoundedCut();
+      const run = await backendRequest("/agent-runs", acceptedSchema, "POST", { projectId: project.id, editorClientId: connection.clientId, message: "Cut and round the target" });
+      let resolveApproval: (id: string) => void = () => {};
+      const approval = new Promise<string>((resolve) => { resolveApproval = resolve; });
+      const streaming = streamRun(run.eventsUrl, abort.signal, (event) => {
+        if (event.type === "approval.required" && typeof event.payload["approvalId"] === "string") resolveApproval(event.payload["approvalId"]);
+      });
+      const approvalId = await Promise.race([approval, streaming.then(() => { throw new Error("Run ended without Boolean approval"); })]);
+      expect(editor.context({ objectId: "target", meshPath: [], offset: 0, limit: 1 }).meshInspection?.modifiers).toHaveLength(0);
+      await backendRequest(`/agent-runs/${run.runId}/approvals/${approvalId}`, z.unknown(), "POST", { decision: "approve" });
+      await streaming;
+      expect((await getRun(run.runId)).status).toBe("completed");
+      expect(editor.context({ objectId: "target", meshPath: [], offset: 0, limit: 1 }).meshInspection?.modifiers?.map(({ kind }) => kind)).toEqual(["boolean", "bevel"]);
+      const mesh = (id: string) => {
+        const object = editor.getObject(id);
+        if (!(object instanceof Mesh)) throw new Error(`Missing mesh ${id}`);
+        return object;
+      };
+      await saveManualCommands(editor, [{ commandId: "hide-cutter", type: "scene.set_visibility", objectId: "cutter", visible: false }]);
+      expect(mesh("cutter").visible).toBe(false);
+      await changeSceneHistory(editor, "undo");
+      expect(mesh("cutter").visible).toBe(true);
+      await changeSceneHistory(editor, "redo");
+      expect(mesh("cutter").visible).toBe(false);
+      const beforeMove = mesh("target").geometry;
+      const cutter = readTopology(mesh("cutter").geometry);
+      const side = cutter.faces.findIndex((face) => faceNormal(cutter, face).x < -0.9);
+      await saveManualCommands(editor, [{
+        commandId: "shift-cutter", type: "geometry.transform_faces", objectId: "cutter",
+        ids: [String(side)], transform: { position: [-0.1, 0, 0] },
+      }]);
+      expect(mesh("target").geometry).not.toBe(beforeMove);
+      const rounded = readTopology(mesh("target").geometry);
+      expect(() => assertManifold(rounded, topology(rounded), true)).not.toThrow();
+      await changeSceneHistory(editor, "undo");
+      expect(readTopology(mesh("cutter").geometry).positions).toEqual(cutter.positions);
+      await changeSceneHistory(editor, "redo");
+      expect(readTopology(mesh("cutter").geometry).positions).not.toEqual(cutter.positions);
     } finally { connection.close(); abort.abort(); }
   }, 30000);
   it("configures and selects each fixed provider through frontend API code", async () => {

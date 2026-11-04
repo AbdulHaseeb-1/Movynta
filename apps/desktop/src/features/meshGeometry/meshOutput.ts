@@ -192,22 +192,30 @@ export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: b
   vertexIds.forEach((id, index) => { representatives[id] ??= basis(index); });
   // Flat bevels keep a nonindexed render buffer while preserving the polygon cage in metadata.
   if (flat) { output.setIndex(null); }
-  rememberTopology(output, { positions: mesh.positions, faces: mesh.faces, channels: { positions: representatives, corners: controlCorners, materials: data.materials } });
+  rememberTopology(output, {
+    positions: mesh.positions, faces: mesh.faces,
+    channels: { positions: representatives, corners: controlCorners, materials: data.materials },
+    ...(mesh.faceSources ? { faceSources: mesh.faceSources } : {}),
+  });
   return output;
 }
 
-function recomputeNormals(geometry: BufferGeometry, indices: number[], vertexIds: number[], count: number, smooth: boolean, hardVertices?: ReadonlySet<number>): void {
+export function recomputeNormals(geometry: BufferGeometry, indices: number[], vertexIds: number[], count: number, smooth: boolean, hardVertices?: ReadonlySet<number>): void {
   geometry.computeVertexNormals();
   if (!smooth) return;
   const sums = Array.from({ length: count }, () => new Vector3());
   const normals = geometry.getAttribute("normal");
   if (!normals) return;
+  const position = geometry.getAttribute("position");
+  const pa = new Vector3(); const ab = new Vector3(); const ac = new Vector3();
   for (let i = 0; i < indices.length; i += 3) {
     const a = indices[i]; const b = indices[i + 1]; const c = indices[i + 2];
     if (a === undefined || b === undefined || c === undefined) continue;
-    const pa = new Vector3().fromBufferAttribute(geometry.getAttribute("position"), a);
-    const normal = new Vector3().fromBufferAttribute(geometry.getAttribute("position"), b).sub(pa).cross(new Vector3().fromBufferAttribute(geometry.getAttribute("position"), c).sub(pa));
-    for (const index of [a, b, c]) sums[vertexIds[index] ?? -1]?.add(normal);
+    pa.fromBufferAttribute(position, a);
+    const normal = ab.fromBufferAttribute(position, b).sub(pa).cross(ac.fromBufferAttribute(position, c).sub(pa));
+    sums[vertexIds[a] ?? -1]?.add(normal);
+    sums[vertexIds[b] ?? -1]?.add(normal);
+    sums[vertexIds[c] ?? -1]?.add(normal);
   }
   sums.forEach((normal) => normal.normalize());
   vertexIds.forEach((id, index) => {

@@ -316,7 +316,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <ProjectBar project={project} onAction={actions.perform} onRename={renameProject} />
         <DesignModeMenu />
-        {designMode === "edit" && <ComponentToolbar scene={editorScene} saves={saves} />}
+        {designMode === "edit" && <ComponentToolbar scene={editorScene} saves={saves} start={extrude.start} />}
         <AddShapeMenu scene={editorScene} ensureProject={ensureProject} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} onAdded={() => setSubmitted(true)} />
       </div>
       {/* Panel launchers stay compact until opened. */}
@@ -326,7 +326,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
           disabled={run.busy || modifierBusy || opening !== "ready"}
           className="pointer-events-auto w-full shrink-0"
         />
-        <DesignWorkspacePanel scene={editorScene} />
+        <DesignWorkspacePanel scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} />
         <WorkspacePanel panelId="modifiers" label="modifiers" icon={Wrench} forceOpen={modifierBusy}>
           {editing.selected ? <ModifierPanel scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} /> : <p className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">Select an object to view its modifiers.</p>}
         </WorkspacePanel>

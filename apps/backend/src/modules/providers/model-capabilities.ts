@@ -110,7 +110,17 @@ export function reasoningModelSettings(
   return {};
 }
 
+/**
+ * Completion budget for OpenAI-compatible Chat Completions. Gateways often pick a tiny default when
+ * `max_tokens` is omitted, and Claude-style thinking spends that budget before any text or tool call.
+ * The Agents SDK then rejects the empty `finish_reason: "length"` response. 16384 leaves room for
+ * that thinking and a following tool call, and stays within the output limit of current Claude models.
+ */
+export const CHAT_COMPLETION_MAX_TOKENS = 16_384;
+
 /** Settings a provider needs on every run, whatever the user selects. */
 export function requiredModelSettings(providerId: ProviderId): ModelSettings {
-  return providerId === "chatgpt" ? CHATGPT_MODEL_SETTINGS : {};
+  if (providerId === "chatgpt") return CHATGPT_MODEL_SETTINGS;
+  if (providerId === "openai-compatible") return { maxTokens: CHAT_COMPLETION_MAX_TOKENS };
+  return {};
 }

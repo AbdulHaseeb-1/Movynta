@@ -109,6 +109,11 @@ export function classifyFailure(error: unknown, timedOut: boolean): RunFailure {
     };
   if (status !== undefined && status >= 500)
     return { code: "provider_unavailable", message: "The provider had an error. Try again shortly." };
+  if (chain.some((item) => typeof item["message"] === "string" && item["message"].includes("finish_reason='length'") && item["message"].includes("produced no assistant text")))
+    return {
+      code: "model_output_truncated",
+      message: "The model stopped before it could reply because the response hit its output limit. Try again.",
+    };
   if (
     chain.some((item) => typeof item["code"] === "string" && NETWORK_CODES.has(item["code"])) ||
     chain.some((item) => typeof item["message"] === "string" && /fetch failed|network|socket/i.test(item["message"]))

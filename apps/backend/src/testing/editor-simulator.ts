@@ -164,9 +164,10 @@ export class EditorSimulator {
   private apply(command: EditorCommand): void {
     switch (command.type) {
       case "scene.create_object":
+      case "geometry.create_mesh":
       case "geometry.create_primitive": {
         const id = command.objectId;
-        const name = command.type === "scene.create_object" ? command.name : command.primitive;
+        const name = command.type === "scene.create_object" ? command.name : command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.primitive;
         this.objects.push({
           id,
           name,
@@ -182,10 +183,13 @@ export class EditorSimulator {
         break;
       }
       case "scene.transform_object":
+      case "geometry.boolean":
       case "geometry.bevel":
       case "geometry.subdivide":
       case "geometry.set_modifiers":
+      case "geometry.transform_faces":
       case "geometry.extrude":
+      case "geometry.fill_hole":
       case "geometry.subdivide_faces":
       case "scene.set_visibility":
         break;

@@ -7,7 +7,7 @@ export const LARGE_BATCH_THRESHOLD = 100;
 /** Destructive commands remove or replace existing scene content. */
 export function isDestructiveCommand(command: EditorCommand): boolean {
   return (
-    command.type === "scene.delete_object" || command.type === "geometry.bevel" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers") || (command.type === "geometry.create_primitive" && command.replaceExisting)
+    command.type === "scene.delete_object" || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers") || (command.type === "geometry.create_primitive" && command.replaceExisting)
   );
 }
 

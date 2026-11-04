@@ -1,4 +1,4 @@
-import { reasoningEffortsFor, reasoningModelSettings } from "./model-capabilities.js";
+import { CHAT_COMPLETION_MAX_TOKENS, reasoningEffortsFor, reasoningModelSettings, requiredModelSettings } from "./model-capabilities.js";
 
 describe("reasoningEffortsFor", () => {
   it("offers efforts per OpenAI model family", () => {
@@ -23,6 +23,14 @@ describe("reasoningEffortsFor", () => {
     expect(reasoningEffortsFor("google", "gemini-2.5-flash")).toEqual(["low", "medium", "high"]);
     expect(reasoningEffortsFor("google", "gemini-3-pro-preview")).toEqual(["low", "high"]);
     expect(reasoningEffortsFor("google", "gemini-2.0-flash")).toEqual([]);
+  });
+});
+
+describe("requiredModelSettings", () => {
+  it("gives Chat Completions a completion budget and leaves other providers alone", () => {
+    expect(requiredModelSettings("openai-compatible")).toEqual({ maxTokens: CHAT_COMPLETION_MAX_TOKENS });
+    expect(requiredModelSettings("openai")).toEqual({});
+    expect(CHAT_COMPLETION_MAX_TOKENS).toBeGreaterThanOrEqual(8192);
   });
 });
 

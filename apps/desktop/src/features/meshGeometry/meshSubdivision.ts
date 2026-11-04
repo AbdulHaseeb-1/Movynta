@@ -40,11 +40,13 @@ function splitFaces(mesh: PolygonMesh, shouldSplit: (face: readonly number[]) =>
   const faces: number[][] = [];
   const corners: Weights[][] = [];
   const materials: number[] = [];
+  const faceSources: number[] | undefined = mesh.faceSources ? [] : undefined;
   mesh.faces.forEach((face, faceIndex) => {
     const samples = data.corners[faceIndex];
     if (!samples || samples.length !== face.length) throw new Error("Missing corner attributes");
     if (!shouldSplit(face)) {
       faces.push([...face]); corners.push(samples); materials.push(data.materials[faceIndex] ?? 0);
+      faceSources?.push(mesh.faceSources?.[faceIndex] ?? -1);
       return;
     }
     const triangles = triangulate(mesh, face);
@@ -59,11 +61,12 @@ function splitFaces(mesh: PolygonMesh, shouldSplit: (face: readonly number[]) =>
       const sampleC = c === undefined ? undefined : samples[c];
       if (idA === undefined || idB === undefined || idC === undefined || !sampleA || !sampleB || !sampleC) throw new Error("Invalid triangle");
       faces.push([idA, idB, idC]);
+      faceSources?.push(mesh.faceSources?.[faceIndex] ?? -1);
       corners.push([sampleA, sampleB, sampleC]);
       materials.push(data.materials[faceIndex] ?? 0);
     }
   });
-  return { positions: mesh.positions, faces, channels: { positions: data.positions, corners, materials } };
+  return { positions: mesh.positions, faces, channels: { positions: data.positions, corners, materials }, ...(faceSources ? { faceSources } : {}) };
 }
 
 function asTriangles(mesh: PolygonMesh): PolygonMesh {
@@ -109,6 +112,7 @@ export function subdivideLinear(input: PolygonMesh): PolygonMesh {
   const faces: number[][] = [];
   const cornerWeights: Weights[][] = [];
   const materials: number[] = [];
+  const faceSources: number[] | undefined = mesh.faceSources ? [] : undefined;
   mesh.faces.forEach((face, index) => {
     const center = centers[index];
     const faceAverage = mean(data.corners[index] ?? []);
@@ -121,6 +125,7 @@ export function subdivideLinear(input: PolygonMesh): PolygonMesh {
       const towardPrevious = vertex === undefined || previous === undefined ? undefined : edgeIds.get(edgeKey(previous, vertex));
       if (vertex === undefined || next === undefined || previous === undefined || towardNext === undefined || towardPrevious === undefined) throw new Error("Invalid subdivision topology");
       faces.push([vertex, towardNext, center, towardPrevious]);
+      faceSources?.push(mesh.faceSources?.[index] ?? -1);
       cornerWeights.push([
         cornerOn(index, vertex),
         mean([cornerOn(index, vertex), cornerOn(index, next)]),
@@ -130,7 +135,7 @@ export function subdivideLinear(input: PolygonMesh): PolygonMesh {
       materials.push(data.materials[index] ?? 0);
     }
   });
-  return { positions, faces, channels: { positions: positionWeights, corners: cornerWeights, materials } };
+  return { positions, faces, channels: { positions: positionWeights, corners: cornerWeights, materials }, ...(faceSources ? { faceSources } : {}) };
 }
 
 /** Loop subdivision. Faces with more than three corners are triangulated first. */
@@ -252,6 +257,7 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
   const faces: number[][] = [];
   const cornerWeights: Weights[][] = [];
   const materials: number[] = [];
+  const faceSources: number[] | undefined = triangles.faceSources ? [] : undefined;
   triangles.faces.forEach((face, index) => {
     const v0 = face[0];
     const v1 = face[1];
@@ -276,11 +282,12 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
     const split: readonly (readonly [number, number, number])[] = [[corner0, edge01, edge20], [edge01, corner1, edge12], [edge20, edge12, corner2], [edge01, edge12, edge20]];
     for (const [a, b, c] of split) {
       faces.push([a, b, c]);
+      faceSources?.push(triangles.faceSources?.[index] ?? -1);
       cornerWeights.push([sampleAt(a), sampleAt(b), sampleAt(c)]);
       materials.push(data.materials[index] ?? 0);
     }
   });
-  return { positions, faces, channels: { positions: positionWeights, corners: cornerWeights, materials } };
+  return { positions, faces, channels: { positions: positionWeights, corners: cornerWeights, materials }, ...(faceSources ? { faceSources } : {}) };
 }
 function opposite(face: readonly number[] | undefined, from: number, to: number): number {
   const vertex = face?.find((id) => id !== from && id !== to);

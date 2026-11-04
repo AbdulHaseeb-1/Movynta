@@ -36,6 +36,7 @@
     "config",
     "lib",
     "fixtures",
-    "suites"
+    "suites",
+    "../apps/desktop/src/types/manifold-wasm.d.ts"
   ]
 }

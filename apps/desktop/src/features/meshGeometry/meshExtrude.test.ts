@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { BoxGeometry, DoubleSide, FrontSide, Mesh, MeshStandardMaterial, PlaneGeometry, Scene, SphereGeometry, Vector3, type BufferGeometry } from "three";
 import { EditorScene } from "../assistant/EditorScene";
-import { commitStack, evaluateStack } from "./modifierStack";
-import { checkExtrudeSelection, extrudeRegion, writeExtrudedGeometry, ZeroAreaWallError, type ExtrudeResult } from "./meshExtrude";
+import { isEditableTarget } from "./meshInspection";
+import { fillHole } from "./meshFillHole";
+import { commitStack, evaluateStack, modifierStack } from "./modifierStack";
+import { checkExtrudeSelection, extrudeAlongRegionNormal, extrudeRegion, writeExtrudedGeometry, ZeroAreaWallError, type ExtrudeResult } from "./meshExtrude";
 import { hardCageVertices, triangulate, writeGeometry, writeShadedGeometry } from "./meshOutput";
-import { assertManifold, edgeKey, faceNormal, point, readTopology, topology, type PolygonMesh } from "./meshTopology";
+import { assertManifold, cageKey, edgeKey, faceNormal, point, readTopology, topology, type PolygonMesh } from "./meshTopology";
 import { basis } from "./meshWeights";
 
 function top(mesh: PolygonMesh): number {
@@ -76,6 +78,22 @@ function expectTexturedWalls(source: BufferGeometry, result: ExtrudeResult): voi
 }
 
 describe("extrude region", () => {
+  it("offsets shared vertices along their normals without splitting adjacent faces", () => {
+    const cage = readTopology(new BoxGeometry(2, 2, 2));
+    const upper = top(cage);
+    const side = cage.faces.findIndex((face) => faceNormal(cage, face).x > 0.9);
+    const shared = (cage.faces[upper] ?? []).find((vertex) => cage.faces[side]?.includes(vertex));
+    const sharedCorner = cage.faces[upper]?.indexOf(shared ?? -1) ?? -1;
+    const result = extrudeAlongRegionNormal(cage, [String(upper), String(side)], 0.25, { normalMode: "vertex" });
+    const moved = result.mesh.faces[upper]?.[sharedCorner];
+    expect(result.mesh.faces[side]).toContain(moved);
+    const delta = point(result.mesh, moved).clone().sub(point(cage, shared));
+    expect(delta.length()).toBeCloseTo(0.25);
+    expect(delta.x).toBeCloseTo(0.25 / Math.SQRT2);
+    expect(delta.y).toBeCloseTo(0.25 / Math.SQRT2);
+    expect(() => assertManifold(result.mesh, topology(result.mesh), true)).not.toThrow();
+  });
+
   it("raises a cube face and keeps the result a closed manifold", () => {
     const cage = readTopology(new BoxGeometry(2, 2, 2));
     const before = signedVolume(cage);
@@ -246,6 +264,244 @@ describe("extrude walls", () => {
 });
 
 describe("extrude command", () => {
+  it("moves adjacent cube faces separately along their own normals", () => {
+    const source = new BoxGeometry(2, 2, 2);
+    const cage = readTopology(source);
+    const ids = [top(cage), cage.faces.findIndex((face) => faceNormal(cage, face).x > 0.9)];
+    const result = extrudeAlongRegionNormal(cage, ids.map(String), 0.5, { normalMode: "individual" });
+    const [topId, sideId] = ids;
+    expect((result.mesh.faces[topId ?? -1] ?? []).every((vertex) => point(result.mesh, vertex).y === 1.5)).toBe(true);
+    expect((result.mesh.faces[sideId ?? -1] ?? []).every((vertex) => point(result.mesh, vertex).x === 1.5)).toBe(true);
+    expect(result.walls).toHaveLength(8);
+    expect(() => assertManifold(result.mesh, topology(result.mesh), true)).not.toThrow();
+    source.dispose();
+  });
+
+  it("supports different cap scales and a mesh-local cap tilt", () => {
+    const source = new PlaneGeometry(4, 2);
+    const cage = readTopology(source);
+    const result = extrudeAlongRegionNormal(cage, ["0"], 2, {
+      capScaleXY: [0.5, 1.5], capRotationDegrees: [30, 0, 0],
+    });
+    const cap = (result.mesh.faces[0] ?? []).map((id) => point(result.mesh, id));
+    expect(Math.max(...cap.map((p) => p.x))).toBeCloseTo(1);
+    expect(Math.max(...cap.map((p) => p.y))).toBeCloseTo(1.5 * Math.cos(Math.PI / 6));
+    expect(Math.max(...cap.map((p) => p.z))).toBeCloseTo(2.75);
+    source.dispose();
+  });
+
+  it.each(["edge", "vertex"] as const)("reevaluates a live %s extrusion from an untouched cage", (componentKind) => {
+    const source = new PlaneGeometry(2, 2);
+    const cage = readTopology(source);
+    const edge = topology(cage).edges.values().next().value?.[0];
+    if (!edge) throw new Error("Missing plane edge");
+    const ids = componentKind === "edge" ? [edgeKey(edge.from, edge.to)] : [String(edge.from), String(edge.to)];
+    const mesh = new Mesh(source);
+    const stack = evaluateStack(mesh, [{
+      id: "ext", kind: "extrusion", componentKind, enabled: true,
+      ids, baseKey: cageKey(cage), offset: [0, 0, 1],
+    }]);
+    expect(readTopology(stack.geometry).faces).toHaveLength(2);
+    expect(readTopology(stack.base).faces).toHaveLength(1);
+    stack.geometry.dispose(); stack.base.dispose(); source.dispose();
+  });
+
+  it("fills an explicit boundary loop and rejects an incomplete loop without a mutation", () => {
+    const source = new PlaneGeometry(2, 2);
+    const result = extrudeAlongRegionNormal(readTopology(source), ["0"], 1);
+    const geometry = writeExtrudedGeometry(source, result);
+    const editor = new EditorScene(new Scene(), "project");
+    const mesh = new Mesh(geometry);
+    editor.importObject("box", mesh);
+    const ids = [...topology(readTopology(geometry)).edges]
+      .filter(([, incident]) => incident.length === 1).map(([id]) => id);
+    const command = { commandId: "fill", type: "geometry.fill_hole", objectId: "box", ids };
+    const sheet = new Mesh(source.clone());
+    editor.importObject("sheet", sheet);
+    const outer = [...topology(readTopology(sheet.geometry)).edges.keys()];
+    const rejected = editor.execute("outer", editor.currentRevision, [{ ...command, objectId: "sheet", ids: outer }]);
+    expect(rejected.status).toBe("failed");
+    if (rejected.status === "failed") expect(rejected.message).toContain("coincident faces");
+    expect(editor.execute("incomplete", editor.currentRevision, [{ ...command, ids: ids.slice(1) }]).status).toBe("failed");
+    expect(mesh.geometry).toBe(geometry);
+    expect(editor.execute("fill", editor.currentRevision, [command]).status).toBe("applied");
+    const closed = readTopology(mesh.geometry);
+    expect(() => assertManifold(closed, topology(closed), true)).not.toThrow();
+    expect(signedVolume(closed)).toBeCloseTo(4);
+    editor.reset(); source.dispose();
+  });
+
+  it("retains a live extrusion when hole fill preserves the existing base IDs", () => {
+    const source = new PlaneGeometry(2, 2);
+    const geometry = writeExtrudedGeometry(source, extrudeAlongRegionNormal(readTopology(source), ["0"], 1));
+    const editor = new EditorScene(new Scene(), "project");
+    const mesh = new Mesh(geometry);
+    editor.importObject("box", mesh);
+    const cage = readTopology(geometry);
+    const stack = evaluateStack(mesh, [{
+      id: "ext", kind: "extrusion", enabled: true, ids: ["0"], baseKey: cageKey(cage), normalDistance: 1,
+    }]);
+    commitStack(mesh, stack);
+    const ids = [...topology(cage).edges].filter(([, incident]) => incident.length === 1).map(([id]) => id);
+    expect(editor.execute("fill", editor.currentRevision, [{
+      commandId: "fill", type: "geometry.fill_hole", objectId: "box", ids, componentView: "base",
+    }]).status).toBe("applied");
+    const live = modifierStack(mesh);
+    expect(live?.modifiers[0]).toMatchObject({ id: "ext", ids: ["0"], enabled: true });
+    expect(mesh.geometry.boundingBox?.max.z).toBeCloseTo(2);
+    if (!live) throw new Error("Missing live stack");
+    const closed = readTopology(live.base);
+    expect(() => assertManifold(closed, topology(closed), true)).not.toThrow();
+    editor.reset(); source.dispose(); geometry.dispose();
+  });
+
+  it("triangulates a warped opening while preserving the original boundary vertices", () => {
+    const source = new PlaneGeometry(2, 2);
+    const { mesh } = extrudeAlongRegionNormal(readTopology(source), ["0"], 1);
+    const boundary = [...topology(mesh).edges].filter(([, incident]) => incident.length === 1);
+    const vertex = boundary[0]?.[1][0]?.from;
+    if (vertex === undefined) throw new Error("Missing boundary vertex");
+    point(mesh, vertex).z -= 0.35;
+    const result = fillHole(mesh, boundary.map(([id]) => id));
+    expect(result.mesh.positions).toBe(mesh.positions);
+    expect(result.selection).toHaveLength(2);
+    expect(result.mesh.faces.slice(-2).map((face) => face.length)).toEqual([3, 3]);
+    expect(() => assertManifold(result.mesh, topology(result.mesh), true)).not.toThrow();
+    writeExtrudedGeometry(source, result).dispose();
+    source.dispose();
+  });
+
+  it("retains a live face extrusion across a disjoint base extrusion and refuses to move its anchor", () => {
+    const editor = new EditorScene(new Scene(), "project");
+    const mesh = new Mesh(new BoxGeometry(2, 2, 2));
+    editor.importObject("box", mesh);
+    const cage = readTopology(mesh.geometry);
+    const topFace = String(top(cage));
+    const bottom = String(cage.faces.findIndex((face) => faceNormal(cage, face).y < -0.9));
+    commitStack(mesh, evaluateStack(mesh, [{
+      id: "ext", kind: "extrusion", enabled: true, ids: [topFace],
+      baseKey: cageKey(cage), normalDistance: 1,
+    }]));
+    const command = {
+      commandId: "extrude", type: "geometry.extrude", objectId: "box", kind: "face",
+      componentView: "base", normalDistance: 0.5,
+    };
+    expect(editor.execute("bottom", editor.currentRevision, [{ ...command, ids: [bottom] }]).status).toBe("applied");
+    const stack = modifierStack(mesh);
+    expect(stack?.modifiers[0]).toMatchObject({ id: "ext", ids: [topFace] });
+    expect(mesh.geometry.boundingBox?.max.y).toBeCloseTo(2);
+    expect(mesh.geometry.boundingBox?.min.y).toBeCloseTo(-1.5);
+    const rejected = editor.execute("top", editor.currentRevision, [{ ...command, ids: [topFace] }]);
+    expect(rejected.status).toBe("failed");
+    if (rejected.status === "failed") expect(rejected.message).toContain("face used by the live extrusion");
+    expect(modifierStack(mesh)).toBe(stack);
+    editor.reset();
+  });
+  it.each([1, -1])("closes a planar sheet with outward winding at distance %s", (distance) => {
+    const source = new PlaneGeometry(2, 2);
+    const cage = readTopology(source);
+    const result = extrudeAlongRegionNormal(cage, ["0"], distance, { closeOpenSurface: true });
+    expect(() => assertManifold(result.mesh, topology(result.mesh), true)).not.toThrow();
+    expect(signedVolume(result.mesh)).toBeCloseTo(4);
+    expectTexturedWalls(source, result);
+    source.dispose();
+  });
+
+  it("scales and twists a cap about its translated center", () => {
+    const source = new PlaneGeometry(4, 2);
+    const cage = readTopology(source);
+    const result = extrudeAlongRegionNormal(cage, ["0"], 1, { capScale: 0.5, twistDegrees: 90 });
+    const cap = (result.mesh.faces[0] ?? []).map((id) => point(result.mesh, id));
+    expect(Math.max(...cap.map((p) => Math.abs(p.x)))).toBeCloseTo(0.5);
+    expect(Math.max(...cap.map((p) => Math.abs(p.y)))).toBeCloseTo(1);
+    expect(cap.every((p) => Math.abs(p.z - 1) < 1e-8)).toBe(true);
+    const geometry = writeExtrudedGeometry(source, result);
+    geometry.dispose();
+    source.dispose();
+  });
+
+  it("updates a live extrusion from the unchanged base and rejects a stale cage key", () => {
+    const source = new PlaneGeometry(2, 2);
+    const mesh = new Mesh(source);
+    const extrusion = {
+      id: "extrusion", kind: "extrusion" as const, enabled: true, ids: ["0"],
+      baseKey: cageKey(readTopology(source)), normalDistance: 1, closeOpenSurface: true,
+    };
+    const first = evaluateStack(mesh, [extrusion]);
+    commitStack(mesh, first);
+    const second = evaluateStack(mesh, [{ ...extrusion, normalDistance: 2 }]);
+    expect(second.base).toBe(first.base);
+    expect(second.geometry.boundingBox?.max.z).toBeCloseTo(2);
+    expect(first.geometry.boundingBox?.max.z).toBeCloseTo(1);
+    expect(() => evaluateStack(mesh, [{ ...extrusion, baseKey: "0000000000000000" }])).toThrow("base cage changed");
+    second.geometry.dispose();
+    first.geometry.dispose();
+    first.base.dispose();
+    source.dispose();
+  });
+  it("prepares and applies a region-normal extrusion while retaining the enabled modifier", () => {
+    const editor = new EditorScene(new Scene(), "project");
+    const mesh = new Mesh(new BoxGeometry(2, 2, 2));
+    const stack = evaluateStack(mesh, [{ id: "sub", kind: "subdivision", enabled: true, levels: 1 }]);
+    commitStack(mesh, stack);
+    editor.importObject("box", mesh);
+    const inspection = editor.context({ objectId: "box", meshPath: [], offset: 0, limit: 25, view: "base" });
+    const face = top(readTopology(stack.base));
+    expect(inspection.meshInspection?.faces.some(({ index }) => index === face)).toBe(true);
+    const commands = [{
+      commandId: "ex", type: "geometry.extrude", objectId: "box",
+      kind: "face", ids: [String(face)], componentView: "base", normalDistance: 0.75,
+    }];
+    expect(editor.executePrepared("proposal", inspection.revision, commands, "prepare").status).toBe("applied");
+    expect(mesh.geometry).toBe(stack.geometry);
+    expect(editor.executePrepared("proposal", inspection.revision, commands, "commit").status).toBe("applied");
+    const edited = editor.getObject("box");
+    if (!isEditableTarget(edited)) throw new Error("Missing extruded mesh");
+    const next = modifierStack(edited);
+    expect(next?.modifiers).toEqual(stack.modifiers);
+    expect(next?.base.boundingBox?.max.y).toBeCloseTo(1.75);
+    expect(next?.geometry).toBe(edited.geometry);
+    expect(next?.geometry).not.toBe(next?.base);
+    editor.reset();
+  });
+
+  it("rejects a region with opposing normals without mutating the cage", () => {
+    const editor = new EditorScene(new Scene(), "project");
+    const mesh = new Mesh(new BoxGeometry());
+    editor.importObject("box", mesh);
+    const original = mesh.geometry;
+    const cage = readTopology(original);
+    const bottom = cage.faces.findIndex((face) => faceNormal(cage, face).y < -0.9);
+    const result = editor.execute("proposal", editor.currentRevision, [{
+      commandId: "ex", type: "geometry.extrude", objectId: "box",
+      kind: "face", ids: [String(top(cage)), String(bottom)], normalDistance: 1,
+    }]);
+    expect(result.status).toBe("failed");
+    if (result.status === "failed") expect(result.message).toContain("no stable region normal");
+    expect(mesh.geometry).toBe(original);
+    editor.reset();
+  });
+
+  it("keeps the original cage and display if an enabled modifier rejects the extrusion", () => {
+    const editor = new EditorScene(new Scene(), "project");
+    const mesh = new Mesh(new BoxGeometry());
+    const stack = evaluateStack(mesh, [{ id: "sub", kind: "subdivision", enabled: true, levels: 1 }]);
+    commitStack(mesh, stack);
+    editor.importObject("box", mesh);
+    const cage = readTopology(stack.base);
+    const edge = topology(cage).edges.keys().next().value;
+    if (edge === undefined) throw new Error("Missing cube edge");
+    const revision = editor.currentRevision;
+    const result = editor.execute("proposal", revision, [{
+      commandId: "ex", type: "geometry.extrude", objectId: "box",
+      kind: "edge", ids: [edge], componentView: "base", offset: [1, 1, 1],
+    }]);
+    expect(result.status).toBe("failed");
+    expect(editor.currentRevision).toBe(revision);
+    expect(modifierStack(mesh)).toBe(stack);
+    expect(mesh.geometry).toBe(stack.geometry);
+    editor.reset();
+  });
   it("applies on the base cage and refuses an enabled modifier", () => {
     const scene = new EditorScene(new Scene(), "project");
     const mesh = new Mesh(new BoxGeometry(2, 2, 2));

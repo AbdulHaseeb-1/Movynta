@@ -1,54 +1,67 @@
 import {
-  BoxGeometry,
-  ConeGeometry,
   DoubleSide,
   FrontSide,
-  TorusGeometry,
-  CylinderGeometry,
   Group,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
-  PlaneGeometry,
   SkinnedMesh,
-  SphereGeometry,
   Vector3,
   type BufferGeometry,
   type Material,
   type Object3D,
+  type Quaternion,
   type Scene,
 } from "three";
-import { editorCommandListSchema, type designFocusSchema } from "@movynta/editor-protocol";
+import { editorCommandListSchema, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { extrudeRegion, writeExtrudedGeometry, type ExtrudeResult } from "../meshGeometry/meshExtrude";
+import { extrudeAlongRegionNormal, extrudeRegion, writeExtrudedGeometry, type ExtrudeResult } from "../meshGeometry/meshExtrude";
 import { subdivideFaces } from "../meshGeometry/meshSubdivideFaces";
-import { copyTopology, readTopology, type PolygonMesh } from "../meshGeometry/meshTopology";
+import { fillHole } from "../meshGeometry/meshFillHole";
+import { createPrimitive } from "../meshGeometry/createPrimitive";
+import { createPolygonMesh } from "../meshGeometry/createPolygonMesh";
+import { transformFaces } from "../meshGeometry/meshFaceTransform";
+import { cageKey, copyTopology, readTopology, retainsFaces, type PolygonMesh } from "../meshGeometry/meshTopology";
 import { assignLocalMatrix, settleShear } from "../objectEditing/shearFit";
 import { assertEditableMesh, inspectMesh, meshAtPath, evaluateStack, evaluateBase, modifierStack, commitStack, copyModifierStack, disposeModifierStack, type ModifierStackState } from "../meshGeometry";
+import { evaluateAffected, needsBooleanEvaluation, sceneMeshes, type MeshChange } from "../meshGeometry/booleanEvaluation";
+import { ensureManifold } from "../meshGeometry/meshBoolean";
 import type { MeshInspectionRequest } from "@movynta/editor-protocol";
 
 /** What the user is doing with the design tools, as the assistant is told about it. */
 export type DesignFocus = z.infer<typeof designFocusSchema>;
 
 type Command = z.infer<typeof editorCommandListSchema>[number];
-type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" }>;
+type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" | "geometry.boolean" }>;
 /** Commands that rewrite the base cage of one mesh part. They share a batch and the same rules about modifiers. */
-type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.subdivide_faces" }>;
+type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.subdivide_faces" | "geometry.fill_hole" | "geometry.transform_faces" }>;
 function isGeometryCommand(command: Command): command is GeometryCommand {
-  return command.type === "geometry.bevel" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers";
+  return command.type === "geometry.bevel" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || command.type === "geometry.boolean";
 }
 function isCageEditCommand(command: Command): command is CageEditCommand {
-  return command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces";
+  return command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || command.type === "geometry.transform_faces";
 }
 /** Rewrites the base cage for one command: extrude moves a region, subdivide-faces splits only the selected faces. */
-function cageEdit(command: CageEditCommand, cage: PolygonMesh): ExtrudeResult {
+function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh): ExtrudeResult {
   if (command.type === "geometry.subdivide_faces") return subdivideFaces(cage, command.ids);
-  const [x, y, z] = command.offset;
-  if (x === undefined || y === undefined || z === undefined) throw new Error("Extrude offset must move the selection");
-  return extrudeRegion(cage, command.kind, command.ids, new Vector3(x, y, z));
+  if (command.type === "geometry.fill_hole") return fillHole(cage, command.ids);
+  if (command.type === "geometry.transform_faces") {
+    mesh.updateWorldMatrix(true, false);
+    return transformFaces(cage, command.ids, command.transform, command.space === "world" ? mesh.matrixWorld : undefined);
+  }
+  const step = (surface: PolygonMesh, ids: string[]) => command.normalDistance !== undefined
+    ? extrudeAlongRegionNormal(surface, ids, command.normalDistance, command)
+    : extrudeRegion(surface, command.kind, ids, new Vector3().fromArray(command.offset ?? []), command);
+  let result = step(cage, command.ids);
+  const walls = [...result.walls];
+  for (let i = 1; i < (command.steps ?? 1); i += 1) {
+    result = step(result.mesh, result.selection);
+    walls.push(...result.walls);
+  }
+  return { ...result, walls };
 }
 function revealExtrudeBackfaces(mesh: Mesh): void {
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -112,6 +125,9 @@ function isInPlace(command: Command): command is InPlaceCommand {
 function isMesh(object: Object3D | undefined): object is Mesh {
   return object instanceof Mesh;
 }
+function triangleCount(geometry: BufferGeometry): number {
+  return (geometry.index?.count ?? geometry.getAttribute("position")?.count ?? 0) / 3;
+}
 
 /** Applies only the closed editor protocol. Batches are staged and committed atomically. */
 export class EditorScene {
@@ -129,9 +145,11 @@ export class EditorScene {
   private readonly listeners = new Set<() => void>();
   private readonly changeStarts = new Set<() => void>();
   private focus: DesignFocus = { mode: "object", componentKind: null, componentSelection: null };
+  private focusRevision = 0;
   /** Each registered object's id, so finding it from the object never has to search. */
   private ids = new WeakMap<Object3D, string>();
   private readonly idLookup: IdLookup = { has: (id) => this.objects.has(id) };
+  private booleanPreviewing = false;
   constructor(scene: Scene, projectId: string) {
     this.scene = scene;
     this.boundProjectId = projectId;
@@ -390,6 +408,28 @@ export class EditorScene {
     return candidate;
   }
 
+  /** Inspect a disposable candidate without holding a prepared commit open. */
+  withProposalPreview<T>(
+    proposalId: string,
+    revision: number,
+    commands: unknown,
+    read: (scene: Scene, candidate: EditorScene) => T,
+  ): T {
+    if (this.prepared || this.requiresRecovery) throw new Error("Finish the pending scene change before previewing a proposal");
+    if (revision !== this.revision) throw new Error("Scene changed since this proposal was created. Inspect it and propose again.");
+    this.beginChange();
+    const candidate = this.fork();
+    try {
+      const result = candidate.execute(proposalId, revision, commands);
+      if (result.status !== "applied") {
+        throw new Error("message" in result && result.message ? result.message : "The proposal could not be previewed");
+      }
+      return read(candidate.scene, candidate);
+    } finally {
+      candidate.reset();
+    }
+  }
+
   executePrepared(proposalId: string, expectedRevision: number, input: unknown, phase: "prepare" | "commit" | "discard") {
     const commands = editorCommandListSchema.parse(input);
     const applied = () => ({ status: "applied", revision: this.revision, results: commands.map((command) => ({ commandId: command.commandId, status: "applied" as const })) });
@@ -424,6 +464,15 @@ export class EditorScene {
     steps: readonly SceneStep[],
     loadImport: (step: ImportedModelStep) => Promise<Object3D>,
   ) {
+    const containsBoolean = steps.some((step) => {
+      if (step.kind !== "commands") return false;
+      const commands = editorCommandListSchema.safeParse(step.commands);
+      return commands.success && commands.data.some((command) =>
+        command.type === "geometry.boolean" ||
+        (command.type === "geometry.set_modifiers" && command.modifiers.some((modifier) => modifier.kind === "boolean" && modifier.enabled)),
+      );
+    });
+    if (containsBoolean) await ensureManifold();
     for (const step of steps) {
       if (step.kind === "import") {
         // Steps must replay one after another, in the order they happened.
@@ -447,6 +496,7 @@ export class EditorScene {
     this.applied.clear();
     this.revision = 0;
     this.selected = [];
+    this.focus = { ...this.focus, componentSelection: null };
     this.notify();
   }
   discardPrepared(): void {
@@ -480,17 +530,35 @@ export class EditorScene {
   /** Mirrors the workspace's design mode and Edit-mode picks, so the assistant can see what the user has selected. */
   setDesignFocus(focus: DesignFocus): void {
     this.focus = focus;
+    this.focusRevision = this.revision;
   }
 
   /** The focus as the assistant should see it: the picked mesh is checked, and a stale pick is dropped. */
   private designFocusSnapshot(): DesignFocus {
     const selection = this.focus.componentSelection;
     if (!selection) return this.focus;
+    if (this.focusRevision !== this.revision) return { ...this.focus, componentSelection: null };
     const object = this.objects.get(selection.objectId);
     if (!object) return { ...this.focus, componentSelection: null };
     try {
-      const modifiers = modifierStack(meshAtPath(object, selection.meshPath))?.modifiers ?? [];
-      return { ...this.focus, componentSelection: { ...selection, modifiersEnabled: modifiers.some((modifier) => modifier.enabled) } };
+      const mesh = meshAtPath(object, selection.meshPath);
+      const stack = modifierStack(mesh);
+      const modifiersEnabled = stack?.modifiers.some((modifier) => modifier.enabled) ?? false;
+      let baseFaceIds: string[] | undefined;
+      if (modifiersEnabled && selection.kind === "face" && selection.ids.length > 0 && mesh.geometry === stack?.geometry) {
+        const sources = readTopology(mesh.geometry).faceSources;
+        if (sources) {
+          const mapped = selection.ids.map((id) => sources[Number(id)] ?? -1);
+          if (mapped.every((id) => id >= 0)) baseFaceIds = [...new Set(mapped.map(String))];
+        }
+      }
+      return {
+        ...this.focus,
+        componentSelection: {
+          objectId: selection.objectId, meshPath: selection.meshPath, kind: selection.kind, ids: selection.ids,
+          modifiersEnabled, ...(baseFaceIds ? { baseFaceIds } : {}),
+        },
+      };
     } catch {
       return { ...this.focus, componentSelection: null };
     }
@@ -531,6 +599,110 @@ export class EditorScene {
     };
   }
 
+  /**
+   * Recomputes boolean results from the matrices currently on the objects.
+   * Used while a move, rotate, or scale is still a preview. A failure keeps the last valid meshes.
+   */
+  previewBooleans(): string | undefined {
+    if (this.booleanPreviewing || this.recoveryNeeded || this.prepared || !this.hasEnabledBoolean()) return undefined;
+    this.booleanPreviewing = true;
+    let evaluated: Map<Mesh, ModifierStackState> | undefined;
+    try {
+      this.scene.updateMatrixWorld(true);
+      const slots = sceneMeshes(this.objects);
+      const selected = new Set(this.selected.map((id) => this.objects.get(id)));
+      const transformed = new Set(slots.filter(({ mesh }) => {
+        for (let node: Object3D | null = mesh; node; node = node.parent) if (selected.has(node)) return true;
+        return false;
+      }).map(({ mesh }) => mesh));
+      evaluated = evaluateAffected(slots, new Map(), "transforms", transformed);
+      this.assertTriangleBudget(evaluated);
+      this.commitMeshResults(evaluated);
+    } catch (error) {
+      this.discardGeometries(evaluated);
+      return error instanceof Error ? error.message : "Boolean preview failed";
+    } finally {
+      this.booleanPreviewing = false;
+    }
+    return undefined;
+  }
+
+  private hasEnabledBoolean(objects: ReadonlyMap<string, Object3D> = this.objects): boolean {
+    return sceneMeshes(objects).some((slot) => (modifierStack(slot.mesh)?.modifiers ?? []).some((modifier) => modifier.enabled && modifier.kind === "boolean"));
+  }
+
+  private operandReferenced(objectId: string): boolean {
+    for (const slot of sceneMeshes(this.objects)) {
+      if (slot.objectId === objectId) continue;
+      if ((modifierStack(slot.mesh)?.modifiers ?? []).some((modifier) => modifier.kind === "boolean" && modifier.operandObjectId === objectId)) return true;
+    }
+    return false;
+  }
+
+  private captureTransforms(): Map<Object3D, { position: Vector3; quaternion: Quaternion; scale: Vector3 }> {
+    const snapshot = new Map<Object3D, { position: Vector3; quaternion: Quaternion; scale: Vector3 }>();
+    for (const object of this.objects.values()) snapshot.set(object, { position: object.position.clone(), quaternion: object.quaternion.clone(), scale: object.scale.clone() });
+    return snapshot;
+  }
+
+  private restoreTransforms(snapshot: ReadonlyMap<Object3D, { position: Vector3; quaternion: Quaternion; scale: Vector3 }>): void {
+    for (const [object, transform] of snapshot) {
+      object.position.copy(transform.position);
+      object.quaternion.copy(transform.quaternion);
+      object.scale.copy(transform.scale);
+    }
+  }
+
+  private assertTriangleBudget(evaluated: ReadonlyMap<Mesh, ModifierStackState>): void {
+    let total = 0;
+    for (const state of evaluated.values()) total += triangleCount(state.geometry);
+    if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
+  }
+
+  private commitMeshResults(evaluated: ReadonlyMap<Mesh, ModifierStackState>): void {
+    const replaced = new Set<BufferGeometry>();
+    for (const [mesh, state] of evaluated) {
+      const live = modifierStack(mesh);
+      replaced.add(mesh.geometry);
+      if (live) {
+        if (live.geometry !== mesh.geometry) replaced.add(live.geometry);
+        if (live.base !== state.base) replaced.add(live.base);
+      }
+      commitStack(mesh, state);
+      replaced.delete(state.geometry);
+      replaced.delete(state.base);
+    }
+    this.disposeUnused(replaced);
+  }
+
+  private discardGeometries(evaluated: ReadonlyMap<Mesh, ModifierStackState> | undefined): void {
+    if (!evaluated) return;
+    for (const [mesh, state] of evaluated) {
+      const live = modifierStack(mesh);
+      if (state.geometry !== mesh.geometry && state.geometry !== live?.geometry && state.geometry !== state.base) state.geometry.dispose();
+    }
+  }
+
+  private disposeUnused(replaced: ReadonlySet<BufferGeometry>): void {
+    const used = new Set<BufferGeometry>();
+    this.scene.traverse((node) => { if (isMesh(node)) used.add(node.geometry); });
+    for (const geometry of replaced) if (!used.has(geometry)) geometry.dispose();
+  }
+
+  private refreshStagedBooleans(objects: ReadonlyMap<string, Object3D>): void {
+    if (!this.hasEnabledBoolean(objects)) return;
+    for (const object of objects.values()) if (!object.parent) object.updateMatrixWorld(true);
+    let evaluated: Map<Mesh, ModifierStackState> | undefined;
+    try {
+      evaluated = evaluateAffected(sceneMeshes(objects), new Map(), "transforms");
+      this.assertTriangleBudget(evaluated);
+      this.commitMeshResults(evaluated);
+    } catch (error) {
+      this.discardGeometries(evaluated);
+      throw error;
+    }
+  }
+
   execute(proposalId: string, expectedRevision: number, input: unknown) {
     if (this.recoveryNeeded) throw new Error("Reconnect to the saved project before editing");
     if (this.prepared) throw new Error("Wait for the prepared scene change to finish");
@@ -548,6 +720,20 @@ export class EditorScene {
         results: [],
       };
     this.beginChange();
+    for (const command of commands) {
+      if (command.type !== "scene.delete_object" || !this.operandReferenced(command.objectId)) continue;
+      const reason = `Remove the Boolean modifier that uses "${command.objectId}" before deleting it`;
+      return {
+        status: "failed",
+        revision: this.revision,
+        message: reason,
+        results: commands.map((entry) => ({
+          commandId: entry.commandId,
+          status: "failed" as const,
+          message: entry === command ? reason : "Not applied: the batch was rolled back",
+        })),
+      };
+    }
     if (commands.some(isGeometryCommand)) return this.applyGeometryBatch(proposalId, commands, results);
     if (commands.some(isCageEditCommand)) return this.applyCageEditBatch(proposalId, commands, results);
     // Moving, turning, resizing and deleting are the common edits, and need no copy of the scene to be safe.
@@ -576,6 +762,9 @@ export class EditorScene {
       for (const command of commands) {
         current = command;
         this.apply(staged, command);
+      }
+      if (commands.some((command) => command.type === "scene.set_parent" || command.type === "scene.transform_object" || (command.type === "geometry.create_primitive" && command.replaceExisting))) {
+        this.refreshStagedBooleans(staged);
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Command failed";
@@ -645,6 +834,7 @@ export class EditorScene {
     interface Staged { base: BufferGeometry; display: BufferGeometry; modifiers: ModifierStackState["modifiers"]; reveal: boolean }
     const staged = new Map<Mesh, Staged>();
     let current: Command | undefined;
+    let dependent: Map<Mesh, ModifierStackState> | undefined;
     const release = () => {
       for (const [mesh, state] of staged) {
         const live = modifierStack(mesh);
@@ -655,7 +845,8 @@ export class EditorScene {
       }
     };
     try {
-      if (commands.length > 20 || !commands.every(isCageEditCommand)) throw new Error("Component edit batches accept only extrude and subdivide_faces commands, at most 20; create or transform objects in a separate proposal");
+      if (commands.length > 20 || !commands.every(isCageEditCommand)) throw new Error("Use at most 20 component edits per batch; create or transform objects in a separate proposal");
+      const refreshDependents = this.hasEnabledBoolean();
       for (const command of commands) {
         current = command;
         const mesh = meshAtPath(this.objects.get(command.objectId), command.meshPath);
@@ -664,13 +855,36 @@ export class EditorScene {
         const live = modifierStack(mesh);
         const previous = staged.get(mesh);
         const modifiers = previous?.modifiers ?? live?.modifiers ?? [];
-        if (!previous && modifiers.some((modifier) => modifier.enabled)) throw new Error("Disable modifiers before editing components, so the selection matches the base mesh");
+        const liveExtrusion = modifiers.find((modifier) => modifier.kind === "extrusion");
+        if (liveExtrusion && command.type !== "geometry.fill_hole" &&
+          ((command.type !== "geometry.extrude" && command.type !== "geometry.transform_faces") || (liveExtrusion.componentKind ?? "face") !== "face")) {
+          throw new Error("Remove the live extrusion before rewriting its base cage");
+        }
+        const usesBaseIds = command.type !== "geometry.subdivide_faces" && command.componentView === "base";
+        if (!usesBaseIds && modifiers.some((modifier) => modifier.enabled)) {
+          throw new Error("Disable modifiers before editing components, or use explicit base IDs where supported");
+        }
         const source = previous?.base ?? live?.base ?? mesh.geometry;
-        const extruded = cageEdit(command, readTopology(source));
+        const cage = readTopology(source);
+        if (liveExtrusion && liveExtrusion.baseKey !== cageKey(cage)) {
+          throw new Error("The live extrusion's base cage changed. Inspect the base and choose its components again.");
+        }
+        const extruded = cageEdit(command, cage, mesh);
+        if (liveExtrusion && (command.type === "geometry.extrude" || command.type === "geometry.transform_faces") && !retainsFaces(cage, extruded.mesh, liveExtrusion.ids)) {
+          throw new Error("This edit changes a face used by the live extrusion. Adjust or remove that modifier first.");
+        }
         const base = writeExtrudedGeometry(source, extruded);
         let display = base;
+        let nextModifiers = modifiers;
         try {
-          if (modifiers.length > 0) display = evaluateBase(base, modifiers);
+          if (liveExtrusion) {
+            // The edit kept the anchors, so the modifier can bind to the new cage key.
+            const baseKey = cageKey(readTopology(base));
+            nextModifiers = modifiers.map((modifier) =>
+              modifier === liveExtrusion ? { ...liveExtrusion, baseKey } : modifier,
+            );
+          }
+          if (!refreshDependents && nextModifiers.length > 0) display = evaluateBase(base, nextModifiers);
         } catch (error) {
           base.dispose();
           throw error;
@@ -679,13 +893,26 @@ export class EditorScene {
           if (previous.base !== live?.base && previous.base !== mesh.geometry) previous.base.dispose();
           if (previous.display !== previous.base && previous.display !== mesh.geometry && previous.display !== live?.geometry) previous.display.dispose();
         }
-        staged.set(mesh, { base, display, modifiers, reveal: (previous?.reveal ?? false) || (command.type === "geometry.extrude" && command.kind !== "face") });
-        let total = 0;
-        for (const state of staged.values()) total += (state.display.index?.count ?? state.display.getAttribute("position")?.count ?? 0) / 3;
-        if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
+        staged.set(mesh, { base, display, modifiers: nextModifiers, reveal: (previous?.reveal ?? false) || (command.type === "geometry.extrude" && command.kind !== "face") });
+        if (!refreshDependents) {
+          let total = 0;
+          for (const state of staged.values()) total += triangleCount(state.display);
+          if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
+        }
+      }
+      if (refreshDependents) {
+        const changes = new Map<Mesh, MeshChange>();
+        for (const [mesh, state] of staged) changes.set(mesh, { base: state.base, modifiers: state.modifiers });
+        dependent = evaluateAffected(sceneMeshes(this.objects), changes, "dependencies");
+        this.assertTriangleBudget(dependent);
+        for (const [mesh, result] of dependent) {
+          const state = staged.get(mesh);
+          if (state) state.display = result.geometry;
+        }
       }
     } catch (error) {
       release();
+      this.discardGeometries(dependent);
       const reason = (error instanceof Error ? error.message : "Geometry operation failed").slice(0, 400);
       return { status: "failed" as const, revision: this.revision, message: reason, results: commands.map((command) => ({
         commandId: command.commandId, status: "failed" as const, message: command === current ? reason : "Not applied: the batch was rolled back",
@@ -702,6 +929,17 @@ export class EditorScene {
       replaced.delete(state.base);
       replaced.delete(state.display);
     }
+    if (dependent) {
+      for (const [mesh, state] of dependent) {
+        if (staged.has(mesh)) continue;
+        const live = modifierStack(mesh);
+        replaced.add(mesh.geometry);
+        if (live && live.geometry !== mesh.geometry) replaced.add(live.geometry);
+        commitStack(mesh, state);
+        replaced.delete(state.geometry);
+        replaced.delete(state.base);
+      }
+    }
     const used = new Set<BufferGeometry>();
     this.scene.traverse((node) => { if (isMesh(node)) used.add(node.geometry); });
     for (const geometry of replaced) if (!used.has(geometry)) geometry.dispose();
@@ -715,40 +953,58 @@ export class EditorScene {
   private applyGeometryBatch(proposalId: string, commands: Command[], results: { commandId: string; status: "applied" }[]) {
     const staged = new Map<Mesh, ModifierStackState>();
     let current: Command | undefined;
+    let dependent: Map<Mesh, ModifierStackState> | undefined;
     try {
-      if (commands.length > 20 || !commands.every(isGeometryCommand)) throw new Error("Geometry batches accept only bevel/subdivision commands, at most 20; create or transform objects in a separate proposal");
+      if (commands.length > 20 || !commands.every(isGeometryCommand)) throw new Error("Use at most 20 modifier commands per batch; create or transform objects in a separate proposal");
+      const planned = new Map<Mesh, MeshModifierSpec[]>();
+      const touched = new Map<Mesh, Command>();
       for (const command of commands) {
         current = command;
         const mesh = meshAtPath(this.objects.get(command.objectId), command.meshPath);
         assertEditableMesh(mesh);
-        const previous = staged.get(mesh);
-        const existing = previous ?? modifierStack(mesh);
-        const entries = existing?.modifiers ?? [];
+        const entries = planned.get(mesh) ?? modifierStack(mesh)?.modifiers ?? [];
         let id = command.commandId;
         for (let suffix = 1; entries.some((entry) => entry.id === id); suffix += 1) id = `${command.commandId.slice(0, 50)}_${suffix}`;
         const modifiers = command.type === "geometry.set_modifiers" ? command.modifiers : [...entries, command.type === "geometry.bevel"
           ? { id, kind: "bevel" as const, enabled: true, width: command.width, segments: command.segments ?? 1, ...(command.profile ? { profile: command.profile } : {}), ...(command.angle === undefined ? {} : { angle: command.angle }) }
-          : { id, kind: "subdivision" as const, enabled: true, levels: command.levels, ...(command.method ? { method: command.method } : {}) }];
+          : command.type === "geometry.boolean"
+            ? { id, kind: "boolean" as const, enabled: true, operation: command.operation,
+              operandObjectId: command.operandObjectId, operandMeshPath: command.operandMeshPath,
+              ...(command.cutMaterialIndex === undefined ? {} : { cutMaterialIndex: command.cutMaterialIndex }) }
+            : { id, kind: "subdivision" as const, enabled: true, levels: command.levels, ...(command.method ? { method: command.method } : {}) }];
         if (modifiers.length > 8) throw new Error("A mesh supports at most eight modifiers");
-        const next = evaluateStack(mesh, modifiers, existing);
-        staged.set(mesh, next);
-        previous?.geometry.dispose();
-        let total = 0;
-        for (const state of staged.values()) total += (state.geometry.index?.count ?? state.geometry.getAttribute("position").count) / 3;
-        if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
+        planned.set(mesh, modifiers);
+        touched.set(mesh, command);
+      }
+      if (needsBooleanEvaluation(sceneMeshes(this.objects), planned)) {
+        const changes = new Map<Mesh, MeshChange>();
+        for (const [mesh, modifiers] of planned) changes.set(mesh, { modifiers });
+        dependent = evaluateAffected(sceneMeshes(this.objects), changes, "dependencies");
+        this.assertTriangleBudget(dependent);
+      } else {
+        for (const [mesh, modifiers] of planned) {
+          current = touched.get(mesh);
+          const next = evaluateStack(mesh, modifiers, modifierStack(mesh));
+          staged.set(mesh, next);
+          let total = 0;
+          for (const state of staged.values()) total += triangleCount(state.geometry);
+          if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
+        }
       }
     } catch (error) {
       for (const [mesh, state] of staged) { state.geometry.dispose(); if (state.base !== modifierStack(mesh)?.base) state.base.dispose(); }
+      this.discardGeometries(dependent);
       const reason = (error instanceof Error ? error.message : "Geometry operation failed").slice(0, 400);
       return { status: "failed", revision: this.revision, message: reason, results: commands.map((command) => ({
         commandId: command.commandId, status: "failed" as const, message: command === current ? reason : "Not applied: the batch was rolled back",
       })) };
     }
-    const replaced = new Set<BufferGeometry>();
-    for (const [mesh, state] of staged) { replaced.add(mesh.geometry); commitStack(mesh, state); }
-    const used = new Set<BufferGeometry>();
-    this.scene.traverse((node) => { if (isMesh(node)) used.add(node.geometry); });
-    for (const geometry of replaced) if (!used.has(geometry)) geometry.dispose();
+    if (dependent) this.commitMeshResults(dependent);
+    else {
+      const replaced = new Set<BufferGeometry>();
+      for (const [mesh, state] of staged) { replaced.add(mesh.geometry); commitStack(mesh, state); }
+      this.disposeUnused(replaced);
+    }
     this.revision += 1; this.applied.add(proposalId); this.notify();
     return { status: "applied", revision: this.revision, results };
   }
@@ -788,11 +1044,40 @@ export class EditorScene {
       }
       gone.add(command.objectId);
     }
+    const snapshot = commands.some((command) => command.type === "scene.transform_object") && this.hasEnabledBoolean()
+      ? this.captureTransforms()
+      : undefined;
+    const names = snapshot ? new Map([...this.objects.values()].map((object) => [object, object.name])) : undefined;
+    const shown = snapshot ? new Map([...this.objects.values()].map((object) => [object, object.visible])) : undefined;
     for (const command of commands) {
       const object = this.objects.get(command.objectId);
       if (!object) continue;
-      if (command.type === "scene.delete_object") this.removeObject(command.objectId, object);
-      else this.change(object, command);
+      if (command.type === "scene.delete_object") {
+        if (!snapshot) this.removeObject(command.objectId, object);
+      } else this.change(object, command);
+    }
+    if (snapshot) {
+      let evaluated: Map<Mesh, ModifierStackState> | undefined;
+      try {
+        this.scene.updateMatrixWorld(true);
+        evaluated = evaluateAffected(sceneMeshes(this.objects), new Map(), "transforms");
+        this.assertTriangleBudget(evaluated);
+        this.commitMeshResults(evaluated);
+      } catch (error) {
+        this.discardGeometries(evaluated);
+        this.restoreTransforms(snapshot);
+        for (const [object, name] of names ?? []) object.name = name;
+        for (const [object, visible] of shown ?? []) object.visible = visible;
+        this.scene.updateMatrixWorld(true);
+        const failed = [...commands].reverse().find((command) => command.type === "scene.transform_object");
+        const reason = (error instanceof Error ? error.message : "Boolean operation failed").slice(0, 400);
+        if (failed) return fail(failed, reason);
+      }
+      for (const command of commands) {
+        if (command.type !== "scene.delete_object") continue;
+        const object = this.objects.get(command.objectId);
+        if (object) this.removeObject(command.objectId, object);
+      }
     }
     this.revision += 1;
     this.applied.add(proposalId);
@@ -853,25 +1138,13 @@ export class EditorScene {
         `Object "${command.objectId}" already exists; use another objectId or set replaceExisting`,
       );
     let object: Object3D;
-    if (command.type === "geometry.create_primitive") {
-      const size = command.size;
-      const geometry: BufferGeometry =
-        command.primitive === "sphere"
-          ? new SphereGeometry(size / 2, 24, 16)
-          : command.primitive === "cylinder"
-            ? new CylinderGeometry(size / 2, size / 2, size, 24)
-            : command.primitive === "cone"
-              ? new ConeGeometry(size / 2, size, 24)
-              : command.primitive === "torus"
-                ? new TorusGeometry(size * .35, size * .15, 12, 32)
-            : command.primitive === "plane"
-              ? new PlaneGeometry(size, size)
-              : new BoxGeometry(size, size, size);
+    if (command.type === "geometry.create_primitive" || command.type === "geometry.create_mesh") {
+      const geometry = command.type === "geometry.create_primitive" ? createPrimitive(command) : createPolygonMesh(command.vertices, command.faces, command.shading);
       object = new Mesh(
         geometry,
-        new MeshStandardMaterial({ color: "#b6aaa4", roughness: 0.65, side: command.primitive === "plane" ? DoubleSide : FrontSide }),
+        new MeshStandardMaterial({ color: "#b6aaa4", roughness: 0.65, side: command.type === "geometry.create_mesh" || command.primitive === "plane" ? DoubleSide : FrontSide }),
       );
-      object.name = command.primitive;
+      object.name = command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.primitive;
     } else {
       object = new Group();
       object.name = command.name;

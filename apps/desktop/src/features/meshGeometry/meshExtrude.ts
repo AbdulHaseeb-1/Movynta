@@ -1,10 +1,19 @@
-import { Vector3, type BufferAttribute, type BufferGeometry, type InterleavedBufferAttribute } from "three";
+import { Euler, Quaternion, Vector3, type BufferAttribute, type BufferGeometry, type InterleavedBufferAttribute } from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import { writeShadedGeometry } from "./meshOutput";
 import { basis, type Weights } from "./meshWeights";
-import { channels, edgeKey, faceNormal, point, topology, type HalfEdge, type PolygonMesh, type SurfaceChannels, type Topology } from "./meshTopology";
+import { assertManifold, channels, edgeKey, faceAreaNormal, faceNormal, point, topology, type HalfEdge, type PolygonMesh, type SurfaceChannels, type Topology } from "./meshTopology";
 
 export type ExtrudeKind = "vertex" | "edge" | "face";
+export interface ExtrudeCapShape {
+  capScale?: number | undefined;
+  capScaleXY?: readonly number[] | undefined;
+  capRotationDegrees?: readonly number[] | undefined;
+  twistDegrees?: number | undefined;
+  closeOpenSurface?: boolean | undefined;
+  normalMode?: "region" | "individual" | "vertex" | undefined;
+  normalDistance?: number | undefined;
+}
 export interface ExtrudeResult {
   mesh: PolygonMesh;
   selection: string[];
@@ -47,6 +56,7 @@ interface WallSpec {
 /** A run of selected faces around one vertex that touch each other through an edge at that vertex. */
 interface Fan {
   vertex: number;
+  faces: number[];
 }
 
 function requireOffset(offset: Vector3): void {
@@ -244,10 +254,11 @@ function fansOf(mesh: PolygonMesh, graph: Topology, selected: ReadonlySet<number
       const component = root(node(face, vertex));
       let fan = fanOfRoot.get(component);
       if (fan === undefined) {
-        fan = fans.push({ vertex }) - 1;
+        fan = fans.push({ vertex, faces: [] }) - 1;
         fanOfRoot.set(component, fan);
       }
       fanAt.set(`${face}:${vertex}`, fan);
+      fans[fan]?.faces.push(face);
     }
   }
   return { fans, fanAt };
@@ -391,7 +402,7 @@ export function checkExtrudeSelection(mesh: PolygonMesh, kind: ExtrudeKind, ids:
  * itself gets a copy for each run of faces, so the cap stays in pieces that do not share a vertex.
  * Edges grow a quad. Vertices joined by an edge grow that same quad. One offset moves the whole region.
  */
-export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonly string[], offset: Vector3): ExtrudeResult {
+export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonly string[], offset: Vector3, shape?: ExtrudeCapShape): ExtrudeResult {
   requireOffset(offset);
   if (mesh.faces.length === 0) throw new Error("Mesh has no faces");
   const data = channels(mesh);
@@ -400,9 +411,29 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
     const faces = parseFaces(mesh, ids);
     const selected = new Set(faces);
     const graph = cageTopology(mesh);
+    let reverseSolid = false;
+    if (shape?.closeOpenSurface) {
+      reverseSolid = checkSolidSheet(mesh, graph, selected, offset);
+    }
     const { fans, fanAt } = fansOf(mesh, graph, selected);
+    const normals = shape?.normalMode === "vertex"
+      ? new Map(faces.map((face) => [face, faceAreaNormal(mesh, mesh.faces[face] ?? [])]))
+      : null;
     // One moved vertex per fan. Unselected faces keep their vertices, so the walls close around them.
-    const moved = fans.map((fan) => addVertex(draft, mesh, data, fan.vertex, offset));
+    const moved = fans.map((fan) => {
+      let direction = offset;
+      if (normals) {
+        const normal = new Vector3();
+        for (const face of fan.faces) {
+          const contribution = normals.get(face);
+          if (contribution) normal.add(contribution);
+        }
+        if (normal.lengthSq() < 1e-20) throw new Error("An extrusion vertex has no stable normal");
+        direction = normal.normalize().multiplyScalar(shape?.normalDistance ?? 0);
+      }
+      return addVertex(draft, mesh, data, fan.vertex, direction);
+    });
+    if (shape) shapeCap(draft, mesh, moved, fans.map(({ vertex }) => vertex), offset, shape);
     const movedAt = (face: number, vertex: number): number => {
       const fan = fanAt.get(`${face}:${vertex}`);
       const id = fan === undefined ? undefined : moved[fan];
@@ -422,7 +453,30 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
         top: [movedAt(half.face, half.from), movedAt(half.face, half.to)],
       });
     }
-    return finish(draft, kind, faces.map(String));
+    if (shape?.closeOpenSurface) {
+      mesh.faces.forEach((face, index) => {
+        draft.faces.push(face.slice().reverse());
+        draft.corners.push((data.corners[index] ?? []).slice().reverse());
+        draft.materials.push(data.materials[index] ?? 0);
+      });
+      if (reverseSolid) {
+        draft.faces.forEach((face) => face.reverse());
+        // Wall UV generation assumes corners 0 and 1 stay on the original sheet.
+        // After reversing, rotate the wall by two corners to keep its lower edge first.
+        for (const id of draft.walls) {
+          const face = draft.faces[id];
+          if (face) face.push(...face.splice(0, 2));
+        }
+        draft.corners = draft.corners.map((row) => row.slice().reverse());
+        for (const id of draft.walls) {
+          const row = draft.corners[id];
+          if (row) row.push(...row.splice(0, 2));
+        }
+      }
+    }
+    const result = finish(draft, kind, faces.map(String));
+    if (shape?.closeOpenSurface) assertManifold(result.mesh, topology(result.mesh), true);
+    return result;
   }
   if (kind === "edge") {
     const edges = parseEdges(mesh, ids);
@@ -449,11 +503,134 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
   return finish(draft, kind, selection);
 }
 
+function shapeCap(draft: Draft, mesh: PolygonMesh, moved: readonly number[], originals: readonly number[], offset: Vector3, shape?: ExtrudeCapShape): void {
+  const scale = shape?.capScale ?? 1;
+  const xy = shape?.capScaleXY;
+  const rotation = shape?.capRotationDegrees;
+  const twist = shape?.twistDegrees ?? 0;
+  if (scale === 1 && !xy && !rotation && twist === 0) return;
+
+  const unique = new Set(originals);
+  const pivot = new Vector3();
+  for (const vertex of unique) pivot.add(point(mesh, vertex));
+  pivot.divideScalar(unique.size).add(offset);
+  const axis = offset.clone().normalize();
+  const x = Math.abs(axis.x) < 0.999 ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
+  x.addScaledVector(axis, -x.dot(axis)).normalize();
+  const y = new Vector3().crossVectors(axis, x);
+  const radians = Math.PI / 180;
+  const orientation = new Quaternion().setFromAxisAngle(axis, twist * radians)
+    .multiply(new Quaternion().setFromEuler(new Euler(
+      (rotation?.[0] ?? 0) * radians, (rotation?.[1] ?? 0) * radians, (rotation?.[2] ?? 0) * radians,
+    )));
+  for (const id of moved) {
+    const position = draft.positions[id];
+    if (!position) continue;
+    position.sub(pivot);
+    if (xy) {
+      const dx = position.dot(x) * ((xy[0] ?? 1) - 1);
+      const dy = position.dot(y) * ((xy[1] ?? 1) - 1);
+      position.addScaledVector(x, dx).addScaledVector(y, dy);
+    } else {
+      position.multiplyScalar(scale);
+    }
+    position.applyQuaternion(orientation).add(pivot);
+  }
+}
+
+function extrudeIndividualFaces(mesh: PolygonMesh, ids: readonly string[], distance: number, shape?: ExtrudeCapShape): ExtrudeResult {
+  const faces = [...new Set(parseFaces(mesh, ids))];
+  const graph = cageTopology(mesh);
+  assertManifold(mesh, graph);
+  const normals = new Map(faces.map((id) => [id, faceNormal(mesh, mesh.faces[id] ?? [])]));
+  for (const [a, b] of graph.edges.values()) {
+    const first = a && normals.get(a.face);
+    const second = b && normals.get(b.face);
+    if (first && second && first.dot(second) > 1 - 1e-8) {
+      throw new Error("Adjacent coplanar faces would create overlapping extrusion walls. Use region normals or select non-adjacent faces.");
+    }
+  }
+  const data = channels(mesh);
+  const draft = draftFrom(mesh, data);
+  for (const id of faces) {
+    const face = mesh.faces[id];
+    const normal = normals.get(id);
+    if (!face || !normal) throw new Error("Unknown face");
+    const offset = normal.clone().multiplyScalar(distance);
+    requireOffset(offset);
+    const moved = face.map((vertex) => addVertex(draft, mesh, data, vertex, offset));
+    shapeCap(draft, mesh, moved, face, offset, shape);
+    draft.faces[id] = moved;
+    face.forEach((from, index) => {
+      const next = (index + 1) % face.length;
+      const to = face[next];
+      const a = moved[index];
+      const b = moved[next];
+      if (to === undefined || a === undefined || b === undefined) throw new Error("Invalid extrusion face");
+      addWall(draft, mesh, data, { faceIndex: id, from, to, bottom: [from, to], top: [a, b] });
+    });
+  }
+  const result = finish(draft, "face", faces.map(String));
+  assertManifold(result.mesh, topology(result.mesh));
+  return result;
+}
+
+function checkSolidSheet(mesh: PolygonMesh, graph: Topology, selected: ReadonlySet<number>, offset: Vector3): boolean {
+  if (selected.size !== mesh.faces.length || ![...graph.edges.values()].some((edge) => edge.length === 1)) {
+    throw new Error("Closing an extrusion requires selecting all faces of an open planar sheet");
+  }
+  assertManifold(mesh, graph);
+  const first = mesh.faces[0] ?? [];
+  const origin = point(mesh, first[0]);
+  const normal = faceNormal(mesh, first);
+  const tolerance = Math.max(...offset.toArray().map(Math.abs), 1) * 1e-6;
+  const delta = new Vector3();
+  if (mesh.faces.some((face) => faceNormal(mesh, face).dot(normal) < 1 - 1e-6) ||
+      mesh.positions.some((position) => Math.abs(delta.subVectors(position, origin).dot(normal)) > tolerance) ||
+      Math.abs(offset.dot(normal)) < offset.length() * (1 - 1e-6)) {
+    throw new Error("Closing an extrusion requires a planar sheet and an offset perpendicular to it");
+  }
+  return offset.dot(normal) < 0;
+}
+
+export function regionNormal(mesh: PolygonMesh, ids: readonly string[]): Vector3 {
+  const direction = new Vector3();
+  let totalArea = 0;
+  for (const index of new Set(parseFaces(mesh, ids))) {
+    const face = mesh.faces[index];
+    if (!face) throw new Error("Unknown face");
+    const normal = faceAreaNormal(mesh, face);
+    direction.add(normal);
+    totalArea += normal.length();
+  }
+  if (!(totalArea > 0) || direction.length() <= totalArea * 1e-6) {
+    throw new Error("The selected faces have no stable region normal. Choose faces that point in a similar direction or use an explicit offset.");
+  }
+  return direction.normalize();
+}
+
+/** Extrude faces by a signed distance in mesh-local units. */
+export function extrudeAlongRegionNormal(mesh: PolygonMesh, ids: readonly string[], distance: number, shape?: ExtrudeCapShape): ExtrudeResult {
+  if (shape?.normalMode === "individual") return extrudeIndividualFaces(mesh, ids, distance, shape);
+  return extrudeRegion(mesh, "face", ids, regionNormal(mesh, ids).multiplyScalar(distance), { ...shape, normalDistance: distance });
+}
+
 /** Writes an extruded cage. Each new wall gets texture area, so its UVs do not collapse onto the edge it grew from. */
 export function writeExtrudedGeometry(source: BufferGeometry, result: ExtrudeResult): BufferGeometry {
   return writeShadedGeometry(source, result.mesh, (uv, renderCorner) => {
     for (const wall of result.walls) stretchWall(result.mesh, uv, wall, renderCorner);
   });
+}
+
+/** Update the wall UVs after changing a preview's positions. */
+export function updateExtrudedWallUvs(geometry: BufferGeometry, result: ExtrudeResult): void {
+  const uv = geometry.getAttribute("uv");
+  if (!uv) return;
+  const first: number[] = [];
+  let index = 0;
+  for (const face of result.mesh.faces) { first.push(index); index += face.length; }
+  for (const wall of result.walls) stretchWall(result.mesh, uv, wall, (face, corner) => (first[face] ?? 0) + corner);
+  uv.needsUpdate = true;
 }
 
 /**

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { EditorScene } from "@/features/assistant";
-import { ExtrudeGesture } from "@/features/objectEditing/ExtrudeGesture";
+import { ExtrudeGesture, type FaceTool } from "@/features/objectEditing/ExtrudeGesture";
 import type { Viewport } from "@/features/viewport3d";
 import { errorMessage, type SerialQueue } from "@/lib";
 import { saveExtrude } from "./saveExtrude";
+import { saveCageEdit } from "./saveCageEdit";
 import { setComponentError } from "./workspaceSlice";
 
 /** Edit-mode E extrudes the component selection and saves it with the project. */
@@ -13,10 +14,12 @@ export function useExtrude(
   scene: EditorScene | null,
   disabled: boolean,
   saves: SerialQueue,
-): { hint: string } {
+): { hint: string; start: (tool: FaceTool) => void } {
   const dispatch = useAppDispatch();
   const { mode, componentKind, componentSelection } = useAppSelector((state) => state.designWorkspace);
   const [hint, setHint] = useState("");
+  const gestureRef = useRef<ExtrudeGesture | null>(null);
+  const start = useCallback((tool: FaceTool) => gestureRef.current?.start(tool), []);
   const current = useRef({ mode, componentKind, componentSelection, disabled });
   useEffect(() => {
     current.current = { mode, componentKind, componentSelection, disabled };
@@ -39,8 +42,19 @@ export function useExtrude(
       },
       (error) => dispatch(setComponentError(errorMessage(error))),
       setHint,
+      (commit) => {
+        dispatch(setComponentError(""));
+        saves.run(() => saveCageEdit(scene, {
+          ...commit,
+          edit: { type: "geometry.transform_faces", ids: commit.ids, space: "world", transform: commit.transform },
+        }), (failure) => dispatch(setComponentError(errorMessage(failure))));
+      },
     );
-    return () => gesture.dispose();
+    gestureRef.current = gesture;
+    return () => {
+      gestureRef.current = null;
+      gesture.dispose();
+    };
   }, [viewport, scene, dispatch, saves]);
-  return { hint };
+  return { hint, start };
 }

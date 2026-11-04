@@ -3,7 +3,7 @@ import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import { assertManifold, channels, continuityChannels, edgeKey, point, readTopology, topology, type ContinuityChannel, type PolygonMesh } from "./meshTopology";
 
 export type SubdivisionMethod = "catmull-clark" | "linear" | "loop";
-export type BevelProfile = "chamfer" | "round";
+export type BevelProfile = "chamfer" | "round" | "circular";
 export type MeshModifier = { type: "geometry.bevel"; width: number; segments?: number; profile?: BevelProfile; angle?: number } | { type: "geometry.subdivide"; levels: number; method?: SubdivisionMethod };
 import { blend, evaluate, mean, type Weights } from "./meshWeights";
 import { writeGeometry } from "./meshOutput";
@@ -119,6 +119,7 @@ function subdivide(input: PolygonMesh, sources: readonly ContinuityChannel[]): P
     return mean([here, there, hereFace, otherFace]);
   };
   const faces: number[][] = []; const cornerWeights: Weights[][] = []; const materials: number[] = [];
+  const faceSources: number[] | undefined = mesh.faceSources ? [] : undefined;
   mesh.faces.forEach((face, index) => face.forEach((vertex, corner) => {
     const next = face[(corner + 1) % face.length]; const previous = face[(corner + face.length - 1) % face.length];
     const center = faceIds[index];
@@ -126,11 +127,12 @@ function subdivide(input: PolygonMesh, sources: readonly ContinuityChannel[]): P
     const b = previous === undefined ? undefined : edgeIds.get(edgeKey(previous, vertex));
     if (a === undefined || b === undefined || center === undefined || next === undefined || previous === undefined) throw new Error("Invalid subdivision topology");
     faces.push([vertex, a, center, b]);
+    faceSources?.push(mesh.faceSources?.[index] ?? -1);
     const faceAverage = faceCornerAverage[index]; if (!faceAverage) throw new Error("Missing corner attributes");
     cornerWeights.push([vertexAttribute(index, vertex), edgeAttribute(index, vertex, next), faceAverage, edgeAttribute(index, previous, vertex)]);
     materials.push(data.materials[index] ?? 0);
   }));
-  return { positions, faces, channels: { positions: positionWeights, corners: cornerWeights, materials } };
+  return { positions, faces, channels: { positions: positionWeights, corners: cornerWeights, materials }, ...(faceSources ? { faceSources } : {}) };
 }
 
 /** Structural validation; materials and deformation data are retained by the evaluator. */
@@ -139,8 +141,9 @@ export function assertEditableMesh(mesh: Mesh): void {
   if (!positions || positions.itemSize !== 3) throw new Error("Mesh needs 3D positions");
 }
 
-export function modifyGeometry(geometry: BufferGeometry, modifier: MeshModifier): BufferGeometry {
+export function modifyGeometry(geometry: BufferGeometry, modifier: MeshModifier, startsAtBase = false): BufferGeometry {
   let mesh = readTopology(geometry);
+  if (startsAtBase) mesh = { ...mesh, faceSources: mesh.faces.map((_, index) => index) };
   const profile = modifier.type === "geometry.bevel" ? modifier.profile ?? "round" : "round";
   const segments = modifier.type === "geometry.bevel" ? modifier.segments ?? 1 : 1;
   if (modifier.type === "geometry.bevel") mesh = bevelSurface(mesh, modifier.width, segments, profile, modifier.angle ?? 0);

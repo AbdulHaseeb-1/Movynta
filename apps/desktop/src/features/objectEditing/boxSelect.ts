@@ -12,10 +12,7 @@ const box = new Box3();
 const point = new Vector3();
 
 /**
- * The ids of the objects that lie in a rectangle of the view: those whose center, the center of their
- * bounding box, falls inside it. Objects behind the camera and objects with nothing to measure, which
- * are placed by their origin, are handled too. Measuring a model walks its parts, so the cost follows
- * the size of the scene; it is paid once, when the rectangle is released.
+ * Select objects whose projected world bounding boxes overlap the rectangle.
  */
 export function idsInRect(
   objects: Iterable<readonly [string, Object3D]>,
@@ -25,15 +22,24 @@ export function idsInRect(
   camera.updateMatrixWorld();
   const found: string[] = [];
   for (const [id, object] of objects) {
+    let visible = true;
+    for (let node: Object3D | null = object; node; node = node.parent) {
+      if (!node.visible) { visible = false; break; }
+    }
+    if (!visible) continue;
     object.updateWorldMatrix(true, false);
     box.makeEmpty().expandByObject(object);
-    if (box.isEmpty()) object.getWorldPosition(point);
-    else box.getCenter(point);
-    // Looking down -z in view space; anything at or past the camera's plane has no place on screen.
-    point.applyMatrix4(camera.matrixWorldInverse);
-    if (point.z >= 0) continue;
-    point.applyMatrix4(camera.projectionMatrix);
-    if (point.x >= rect.minX && point.x <= rect.maxX && point.y >= rect.minY && point.y <= rect.maxY) found.push(id);
+    if (box.isEmpty()) { object.getWorldPosition(box.min); box.max.copy(box.min); }
+    let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
+    for (let corner = 0; corner < 8; corner += 1) {
+      point.set(corner & 1 ? box.max.x : box.min.x, corner & 2 ? box.max.y : box.min.y, corner & 4 ? box.max.z : box.min.z);
+      point.applyMatrix4(camera.matrixWorldInverse);
+      if (point.z >= -1e-6) continue;
+      point.applyMatrix4(camera.projectionMatrix);
+      minX = Math.min(minX, point.x); minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x); maxY = Math.max(maxY, point.y);
+    }
+    if (minX <= rect.maxX && maxX >= rect.minX && minY <= rect.maxY && maxY >= rect.minY) found.push(id);
   }
   return found;
 }

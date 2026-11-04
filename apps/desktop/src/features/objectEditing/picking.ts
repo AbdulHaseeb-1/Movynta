@@ -28,6 +28,11 @@ export function pickObjectId(
     raycaster.intersectObject(object, true, hits);
     for (const hit of hits) {
       if (hit.distance >= nearest) continue;
+      let visible = true;
+      for (let node: typeof hit.object | null = hit.object; node; node = node.parent) {
+        if (!node.visible) { visible = false; break; }
+      }
+      if (!visible) continue;
       const id = editor.idOf(hit.object);
       if (id === undefined) continue;
       nearest = hit.distance;

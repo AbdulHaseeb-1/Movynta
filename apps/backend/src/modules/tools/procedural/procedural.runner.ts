@@ -27,7 +27,8 @@ export async function generateCommands(source: string, scene: EditorContext, sig
       "use strict";
       const stringify = JSON.stringify;
       const scene = JSON.parse(${JSON.stringify(JSON.stringify(scene))});
-      const commands = (function(scene) { "use strict";\n${source}\n})(scene);
+      const mesh = scene.meshInspection ?? null;
+      const commands = (function(scene, mesh) { "use strict";\n${source}\n})(scene, mesh);
       if (!Array.isArray(commands)) throw new Error("Return an array of editor commands; async programs are unsupported");
       const output = stringify(commands);
       if (output.length > ${MAX_OUTPUT_CHARACTERS}) throw new Error("Program output is too large");

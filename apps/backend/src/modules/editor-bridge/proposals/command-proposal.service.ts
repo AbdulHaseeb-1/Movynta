@@ -38,6 +38,12 @@ export class CommandProposalService {
    */
   async propose(run: ProposalRun, input: ProposalInput): Promise<CommandProposalRecord> {
     this.bridge.assertConnection(run.userId, run.projectId, run.clientId);
+    if (input.expectedRevision === undefined && input.commands.some(
+      (command) => ((command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.fill_hole") && command.componentView === "base") ||
+        (command.type === "geometry.set_modifiers" && command.modifiers.some((modifier) => modifier.kind === "extrusion")),
+    )) {
+      throw new ValidationFailedError("Base-cage or live geometry edits require expectedRevision from the scene context or mesh inspection.");
+    }
     const previous = input.supersedes === undefined ? undefined : this.require(run.id, input.supersedes);
     if (previous && previous.status !== "proposed") {
       throw new ConflictError("Only a proposal that has not been applied yet can be superseded");
@@ -57,7 +63,7 @@ export class CommandProposalService {
       projectId: run.projectId,
       clientId: run.clientId,
       baseRevision: context.revision,
-      strictRevision: input.expectedRevision !== undefined || input.commands.some((command) => command.type === "geometry.bevel" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers")),
+      strictRevision: input.expectedRevision !== undefined || input.commands.some((command) => command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers")),
       summary: input.summary,
       commands: input.commands,
       requiresApproval: this.policy.requiresApproval(input.commands),
@@ -249,13 +255,13 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
   const createdInBatch = new Set<string>();
   const seenCommandIds = new Set<string>();
   const issues: ProposalIssue[] = [];
-  const modifiers = commands.filter((command) => command.type === "geometry.bevel" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers"));
-  const cageEdits = commands.filter((command) => command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces");
+  const modifiers = commands.filter((command) => command.type === "geometry.bevel" || command.type === "geometry.boolean" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers"));
+  const cageEdits = commands.filter((command) => command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole");
   if (modifiers.length > 0 && (modifiers.length !== commands.length || commands.length > 20)) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Geometry batches accept only bevel/subdivision commands, at most 20; create/transform in separate proposals" }];
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Geometry batches accept only bevel/subdivision and Boolean modifier commands, at most 20; create/transform in separate proposals" }];
   }
   if (cageEdits.length > 0 && (cageEdits.length !== commands.length || commands.length > 20)) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Component edit batches accept only extrude and subdivide_faces commands, at most 20; create or transform objects in a separate proposal" }];
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Component edit batches accept only extrude, transform_faces, fill_hole, and subdivide_faces commands, at most 20. Create or transform objects in a separate proposal." }];
   }
   const issue = (commandId: string, message: string) => issues.push({ commandId, message });
   const missing = (commandId: string, objectId: string) =>
@@ -298,15 +304,26 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           createdInBatch.add(command.objectId);
         }
         break;
+      case "geometry.create_mesh":
+        if (parents.has(command.objectId)) {
+          issue(command.commandId, `objectId "${command.objectId}" already exists; use a fresh id for the mesh`);
+        }
+        parents.set(command.objectId, null);
+        createdInBatch.add(command.objectId);
+        break;
       case "scene.transform_object":
+      case "geometry.boolean":
       case "geometry.bevel":
       case "geometry.subdivide":
       case "geometry.set_modifiers":
+      case "geometry.transform_faces":
       case "geometry.extrude":
+      case "geometry.fill_hole":
       case "geometry.subdivide_faces":
       case "scene.rename_object":
       case "scene.set_visibility":
         if (!parents.has(command.objectId)) missing(command.commandId, command.objectId);
+        if (command.type === "geometry.set_modifiers" || command.type === "geometry.boolean") booleanOperandIssues(command, parents, issue);
         break;
       case "scene.set_parent": {
         if (!parents.has(command.objectId)) {
@@ -354,6 +371,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       }
     }
   }
+  issues.push(...booleanCycles(commands));
   return issues;
 }
 
@@ -361,6 +379,57 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
  * Whether `candidate` is `id` itself or hangs below it, judged by the parents as the batch leaves them. Placing
  * `id` under such a candidate would make a cycle.
  */
+function booleanOperandIssues(
+  command: Extract<EditorCommand, { type: "geometry.set_modifiers" | "geometry.boolean" }>,
+  parents: ReadonlyMap<string, string | null>,
+  issue: (commandId: string, message: string) => void,
+): void {
+  const operands = command.type === "geometry.boolean"
+    ? [command]
+    : command.modifiers.filter((modifier) => modifier.kind === "boolean");
+  for (const modifier of operands) {
+    const sameMesh = modifier.operandObjectId === command.objectId
+      && modifier.operandMeshPath.length === command.meshPath.length
+      && modifier.operandMeshPath.every((part, index) => part === command.meshPath[index]);
+    if (sameMesh) issue(command.commandId, "A boolean modifier cannot use its own mesh");
+    else if (!parents.has(modifier.operandObjectId)) issue(command.commandId, `Boolean operand "${modifier.operandObjectId}" does not exist; create it before the modifier`);
+  }
+}
+
+/** Detect cycles among the mesh parts configured in this proposal. */
+function booleanCycles(commands: readonly EditorCommand[]): ProposalIssue[] {
+  const edges = new Map<string, { commandId: string; operands: string[] }>();
+  const key = (objectId: string, path: readonly number[]) => `${objectId}/${path.join("/")}`;
+  for (const command of commands) {
+    if (command.type !== "geometry.set_modifiers" && command.type !== "geometry.boolean") continue;
+    const id = key(command.objectId, command.meshPath);
+    const operands = command.type === "geometry.boolean"
+      ? [...(edges.get(id)?.operands ?? []), key(command.operandObjectId, command.operandMeshPath)]
+      : command.modifiers.flatMap((modifier) => modifier.kind === "boolean" && modifier.enabled
+        ? [key(modifier.operandObjectId, modifier.operandMeshPath)] : []);
+    edges.set(id, { commandId: command.commandId, operands });
+  }
+  const issues: ProposalIssue[] = [];
+  const reported = new Set<string>();
+  const state = new Map<string, "open" | "done">();
+  const visit = (id: string): boolean => {
+    const mark = state.get(id);
+    if (mark === "done") return false;
+    if (mark === "open") return true;
+    state.set(id, "open");
+    for (const operand of edges.get(id)?.operands ?? []) if (operand !== id && visit(operand)) return true;
+    state.set(id, "done");
+    return false;
+  };
+  for (const [id, edge] of edges) {
+    state.clear();
+    if (!visit(id) || reported.has(edge.commandId)) continue;
+    reported.add(edge.commandId);
+    issues.push({ commandId: edge.commandId, message: "Boolean modifiers form a cycle" });
+  }
+  return issues;
+}
+
 function isWithinBranch(candidate: string, id: string, parents: ReadonlyMap<string, string | null>): boolean {
   const seen = new Set<string>();
   let current: string | null | undefined = candidate;

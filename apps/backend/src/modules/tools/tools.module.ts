@@ -25,8 +25,8 @@ import { createViewportTools } from "./viewport/index.js";
         const editorTools = createEditorTools({ bridge, proposals });
         const validationTools = createValidationTools({ bridge });
         const skillTools = createSkillTools({ skills });
-        const proceduralTools = createProceduralTools({ bridge });
-        const viewportTools = createViewportTools({ bridge });
+        const proceduralTools = createProceduralTools({ bridge, proposals });
+        const viewportTools = createViewportTools({ bridge, proposals });
         const knownToolNames = [
           ...editorTools,
           ...validationTools,

@@ -181,17 +181,24 @@ export function useObjectEditing({
             previous?.id === id ? { ...previous, transform } : previous,
           ),
         onCommit: onTransformCommit,
+        onPreviewError: setError,
       },
       view,
     );
     const selecting = new SelectionTools(viewport, scene, view);
     const keyboard = new KeyboardTransform(viewport, scene, view, onTransformCommit, setTransformHint, (id, transform) => setSelected((previous) => previous?.id === id ? { ...previous, transform } : previous));
+    const unsubscribeBefore = scene.onBeforeChange(() => {
+      const preview = numericPreview.current;
+      numericPreview.current = null;
+      preview?.finish(false);
+    });
     const unsubscribe = scene.onChange(() => {
       if (numericPreview.current && !numericPreview.current.valid()) { numericPreview.current.finish(false); numericPreview.current = null; }
       const next = describe(scene);
       setSelected(next);
     });
     return () => {
+      unsubscribeBefore();
       unsubscribe();
       selecting.dispose();
       keyboard.dispose();

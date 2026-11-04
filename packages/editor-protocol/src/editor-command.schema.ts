@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { meshPathSchema } from "./mesh.schema.js";
-import { bevelProfileSchema, modifierListSchema, subdivisionMethodSchema } from "./modifier.schema.js";
+import { MAX_MESH_INPUT_TRIANGLES, meshPathSchema } from "./mesh.schema.js";
+import { bevelProfileSchema, booleanOperandFields, extrusionShapeFields, modifierListSchema, subdivisionMethodSchema, validExtrusionShape } from "./modifier.schema.js";
 
 /** Upper bound for commands in one proposal. Larger batches always require approval. */
 export const MAX_COMMANDS_PER_PROPOSAL = 200;
@@ -20,6 +20,26 @@ export const transformSchema = z
 
 const commandBase = { commandId: identifierSchema };
 const nameSchema = z.string().min(1).max(80);
+const dimension = z.number().finite().positive().max(100);
+const primitiveOptions = z.object({
+  width: dimension.optional(), height: dimension.optional(), depth: dimension.optional(),
+  radius: dimension.optional(), radiusTop: z.number().finite().min(0).max(100).optional(),
+  radiusBottom: z.number().finite().min(0).max(100).optional(),
+  tube: dimension.optional(), radialSegments: z.number().int().min(3).max(128).optional(),
+  widthSegments: z.number().int().min(3).max(128).optional(),
+  heightSegments: z.number().int().min(1).max(128).optional(),
+  tubularSegments: z.number().int().min(3).max(128).optional(),
+  detail: z.number().int().min(0).max(4).optional(),
+}).strict();
+const primitiveOptionKeys: Record<string, readonly string[]> = {
+  box: ["width", "height", "depth"],
+  plane: ["width", "height"],
+  sphere: ["radius", "widthSegments", "heightSegments"],
+  cylinder: ["radiusTop", "radiusBottom", "height", "radialSegments", "heightSegments"],
+  cone: ["radius", "height", "radialSegments", "heightSegments"],
+  torus: ["radius", "tube", "radialSegments", "tubularSegments"],
+  tetrahedron: ["radius", "detail"], octahedron: ["radius", "detail"], icosahedron: ["radius", "detail"],
+};
 
 /**
  * Editor commands are a closed, discriminated union. The agent can only ask for
@@ -36,13 +56,60 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
     meshPath: meshPathSchema.default([]), modifiers: modifierListSchema,
   }).strict(),
   z.object({
+    ...commandBase, type: z.literal("geometry.boolean"), objectId: identifierSchema,
+    meshPath: meshPathSchema.default([]), ...booleanOperandFields,
+  }).strict(),
+  z.object({
     ...commandBase,
     type: z.literal("geometry.extrude"),
     objectId: identifierSchema,
     meshPath: meshPathSchema.default([]),
     kind: z.enum(["vertex", "edge", "face"]),
     ids: z.array(z.string().regex(/^\d{1,10}(_\d{1,10})?$/)).min(1).max(4096),
-    offset: vector3,
+    componentView: z.literal("base").optional(),
+    offset: vector3.optional(),
+    normalDistance: z.number().finite().optional(),
+    steps: z.number().int().min(1).max(16).optional(),
+    ...extrusionShapeFields,
+  }).strict()
+    .refine((command) => (command.offset === undefined) !== (command.normalDistance === undefined), {
+      message: "Provide exactly one of offset or normalDistance",
+    })
+    .refine((command) => command.normalDistance === undefined ||
+      (command.kind === "face" && Math.abs(command.normalDistance) > 1e-6), {
+      path: ["normalDistance"],
+      message: "Normal extrusion needs a face selection and a nonzero mesh-local distance",
+    })
+    .refine((command) => command.offset === undefined || command.offset.reduce((sum, value) => sum + value * value, 0) > 1e-12, {
+      path: ["offset"], message: "Extrude offset must move the selection",
+    })
+    .refine(validExtrusionShape, {
+      message: "Use face-only shaping, one cap scale mode, and region-normal extrusion to close an open surface",
+    })
+    .refine((command) => (command.steps ?? 1) === 1 || (command.kind === "face" && !command.closeOpenSurface), {
+      message: "Repeat extrusion requires faces and cannot close a sheet",
+    }),
+  z.object({
+    ...commandBase,
+    type: z.literal("geometry.transform_faces"),
+    objectId: identifierSchema,
+    meshPath: meshPathSchema.default([]),
+    ids: z.array(z.string().regex(/^\d{1,10}$/)).min(1).max(4096),
+    componentView: z.literal("base").optional(),
+    space: z.enum(["local", "world"]).default("local"),
+    transform: transformSchema.refine(
+      ({ position, rotation, scale }) => Boolean(position || rotation || scale) &&
+        (scale === undefined || scale.every((value) => value >= 0.001 && value <= 100)),
+      "Specify a translation, rotation or positive scale in the range 0.001–100",
+    ),
+  }).strict(),
+  z.object({
+    ...commandBase,
+    type: z.literal("geometry.fill_hole"),
+    objectId: identifierSchema,
+    meshPath: meshPathSchema.default([]),
+    componentView: z.literal("base").optional(),
+    ids: z.array(z.string().regex(/^\d{1,10}_\d{1,10}$/)).min(3).max(256),
   }).strict(),
   z.object({
     ...commandBase,
@@ -55,6 +122,16 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
     meshPath: meshPathSchema.default([]), levels: z.number().int().min(1).max(3),
     method: subdivisionMethodSchema.optional(),
   }).strict(),
+  z.object({
+    ...commandBase, type: z.literal("geometry.create_mesh"), objectId: identifierSchema,
+    name: nameSchema.optional(),
+    shading: z.enum(["flat", "smooth"]).optional(),
+    vertices: z.array(vector3.refine((point) => point.every((value) => Math.abs(value) <= 10000), "Vertex coordinates must be within ±10000")).min(3).max(4096),
+    faces: z.array(z.array(z.number().int().nonnegative()).min(3).max(64)).min(1).max(4096),
+  }).strict()
+    .refine((command) => command.faces.reduce((count, face) => count + face.length - 2, 0) <= MAX_MESH_INPUT_TRIANGLES, "Mesh exceeds the editable triangle limit")
+    .refine((command) => command.faces.every((face) => new Set(face).size === face.length && face.every((index) => index < command.vertices.length)), "Face indices must be distinct and reference existing vertices")
+    .refine((command) => new Set(command.faces.flat()).size === command.vertices.length, "Every vertex must be used by a face"),
   z
     .object({
       ...commandBase,
@@ -85,11 +162,23 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       ...commandBase,
       type: z.literal("geometry.create_primitive"),
       objectId: identifierSchema,
-      primitive: z.enum(["box", "sphere", "cylinder", "plane", "cone", "torus"]),
+      primitive: z.enum(["box", "sphere", "cylinder", "plane", "cone", "torus", "tetrahedron", "octahedron", "icosahedron"]),
       size: z.number().positive().max(100),
+      options: primitiveOptions.optional(),
       replaceExisting: z.boolean().default(false),
     })
-    .strict(),
+    .strict()
+    .refine((command) => Object.keys(command.options ?? {}).every((key) => primitiveOptionKeys[command.primitive]?.includes(key)), "Primitive options do not apply to this shape")
+    .refine((command) => command.primitive !== "cylinder" || (command.options?.radiusTop ?? command.size / 2) > 0 || (command.options?.radiusBottom ?? command.size / 2) > 0, "A cylinder needs at least one nonzero radius")
+    .refine((command) => command.primitive !== "torus" || (command.options?.tube ?? command.size * 0.15) < (command.options?.radius ?? command.size * 0.35), "Torus tube must be smaller than its ring radius")
+    .refine((command) => command.primitive !== "sphere" || (command.options?.heightSegments ?? 16) >= 2, "A sphere needs at least two height segments")
+    .refine((command) => {
+      const options = command.options;
+      if (command.primitive === "sphere") return 2 * (options?.widthSegments ?? 24) * ((options?.heightSegments ?? 16) - 1) <= MAX_MESH_INPUT_TRIANGLES;
+      if (command.primitive === "cylinder" || command.primitive === "cone") return 2 * (options?.radialSegments ?? 24) * ((options?.heightSegments ?? 1) + 1) <= MAX_MESH_INPUT_TRIANGLES;
+      if (command.primitive === "torus") return 2 * (options?.radialSegments ?? 12) * (options?.tubularSegments ?? 32) <= MAX_MESH_INPUT_TRIANGLES;
+      return true;
+    }, "Primitive exceeds the editable mesh triangle limit. Reduce its segments."),
   z
     .object({
       ...commandBase,

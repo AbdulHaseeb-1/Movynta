@@ -1,9 +1,51 @@
 import { InterleavedBufferAttribute, Vector3, type BufferAttribute, type BufferGeometry } from "three";
-import { MAX_MESH_INPUT_TRIANGLES } from "@movynta/editor-protocol";
+import { MAX_MESH_INPUT_TRIANGLES, MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import { basis, type Weights } from "./meshWeights";
 
 export interface SurfaceChannels { positions: Weights[]; corners: Weights[][]; materials: number[] }
-export interface PolygonMesh { positions: Vector3[]; faces: number[][]; channels?: SurfaceChannels }
+export interface PolygonMesh {
+  positions: Vector3[];
+  faces: number[][];
+  channels?: SurfaceChannels;
+  /** Base face index for each evaluated face. A generated face uses -1. */
+  faceSources?: number[];
+}
+
+/** Confirms that a topology edit kept each named face in its original slot and at the same positions. */
+export function retainsFaces(before: PolygonMesh, after: PolygonMesh, ids: readonly string[]): boolean {
+  return ids.every((id) => {
+    const face = Number(id);
+    const previous = before.faces[face];
+    const next = after.faces[face];
+    return previous !== undefined && next !== undefined && previous.length === next.length &&
+      previous.every((vertex, corner) => point(before, vertex).equals(point(after, next[corner])));
+  });
+}
+
+/** Changes when the base geometry or its component numbering changes. */
+export function cageKey(mesh: PolygonMesh): string {
+  let first = 0x811c9dc5;
+  let second = 0x9e3779b9;
+  const bits = new DataView(new ArrayBuffer(8));
+  const add = (value: number) => {
+    first = Math.imul(first ^ value, 0x01000193);
+    second = Math.imul(second ^ value, 0x85ebca6b) ^ (second >>> 13);
+  };
+  add(mesh.positions.length);
+  for (const position of mesh.positions) {
+    for (const coordinate of [position.x, position.y, position.z]) {
+      bits.setFloat64(0, coordinate === 0 ? 0 : coordinate);
+      add(bits.getUint32(0));
+      add(bits.getUint32(4));
+    }
+  }
+  add(mesh.faces.length);
+  for (const face of mesh.faces) {
+    add(face.length);
+    for (const vertex of face) add(vertex);
+  }
+  return (first >>> 0).toString(16).padStart(8, "0") + (second >>> 0).toString(16).padStart(8, "0");
+}
 export function channels(mesh: PolygonMesh): SurfaceChannels {
   return mesh.channels ?? { positions: mesh.positions.map((_, index) => basis(index)), corners: mesh.faces.map((face) => face.map(basis)), materials: mesh.faces.map(() => 0) };
 }
@@ -20,8 +62,8 @@ interface CachedTopology {
 }
 const savedTopology = new WeakMap<BufferGeometry, CachedTopology>();
 export function copyTopology(source: BufferGeometry, target: BufferGeometry): void {
-  const cached = savedTopology.get(source);
-  if (cached) rememberTopology(target, cached.mesh);
+  const cached = currentTopology(source);
+  if (cached) rememberTopology(target, cached);
 }
 function positionVersion(attribute: BufferAttribute | InterleavedBufferAttribute): number {
   return attribute instanceof InterleavedBufferAttribute ? attribute.data.version : attribute.version;
@@ -34,6 +76,15 @@ function geometrySignature(geometry: BufferGeometry): string {
     for (const target of targets ?? []) parts.push(`morph:${name}:${target.name}:${positionVersion(target)}:${target.count}:${target.itemSize}`);
   return parts.join("|");
 }
+function currentTopology(geometry: BufferGeometry): PolygonMesh | undefined {
+  const cached = savedTopology.get(geometry);
+  if (!cached || cached.positions !== geometry.getAttribute("position") || cached.index !== geometry.index ||
+    cached.positionVersion !== positionVersion(cached.positions) ||
+    cached.indexVersion !== (geometry.index?.version ?? 0) || cached.signature !== geometrySignature(geometry)) {
+    return undefined;
+  }
+  return cached.mesh;
+}
 export function rememberTopology(geometry: BufferGeometry, mesh: PolygonMesh): void {
   const positions = geometry.getAttribute("position");
   if (positions) savedTopology.set(geometry, { mesh, positions, index: geometry.index,
@@ -45,7 +96,8 @@ export function point(mesh: PolygonMesh, index: number | undefined): Vector3 {
   if (!value) throw new Error("Mesh contains an invalid vertex reference");
   return value;
 }
-export function faceNormal(mesh: PolygonMesh, face: readonly number[]): Vector3 {
+/** Newell area vector, with length twice the projected area. */
+export function faceAreaNormal(mesh: PolygonMesh, face: readonly number[]): Vector3 {
   const normal = new Vector3();
   for (let i = 0; i < face.length; i += 1) {
     const a = point(mesh, face[i]); const b = point(mesh, face[(i + 1) % face.length]);
@@ -53,7 +105,10 @@ export function faceNormal(mesh: PolygonMesh, face: readonly number[]): Vector3 
     normal.y += (a.z - b.z) * (a.x + b.x);
     normal.z += (a.x - b.x) * (a.y + b.y);
   }
-  return normal.normalize();
+  return normal;
+}
+export function faceNormal(mesh: PolygonMesh, face: readonly number[]): Vector3 {
+  return faceAreaNormal(mesh, face).normalize();
 }
 export function topology(mesh: PolygonMesh): Topology {
   const edges = new Map<string, HalfEdge[]>();
@@ -116,15 +171,17 @@ export function continuityChannels(geometry: BufferGeometry): ContinuityChannel[
 }
 
 /** Weld position seams and dissolve connected coplanar triangles into polygon control faces. */
-export function readTopology(geometry: BufferGeometry): PolygonMesh {
+export function readTopology(geometry: BufferGeometry, solidVertexIds?: Uint32Array): PolygonMesh {
   const attribute = geometry.getAttribute("position");
   if (!attribute || attribute.itemSize !== 3) throw new Error("Mesh needs three-dimensional positions");
-  const saved = savedTopology.get(geometry);
-  if (saved && saved.positions === attribute && saved.index === geometry.index && saved.positionVersion === positionVersion(attribute) && saved.indexVersion === (geometry.index?.version ?? 0) && saved.signature === geometrySignature(geometry)) return saved.mesh;
+  const saved = solidVertexIds ? undefined : currentTopology(geometry);
+  if (saved) return saved;
   const count = geometry.index?.count ?? attribute.count;
-  if (count % 3 !== 0 || count / 3 > MAX_MESH_INPUT_TRIANGLES) throw new Error(`Mesh inspection/modification supports at most ${MAX_MESH_INPUT_TRIANGLES} input triangles`);
+  const maximum = solidVertexIds ? MAX_MESH_OUTPUT_TRIANGLES : MAX_MESH_INPUT_TRIANGLES;
+  if (count % 3 !== 0 || count / 3 > maximum) throw new Error(`Mesh inspection/modification supports at most ${maximum} input triangles`);
   const positions: Vector3[] = []; const sources: number[] = []; const deformKeys: string[] = [];
   const buckets = new Map<string, number[]>(); const remap = new Map<number, number>();
+  const solidVertices = new Map<number, number>();
   geometry.computeBoundingBox();
   const size = geometry.boundingBox?.getSize(new Vector3()).length() ?? 1;
   const epsilon = Math.max(size * 1e-7, 1e-10);
@@ -143,6 +200,19 @@ export function readTopology(geometry: BufferGeometry): PolygonMesh {
     if (index < 0 || index >= attribute.count) throw new Error("Mesh index is outside its position buffer");
     const p = new Vector3().fromBufferAttribute(attribute, index);
     if (![p.x, p.y, p.z].every(Number.isFinite)) throw new Error("Mesh positions must be finite");
+    if (solidVertexIds) {
+      const canonical = solidVertexIds[index];
+      if (canonical === undefined) throw new Error("Invalid Boolean seam");
+      let id = solidVertices.get(canonical);
+      if (id === undefined) {
+        id = positions.length;
+        solidVertices.set(canonical, id);
+        positions.push(p);
+        sources.push(index);
+      }
+      remap.set(index, id);
+      return id;
+    }
     const deform = deformationKey(index);
     const cx = cell(p.x); const cy = cell(p.y); const cz = cell(p.z);
     const limit = epsilon * epsilon;
@@ -173,7 +243,7 @@ export function readTopology(geometry: BufferGeometry): PolygonMesh {
     const face = raw.map(vertex);
     if (new Set(face).size !== 3) continue; // Common sphere poles contain collapsed triangles.
     const [a, b, c] = face.map((id) => positions[id]);
-    if (!a || !b || !c || b.clone().sub(a).cross(c.clone().sub(a)).lengthSq() <= epsilon ** 4) continue;
+    if (!a || !b || !c || b.clone().sub(a).cross(c.clone().sub(a)).lengthSq() <= (solidVertexIds ? 0 : epsilon ** 4)) continue;
     triangles.push(face);
     samples.push(raw); materials.push(groupMaterials.get(i) ?? 0);
   }

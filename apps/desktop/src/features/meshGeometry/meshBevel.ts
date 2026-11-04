@@ -2,6 +2,7 @@ import { Vector2, Vector3 } from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import { assertManifold, channels, edgeKey, faceNormal, point, topology, type PolygonMesh } from "./meshTopology";
 import { blend, mean, type Weights } from "./meshWeights";
+import type { BevelProfile } from "./meshModifiers";
 
 function coefficients(p: Vector3, a: Vector3, b: Vector3, target: Vector3): [number, number] {
   const u = a.clone().sub(p); const v = b.clone().sub(p); const delta = target.clone().sub(p);
@@ -21,9 +22,9 @@ function inside(p: Vector2, polygon: readonly Vector2[]): boolean {
 }
 
 /** Face offsets, edge strips and local vertex patches. Open boundaries remain open. */
-export function bevelSurface(mesh: PolygonMesh, width: number, segments: number, profile: "chamfer" | "round" = "round", angle = 0): PolygonMesh {
+export function bevelSurface(mesh: PolygonMesh, width: number, segments: number, profile: BevelProfile = "round", angle = 0): PolygonMesh {
   if (!Number.isFinite(width) || width <= 0 || !Number.isInteger(segments) || segments < 1 || segments > 8) throw new Error("Bevel needs positive width and 1–8 segments");
-  if (profile !== "chamfer" && profile !== "round") throw new Error("Bevel profile must be chamfer or round");
+  if (profile !== "chamfer" && profile !== "round" && profile !== "circular") throw new Error("Unsupported bevel profile");
   if (!Number.isFinite(angle) || angle < 0 || angle > 180) throw new Error("Bevel angle must be between 0 and 180 degrees");
   const graph = topology(mesh); assertManifold(mesh, graph);
   const data = channels(mesh); const normals = mesh.faces.map((face) => faceNormal(mesh, face));
@@ -34,19 +35,22 @@ export function bevelSurface(mesh: PolygonMesh, width: number, segments: number,
     const na = normals[a.face]; const nb = normals[b.face];
     if (!na || !nb) continue;
     const turn = Math.acos(Math.min(1, Math.max(-1, na.dot(nb))));
-    if (turn + 1e-8 >= limit) active.add(key);
+    // A coplanar seam or tessellation diagonal has no corner to round.
+    if (turn > 1e-6 && turn + 1e-8 >= limit) active.add(key);
   }
   if (active.size === 0) return mesh;
   if (active.size * segments * 4 + mesh.faces.reduce((sum, face) => sum + face.length, 0) * 2 > MAX_MESH_OUTPUT_TRIANGLES) throw new Error("Bevel would exceed the geometry limit");
   const positions: Vector3[] = []; const positionWeights: Weights[] = []; const origins: number[] = [];
   const faces: number[][] = []; const corners: Weights[][] = []; const materials: number[] = [];
+  const faceSources: number[] | undefined = mesh.faceSources ? [] : undefined;
   const lookup = new Map<string, number>(); const sampleLookup = new Map<string, Weights>();
   const surfaceSamples = new Map<number, Weights>();
   const addPoint = (p: Vector3, weights: Weights, origin: number): number => {
     positionWeights.push(weights); origins.push(origin); return positions.push(p) - 1;
   };
-  const addFace = (face: number[], samples: Weights[], material: number): void => {
+  const addFace = (face: number[], samples: Weights[], material: number, source = -1): void => {
     faces.push(face); corners.push(samples); materials.push(material);
+    faceSources?.push(source);
   };
   mesh.faces.forEach((face, faceId) => {
     const normal = normals[faceId]; if (!normal || normal.lengthSq() === 0) throw new Error("Bevel requires nondegenerate faces");
@@ -90,11 +94,14 @@ export function bevelSurface(mesh: PolygonMesh, width: number, segments: number,
       const direction = point(mesh, face[(i + 1) % face.length]).clone().sub(point(mesh, face[i]));
       if (!a || !b || b.clone().sub(a).dot(direction) <= 1e-10) throw new Error("Bevel width is too large for this mesh");
     }
-    addFace(inset, samples, data.materials[faceId] ?? 0);
+    addFace(inset, samples, data.materials[faceId] ?? 0, mesh.faceSources?.[faceId]);
   });
   for (const [key, incident] of graph.edges) {
     if (!active.has(key)) continue;
     const [a, b] = incident; if (!a || !b) continue;
+    const na = normals[a.face]; const nb = normals[b.face];
+    if (!na || !nb) throw new Error("Missing bevel normals");
+    const middleWeight = profile === "circular" ? Math.sqrt(Math.max(0, (1 + na.dot(nb)) / 2)) : 1;
     const edgeDirection = point(mesh, a.to).clone().sub(point(mesh, a.from)); const edgeLength = edgeDirection.length(); edgeDirection.normalize();
     const endpoint = (vertex: number): number[] => {
       const start = lookup.get(`${a.face}_${vertex}`); const end = lookup.get(`${b.face}_${vertex}`);
@@ -111,9 +118,13 @@ export function bevelSurface(mesh: PolygonMesh, width: number, segments: number,
       const ids = [start];
       for (let i = 1; i < segments; i += 1) {
         const t = i / segments;
-        const left = profile === "chamfer" ? 1 - t : (1 - t) ** 2;
-        const center = profile === "chamfer" ? 0 : 2 * t * (1 - t);
-        const right = profile === "chamfer" ? t : t * t;
+        const leftTerm = profile === "chamfer" ? 1 - t : (1 - t) ** 2;
+        const centerTerm = profile === "chamfer" ? 0 : 2 * t * (1 - t) * middleWeight;
+        const rightTerm = profile === "chamfer" ? t : t * t;
+        const total = profile === "circular" ? leftTerm + centerTerm + rightTerm : 1;
+        const left = leftTerm / total;
+        const center = centerTerm / total;
+        const right = rightTerm / total;
         const p = pa.clone().multiplyScalar(left).addScaledVector(anchor, center).addScaledVector(pb, right);
         const id = addPoint(p, blend([[sa, left], [anchorWeights, center], [sb, right]]), vertex);
         // New strip UVs and other face-varying values interpolate the adjacent source corners.
@@ -133,6 +144,42 @@ export function bevelSurface(mesh: PolygonMesh, width: number, segments: number,
   const unique = new Map<string, number>(); const remap = new Map<number, number>();
   positions.forEach((p, id) => { const key = `${origins[id]}:${p.x.toPrecision(12)},${p.y.toPrecision(12)},${p.z.toPrecision(12)}`; const known = unique.get(key); if (known === undefined) unique.set(key, id); remap.set(id, known ?? id); });
   const mapped = faces.map((face) => face.map((id) => remap.get(id) ?? id));
+  // Selective bevel shortens some inactive seams on only one side. Split the longer
+  // face edge at the overlap so it can share the seam without adding a zero-area strip.
+  for (const [key, [a, b]] of graph.edges) {
+    if (active.has(key) || !a || !b) continue;
+    const endpoint = (face: number, vertex: number) => {
+      const id = lookup.get(`${face}_${vertex}`);
+      return id === undefined ? undefined : remap.get(id);
+    };
+    const a0 = endpoint(a.face, a.from); const a1 = endpoint(a.face, a.to);
+    const b0 = endpoint(b.face, a.from); const b1 = endpoint(b.face, a.to);
+    if (a0 === undefined || a1 === undefined || b0 === undefined || b1 === undefined) throw new Error("Missing bevel seam");
+    if (a0 === b0 && a1 === b1) continue;
+    const origin = point(mesh, a.from);
+    const direction = point(mesh, a.to).clone().sub(origin).normalize();
+    const along = (id: number) => (positions[id]?.clone().sub(origin).dot(direction) ?? 0);
+    const start = along(a0) >= along(b0) ? a0 : b0;
+    const end = along(a1) <= along(b1) ? a1 : b1;
+    if (along(start) >= along(end)) throw new Error("Bevel width overlaps an inactive seam; reduce width");
+    const split = (face: number, from: number, to: number, first: number, last: number) => {
+      const ids = mapped[face]; const samples = corners[face];
+      if (!ids || !samples) throw new Error("Missing bevel face");
+      const index = ids.indexOf(from);
+      const left = samples[index]; const right = samples[(index + 1) % ids.length];
+      if (!left || !right || ids[(index + 1) % ids.length] !== to) throw new Error("Missing bevel seam corner");
+      const additions = [first, last].filter((id) => id !== from && id !== to);
+      const span = along(to) - along(from);
+      const addedSamples = additions.map((id) => {
+        const t = (along(id) - along(from)) / span;
+        return blend([[left, 1 - t], [right, t]]);
+      });
+      ids.splice(index + 1, 0, ...additions);
+      samples.splice(index + 1, 0, ...addedSamples);
+    };
+    split(a.face, a0, a1, start, end);
+    split(b.face, b1, b0, end, start);
+  }
   const result: PolygonMesh = { positions, faces: mapped, channels: { positions: positionWeights, corners, materials } };
   const boundaries = new Map<number, number>();
   const boundaryMaterials = new Map<number, number>();
@@ -163,5 +210,5 @@ export function bevelSurface(mesh: PolygonMesh, width: number, segments: number,
     if (next === undefined) { next = compact.length; compact.push(point(result, id)); weights.push(positionWeights[id] ?? new Map()); used.set(id, next); }
     return next;
   }));
-  return { positions: compact, faces: compactFaces, channels: { positions: weights, corners, materials } };
+  return { positions: compact, faces: compactFaces, channels: { positions: weights, corners, materials }, ...(faceSources ? { faceSources } : {}) };
 }

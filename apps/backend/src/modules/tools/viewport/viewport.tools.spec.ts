@@ -2,6 +2,7 @@ import type { ViewCaptureOptions } from "../../editor-bridge/editor-bridge.types
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import type { ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
+import type { CommandProposalRecord } from "../../editor-bridge/proposals/proposals.types.js";
 import { RichToolResult } from "../tool-result.js";
 import { createViewportTools } from "./viewport.tools.js";
 
@@ -76,13 +77,33 @@ function contextWith(supportsToolImages: boolean): AgentRunContext {
   };
 }
 
-function tool(bridge: EditorBridge) {
-  const [definition] = createViewportTools({ bridge });
+function tool(bridge: EditorBridge, requireProposal: (runId: string, proposalId: string) => CommandProposalRecord = () => { throw new Error("Unused proposal lookup"); }) {
+  const [definition] = createViewportTools({ bridge, proposals: { require: requireProposal } });
   if (!definition) throw new Error("The viewport tool is missing");
   return definition;
 }
 
 describe("viewport.capture", () => {
+  it("looks up the run's pending proposal and sends only the stored candidate", async () => {
+    const bridge = new RecordingBridge();
+    const proposal: CommandProposalRecord = {
+      id: "prp_1", runId: "run_1", projectId: "proj-1", clientId: "client-1",
+      baseRevision: 4, strictRevision: true, summary: "Extrude", requiresApproval: true,
+      status: "proposed", result: undefined, createdAt: "", updatedAt: "",
+      commands: [{ commandId: "ex", type: "geometry.extrude", objectId: "torso", meshPath: [], kind: "face", ids: ["0"], normalDistance: 1 }],
+    };
+    const request: ViewCaptureRequest = { proposalId: proposal.id, views: [{ preset: "front" }] };
+    await tool(bridge, (runId, proposalId) => {
+      expect([runId, proposalId]).toEqual([proposal.runId, proposal.id]);
+      return proposal;
+    }).execute(request, contextWith(true));
+    expect(bridge.requests[0]?.options.candidate).toEqual({
+      proposalId: proposal.id, revision: 4, commands: proposal.commands,
+    });
+    await expect(tool(bridge, () => ({ ...proposal, status: "applied" }))
+      .execute(request, contextWith(true))).rejects.toThrow("Only a pending proposal");
+    expect(bridge.requests).toHaveLength(1);
+  });
   it("is a read-only tool that never needs approval", async () => {
     const definition = tool(new RecordingBridge());
     expect(definition.name).toBe("viewport.capture");

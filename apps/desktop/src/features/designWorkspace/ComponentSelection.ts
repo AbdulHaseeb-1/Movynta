@@ -11,6 +11,7 @@ import {
   Points,
   PointsMaterial,
   Raycaster,
+  Vector3,
   type Object3D,
 } from "three";
 import type { Viewport } from "@/features/viewport3d";
@@ -23,8 +24,12 @@ import {
   pickComponent,
   type ComponentGeometry,
 } from "./componentGeometry";
-import { extrudeIsActive } from "@/features/objectEditing/ExtrudeGesture";
+import {
+  extrudeHasPreview,
+  extrudeIsActive,
+} from "@/features/objectEditing/ExtrudeGesture";
 import type { ComponentKind } from "./workspaceSlice";
+import { ComponentBoxSelection } from "./ComponentBoxSelection";
 
 interface Target {
   source: Mesh;
@@ -54,6 +59,7 @@ export class ComponentSelection {
   private stopKeys: () => void;
   private kind: ComponentKind;
   private onSelect: (value: Selection | null) => void;
+  private boxSelection: ComponentBoxSelection;
   constructor(
     viewport: Viewport,
     root: Object3D,
@@ -123,6 +129,42 @@ export class ComponentSelection {
     }
     const ray = new Raycaster();
     const dom = viewport.renderer.domElement;
+    this.boxSelection = new ComponentBoxSelection(viewport, (start, event) => {
+      this.sync();
+      const bounds = dom.getBoundingClientRect();
+      const a = toNdc(start.x, start.y, bounds);
+      const b = toNdc(event.clientX, event.clientY, bounds);
+      const minX = Math.min(a.x, b.x); const maxX = Math.max(a.x, b.x);
+      const minY = Math.min(a.y, b.y); const maxY = Math.max(a.y, b.y);
+      const selectedTarget = this.targets.find((entry) => entry.proxy.visible && entry.path.join("/") === this.selected?.path.join("/"));
+      const target = selectedTarget ?? this.targets.find((entry) => entry.proxy.visible);
+      if (!target) return;
+      const point = new Vector3();
+      const contains = (vertices: readonly number[]) => {
+        point.set(0, 0, 0);
+        for (const id of vertices) {
+          const position = target.data.mesh.positions[id];
+          if (!position) return false;
+          point.add(position);
+        }
+        point.divideScalar(vertices.length).applyMatrix4(target.source.matrixWorld);
+        point.applyMatrix4(viewport.camera.matrixWorldInverse);
+        if (point.z >= 0) return false;
+        point.applyMatrix4(viewport.camera.projectionMatrix);
+        return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+      };
+      const ids = kind === "vertex" ? target.data.mesh.positions.flatMap((_, index) => contains([index]) ? [String(index)] : [])
+        : kind === "edge" ? [...target.data.edges].flatMap(([id, vertices]) => contains(vertices) ? [id] : [])
+        : target.data.mesh.faces.flatMap((face, index) => contains(face) ? [String(index)] : []);
+      const previous = event.shiftKey && selectedTarget === target ? this.selected?.ids ?? [] : [];
+      const result = [...new Set([...previous, ...ids])];
+      if (result.length) this.select(target.path, result);
+      else {
+        this.selected = null;
+        this.highlight(tint);
+        this.onSelect(null);
+      }
+    }, extrudeIsActive);
     this.stop = watchClicks(dom, {
       capture: true,
       onClick: (event) => {
@@ -132,7 +174,7 @@ export class ComponentSelection {
         const cursor = toNdc(event.clientX, event.clientY, bounds);
         ray.setFromCamera(cursor, viewport.camera);
         const hit = ray.intersectObjects(
-          this.targets.map((entry) => entry.proxy),
+          this.targets.filter((entry) => entry.proxy.visible).map((entry) => entry.proxy),
           false,
         )[0];
         const target = hit
@@ -200,11 +242,16 @@ export class ComponentSelection {
   private sync() {
     for (const target of this.targets) {
       target.source.updateWorldMatrix(true, false);
+      let visible = true;
+      for (let node: Object3D | null = target.source; node; node = node.parent) {
+        if (!node.visible) { visible = false; break; }
+      }
+      target.proxy.visible = visible;
       target.proxy.matrixWorld.copy(target.source.matrixWorld);
       target.overlay.matrix.copy(target.source.matrixWorld);
-      // The overlay is built from the cage at selection time. Hide it while E is moving a preview,
-      // otherwise the old wireframe stays put and the face looks bent until the extrude is saved.
-      target.overlay.visible = target.source.visible && !extrudeIsActive();
+      // The active mesh gets a separate overlay built from the preview cage.
+      target.overlay.visible =
+        visible && !extrudeHasPreview(target.source);
     }
   }
   private highlight(tint: Color) {
@@ -247,13 +294,13 @@ export class ComponentSelection {
                 color: tint,
                 size: 7,
                 sizeAttenuation: false,
-                depthTest: false,
+                depthTest: true,
               }),
             )
           : this.kind === "edge"
             ? new LineSegments(
                 geometry,
-                new LineBasicMaterial({ color: tint, depthTest: false }),
+                new LineBasicMaterial({ color: tint, depthTest: true }),
               )
             : new Mesh(
                 geometry,
@@ -288,7 +335,7 @@ export class ComponentSelection {
             "position",
             new Float32BufferAttribute(outline, 3),
           ),
-          new LineBasicMaterial({ color: tint, depthTest: false }),
+          new LineBasicMaterial({ color: tint, depthTest: true }),
         );
         border.renderOrder = 1001;
         border.raycast = () => undefined;
@@ -316,6 +363,7 @@ export class ComponentSelection {
     this.targets = [];
   }
   dispose() {
+    this.boxSelection.dispose();
     this.stop();
     this.stopFrame();
     this.stopKeys();

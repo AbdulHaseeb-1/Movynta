@@ -24,7 +24,7 @@ import {
 const OBJECT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const ASSET_NAME_MAX_LENGTH = 160;
 /** The changes a user can make by hand and have saved with the project. */
-const USER_EDIT_TYPES: ReadonlySet<string> = new Set(["scene.transform_object", "scene.delete_object", "geometry.set_modifiers", "geometry.create_primitive", "geometry.extrude", "geometry.subdivide_faces"]);
+const USER_EDIT_TYPES: ReadonlySet<string> = new Set(["scene.transform_object", "scene.set_visibility", "scene.delete_object", "geometry.set_modifiers", "geometry.create_primitive", "geometry.extrude", "geometry.transform_faces", "geometry.subdivide_faces"]);
 
 /** An uploaded model, before it is checked. */
 export interface ModelUpload {

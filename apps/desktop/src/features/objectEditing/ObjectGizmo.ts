@@ -54,6 +54,7 @@ export interface GizmoEvents {
   onLiveChange: (id: string, transform: ObjectTransform) => void;
   /** A drag ended: every object it moved, with where each was and is. */
   onCommit: (changes: ObjectChange[]) => void;
+  onPreviewError?: (message: string) => void;
 }
 
 /** The objects a group drag moves, with the transform each started from. */
@@ -139,6 +140,10 @@ export class ObjectGizmo {
       const id = this.editor.selection;
       const transform = id ? this.editor.transformOf(id) : undefined;
       if (id && transform) this.events.onLiveChange(id, transform);
+      if (this.dragged.length > 0 || this.before) {
+        const error = this.editor.previewBooleans();
+        this.events.onPreviewError?.(error ?? "");
+      }
     };
     const onDragging = (event: { value?: unknown }) => {
       const dragging = event.value === true;
@@ -178,9 +183,11 @@ export class ObjectGizmo {
     });
 
     this.cleanups.push(
+      () => this.cancelDrag(),
       () => this.controls.removeEventListener("dragging-changed", onDragging),
       () => this.controls.removeEventListener("objectChange", onObjectChange),
       stopClicks,
+      this.editor.onBeforeChange(() => this.cancelDrag()),
       bindShiftSnap(this.controls),
       removeFrameListener,
     );
@@ -198,6 +205,29 @@ export class ObjectGizmo {
     this.viewport.scene.remove(this.origin);
     this.origin.geometry.dispose();
     this.originMaterial.dispose();
+  }
+
+  /** Puts a live drag back when another edit starts, so the saved change is not mixed with the preview. */
+  private cancelDrag() {
+    if (this.dragged.length === 0 && !this.before) return;
+    for (const item of this.dragged) {
+      item.object.position.fromArray(item.before.position);
+      item.object.rotation.set(...item.before.rotation);
+      item.object.scale.fromArray(item.before.scale);
+      item.object.updateMatrixWorld(true);
+    }
+    const single = this.controls.object;
+    if (this.before && single && single !== this.pivot) {
+      single.position.fromArray(this.before.position);
+      single.rotation.set(...this.before.rotation);
+      single.scale.fromArray(this.before.scale);
+      single.updateMatrixWorld(true);
+    }
+    this.dragged = [];
+    this.before = undefined;
+    this.dragWorld = undefined;
+    this.group.end();
+    this.editor.previewBooleans();
   }
 
   /** Remembers where everything is before a handle moves it. */

@@ -54,6 +54,15 @@ describe("validateAgainstContext", () => {
     expect(validateAgainstContext([{ ...selectedFaces, objectId: "missing" }], emptyScene)[0]?.message).toContain("does not exist");
     expect(validateAgainstContext([selectedFaces, create("c", "new")], sceneWith({ id: "box", parentId: null }))[0]?.message).toContain("only extrude");
     expect(validateAgainstContext([selectedFaces, { ...extrude, commandId: "e2", objectId: "box" }], sceneWith({ id: "box", parentId: null }))).toEqual([]);
+    const cut = (commandId: string, objectId: string, operandObjectId: string): EditorCommand => ({
+      commandId, type: "geometry.set_modifiers", objectId, meshPath: [],
+      modifiers: [{ id: "cut", kind: "boolean", enabled: true, operation: "difference", operandObjectId, operandMeshPath: [] }],
+    });
+    const scene = sceneWith({ id: "box", parentId: null }, { id: "cutter", parentId: null });
+    expect(validateAgainstContext([cut("b", "box", "cutter")], scene)).toEqual([]);
+    expect(validateAgainstContext([cut("b", "box", "missing")], scene)[0]?.message).toContain("operand");
+    expect(validateAgainstContext([cut("b", "box", "box")], scene)[0]?.message).toContain("own mesh");
+    expect(validateAgainstContext([cut("a", "box", "cutter"), cut("b", "cutter", "box")], scene).some((issue) => issue.message.includes("cycle"))).toBe(true);
   });
   it("explains the create_object then create_primitive mix-up and how to fix it", () => {
     const issues = validateAgainstContext([create("a", "crate"), primitive("b", "crate")], emptyScene);
@@ -61,6 +70,23 @@ describe("validateAgainstContext", () => {
     expect(issues[0]?.commandId).toBe("b");
     expect(issues[0]?.message).toContain("already created earlier in this batch");
     expect(issues[0]?.message).toContain("replaceExisting");
+  });
+
+  it("batches face transforms with extrusion and tracks Boolean cycles across mesh parts", () => {
+    const scene = sceneWith({ id: "box", parentId: null }, { id: "cutter", parentId: null });
+    const move: EditorCommand = {
+      type: "geometry.transform_faces", commandId: "move", objectId: "box", meshPath: [], ids: ["0"],
+      space: "world", transform: { position: [0, 1, 0] },
+    };
+    expect(validateAgainstContext([move, {
+      type: "geometry.extrude", commandId: "extrude", objectId: "box", meshPath: [], ids: ["0"], kind: "face", normalDistance: 1, steps: 3,
+    }], scene)).toEqual([]);
+    const cut: EditorCommand = {
+      type: "geometry.boolean", commandId: "cut", objectId: "box", meshPath: [0], operandObjectId: "box", operandMeshPath: [1], operation: "difference",
+    };
+    expect(validateAgainstContext([cut], scene)).toEqual([]);
+    expect(validateAgainstContext([cut, { ...cut, commandId: "reverse", meshPath: [1], operandMeshPath: [0] }], scene)
+      .some((issue) => issue.message.includes("cycle"))).toBe(true);
   });
 
   it("accepts a group turned into a shape with replaceExisting, and fresh primitives", () => {

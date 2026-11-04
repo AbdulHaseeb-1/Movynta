@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box, Circle, Cone, Cylinder, Donut, Plus, Square } from "lucide-react";
+import { Box, Circle, Cone, Cylinder, Diamond, Donut, Plus, Square, Triangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,6 +20,9 @@ const shapes = [
   ["cone", "Cone", Cone],
   ["torus", "Torus", Donut],
   ["plane", "Plane", Square],
+  ["tetrahedron", "Tetrahedron", Triangle],
+  ["octahedron", "Octahedron", Diamond],
+  ["icosahedron", "Icosahedron", Diamond],
 ] as const;
 interface AddShapeMenuProps {
   scene: EditorScene | null;

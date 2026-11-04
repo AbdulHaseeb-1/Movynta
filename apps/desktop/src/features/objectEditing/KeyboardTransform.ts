@@ -76,6 +76,7 @@ export class KeyboardTransform {
             })
           : [];
       session.targets.forEach(restore);
+      editor.previewBooleans();
       const active = editor.selection;
       const restored = active ? editor.transformOf(active) : undefined;
       if (active && restored) live(active, restored);
@@ -149,9 +150,8 @@ export class KeyboardTransform {
       const active = editor.selection;
       const transformed = active ? editor.transformOf(active) : undefined;
       if (active && transformed) live(active, transformed);
-      status(
-        `${session.operation[0]?.toUpperCase() ?? ""}${session.operation.slice(1)}${session.axis ? ` · ${session.axis.toUpperCase()}` : ""}  ·  X/Y/Z constrain  ·  Click or Enter confirm  ·  Esc cancel`,
-      );
+      const previewError = editor.previewBooleans();
+      status(previewError ?? `${session.operation[0]?.toUpperCase() ?? ""}${session.operation.slice(1)}${session.axis ? ` · ${session.axis.toUpperCase()}` : ""}  ·  X/Y/Z constrain  ·  Click or Enter confirm  ·  Esc cancel`);
     };
     const pivotOrigin = new Vector3();
     const flushMove = () => {
@@ -290,6 +290,7 @@ export class KeyboardTransform {
       else flushMove();
     });
     this.cleanups.push(
+      editor.onBeforeChange(() => finish(false)),
       () => window.removeEventListener("keydown", keydown, true),
       () => window.removeEventListener("pointermove", move, true),
       () => window.removeEventListener("pointerdown", down, true),

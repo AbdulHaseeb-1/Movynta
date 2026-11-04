@@ -118,7 +118,7 @@ export class EditorBridgeService implements EditorBridge {
         }),
         (requestId) => ({
           event: "view.request",
-          data: { requestId, request, withImages: options.withImages, captureId: options.captureId },
+          data: { requestId, request, ...options },
         }),
       );
     });
