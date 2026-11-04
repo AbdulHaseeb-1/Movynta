@@ -358,3 +358,27 @@ describe("command proposals", () => {
     expect((await service.propose(run, { summary: "Rename many", commands: renames(101) })).requiresApproval).toBe(true);
   });
 });
+
+describe("names the editor gave objects", () => {
+  it("keeps the name each command ended up with, in the result and in the stored result", async () => {
+    const { service, run, bridge } = setup();
+    bridge.executeCommands = (_clientId, request) => Promise.resolve({
+      proposalId: request.proposalId,
+      status: "applied",
+      revision: 5,
+      results: request.commands.map((command) => ({ commandId: command.commandId, status: "applied", message: undefined, name: "Box.001" })),
+      message: undefined,
+    });
+    const proposal = await service.propose(run, { summary: "Add a box", commands: [addBox] });
+    const applied = await service.apply(run, proposal.id);
+    expect(applied.results[0]?.name).toBe("Box.001");
+    // A second apply returns what was stored, read back from the database.
+    expect((await service.apply(run, proposal.id)).results[0]?.name).toBe("Box.001");
+  });
+
+  it("refuses a proposal that uses the new creator fields on an editor that predates them", async () => {
+    const { service, run } = setup();
+    const named: EditorCommand = { commandId: "n1", type: "geometry.create_primitive", objectId: "torso", primitive: "box", size: 1, replaceExisting: false, name: "Torso" };
+    await expect(service.propose(run, { summary: "Torso", commands: [named] })).rejects.toBeInstanceOf(ValidationFailedError);
+  });
+});

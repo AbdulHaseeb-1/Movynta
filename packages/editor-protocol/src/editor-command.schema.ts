@@ -125,6 +125,10 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
   z.object({
     ...commandBase, type: z.literal("geometry.create_mesh"), objectId: identifierSchema,
     name: nameSchema.optional(),
+    /** The parent to create the mesh under. Left out, the mesh is created at the top level. */
+    parentId: identifierSchema.optional(),
+    /** Where the mesh starts, local to its parent. */
+    transform: transformSchema.optional(),
     shading: z.enum(["flat", "smooth"]).optional(),
     vertices: z.array(vector3.refine((point) => point.every((value) => Math.abs(value) <= 10000), "Vertex coordinates must be within ±10000")).min(3).max(4096),
     faces: z.array(z.array(z.number().int().nonnegative()).min(3).max(64)).min(1).max(4096),
@@ -166,8 +170,15 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       size: z.number().positive().max(100),
       options: primitiveOptions.optional(),
       replaceExisting: z.boolean().default(false),
+      /** A label. The kind of shape when left out. A taken name among the same parent's children gets a number. */
+      name: nameSchema.optional(),
+      /** The parent to create the shape under. Left out, the shape is created at the top level. */
+      parentId: identifierSchema.optional(),
+      /** Where the shape starts, local to its parent. */
+      transform: transformSchema.optional(),
     })
     .strict()
+    .refine((command) => !command.replaceExisting || (command.name === undefined && command.parentId === undefined && command.transform === undefined), "Replacing a shape keeps the object's name, parent and place; leave name, parentId and transform out, or create a new object")
     .refine((command) => Object.keys(command.options ?? {}).every((key) => primitiveOptionKeys[command.primitive]?.includes(key)), "Primitive options do not apply to this shape")
     .refine((command) => command.primitive !== "cylinder" || (command.options?.radiusTop ?? command.size / 2) > 0 || (command.options?.radiusBottom ?? command.size / 2) > 0, "A cylinder needs at least one nonzero radius")
     .refine((command) => command.primitive !== "torus" || (command.options?.tube ?? command.size * 0.15) < (command.options?.radius ?? command.size * 0.35), "Torus tube must be smaller than its ring radius")

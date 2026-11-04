@@ -268,6 +268,25 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
   const missing = (commandId: string, objectId: string) =>
     issue(commandId, `objectId "${objectId}" does not exist; create it first or use an id from editor.get_context`);
 
+  /**
+   * Records an object a command creates, under its parent, and reports what the editor would refuse.
+   * `gated` is true when the command uses a field that older editors do not accept.
+   */
+  const placeCreated = (commandId: string, objectId: string, parentId: string | undefined, gated: boolean) => {
+    if (gated && context.supportsSceneGraph !== true) {
+      issue(commandId, "This editor is too old for name, parentId and transform on shapes and meshes; update the editor, or create the object and then use scene.rename_object, scene.set_parent and scene.transform_object");
+    }
+    if (parentId !== undefined && !parents.has(parentId)) {
+      issue(
+        commandId,
+        `parentId "${parentId}" does not exist; create the parent in an earlier command or use an id from editor.get_context`,
+      );
+    }
+    parents.set(objectId, parentId ?? null);
+    link(objectId, parentId);
+    createdInBatch.add(objectId);
+  };
+
   for (const command of commands) {
     if (seenCommandIds.has(command.commandId)) {
       issue(command.commandId, "commandId is used more than once; every command needs its own commandId");
@@ -279,15 +298,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
         if (parents.has(command.objectId)) {
           issue(command.commandId, existsMessage(command.objectId, createdInBatch, "scene.create_object"));
         }
-        if (command.parentId !== undefined && !parents.has(command.parentId)) {
-          issue(
-            command.commandId,
-            `parentId "${command.parentId}" does not exist; create the parent in an earlier command or use an id from editor.get_context`,
-          );
-        }
-        parents.set(command.objectId, command.parentId ?? null);
-        link(command.objectId, command.parentId);
-        createdInBatch.add(command.objectId);
+        placeCreated(command.commandId, command.objectId, command.parentId, false);
         break;
       case "geometry.create_primitive":
         if (command.replaceExisting) {
@@ -301,16 +312,14 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           if (parents.has(command.objectId)) {
             issue(command.commandId, existsMessage(command.objectId, createdInBatch, "geometry.create_primitive"));
           }
-          parents.set(command.objectId, null);
-          createdInBatch.add(command.objectId);
+          placeCreated(command.commandId, command.objectId, command.parentId, command.parentId !== undefined || command.name !== undefined || command.transform !== undefined);
         }
         break;
       case "geometry.create_mesh":
         if (parents.has(command.objectId)) {
           issue(command.commandId, `objectId "${command.objectId}" already exists; use a fresh id for the mesh`);
         }
-        parents.set(command.objectId, null);
-        createdInBatch.add(command.objectId);
+        placeCreated(command.commandId, command.objectId, command.parentId, command.parentId !== undefined || command.transform !== undefined);
         break;
       case "scene.transform_object":
       case "geometry.boolean":

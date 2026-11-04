@@ -5,6 +5,7 @@ const commandSchema = z.looseObject({
   type: z.string(),
   objectId: z.string().optional(),
   name: z.string().optional(),
+  parentId: z.string().optional(),
   primitive: z.string().optional(),
   size: z.number().optional(),
   width: z.number().optional(),
@@ -100,7 +101,7 @@ function describeCommand(command: Command): string {
     case "geometry.fill_hole":
       return `Fill the selected boundary loop on ${target}`;
     case "geometry.create_primitive":
-      return `Add a ${command.primitive ?? "shape"} to ${target}${command.size === undefined ? "" : ` (size ${command.size})`}`;
+      return `Add a ${command.primitive ?? "shape"}${command.name === undefined ? "" : ` “${command.name}”`} to ${target}${command.parentId === undefined ? "" : ` under ${command.parentId}`}${command.size === undefined ? "" : ` (size ${command.size})`}`;
     case "geometry.create_mesh":
       return `Add mesh ${command.name ?? target} (${command.vertices?.length ?? 0} vertices, ${command.faces?.length ?? 0} faces)`;
     default:

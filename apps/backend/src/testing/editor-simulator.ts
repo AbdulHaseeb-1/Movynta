@@ -20,6 +20,8 @@ export class EditorSimulator {
   readonly viewRequests: { readonly request: ViewCaptureRequest; readonly withImages: boolean; readonly captureId: string }[] = [];
   /** When false, the simulator never answers command execution, which exercises timeouts. */
   answerExecutions = true;
+  /** Whether the simulated editor advertises the scene-graph commands. Set false to stand in for an older editor. */
+  supportsSceneGraph = true;
   private readonly waiters: (() => void)[] = [];
   private revision = 0;
   private readonly objects: EditorObject[] = [];
@@ -167,12 +169,12 @@ export class EditorSimulator {
       case "geometry.create_mesh":
       case "geometry.create_primitive": {
         const id = command.objectId;
-        const name = command.type === "scene.create_object" ? command.name : command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.primitive;
+        const name = command.type === "scene.create_object" ? command.name : command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.name ?? command.primitive;
         this.objects.push({
           id,
           name,
           type: "mesh",
-          parentId: null,
+          parentId: command.parentId ?? null,
           transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
         });
         break;
@@ -213,6 +215,7 @@ export class EditorSimulator {
       activeSceneName: "Main",
       selectedObjectIds: [],
       objects: [...this.objects],
+      ...(this.supportsSceneGraph ? { supportsSceneGraph: true } : {}),
     };
   }
 

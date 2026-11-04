@@ -48,6 +48,11 @@ export const editorContextSchema = z
     objects: z.array(editorObjectSchema).max(2000),
     meshInspection: meshInspectionSchema.optional(),
     supportsPreparedCommands: z.boolean().optional(),
+    /**
+     * Whether the editor keeps names unique among siblings and accepts name, parentId and transform on the
+     * commands that create meshes. Missing for editors that predate it.
+     */
+    supportsSceneGraph: z.boolean().optional(),
     /** The user's design mode and Edit-mode picks. Missing for editors that predate it. */
     designFocus: designFocusSchema.optional(),
   })

@@ -11,3 +11,12 @@ it("shows component counts and actual transform values in the approval summary",
   expect(view.commands[1]?.text).toContain("move [1, 0, 0]");
   expect(view.commands[1]?.text).toContain("rotate [0, 1, 0] radians");
 });
+
+it("says which name and parent a new shape gets, and keeps the old wording without them", () => {
+  const view = describeApproval({ commands: [
+    { commandId: "a", type: "geometry.create_primitive", objectId: "torso", primitive: "box", size: 2, name: "Torso", parentId: "figure" },
+    { commandId: "b", type: "geometry.create_primitive", objectId: "plain", primitive: "sphere", size: 1 },
+  ] });
+  expect(view.commands[0]?.text).toBe("Add a box “Torso” to torso under figure (size 2)");
+  expect(view.commands[1]?.text).toBe("Add a sphere to plain (size 1)");
+});

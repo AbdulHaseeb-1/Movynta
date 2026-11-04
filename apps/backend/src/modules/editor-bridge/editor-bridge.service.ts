@@ -161,6 +161,7 @@ export class EditorBridgeService implements EditorBridge {
       commandId: item.commandId,
       status: item.status,
       message: item.message,
+      ...(item.name === undefined ? {} : { name: item.name }),
     }));
     request.resolve({
       proposalId: request.proposalId,

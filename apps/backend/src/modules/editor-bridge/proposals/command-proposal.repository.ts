@@ -18,7 +18,7 @@ const storedResultSchema = z.object({
   message: z.string().nullish(),
   rebased: z.boolean().nullish(),
   results: z.array(
-    z.object({ commandId: z.string(), status: z.enum(["applied", "failed"]), message: z.string().nullish() }),
+    z.object({ commandId: z.string(), status: z.enum(["applied", "failed"]), message: z.string().nullish(), name: z.string().nullish() }),
   ),
 });
 
@@ -34,6 +34,7 @@ function parseStoredResult(json: string): CommandExecutionResult {
       commandId: item.commandId,
       status: item.status,
       message: item.message ?? undefined,
+      ...(item.name ? { name: item.name } : {}),
     })),
     ...(stored.rebased ? { rebased: true } : {}),
   };

@@ -13,7 +13,7 @@ import {
   type Quaternion,
   type Scene,
 } from "three";
-import { editorCommandListSchema, isWithinBranch, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
+import { editorCommandListSchema, isWithinBranch, resolveSiblingName, SiblingNames, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
@@ -114,6 +114,12 @@ type InPlaceCommand = Extract<
 >;
 /** The commands that change one existing object's own properties, without touching the hierarchy. */
 type ObjectChange = Extract<Command, { type: "scene.transform_object" | "scene.rename_object" | "scene.set_visibility" }>;
+/** A command the batch applied. `name` is the name an object ended up with, which can differ from the one asked for. */
+interface AppliedResult {
+  commandId: string;
+  status: "applied";
+  name?: string;
+}
 function isInPlace(command: Command): command is InPlaceCommand {
   return (
     command.type === "scene.transform_object" ||
@@ -520,6 +526,9 @@ export class EditorScene {
     if (this.objects.has(objectId))
       throw new Error(`Object "${objectId}" already exists`);
     this.beginChange();
+    // A model imported twice keeps both, under names that differ. A name that cannot be made unique is left as it is.
+    const named = resolveSiblingName(object.name.slice(0, 72), this.siblingNames(this.objects, null));
+    if (named.ok && object.name.length > 0) object.name = named.name;
     this.objects.set(objectId, object);
     this.ids.set(object, objectId);
     if (!object.parent) this.scene.add(object);
@@ -594,6 +603,7 @@ export class EditorScene {
       selectedObjectIds: this.selected.slice(-500),
       objects,
       supportsPreparedCommands: true,
+      supportsSceneGraph: true,
       designFocus: this.designFocusSnapshot(),
       ...(inspection ? { meshInspection: inspectMesh(this.objects.get(inspection.objectId), inspection) } : {}),
     };
@@ -707,7 +717,7 @@ export class EditorScene {
     if (this.recoveryNeeded) throw new Error("Reconnect to the saved project before editing");
     if (this.prepared) throw new Error("Wait for the prepared scene change to finish");
     const commands = editorCommandListSchema.parse(input);
-    const results = commands.map((command) => ({
+    const results: AppliedResult[] = commands.map((command) => ({
       commandId: command.commandId,
       status: "applied" as const,
     }));
@@ -758,11 +768,15 @@ export class EditorScene {
       }
     }
     let current: Command | undefined;
+    /** The names under each parent that the batch has added so far, so a run of creations does not rescan the scene. */
+    const claims = new Map<Object3D | null, SiblingNames>();
     try {
-      for (const command of commands) {
+      commands.forEach((command, index) => {
         current = command;
-        this.apply(staged, command);
-      }
+        const name = this.apply(staged, command, claims);
+        const result = results[index];
+        if (name !== undefined && result) result.name = name;
+      });
       if (commands.some((command) => command.type === "scene.set_parent" || command.type === "scene.transform_object" || (command.type === "geometry.create_primitive" && command.replaceExisting))) {
         this.refreshStagedBooleans(staged);
       }
@@ -830,7 +844,7 @@ export class EditorScene {
   }
 
   /** Rewrites the base cage, then evaluates the same modifier list. A failure leaves the live mesh untouched. */
-  private applyCageEditBatch(proposalId: string, commands: Command[], results: { commandId: string; status: "applied" }[]) {
+  private applyCageEditBatch(proposalId: string, commands: Command[], results: AppliedResult[]) {
     interface Staged { base: BufferGeometry; display: BufferGeometry; modifiers: ModifierStackState["modifiers"]; reveal: boolean }
     const staged = new Map<Mesh, Staged>();
     let current: Command | undefined;
@@ -950,7 +964,7 @@ export class EditorScene {
   }
 
   /** Build every replacement first, then swap buffers together; scene objects and materials retain identity. */
-  private applyGeometryBatch(proposalId: string, commands: Command[], results: { commandId: string; status: "applied" }[]) {
+  private applyGeometryBatch(proposalId: string, commands: Command[], results: AppliedResult[]) {
     const staged = new Map<Mesh, ModifierStackState>();
     let current: Command | undefined;
     let dependent: Map<Mesh, ModifierStackState> | undefined;
@@ -1018,9 +1032,13 @@ export class EditorScene {
   private applyInPlace(
     proposalId: string,
     commands: readonly InPlaceCommand[],
-    results: { commandId: string; status: "applied" }[],
+    results: AppliedResult[],
   ) {
     const gone = new Set<string>();
+    /** The objects deleted so far in the batch, and the names chosen so far, so each rename sees the batch as it goes. */
+    const removed = new Set<Object3D>();
+    const renamed = new Map<Object3D, string>();
+    const chosen = new Map<InPlaceCommand, string>();
     const fail = (failed: InPlaceCommand, reason: string) => ({
       status: "failed",
       revision: this.revision,
@@ -1035,6 +1053,13 @@ export class EditorScene {
       const object = this.objects.get(command.objectId);
       if (!object || gone.has(command.objectId))
         return fail(command, `Object "${command.objectId}" does not exist`);
+      if (command.type === "scene.rename_object") {
+        const taken = this.siblingNames(this.objects, object.parent, object, removed, renamed);
+        const resolved = resolveSiblingName(command.name, taken);
+        if (!resolved.ok) return fail(command, resolved.message);
+        renamed.set(object, resolved.name);
+        chosen.set(command, resolved.name);
+      }
       if (command.type !== "scene.delete_object") continue;
       // An object can only go once whatever hangs below it has gone, earlier in the same batch or before.
       for (const child of object.children) {
@@ -1043,6 +1068,7 @@ export class EditorScene {
           return fail(command, `Delete the children of "${command.objectId}" before deleting it`);
       }
       gone.add(command.objectId);
+      removed.add(object);
     }
     const snapshot = commands.some((command) => command.type === "scene.transform_object") && this.hasEnabledBoolean()
       ? this.captureTransforms()
@@ -1054,8 +1080,13 @@ export class EditorScene {
       if (!object) continue;
       if (command.type === "scene.delete_object") {
         if (!snapshot) this.removeObject(command.objectId, object);
-      } else this.change(object, command);
+      } else this.change(object, command, chosen.get(command));
     }
+    commands.forEach((command, index) => {
+      const name = chosen.get(command);
+      const result = results[index];
+      if (name !== undefined && result) result.name = name;
+    });
     if (snapshot) {
       let evaluated: Map<Mesh, ModifierStackState> | undefined;
       try {
@@ -1100,10 +1131,16 @@ export class EditorScene {
     this.objects.delete(id);
   }
 
-  private apply(objects: Map<string, Object3D>, command: Command) {
+  /**
+   * Applies one command to the staged objects. Returns the name an object was given when the command created,
+   * renamed or moved one, since a name taken by a sibling is made unique and the caller reports what it became.
+   */
+  private apply(objects: Map<string, Object3D>, command: Command, claims: Map<Object3D | null, SiblingNames> = new Map()): string | undefined {
     if (isGeometryCommand(command)) throw new Error("Geometry commands require a separate geometry batch");
     if (isCageEditCommand(command)) throw new Error("Component edit commands require their own batch");
     const existing = objects.get(command.objectId);
+    // Deleting, renaming and re-parenting can free or change a name, which the index only adding names cannot follow.
+    if (command.type === "scene.delete_object" || command.type === "scene.rename_object" || command.type === "scene.set_parent") claims.clear();
     if (command.type === "scene.delete_object") {
       if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
       for (const child of existing.children) {
@@ -1112,23 +1149,26 @@ export class EditorScene {
       }
       existing.removeFromParent();
       objects.delete(command.objectId);
-      return;
+      return undefined;
     }
-    if (
-      command.type === "scene.transform_object" ||
-      command.type === "scene.rename_object" ||
-      command.type === "scene.set_visibility"
-    ) {
+    if (command.type === "scene.rename_object") {
+      if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
+      existing.name = this.uniqueName(objects, existing.parent, command.name, existing);
+      return existing.name;
+    }
+    if (command.type === "scene.transform_object" || command.type === "scene.set_visibility") {
       if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
       this.change(existing, command);
-      return;
+      return undefined;
     }
     if (command.type === "scene.set_parent") {
       if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
       const parent = command.parentId === null ? undefined : objects.get(command.parentId);
       if (command.parentId !== null && !parent) throw new Error(`Parent "${command.parentId}" does not exist`);
       this.reparent(existing, parent);
-      return;
+      // Under its new parent the object may share a name with a sibling; siblings keep distinct names.
+      if (existing.name.length > 0) existing.name = this.uniqueName(objects, existing.parent, existing.name, existing);
+      return existing.name;
     }
     if (
       existing &&
@@ -1137,18 +1177,32 @@ export class EditorScene {
       throw new Error(
         `Object "${command.objectId}" already exists; use another objectId or set replaceExisting`,
       );
+    // Whatever a new object is created under has to be there, so a missing parent fails before anything is built.
+    const parent = command.parentId === undefined ? undefined : objects.get(command.parentId);
+    if (command.parentId !== undefined && !parent) throw new Error(`Parent "${command.parentId}" does not exist`);
     let object: Object3D;
+    let base: string;
     if (command.type === "geometry.create_primitive" || command.type === "geometry.create_mesh") {
       const geometry = command.type === "geometry.create_primitive" ? createPrimitive(command) : createPolygonMesh(command.vertices, command.faces, command.shading);
       object = new Mesh(
         geometry,
         new MeshStandardMaterial({ color: "#b6aaa4", roughness: 0.65, side: command.type === "geometry.create_mesh" || command.primitive === "plane" ? DoubleSide : FrontSide }),
       );
-      object.name = command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.primitive;
+      base = command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.name ?? command.primitive;
     } else {
       object = new Group();
-      object.name = command.name;
-      if (command.transform) this.transform(object, command.transform);
+      base = command.name;
+    }
+    if (command.transform) this.transform(object, command.transform);
+    if (!existing) {
+      let claim = claims.get(parent ?? null);
+      if (!claim) {
+        claim = new SiblingNames(this.siblingNames(objects, parent ?? null));
+        claims.set(parent ?? null, claim);
+      }
+      const resolved = claim.claim(base);
+      if (!resolved.ok) throw new Error(resolved.message);
+      object.name = resolved.name;
     }
     if (existing) {
       // Replacing a shape keeps the object's name, place and position in the hierarchy.
@@ -1161,21 +1215,47 @@ export class EditorScene {
       existing.removeFromParent();
     }
     objects.set(command.objectId, object);
-    if (command.type === "scene.create_object" && command.parentId) {
-      const parent = objects.get(command.parentId);
-      if (!parent || parent === object)
-        throw new Error(`Parent "${command.parentId}" does not exist`);
-      parent.add(object);
+    parent?.add(object);
+    return object.name;
+  }
+
+  /**
+   * The names of the objects that share a parent, which is the top level when `parent` is null or the scene.
+   * `except` is the object being named, `gone` the objects already deleted by the batch and `renamed` the names
+   * the batch has already chosen, so a name is judged against the scene as the batch leaves it.
+   */
+  private siblingNames(
+    objects: ReadonlyMap<string, Object3D>,
+    parent: Object3D | null,
+    except?: Object3D,
+    gone?: ReadonlySet<Object3D>,
+    renamed?: ReadonlyMap<Object3D, string>,
+  ): Set<string> {
+    const names = new Set<string>();
+    const top = parent === null || parent === this.scene;
+    for (const object of objects.values()) {
+      if (object === except || gone?.has(object)) continue;
+      const above = object.parent;
+      if (top ? above !== null && above !== this.scene : above !== parent) continue;
+      names.add(renamed?.get(object) ?? object.name);
     }
+    return names;
+  }
+
+  /** `base` made unique among the objects under `parent`, or an error saying why it cannot be. */
+  private uniqueName(objects: ReadonlyMap<string, Object3D>, parent: Object3D | null, base: string, except?: Object3D): string {
+    const resolved = resolveSiblingName(base, this.siblingNames(objects, parent, except));
+    if (!resolved.ok) throw new Error(resolved.message);
+    return resolved.name;
   }
   /** Applies a command that changes one existing object's own properties. */
-  private change(object: Object3D, command: ObjectChange) {
+  private change(object: Object3D, command: ObjectChange, name?: string) {
     switch (command.type) {
       case "scene.transform_object":
         this.transform(object, command.transform);
         break;
       case "scene.rename_object":
-        object.name = command.name;
+        object.name = name ?? command.name;
         break;
       case "scene.set_visibility":
         object.visible = command.visible;

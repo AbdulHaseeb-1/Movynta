@@ -130,3 +130,44 @@ describe("validateAgainstContext", () => {
     expect(issues[0]?.message).toContain("commandId is used more than once");
   });
 });
+
+describe("validateAgainstContext with a parent, name and place on shapes", () => {
+  const capable: EditorContext = { ...emptyScene, supportsSceneGraph: true };
+  const under = (commandId: string, objectId: string, parentId: string): EditorCommand => ({
+    ...primitive(commandId, objectId),
+    parentId,
+    name: "Part",
+    transform: { position: [1, 0, 0] },
+  } as EditorCommand);
+  const mesh = (commandId: string, objectId: string, parentId: string): EditorCommand => ({
+    commandId,
+    type: "geometry.create_mesh",
+    objectId,
+    parentId,
+    vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+    faces: [[0, 1, 2]],
+  });
+
+  it("accepts a shape under a group created earlier in the same batch", () => {
+    expect(validateAgainstContext([create("g", "figure"), under("a", "torso", "figure"), mesh("m", "fin", "figure")], capable)).toEqual([]);
+  });
+
+  it("names a missing parent and how to fix it", () => {
+    const issues = validateAgainstContext([under("a", "torso", "nobody"), mesh("m", "fin", "nobody")], capable);
+    expect(issues.map((issue) => issue.commandId)).toEqual(["a", "m"]);
+    expect(issues[0]?.message).toContain('parentId "nobody" does not exist');
+  });
+
+  it("counts a shape created under a parent when its parent is deleted", () => {
+    const issues = validateAgainstContext([create("g", "figure"), under("a", "torso", "figure"), remove("d", "figure")], capable);
+    expect(issues.map((issue) => issue.commandId)).toEqual(["d"]);
+    expect(issues[0]?.message).toContain("still has children (torso)");
+  });
+
+  it("refuses the new fields for an editor that does not advertise them, but not the old ones", () => {
+    const old = emptyScene;
+    const issues = validateAgainstContext([create("g", "figure"), under("a", "torso", "figure"), primitive("p", "plain")], old);
+    expect(issues.map((issue) => issue.commandId)).toEqual(["a"]);
+    expect(issues[0]?.message).toContain("too old");
+  });
+});
