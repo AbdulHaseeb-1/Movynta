@@ -5,7 +5,7 @@ import { EditorScene, type OutlineEntry } from "@/features/assistant/EditorScene
 import { buildSceneTree, canMoveUnder, flattenTree, outlineCommands, revealed, scrollToRow, visibleRange } from "./sceneTree";
 
 const entry = (id: string, parentId: string | null = null, extra: Partial<OutlineEntry> = {}): OutlineEntry => ({
-  id, name: id.toUpperCase(), kind: "empty", parentId, visible: true, ...extra,
+  id, name: id.toUpperCase(), kind: "empty", parentId, visible: true, collectionId: null, ...extra,
 });
 const ids = (rows: readonly { id: string }[]) => rows.map((row) => row.id);
 
@@ -129,8 +129,8 @@ describe("the editor's outline", () => {
     editor.execute("a", 0, [create("g", "fig"), { commandId: "b", type: "geometry.create_primitive", objectId: "torso", primitive: "box", size: 1, replaceExisting: false, parentId: "fig" }]);
     editor.execute("b", 1, [{ commandId: "v", type: "scene.set_visibility", objectId: "fig", visible: false }]);
     expect(editor.outline()).toEqual([
-      { id: "fig", name: "fig", kind: "empty", parentId: null, visible: false },
-      { id: "torso", name: "box", kind: "mesh", parentId: "fig", visible: true },
+      { id: "fig", name: "fig", kind: "empty", parentId: null, visible: false, collectionId: null },
+      { id: "torso", name: "box", kind: "mesh", parentId: "fig", visible: true, collectionId: null },
     ]);
   });
 

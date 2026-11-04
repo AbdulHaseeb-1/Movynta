@@ -25,3 +25,22 @@ it("says how far a relative move goes, and along which axes", () => {
   const view = describeApproval({ commands: [{ commandId: "m", type: "scene.move_object", objectId: "figure", delta: [0, 2, -1] }] });
   expect(view.commands[0]?.text).toBe("Move figure by [0, 2, -1] along its parent's axes");
 });
+
+it("describes collection changes in words, and says an object goes with what hangs below it", () => {
+  const text = describeApproval({ commands: [
+    { commandId: "a", type: "scene.create_collection", collectionId: "set", name: "Set" },
+    { commandId: "b", type: "scene.create_collection", collectionId: "props", name: "Props", parentCollectionId: "set" },
+    { commandId: "c", type: "scene.move_to_collection", objectId: "fig", collectionId: "set", includeChildren: true },
+    { commandId: "d", type: "scene.move_to_collection", objectId: "fig", collectionId: null, includeChildren: false },
+    { commandId: "e", type: "scene.set_collection_visibility", collectionId: "set", visible: false },
+    { commandId: "f", type: "scene.delete_collection", collectionId: "props" },
+  ] }).commands.map((command) => command.text);
+  expect(text).toEqual([
+    "Create collection “Set”",
+    "Create collection “Props” in set",
+    "Put fig and what hangs below it in collection set",
+    "Put fig in the scene itself",
+    "Hide collection set",
+    "Delete the empty collection props",
+  ]);
+});

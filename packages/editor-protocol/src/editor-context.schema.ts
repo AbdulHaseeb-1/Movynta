@@ -12,8 +12,20 @@ export const editorObjectSchema = z.object({
   transform: z.object({ position: vector3, rotation: vector3, scale: vector3 }).strict(),
   /** Whether the object is drawn. Missing for snapshots from editors that predate it. */
   visible: z.boolean().optional(),
+  /** The collection the object is in, or null for the scene itself. Missing for snapshots from editors that predate collections. */
+  collectionId: identifier.nullable().optional(),
   /** World-space axis-aligned bounds including descendants; null for objects with no geometry. */
   worldBounds: z.object({ min: vector3, max: vector3 }).strict().nullable().optional(),
+});
+
+/** A collection: a named, nestable group of objects that can be hidden together. It has no place in space. */
+export const editorCollectionSchema = z.object({
+  id: identifier,
+  name: z.string().max(120),
+  /** The collection it sits in, or null at the top. */
+  parentId: identifier.nullable(),
+  /** Its own flag. What is in it is drawn only if every collection above it is shown too. */
+  visible: z.boolean(),
 });
 
 /**
@@ -46,6 +58,8 @@ export const editorContextSchema = z
     activeSceneName: z.string().max(120).nullable(),
     selectedObjectIds: z.array(identifier).max(500),
     objects: z.array(editorObjectSchema).max(2000),
+    /** Missing for editors that predate collections. */
+    collections: z.array(editorCollectionSchema).max(500).optional(),
     meshInspection: meshInspectionSchema.optional(),
     supportsPreparedCommands: z.boolean().optional(),
     /**
@@ -53,7 +67,12 @@ export const editorContextSchema = z
      * commands that create meshes, and runs scene.move_object. Missing for editors that predate it.
      */
     supportsSceneGraph: z.boolean().optional(),
+    /** Whether the editor has collections: their commands, and a collection id on creation commands. Missing for editors that predate them. */
+    supportsCollections: z.boolean().optional(),
     /** The user's design mode and Edit-mode picks. Missing for editors that predate it. */
     designFocus: designFocusSchema.optional(),
   })
   .strict();
+
+/** The snapshot as a type. */
+export type EditorContext = z.infer<typeof editorContextSchema>;

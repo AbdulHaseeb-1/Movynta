@@ -19,6 +19,10 @@ const commandSchema = z.looseObject({
   normalDistance: z.number().optional(),
   offset: z.array(z.number()).length(3).optional(),
   delta: z.array(z.number()).length(3).optional(),
+  collectionId: z.string().nullable().optional(),
+  parentCollectionId: z.string().nullable().optional(),
+  visible: z.boolean().optional(),
+  includeChildren: z.boolean().optional(),
   space: z.enum(["local", "world"]).optional(),
   transform: z.object({
     position: z.array(z.number()).length(3).optional(),
@@ -61,6 +65,18 @@ function describeCommand(command: Command): string {
   switch (command.type) {
     case "scene.create_object":
       return `Create “${command.name ?? target}”`;
+    case "scene.create_collection":
+      return `Create collection “${command.name ?? command.collectionId ?? "collection"}”${command.parentCollectionId ? ` in ${command.parentCollectionId}` : ""}`;
+    case "scene.rename_collection":
+      return `Rename collection ${command.collectionId ?? ""} to “${command.name ?? ""}”`;
+    case "scene.set_collection_visibility":
+      return `${command.visible === false ? "Hide" : "Show"} collection ${command.collectionId ?? ""}`;
+    case "scene.move_collection":
+      return command.parentCollectionId ? `Move collection ${command.collectionId ?? ""} into ${command.parentCollectionId}` : `Move collection ${command.collectionId ?? ""} to the top`;
+    case "scene.delete_collection":
+      return `Delete the empty collection ${command.collectionId ?? ""}`;
+    case "scene.move_to_collection":
+      return `Put ${target} ${command.includeChildren === false ? "" : "and what hangs below it "}in ${command.collectionId ? `collection ${command.collectionId}` : "the scene itself"}`;
     case "scene.move_object":
       return `Move ${target} by [${(command.delta ?? []).join(", ")}] along its parent's axes`;
     case "scene.transform_object":

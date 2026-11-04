@@ -51,7 +51,7 @@ Prepared assistant edits also have a smoke benchmark in `EditorScene.prepared.te
 
 | Suite | Subject | Tier | Declared growth |
 | --- | --- | --- | --- |
-| `editor/execute` | `EditorScene` transforms, deletes, creating a batch of same-named shapes, restore, context reads | HIGH | O(batch); create batch O(objects); restore O(steps); context O(objects) |
+| `editor/execute` | `EditorScene` transforms, deletes, creating a batch of same-named shapes, hiding a collection, restore, context reads | HIGH | O(batch); create batch O(objects); restore O(steps); context O(objects) |
 | `editor/outline` | The scene outline: reading the objects, building and flattening the tree, a chain of nested objects | HIGH | O(objects); window O(1) |
 | `editor/selection` | Group drag step, rectangle select, select all, many objects at once | HIGH | O(selected objects); rectangle O(objects) |
 | `editor/pick` | `pickObjectId` on many objects and on one dense mesh | HIGH | O(objects), O(triangles hit) |

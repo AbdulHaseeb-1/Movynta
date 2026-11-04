@@ -421,3 +421,35 @@ describe("relative moves", () => {
     expect(bridge.executions).toHaveLength(0);
   });
 });
+
+describe("collections in proposals", () => {
+  const make: EditorCommand = { commandId: "c", type: "scene.create_collection", collectionId: "set", name: "Set" };
+
+  it("are refused for an editor that predates them, and accepted for one that has them", async () => {
+    const { bridge, service, run } = setup();
+    await expect(service.propose(run, { summary: "Make a collection", commands: [make] })).rejects.toBeInstanceOf(ValidationFailedError);
+    bridge.scene = { ...bridge.scene, supportsCollections: true };
+    expect((await service.propose(run, { summary: "Make a collection", commands: [make] })).status).toBe("proposed");
+  });
+
+  it("do not need approval to make, move, hide or delete a collection, since nothing is lost", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, supportsCollections: true, collections: [{ id: "set", name: "Set", parentId: null, visible: true }] };
+    const commands: EditorCommand[] = [
+      { commandId: "h", type: "scene.set_collection_visibility", collectionId: "set", visible: false },
+      { commandId: "d", type: "scene.delete_collection", collectionId: "set" },
+    ];
+    expect((await service.propose(run, { summary: "Tidy", commands })).requiresApproval).toBe(false);
+  });
+
+  it("keeps the name the editor gave a collection in the result", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, supportsCollections: true };
+    bridge.executeCommands = (_clientId, request) => Promise.resolve({
+      proposalId: request.proposalId, status: "applied", revision: 5, message: undefined,
+      results: request.commands.map((command) => ({ commandId: command.commandId, status: "applied", message: undefined, name: "Set.001" })),
+    });
+    const proposal = await service.propose(run, { summary: "Make a collection", commands: [make] });
+    expect((await service.apply(run, proposal.id)).results[0]?.name).toBe("Set.001");
+  });
+});

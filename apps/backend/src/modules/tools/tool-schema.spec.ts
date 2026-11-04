@@ -238,6 +238,46 @@ describe("checkScene arrangement checks", () => {
   });
 });
 
+describe("checkScene collection checks", () => {
+  const withCollections = (collections: { id: string; name: string; parentId: string | null }[], objects: { id: string; collectionId: string | null }[] = []): EditorContext => ({
+    ...emptyScene,
+    collections: collections.map((collection) => ({ ...collection, visible: true })),
+    objects: objects.map((object) => ({
+      id: object.id, name: object.id, type: "mesh", parentId: null, collectionId: object.collectionId,
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+    })) as unknown as EditorContext["objects"],
+  });
+  const messages = (scene: EditorContext, severity: string) => checkScene(scene).issues.filter((issue) => issue.severity === severity).map((issue) => issue.message);
+
+  it("passes a scene whose collections hold objects", () => {
+    const result = checkScene(withCollections([{ id: "set", name: "Set", parentId: null }], [{ id: "a", collectionId: "set" }]));
+    expect(result.ok).toBe(true);
+    expect(result.issues).toEqual([]);
+  });
+
+  it("reports an object in a collection that does not exist, and a collection in one that does not exist", () => {
+    const scene = withCollections([{ id: "c", name: "C", parentId: "gone" }], [{ id: "a", collectionId: "nowhere" }]);
+    expect(messages(scene, "error")).toEqual(expect.arrayContaining(['Is in collection "nowhere", which does not exist', 'Collection "c" sits in "gone", which does not exist']));
+    expect(checkScene(scene).ok).toBe(false);
+  });
+
+  it("reports collections that sit inside themselves", () => {
+    const scene = withCollections([{ id: "a", name: "A", parentId: "b" }, { id: "b", name: "B", parentId: "a" }]);
+    expect(messages(scene, "error").some((message) => message.includes("inside itself"))).toBe(true);
+  });
+
+  it("warns about collections that share a name in one place, not in different places", () => {
+    expect(messages(withCollections([{ id: "a", name: "Props", parentId: null }, { id: "b", name: "Props", parentId: null }]), "warning")).toHaveLength(1);
+    expect(messages(withCollections([{ id: "a", name: "Props", parentId: null }, { id: "set", name: "Set", parentId: null }, { id: "b", name: "Props", parentId: "set" }]), "warning")).toEqual([]);
+  });
+
+  it("notes an empty collection as information only, and one that holds only another collection is not empty", () => {
+    const scene = withCollections([{ id: "outer", name: "Outer", parentId: null }, { id: "inner", name: "Inner", parentId: "outer" }]);
+    expect(messages(scene, "info")).toEqual(['Collection "inner" (Inner) is empty']);
+    expect(checkScene(scene).ok).toBe(true);
+  });
+});
+
 describe("validateAgainstContext", () => {
   it("flags creating an object that already exists", () => {
     const issues = validateAgainstContext(

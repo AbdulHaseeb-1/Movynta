@@ -67,9 +67,21 @@ function isStoredCommandList(value: unknown): value is EditorCommand[] {
   );
 }
 
-/** Commands that change an object that already exists, so they add and remove nothing from the index. */
+/**
+ * Collections are kept in the same index as objects, under a key that no object id can have (ids hold no ":"), so
+ * that duplicating, undoing, redoing and rebuilding a project need nothing of their own to cover them.
+ */
+export function collectionKey(collectionId: string): string {
+  return `collection:${collectionId}`;
+}
+
+/** Commands that change an object or collection that already exists, so they add and remove nothing from the index. */
 function changesExistingObject(command: EditorCommand): boolean {
   return (
+    command.type === "scene.rename_collection" ||
+    command.type === "scene.set_collection_visibility" ||
+    command.type === "scene.move_collection" ||
+    command.type === "scene.move_to_collection" ||
     command.type === "scene.transform_object" || command.type === "scene.move_object" || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers") ||
     command.type === "scene.rename_object" ||
     command.type === "scene.set_visibility" ||
@@ -80,7 +92,15 @@ function changesExistingObject(command: EditorCommand): boolean {
 /** Keeps `objects` in step with what `commands` create and delete. */
 function trackObjects(db: DatabaseSync, projectId: string, commands: readonly EditorCommand[]): void {
   for (const command of commands) {
-    if (changesExistingObject(command)) continue;
+    if (command.type === "scene.create_collection") {
+      statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, collectionKey(command.collectionId));
+      continue;
+    }
+    if (command.type === "scene.delete_collection") {
+      statement(db, "DELETE FROM project_objects WHERE project_id = ? AND object_id = ?").run(projectId, collectionKey(command.collectionId));
+      continue;
+    }
+    if (changesExistingObject(command) || !("objectId" in command)) continue;
     if (command.type === "scene.delete_object")
       statement(db, "DELETE FROM project_objects WHERE project_id = ? AND object_id = ?").run(projectId, command.objectId);
     else statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, command.objectId);

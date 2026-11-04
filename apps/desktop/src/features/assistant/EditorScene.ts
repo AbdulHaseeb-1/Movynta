@@ -13,7 +13,7 @@ import {
   type Quaternion,
   type Scene,
 } from "three";
-import { editorCommandListSchema, isWithinBranch, resolveSiblingName, SiblingNames, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
+import { CollectionModel, editorCommandListSchema, isWithinBranch, resolveSiblingName, SiblingNames, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
@@ -97,8 +97,10 @@ export interface OutlineEntry {
   kind: "mesh" | "empty";
   /** The object it hangs under, or null at the top level. */
   parentId: string | null;
-  /** The object's own flag. It is drawn only if every object above it is visible too. */
+  /** The object's own flag. It is drawn only if every object above it, and every collection it is in, is visible too. */
   visible: boolean;
+  /** The collection it is in, or null for the scene itself. */
+  collectionId: string | null;
 }
 
 /** Whether an id is taken, without copying the ids. */
@@ -140,6 +142,35 @@ function isInPlace(command: Command): command is InPlaceCommand {
     command.type === "scene.set_visibility"
   );
 }
+/** The commands that change collections, or which collection an object is in. They never change where anything is. */
+type CollectionCommand = Extract<
+  Command,
+  { type: "scene.create_collection" | "scene.rename_collection" | "scene.set_collection_visibility" | "scene.move_collection" | "scene.delete_collection" | "scene.move_to_collection" }
+>;
+function isCollectionCommand(command: Command): command is CollectionCommand {
+  return (
+    command.type === "scene.create_collection" ||
+    command.type === "scene.rename_collection" ||
+    command.type === "scene.set_collection_visibility" ||
+    command.type === "scene.move_collection" ||
+    command.type === "scene.delete_collection" ||
+    command.type === "scene.move_to_collection"
+  );
+}
+
+/**
+ * An object is drawn when its own flag is on and so is that of every collection it is in. three.js has one flag, so it
+ * holds the result (`object.visible`, which picking, selecting and drawing already read) and the object's own flag is
+ * kept in `userData`. An object that was never hidden by a collection has no record: its flag is the one three.js has.
+ */
+const OWN_VISIBLE = "ownVisible";
+function storedOwnVisible(object: Object3D): unknown {
+  return object.userData[OWN_VISIBLE];
+}
+function ownVisible(object: Object3D): boolean {
+  const own = storedOwnVisible(object);
+  return typeof own === "boolean" ? own : object.visible;
+}
 function isMesh(object: Object3D | undefined): object is Mesh {
   return object instanceof Mesh;
 }
@@ -158,6 +189,8 @@ export class EditorScene {
    * reset starts it again from 0.
    */
   private structureVersion = 0;
+  /** The collections, and which one each object is in. An object it does not know is in the scene itself. */
+  private collectionModel = new CollectionModel();
   private prepared: { id: string; revision: number; candidate: EditorScene } | undefined;
   private recoveryNeeded = false;
   get requiresRecovery(): boolean { return this.recoveryNeeded; }
@@ -382,6 +415,7 @@ export class EditorScene {
     this.reset();
     this.objects = candidate.objects;
     this.ids = candidate.ids;
+    this.collectionModel = candidate.collectionModel;
     for (const id of candidate.applied) this.applied.add(id);
     const roots = [...candidate.scene.children];
     for (const root of roots) this.scene.add(root);
@@ -390,6 +424,7 @@ export class EditorScene {
     this.selected = selection.filter((id) => this.objects.has(id));
     candidate.objects = new Map();
     candidate.ids = new WeakMap();
+    candidate.collectionModel = new CollectionModel();
     candidate.applied.clear();
     this.notify();
   }
@@ -433,6 +468,7 @@ export class EditorScene {
       const copy = copied.get(original); if (!copy) throw new Error("Could not clone scene object");
       candidate.objects.set(id, copy); candidate.ids.set(copy, id);
     }
+    candidate.collectionModel = this.collectionModel.clone();
     candidate.selected = [...this.selected]; candidate.revision = this.revision;
     for (const id of this.applied) candidate.applied.add(id);
     return candidate;
@@ -523,6 +559,7 @@ export class EditorScene {
     for (const object of this.objects.values()) this.disposeTree(object);
     this.objects = new Map();
     this.ids = new WeakMap();
+    this.collectionModel = new CollectionModel();
     this.applied.clear();
     this.revision = 0;
     this.selected = [];
@@ -607,10 +644,16 @@ export class EditorScene {
         name: object.name,
         kind: object instanceof Mesh ? "mesh" : "empty",
         parentId: parent && parent !== this.scene ? (this.ids.get(parent) ?? null) : null,
-        visible: object.visible,
+        visible: ownVisible(object),
+        collectionId: this.collectionModel.collectionOf(id),
       });
     }
     return entries;
+  }
+
+  /** The collections, for a list of the scene. */
+  collections(): CollectionEntry[] {
+    return this.collectionModel.entries();
   }
 
   context(inspection?: MeshInspectionRequest) {
@@ -632,7 +675,8 @@ export class EditorScene {
           rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
           scale: object.scale.toArray(),
         },
-        visible: object.visible,
+        visible: ownVisible(object),
+        collectionId: this.collectionModel.collectionOf(id),
         worldBounds: box && !box.isEmpty() ? { min: box.min.toArray(), max: box.max.toArray() } : null,
       });
     }
@@ -642,8 +686,10 @@ export class EditorScene {
       activeSceneName: "Main",
       selectedObjectIds: this.selected.slice(-500),
       objects,
+      collections: this.collectionModel.entries(),
       supportsPreparedCommands: true,
       supportsSceneGraph: true,
+      supportsCollections: true,
       designFocus: this.designFocusSnapshot(),
       ...(inspection ? { meshInspection: inspectMesh(this.objects.get(inspection.objectId), inspection) } : {}),
     };
@@ -788,6 +834,8 @@ export class EditorScene {
     if (commands.some(isCageEditCommand)) return this.applyCageEditBatch(proposalId, commands, results);
     // Moving, turning, resizing and deleting are the common edits, and need no copy of the scene to be safe.
     if (commands.every(isInPlace)) return this.applyInPlace(proposalId, commands, results);
+    // Collections change nothing in space, so a batch of only those needs no copy of the scene.
+    if (commands.every(isCollectionCommand)) return this.applyCollectionBatch(proposalId, commands, results);
     const staged = new Map<string, Object3D>();
     /** Which original each staged copy was made from. */
     const copiedFrom = new Map<Object3D, Object3D>();
@@ -810,10 +858,11 @@ export class EditorScene {
     let current: Command | undefined;
     /** The names under each parent that the batch has added so far, so a run of creations does not rescan the scene. */
     const claims = new Map<Object3D | null, SiblingNames>();
+    const model = this.collectionModel.clone();
     try {
       commands.forEach((command, index) => {
         current = command;
-        const name = this.apply(staged, command, claims);
+        const name = this.apply(staged, command, claims, model);
         const result = results[index];
         if (name !== undefined && result) result.name = name;
       });
@@ -869,6 +918,7 @@ export class EditorScene {
         this.dispose(object);
     }
     this.objects = staged;
+    this.collectionModel = model;
     for (const [id, object] of staged) this.ids.set(object, id);
     const stagedObjects = new Set(staged.values());
     for (const object of staged.values())
@@ -876,6 +926,7 @@ export class EditorScene {
         this.scene.add(object);
     // Reparent may have left an exact matrix that position, rotation and scale cannot store.
     settleShear(staged.values());
+    this.refreshVisibility();
     this.revision += 1;
     this.applied.add(proposalId);
     this.pruneSelection();
@@ -1115,6 +1166,7 @@ export class EditorScene {
       : undefined;
     const names = snapshot ? new Map([...this.objects.values()].map((object) => [object, object.name])) : undefined;
     const shown = snapshot ? new Map([...this.objects.values()].map((object) => [object, object.visible])) : undefined;
+    const owns = snapshot ? new Map<Object3D, unknown>([...this.objects.values()].map((object) => [object, storedOwnVisible(object)])) : undefined;
     for (const command of commands) {
       const object = this.objects.get(command.objectId);
       if (!object) continue;
@@ -1139,6 +1191,10 @@ export class EditorScene {
         this.restoreTransforms(snapshot);
         for (const [object, name] of names ?? []) object.name = name;
         for (const [object, visible] of shown ?? []) object.visible = visible;
+        for (const [object, own] of owns ?? []) {
+          if (own === undefined) delete object.userData[OWN_VISIBLE];
+          else object.userData[OWN_VISIBLE] = own;
+        }
         this.scene.updateMatrixWorld(true);
         const failed = [...commands].reverse().find((command) => command.type === "scene.transform_object" || command.type === "scene.move_object");
         const reason = (error instanceof Error ? error.message : "Boolean operation failed").slice(0, 400);
@@ -1150,6 +1206,7 @@ export class EditorScene {
         if (object) this.removeObject(command.objectId, object);
       }
     }
+    this.refreshVisibility();
     this.revision += 1;
     this.applied.add(proposalId);
     this.pruneSelection();
@@ -1169,15 +1226,22 @@ export class EditorScene {
     object.removeFromParent();
     this.dispose(object);
     this.objects.delete(id);
+    this.collectionModel.forget(id);
   }
 
   /**
    * Applies one command to the staged objects. Returns the name an object was given when the command created,
    * renamed or moved one, since a name taken by a sibling is made unique and the caller reports what it became.
    */
-  private apply(objects: Map<string, Object3D>, command: Command, claims: Map<Object3D | null, SiblingNames> = new Map()): string | undefined {
+  private apply(
+    objects: Map<string, Object3D>,
+    command: Command,
+    claims: Map<Object3D | null, SiblingNames> = new Map(),
+    model: CollectionModel = this.collectionModel,
+  ): string | undefined {
     if (isGeometryCommand(command)) throw new Error("Geometry commands require a separate geometry batch");
     if (isCageEditCommand(command)) throw new Error("Component edit commands require their own batch");
+    if (isCollectionCommand(command)) return this.applyCollectionCommand(objects, model, command);
     const existing = objects.get(command.objectId);
     // Deleting, renaming and re-parenting can free or change a name, which the index only adding names cannot follow.
     if (command.type === "scene.delete_object" || command.type === "scene.rename_object" || command.type === "scene.set_parent") claims.clear();
@@ -1189,6 +1253,7 @@ export class EditorScene {
       }
       existing.removeFromParent();
       objects.delete(command.objectId);
+      model.forget(command.objectId);
       return undefined;
     }
     if (command.type === "scene.rename_object") {
@@ -1220,6 +1285,9 @@ export class EditorScene {
     // Whatever a new object is created under has to be there, so a missing parent fails before anything is built.
     const parent = command.parentId === undefined ? undefined : objects.get(command.parentId);
     if (command.parentId !== undefined && !parent) throw new Error(`Parent "${command.parentId}" does not exist`);
+    if (command.collectionId !== undefined && !model.has(command.collectionId)) {
+      throw new Error(`Collection "${command.collectionId}" does not exist; create it earlier in the batch or use an id from editor.get_context`);
+    }
     let object: Object3D;
     let base: string;
     if (command.type === "geometry.create_primitive" || command.type === "geometry.create_mesh") {
@@ -1256,7 +1324,125 @@ export class EditorScene {
     }
     objects.set(command.objectId, object);
     parent?.add(object);
+    // A new object joins the collection it was given, else the one its parent is in, else the scene itself.
+    if (!existing) {
+      const joined = command.collectionId ?? (command.parentId === undefined ? null : model.collectionOf(command.parentId));
+      const refused = model.assign(command.objectId, joined);
+      if (refused) throw new Error(refused);
+    }
     return object.name;
+  }
+
+  /** Applies one collection command to `model`, which is the staged copy. Returns the name a collection ended up with. */
+  private applyCollectionCommand(objects: ReadonlyMap<string, Object3D>, model: CollectionModel, command: CollectionCommand): string | undefined {
+    const check = (result: { ok: true; name: string } | { ok: false; message: string }): string => {
+      if (!result.ok) throw new Error(result.message);
+      return result.name;
+    };
+    const refuse = (message: string | undefined) => {
+      if (message) throw new Error(message);
+    };
+    let name: string | undefined;
+    switch (command.type) {
+      case "scene.create_collection":
+        name = check(model.create(command.collectionId, command.name, command.parentCollectionId ?? null));
+        break;
+      case "scene.rename_collection":
+        name = check(model.rename(command.collectionId, command.name));
+        break;
+      case "scene.move_collection":
+        name = check(model.move(command.collectionId, command.parentCollectionId));
+        break;
+      case "scene.set_collection_visibility":
+        refuse(model.setVisible(command.collectionId, command.visible));
+        break;
+      case "scene.delete_collection":
+        refuse(model.remove(command.collectionId));
+        break;
+      case "scene.move_to_collection": {
+        if (!objects.has(command.objectId)) throw new Error(`Object "${command.objectId}" does not exist`);
+        if (command.collectionId !== null && !model.has(command.collectionId)) {
+          throw new Error(`Collection "${command.collectionId}" does not exist; create it first or use an id from editor.get_context`);
+        }
+        for (const id of command.includeChildren ? this.subtree(objects, command.objectId) : [command.objectId]) {
+          refuse(model.assign(id, command.collectionId));
+        }
+        break;
+      }
+    }
+    return name;
+  }
+
+  /** An object and every scene object that hangs below it, through any number of parents. */
+  private subtree(objects: ReadonlyMap<string, Object3D>, rootId: string): string[] {
+    const idOf = new Map<Object3D, string>();
+    for (const [id, object] of objects) idOf.set(object, id);
+    const found: string[] = [];
+    const pending = [rootId];
+    for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+      found.push(id);
+      // Only scene objects are followed: the parts inside an imported model are not objects of the scene.
+      for (const child of objects.get(id)?.children ?? []) {
+        const childId = idOf.get(child);
+        if (childId !== undefined) pending.push(childId);
+      }
+    }
+    return found;
+  }
+
+  /** A batch of only collection commands, applied to a copy of the collections and committed whole or not at all. */
+  private applyCollectionBatch(proposalId: string, commands: readonly CollectionCommand[], results: AppliedResult[]) {
+    const model = this.collectionModel.clone();
+    let current: CollectionCommand | undefined;
+    try {
+      commands.forEach((command, index) => {
+        current = command;
+        const name = this.applyCollectionCommand(this.objects, model, command);
+        const result = results[index];
+        if (name !== undefined && result) result.name = name;
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Command failed";
+      return {
+        status: "failed",
+        revision: this.revision,
+        results: commands.map((command) => ({
+          commandId: command.commandId,
+          status: "failed" as const,
+          message: command === current ? reason : "Not applied: the batch was rolled back",
+        })),
+        message: `The batch was rolled back: command ${current?.commandId ?? "?"} failed. ${reason}`,
+      };
+    }
+    this.collectionModel = model;
+    this.refreshVisibility();
+    this.revision += 1;
+    this.applied.add(proposalId);
+    this.notify();
+    return { status: "applied", revision: this.revision, results };
+  }
+
+  /**
+   * Sets what three.js draws from each object's own flag and its collections. Nothing to do while there are no
+   * collections, since then the one flag three.js has is the object's own.
+   */
+  private refreshVisibility(): void {
+    if (this.collectionModel.size === 0) return;
+    const shown = new Map<string | null, boolean>();
+    for (const [id, object] of this.objects) {
+      const collection = this.collectionModel.collectionOf(id);
+      let inShownCollections = shown.get(collection);
+      if (inShownCollections === undefined) {
+        inShownCollections = this.collectionModel.effectiveVisible(collection);
+        shown.set(collection, inShownCollections);
+      }
+      if (inShownCollections) {
+        object.visible = ownVisible(object);
+      } else {
+        if (typeof object.userData[OWN_VISIBLE] !== "boolean") object.userData[OWN_VISIBLE] = object.visible;
+        object.visible = false;
+      }
+    }
   }
 
   /**
@@ -1303,6 +1489,8 @@ export class EditorScene {
         object.name = name ?? command.name;
         break;
       case "scene.set_visibility":
+        // The collections the object is in are applied once the batch is done (refreshVisibility).
+        object.userData[OWN_VISIBLE] = command.visible;
         object.visible = command.visible;
         break;
     }

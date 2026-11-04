@@ -273,3 +273,97 @@ describe("validateAgainstContext with moves and re-parenting", () => {
     });
   });
 });
+
+describe("validateAgainstContext with collections", () => {
+  const withCollections = (objects: { id: string; parentId?: string | null; collectionId?: string | null }[], collections: { id: string; parentId?: string | null }[] = []): EditorContext => ({
+    ...emptyScene,
+    supportsSceneGraph: true,
+    supportsCollections: true,
+    collections: collections.map((collection) => ({ id: collection.id, name: collection.id, parentId: collection.parentId ?? null, visible: true })),
+    objects: objects.map((object) => ({
+      id: object.id, name: object.id, type: "mesh", parentId: object.parentId ?? null, collectionId: object.collectionId ?? null,
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+    })) as unknown as EditorContext["objects"],
+  });
+  const collection = (commandId: string, collectionId: string, parentCollectionId?: string): EditorCommand => ({
+    commandId, type: "scene.create_collection", collectionId, name: collectionId, ...(parentCollectionId ? { parentCollectionId } : {}),
+  });
+  const put = (commandId: string, objectId: string, collectionId: string | null, includeChildren = true): EditorCommand => ({
+    commandId, type: "scene.move_to_collection", objectId, collectionId, includeChildren,
+  });
+  const dropCollection = (commandId: string, collectionId: string): EditorCommand => ({ commandId, type: "scene.delete_collection", collectionId });
+  const ids = (issues: { commandId: string }[]) => issues.map((issue) => issue.commandId);
+
+  it("accepts building a collection, filling it and nesting another in it, in one batch", () => {
+    const commands: EditorCommand[] = [
+      collection("c1", "set"), collection("c2", "props", "set"),
+      { ...primitive("p", "rock"), collectionId: "props" } as EditorCommand,
+      { ...create("g", "fig"), collectionId: "set" } as EditorCommand,
+      { ...primitive("q", "torso"), parentId: "fig" } as EditorCommand,
+      put("m", "rock", "set"),
+    ];
+    expect(validateAgainstContext(commands, withCollections([]))).toEqual([]);
+  });
+
+  it("is refused for an editor that does not advertise collections, on any use of them", () => {
+    const old = { ...withCollections([{ id: "a" }]), supportsCollections: undefined } as EditorContext;
+    for (const command of [collection("c", "set"), put("m", "a", null), { ...primitive("p", "x"), collectionId: "set" } as EditorCommand]) {
+      expect(validateAgainstContext([command], old)[0]?.message).toContain("too old for collections");
+    }
+  });
+
+  it("does not need the editor to know collections when a batch does not use them", () => {
+    const old = { ...withCollections([{ id: "a" }]), supportsCollections: undefined } as EditorContext;
+    expect(validateAgainstContext([primitive("p", "x"), create("c", "y")], old)).toEqual([]);
+  });
+
+  it("names a collection, a parent collection or an object that does not exist", () => {
+    const scene = withCollections([{ id: "a" }], [{ id: "set" }]);
+    expect(validateAgainstContext([put("m", "a", "nowhere")], scene)[0]?.message).toContain('collectionId "nowhere" does not exist');
+    expect(validateAgainstContext([put("m", "ghost", "set")], scene)[0]?.message).toContain('"ghost" does not exist');
+    expect(validateAgainstContext([collection("c", "x", "nowhere")], scene)[0]?.message).toContain('parentCollectionId "nowhere"');
+    expect(validateAgainstContext([collection("c", "set")], scene)[0]?.message).toContain("already exists");
+    expect(validateAgainstContext([{ ...primitive("p", "x"), collectionId: "nowhere" } as EditorCommand], scene)[0]?.message).toContain('collectionId "nowhere" does not exist');
+  });
+
+  it("refuses a collection inside itself or inside what it holds", () => {
+    const scene = withCollections([], [{ id: "a" }, { id: "b", parentId: "a" }]);
+    const move: EditorCommand = { commandId: "m", type: "scene.move_collection", collectionId: "a", parentCollectionId: "b" };
+    expect(validateAgainstContext([move], scene)[0]?.message).toContain("inside itself");
+  });
+
+  it("refuses deleting a collection that is not empty, naming what is in it", () => {
+    const scene = withCollections([{ id: "rock", collectionId: "set" }], [{ id: "set" }, { id: "sub", parentId: "set" }]);
+    const [issue] = validateAgainstContext([dropCollection("d", "set")], scene);
+    expect(issue?.message).toContain("is not empty");
+    expect(issue?.message).toMatch(/rock|collection sub/);
+  });
+
+  it("allows deleting it once the same batch has emptied it, by moving or deleting what is in it", () => {
+    const scene = withCollections([{ id: "rock", collectionId: "set" }, { id: "log", collectionId: "set" }], [{ id: "set" }]);
+    const emptied: EditorCommand[] = [put("m", "rock", null), { commandId: "x", type: "scene.delete_object", objectId: "log" }, dropCollection("d", "set")];
+    expect(validateAgainstContext(emptied, scene)).toEqual([]);
+    expect(ids(validateAgainstContext([put("m", "rock", null), dropCollection("d", "set")], scene))).toEqual(["d"]);
+  });
+
+  it("moves an object's children with it unless told not to", () => {
+    const scene = withCollections(
+      [{ id: "fig", collectionId: "set" }, { id: "torso", parentId: "fig", collectionId: "set" }],
+      [{ id: "set" }, { id: "other" }],
+    );
+    // With children both leave "set", so it can be deleted; without, the torso is still in it.
+    expect(validateAgainstContext([put("m", "fig", "other"), dropCollection("d", "set")], scene)).toEqual([]);
+    expect(ids(validateAgainstContext([put("m", "fig", "other", false), dropCollection("d", "set")], scene))).toEqual(["d"]);
+  });
+
+  it("gives a new object its parent's collection, so the parent's collection cannot be deleted from under it", () => {
+    const scene = withCollections([{ id: "fig", collectionId: "set" }], [{ id: "set" }]);
+    const commands: EditorCommand[] = [{ ...primitive("p", "torso"), parentId: "fig" } as EditorCommand, put("m", "fig", null, false), dropCollection("d", "set")];
+    expect(ids(validateAgainstContext(commands, scene))).toEqual(["d"]);
+  });
+
+  it("forgets an object that is deleted, so its collection can then go", () => {
+    const scene = withCollections([{ id: "rock", collectionId: "set" }], [{ id: "set" }]);
+    expect(validateAgainstContext([{ commandId: "x", type: "scene.delete_object", objectId: "rock" }, dropCollection("d", "set")], scene)).toEqual([]);
+  });
+});

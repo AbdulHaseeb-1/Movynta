@@ -44,4 +44,6 @@ error_handling:
 6. Call `validation.check_scene`. Fix any error-severity issues with a new proposal.
 7. Report the created objects and anything the user should review.
 
+When the scene holds more than one thing (several characters, props, a set), put each in its own collection named for it: `scene.create_collection`, then `collectionId` on the figure's group (its parts join it when they are created under it). A collection only organizes and can be hidden as a whole; it never moves anything.
+
 Use scene units, keep the character centred on the origin, and place feet on the ground plane (y = 0). To move the whole figure later, change the group alone: `scene.move_object` adds a distance to where it is now (and keeps anything the user moved since you read the scene), and `scene.transform_object` sets exact values or turns and scales it. Do not move the parts one by one. Keep the group's scale the same on every axis; an unevenly scaled group cannot take a turned part by `scene.set_parent`.
