@@ -185,6 +185,7 @@ export class EditorSimulator {
         break;
       }
       case "scene.transform_object":
+      case "scene.move_object":
       case "geometry.boolean":
       case "geometry.bevel":
       case "geometry.subdivide":

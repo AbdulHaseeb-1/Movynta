@@ -201,6 +201,43 @@ describe("checkScene", () => {
   });
 });
 
+describe("checkScene arrangement checks", () => {
+  const object = (id: string, parentId: string | null, name: string, scale: [number, number, number] = [1, 1, 1], type: "mesh" | "empty" = "mesh") => ({
+    id, name, type, parentId, transform: { position: [0, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], scale },
+  });
+  const check = (...objects: ReturnType<typeof object>[]) => checkScene({ ...emptyScene, objects });
+  const found = (result: ReturnType<typeof check>, severity: string) => result.issues.filter((issue) => issue.severity === severity);
+
+  it("warns when objects under one parent share a name, and says which", () => {
+    const result = check(object("a", null, "Arm"), object("b", null, "Arm"), object("c", null, "Leg"));
+    expect(found(result, "warning").map((issue) => issue.objectId)).toEqual(["b"]);
+    expect(found(result, "warning")[0]?.message).toContain('"Arm"');
+    expect(result.ok).toBe(true);
+  });
+
+  it("allows the same name under different parents", () => {
+    const result = check(object("l", null, "Left", [1, 1, 1], "empty"), object("r", null, "Right", [1, 1, 1], "empty"), object("a", "l", "Arm"), object("b", "r", "Arm"));
+    expect(found(result, "warning")).toEqual([]);
+  });
+
+  it("warns about a group with children scaled by different amounts, not one without children or one scaled evenly", () => {
+    const result = check(
+      object("uneven", null, "Uneven", [2, 1, 1], "empty"), object("a", "uneven", "A"),
+      object("lonely", null, "Lonely", [2, 1, 1], "empty"),
+      object("even", null, "Even", [2, 2, 2], "empty"), object("b", "even", "B"),
+    );
+    const warnings = found(result, "warning");
+    expect(warnings.map((issue) => issue.objectId)).toEqual(["uneven"]);
+    expect(warnings[0]?.message).toContain("same scale on every axis");
+  });
+
+  it("notes an empty group as information, which does not fail the check", () => {
+    const result = check(object("g", null, "Group", [1, 1, 1], "empty"), object("full", null, "Full", [1, 1, 1], "empty"), object("m", "full", "Mesh"));
+    expect(found(result, "info").map((issue) => issue.objectId)).toEqual(["g"]);
+    expect(result.ok).toBe(true);
+  });
+});
+
 describe("validateAgainstContext", () => {
   it("flags creating an object that already exists", () => {
     const issues = validateAgainstContext(

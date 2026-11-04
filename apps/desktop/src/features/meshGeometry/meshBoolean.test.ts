@@ -312,6 +312,18 @@ describe("boolean modifier stack", () => {
     snapshot.forEach((value, index) => expect(restored[index] ?? 0).toBeCloseTo(value, 4));
   });
 
+  it("updates the cut when the cutter is moved by a relative move, as it does for an absolute one", () => {
+    const editor = editorWithCut();
+    expect(setCut(editor).status).toBe("applied");
+    const box = meshOf(editor, "box");
+    expect(volumeOf(box.geometry)).toBeCloseTo(0.875, 4);
+    const move = (id: string, delta: number[]) => editor.execute(id, editor.currentRevision, [{ commandId: id, type: "scene.move_object", objectId: "cutter", delta }]);
+    expect(move("away", [2.5, -0.5, -0.5]).status).toBe("applied");
+    expect(volumeOf(box.geometry)).toBeCloseTo(1, 4);
+    expect(move("back", [-2.5, 0.5, 0.5]).status).toBe("applied");
+    expect(volumeOf(box.geometry)).toBeCloseTo(0.875, 4);
+  });
+
   it("keeps the local result when both objects move together", () => {
     const editor = editorWithCut();
     setCut(editor);

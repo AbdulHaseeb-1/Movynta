@@ -18,6 +18,7 @@ const commandSchema = z.looseObject({
   operandObjectId: z.string().optional(),
   normalDistance: z.number().optional(),
   offset: z.array(z.number()).length(3).optional(),
+  delta: z.array(z.number()).length(3).optional(),
   space: z.enum(["local", "world"]).optional(),
   transform: z.object({
     position: z.array(z.number()).length(3).optional(),
@@ -60,6 +61,8 @@ function describeCommand(command: Command): string {
   switch (command.type) {
     case "scene.create_object":
       return `Create “${command.name ?? target}”`;
+    case "scene.move_object":
+      return `Move ${target} by [${(command.delta ?? []).join(", ")}] along its parent's axes`;
     case "scene.transform_object":
       return `Move or reshape ${target}`;
     case "scene.delete_object":

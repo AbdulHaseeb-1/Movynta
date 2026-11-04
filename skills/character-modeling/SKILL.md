@@ -23,6 +23,7 @@ tools:
   - validation.check_scene
 validation:
   - Every object has a unique id and a finite transform before a proposal is created.
+  - The figure's group has the same scale on every axis.
   - Every part has a role name (Torso, Head, Arm.L) and sits under the figure's group, never at the top level.
   - The proposal references only objects present in the latest editor context.
   - validation.check_scene reports no error-severity issues after the change is applied.
@@ -43,4 +44,4 @@ error_handling:
 6. Call `validation.check_scene`. Fix any error-severity issues with a new proposal.
 7. Report the created objects and anything the user should review.
 
-Use scene units, keep the character centred on the origin, and place feet on the ground plane (y = 0). To move, turn or scale the whole figure later, change the group alone with `scene.transform_object`; do not move the parts one by one.
+Use scene units, keep the character centred on the origin, and place feet on the ground plane (y = 0). To move the whole figure later, change the group alone: `scene.move_object` adds a distance to where it is now (and keeps anything the user moved since you read the scene), and `scene.transform_object` sets exact values or turns and scales it. Do not move the parts one by one. Keep the group's scale the same on every axis; an unevenly scaled group cannot take a turned part by `scene.set_parent`.

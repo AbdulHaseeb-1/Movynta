@@ -382,3 +382,42 @@ describe("names the editor gave objects", () => {
     await expect(service.propose(run, { summary: "Torso", commands: [named] })).rejects.toBeInstanceOf(ValidationFailedError);
   });
 });
+
+describe("relative moves", () => {
+  const move: EditorCommand = { commandId: "m", type: "scene.move_object", objectId: "g", delta: [0, 2, 0] };
+
+  it("run again as they are on a newer scene, so a change made in between is kept", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, supportsSceneGraph: true, objects: [sceneObject("g")] };
+    const proposal = await service.propose(run, { summary: "Raise the group", commands: [move] });
+    // The user changes the scene after the proposal was written.
+    bridge.scene = { ...bridge.scene, revision: 9 };
+    const result = await service.apply(run, proposal.id);
+    expect(result.status).toBe("applied");
+    expect(result.rebased).toBe(true);
+    expect(bridge.executions.map((request) => request.expectedRevision)).toEqual([4, 9]);
+    // The editor was sent the same distance both times, not a position worked out from the old scene.
+    expect(bridge.executions.map((request) => request.commands)).toEqual([[move], [move]]);
+  });
+
+  it("are refused for an editor that does not advertise them", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("g")] };
+    await expect(service.propose(run, { summary: "Raise the group", commands: [move] })).rejects.toBeInstanceOf(ValidationFailedError);
+  });
+
+  it("refuse a re-parenting that would shear a part, before anything is stored", async () => {
+    const { bridge, service, run } = setup();
+    const group = { ...sceneObject("group"), transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [2, 1, 1] } } as EditorContext["objects"][number];
+    const part = { ...sceneObject("part"), transform: { position: [0, 0, 0], rotation: [0, 0.6, 0], scale: [1, 1, 1] } } as EditorContext["objects"][number];
+    bridge.scene = { ...bridge.scene, supportsSceneGraph: true, objects: [group, part] };
+    const command: EditorCommand = { commandId: "s", type: "scene.set_parent", objectId: "part", parentId: "group" };
+    const failure = await service.propose(run, { summary: "Attach", commands: [command] }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ValidationFailedError);
+    // The assistant is shown the issues, which say how to avoid the problem.
+    const issues = failure instanceof ValidationFailedError ? JSON.stringify(failure.details?.["issues"]) : "";
+    expect(issues).toContain("shearing");
+    expect(issues).toContain("parentId");
+    expect(bridge.executions).toHaveLength(0);
+  });
+});

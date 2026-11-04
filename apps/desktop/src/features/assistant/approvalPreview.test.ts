@@ -20,3 +20,8 @@ it("says which name and parent a new shape gets, and keeps the old wording witho
   expect(view.commands[0]?.text).toBe("Add a box “Torso” to torso under figure (size 2)");
   expect(view.commands[1]?.text).toBe("Add a sphere to plain (size 1)");
 });
+
+it("says how far a relative move goes, and along which axes", () => {
+  const view = describeApproval({ commands: [{ commandId: "m", type: "scene.move_object", objectId: "figure", delta: [0, 2, -1] }] });
+  expect(view.commands[0]?.text).toBe("Move figure by [0, 2, -1] along its parent's axes");
+});

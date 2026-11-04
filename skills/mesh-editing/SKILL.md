@@ -43,7 +43,7 @@ error_handling:
 
 1. Call `editor.get_context` and confirm every target object exists.
 2. Describe the change in plain language, then build the smallest set of commands that achieves it.
-3. Use `scene.transform_object` for position, rotation, and scale changes. Use `geometry.create_primitive` with `replaceExisting` only when the user asked to replace geometry.
+3. Use `scene.transform_object` to set position, rotation, or scale, and `scene.move_object` to move an object by a distance from where it is now. Use `geometry.create_primitive` with `replaceExisting` only when the user asked to replace geometry.
 4. Submit with `editor.propose_commands` and apply with `editor.apply_proposal`.
 5. Validate with `validation.check_scene` and summarise what changed.
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { isWithinBranch } from "@movynta/editor-protocol";
+import { isWithinBranch, PlacementTracker } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import { ApprovalPolicy } from "../../approvals/approval.policy.js";
 import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
@@ -253,6 +253,10 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
     for (const [id, parent] of parents) link(id, parent);
     return childrenOf;
   };
+  /** Only a batch that moves an object to another parent has to follow where objects are. */
+  const placement = commands.some((command) => command.type === "scene.set_parent")
+    ? new PlacementTracker(context.objects, (id) => parents.get(id))
+    : undefined;
   const createdInBatch = new Set<string>();
   const seenCommandIds = new Set<string>();
   const issues: ProposalIssue[] = [];
@@ -299,6 +303,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           issue(command.commandId, existsMessage(command.objectId, createdInBatch, "scene.create_object"));
         }
         placeCreated(command.commandId, command.objectId, command.parentId, false);
+        placement?.created(command.objectId, command.transform);
         break;
       case "geometry.create_primitive":
         if (command.replaceExisting) {
@@ -313,6 +318,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
             issue(command.commandId, existsMessage(command.objectId, createdInBatch, "geometry.create_primitive"));
           }
           placeCreated(command.commandId, command.objectId, command.parentId, command.parentId !== undefined || command.name !== undefined || command.transform !== undefined);
+          placement?.created(command.objectId, command.transform);
         }
         break;
       case "geometry.create_mesh":
@@ -320,8 +326,10 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           issue(command.commandId, `objectId "${command.objectId}" already exists; use a fresh id for the mesh`);
         }
         placeCreated(command.commandId, command.objectId, command.parentId, command.parentId !== undefined || command.transform !== undefined);
+        placement?.created(command.objectId, command.transform);
         break;
       case "scene.transform_object":
+      case "scene.move_object":
       case "geometry.boolean":
       case "geometry.bevel":
       case "geometry.subdivide":
@@ -333,6 +341,11 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       case "scene.rename_object":
       case "scene.set_visibility":
         if (!parents.has(command.objectId)) missing(command.commandId, command.objectId);
+        if (command.type === "scene.move_object" && context.supportsSceneGraph !== true) {
+          issue(command.commandId, "This editor is too old for scene.move_object; use scene.transform_object with the new position");
+        }
+        if (command.type === "scene.transform_object") placement?.transformed(command.objectId, command.transform);
+        if (command.type === "scene.move_object") placement?.moved(command.objectId, command.delta);
         if (command.type === "geometry.set_modifiers" || command.type === "geometry.boolean") booleanOperandIssues(command, parents, issue);
         break;
       case "scene.set_parent": {
@@ -352,6 +365,11 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
             command.commandId,
             `"${command.objectId}" cannot be placed under "${command.parentId}": that would put it under itself or under something that hangs below it`,
           );
+          break;
+        }
+        const unexact = placement?.reparent(command.objectId, command.parentId);
+        if (unexact !== undefined) {
+          issue(command.commandId, unexact);
           break;
         }
         // Later commands of the batch see the object under its new parent.
@@ -377,6 +395,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
         if (parent) children().get(parent)?.delete(command.objectId);
         children().delete(command.objectId);
         parents.delete(command.objectId);
+        placement?.removed(command.objectId);
         break;
       }
     }

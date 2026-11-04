@@ -157,6 +157,20 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
   z
     .object({
       ...commandBase,
+      type: z.literal("scene.move_object"),
+      objectId: identifierSchema,
+      /**
+       * How far to move the object along its parent's axes, added to where it is when the command runs. Unlike
+       * scene.transform_object, which sets a position, this keeps a move the user made in between.
+       */
+      delta: vector3,
+    })
+    .strict()
+    .refine((command) => command.delta.some((value) => value !== 0), "A move must change the position")
+    .refine((command) => command.delta.every((value) => Math.abs(value) <= 100000), "A move can be at most 100000 units along an axis"),
+  z
+    .object({
+      ...commandBase,
       type: z.literal("scene.delete_object"),
       objectId: identifierSchema,
     })

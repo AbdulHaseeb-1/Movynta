@@ -121,10 +121,10 @@ export type SceneStep =
 /** The commands that change objects that already exist, which is most of what the user does by hand. */
 type InPlaceCommand = Extract<
   Command,
-  { type: "scene.transform_object" | "scene.delete_object" | "scene.rename_object" | "scene.set_visibility" }
+  { type: "scene.transform_object" | "scene.move_object" | "scene.delete_object" | "scene.rename_object" | "scene.set_visibility" }
 >;
 /** The commands that change one existing object's own properties, without touching the hierarchy. */
-type ObjectChange = Extract<Command, { type: "scene.transform_object" | "scene.rename_object" | "scene.set_visibility" }>;
+type ObjectChange = Extract<Command, { type: "scene.transform_object" | "scene.move_object" | "scene.rename_object" | "scene.set_visibility" }>;
 /** A command the batch applied. `name` is the name an object ended up with, which can differ from the one asked for. */
 interface AppliedResult {
   commandId: string;
@@ -134,6 +134,7 @@ interface AppliedResult {
 function isInPlace(command: Command): command is InPlaceCommand {
   return (
     command.type === "scene.transform_object" ||
+    command.type === "scene.move_object" ||
     command.type === "scene.delete_object" ||
     command.type === "scene.rename_object" ||
     command.type === "scene.set_visibility"
@@ -816,7 +817,7 @@ export class EditorScene {
         const result = results[index];
         if (name !== undefined && result) result.name = name;
       });
-      if (commands.some((command) => command.type === "scene.set_parent" || command.type === "scene.transform_object" || (command.type === "geometry.create_primitive" && command.replaceExisting))) {
+      if (commands.some((command) => command.type === "scene.set_parent" || command.type === "scene.transform_object" || command.type === "scene.move_object" || (command.type === "geometry.create_primitive" && command.replaceExisting))) {
         this.refreshStagedBooleans(staged);
       }
     } catch (error) {
@@ -1109,7 +1110,7 @@ export class EditorScene {
       gone.add(command.objectId);
       removed.add(object);
     }
-    const snapshot = commands.some((command) => command.type === "scene.transform_object") && this.hasEnabledBoolean()
+    const snapshot = commands.some((command) => command.type === "scene.transform_object" || command.type === "scene.move_object") && this.hasEnabledBoolean()
       ? this.captureTransforms()
       : undefined;
     const names = snapshot ? new Map([...this.objects.values()].map((object) => [object, object.name])) : undefined;
@@ -1139,7 +1140,7 @@ export class EditorScene {
         for (const [object, name] of names ?? []) object.name = name;
         for (const [object, visible] of shown ?? []) object.visible = visible;
         this.scene.updateMatrixWorld(true);
-        const failed = [...commands].reverse().find((command) => command.type === "scene.transform_object");
+        const failed = [...commands].reverse().find((command) => command.type === "scene.transform_object" || command.type === "scene.move_object");
         const reason = (error instanceof Error ? error.message : "Boolean operation failed").slice(0, 400);
         if (failed) return fail(failed, reason);
       }
@@ -1195,7 +1196,7 @@ export class EditorScene {
       existing.name = this.uniqueName(objects, existing.parent, command.name, existing);
       return existing.name;
     }
-    if (command.type === "scene.transform_object" || command.type === "scene.set_visibility") {
+    if (command.type === "scene.transform_object" || command.type === "scene.move_object" || command.type === "scene.set_visibility") {
       if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
       this.change(existing, command);
       return undefined;
@@ -1292,6 +1293,11 @@ export class EditorScene {
     switch (command.type) {
       case "scene.transform_object":
         this.transform(object, command.transform);
+        break;
+      case "scene.move_object":
+        object.position.x += command.delta[0] ?? 0;
+        object.position.y += command.delta[1] ?? 0;
+        object.position.z += command.delta[2] ?? 0;
         break;
       case "scene.rename_object":
         object.name = name ?? command.name;

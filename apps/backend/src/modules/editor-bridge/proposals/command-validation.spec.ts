@@ -171,3 +171,105 @@ describe("validateAgainstContext with a parent, name and place on shapes", () =>
     expect(issues[0]?.message).toContain("too old");
   });
 });
+
+describe("validateAgainstContext with moves and re-parenting", () => {
+  type Place = { position?: [number, number, number]; rotation?: [number, number, number]; scale?: [number, number, number] };
+  const placed = (...objects: { id: string; parentId?: string | null; place?: Place }[]): EditorContext => ({
+    ...emptyScene,
+    supportsSceneGraph: true,
+    objects: objects.map((object) => ({
+      id: object.id,
+      name: object.id,
+      type: "mesh",
+      parentId: object.parentId ?? null,
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], ...object.place },
+    })) as unknown as EditorContext["objects"],
+  });
+  const reparent = (commandId: string, objectId: string, parentId: string | null): EditorCommand => ({ commandId, type: "scene.set_parent", objectId, parentId });
+  const rescale = (objectId: string, scale: [number, number, number]): EditorCommand => ({ commandId: `scale-${objectId}`, type: "scene.transform_object", objectId, transform: { scale } });
+  const uneven = { scale: [2, 1, 1] } as Place;
+  const turned = { rotation: [0, 0.6, 0] } as Place;
+
+  describe("scene.move_object", () => {
+    const move = (objectId: string): EditorCommand => ({ commandId: "m", type: "scene.move_object", objectId, delta: [0, 1, 0] });
+
+    it("accepts a move of an object that exists, including one created earlier in the batch", () => {
+      expect(validateAgainstContext([move("a")], placed({ id: "a" }))).toEqual([]);
+      expect(validateAgainstContext([create("c", "new"), { ...move("new"), commandId: "m2" }], placed())).toEqual([]);
+    });
+
+    it("names an object that does not exist", () => {
+      expect(validateAgainstContext([move("ghost")], placed())[0]?.message).toContain('"ghost" does not exist');
+    });
+
+    it("is refused for an editor that does not advertise it, with the way around it", () => {
+      const old = { ...placed({ id: "a" }), supportsSceneGraph: undefined } as EditorContext;
+      const [issue] = validateAgainstContext([move("a")], old);
+      expect(issue?.message).toContain("too old for scene.move_object");
+      expect(issue?.message).toContain("scene.transform_object");
+    });
+  });
+
+  describe("the shear rule", () => {
+    it("refuses a turned part under a group scaled by different amounts, and says how to avoid it", () => {
+      const [issue] = validateAgainstContext([reparent("s", "part", "group")], placed({ id: "group", place: uneven }, { id: "part", place: turned }));
+      expect(issue?.commandId).toBe("s");
+      expect(issue?.message).toContain("shearing");
+      expect(issue?.message).toContain("same scale on every axis");
+      expect(issue?.message).toContain("parentId");
+    });
+
+    it("accepts the same move when the group is scaled the same on every axis", () => {
+      expect(validateAgainstContext([reparent("s", "part", "group")], placed({ id: "group", place: { scale: [2, 2, 2] } }, { id: "part", place: turned }))).toEqual([]);
+    });
+
+    it("accepts a part that is not turned, because its axes stay perpendicular", () => {
+      expect(validateAgainstContext([reparent("s", "part", "group")], placed({ id: "group", place: uneven }, { id: "part" }))).toEqual([]);
+    });
+
+    it("judges a move out of an unevenly scaled group the same way", () => {
+      const scene = placed({ id: "group", place: uneven }, { id: "part", parentId: "group", place: turned });
+      expect(validateAgainstContext([reparent("s", "part", null)], scene)[0]?.message).toContain("the top level");
+    });
+
+    it("follows a scale set earlier in the same batch, and does not mind one set afterwards", () => {
+      const scene = placed({ id: "group" }, { id: "part", place: turned });
+      expect(validateAgainstContext([rescale("group", [2, 1, 1]), reparent("s", "part", "group")], scene)).toHaveLength(1);
+      expect(validateAgainstContext([reparent("s", "part", "group"), rescale("group", [2, 1, 1])], scene)).toEqual([]);
+    });
+
+    it("follows objects created earlier in the same batch", () => {
+      const commands: EditorCommand[] = [
+        { ...create("g", "group"), transform: { scale: [2, 1, 1] } } as EditorCommand,
+        { ...primitive("p", "part"), transform: { rotation: [0, 0.6, 0] } } as EditorCommand,
+        reparent("s", "part", "group"),
+      ];
+      expect(validateAgainstContext(commands, placed()).map((issue) => issue.commandId)).toEqual(["s"]);
+    });
+
+    it("never asks about a part created under the group, since its place is stored as given", () => {
+      const commands: EditorCommand[] = [
+        { ...create("g", "group"), transform: { scale: [2, 1, 1] } } as EditorCommand,
+        { ...primitive("p", "part"), parentId: "group", transform: { rotation: [0, 0.6, 0] } } as EditorCommand,
+      ];
+      expect(validateAgainstContext(commands, placed())).toEqual([]);
+    });
+
+    it("sees a move already made in the batch, so a second one is judged from where the first left the part", () => {
+      // The part is turned and the first group is uneven: the first move is refused and the batch stops being judged there.
+      const scene = placed({ id: "one", place: uneven }, { id: "two", place: { scale: [3, 3, 3] } }, { id: "part", place: turned });
+      expect(validateAgainstContext([reparent("a", "part", "two"), reparent("b", "part", "one")], scene).map((issue) => issue.commandId)).toEqual(["b"]);
+    });
+
+    it("explains a scale of zero on either side, which would flatten the mesh or cannot be undone", () => {
+      const flatGroup = validateAgainstContext([reparent("s", "part", "group")], placed({ id: "group", place: { scale: [1, 0, 1] } }, { id: "part" }));
+      expect(flatGroup[0]?.message).toContain('"group" has no size');
+      const flatPart = validateAgainstContext([reparent("s", "part", "group")], placed({ id: "group" }, { id: "part", place: { scale: [1, 0, 1] } }));
+      expect(flatPart[0]?.message).toContain("flattening its mesh");
+    });
+
+    it("does not follow placement at all for a batch with no re-parenting", () => {
+      expect(validateAgainstContext([rescale("group", [2, 1, 1]), create("c", "other")], placed({ id: "group" }))).toEqual([]);
+    });
+  });
+});

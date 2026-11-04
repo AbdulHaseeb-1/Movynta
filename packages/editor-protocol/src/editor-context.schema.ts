@@ -49,8 +49,8 @@ export const editorContextSchema = z
     meshInspection: meshInspectionSchema.optional(),
     supportsPreparedCommands: z.boolean().optional(),
     /**
-     * Whether the editor keeps names unique among siblings and accepts name, parentId and transform on the
-     * commands that create meshes. Missing for editors that predate it.
+     * Whether the editor keeps names unique among siblings, accepts name, parentId and transform on the
+     * commands that create meshes, and runs scene.move_object. Missing for editors that predate it.
      */
     supportsSceneGraph: z.boolean().optional(),
     /** The user's design mode and Edit-mode picks. Missing for editors that predate it. */

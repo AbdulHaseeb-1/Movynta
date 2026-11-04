@@ -70,7 +70,7 @@ function isStoredCommandList(value: unknown): value is EditorCommand[] {
 /** Commands that change an object that already exists, so they add and remove nothing from the index. */
 function changesExistingObject(command: EditorCommand): boolean {
   return (
-    command.type === "scene.transform_object" || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers") ||
+    command.type === "scene.transform_object" || command.type === "scene.move_object" || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers") ||
     command.type === "scene.rename_object" ||
     command.type === "scene.set_visibility" ||
     command.type === "scene.set_parent"

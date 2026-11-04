@@ -30,6 +30,8 @@ export function checkScene(scene: EditorContext): SceneCheckResult {
     }
   }
 
+  issues.push(...structureIssues(scene));
+
   for (const selected of scene.selectedObjectIds) {
     if (!byId.has(selected)) {
       issues.push({ severity: "warning", objectId: selected, message: "Selected object is not in the scene" });
@@ -47,6 +49,40 @@ export function checkScene(scene: EditorContext): SceneCheckResult {
   };
 }
 
+/** Scales that differ on different axes by more than rounding: the case that cannot keep a turned child exact. */
+function unevenScale([sx, sy, sz]: readonly [number, number, number]): boolean {
+  const limit = 1e-4 * Math.max(Math.abs(sx), Math.abs(sy), Math.abs(sz), 1e-12);
+  return Math.abs(Math.abs(sx) - Math.abs(sy)) > limit || Math.abs(Math.abs(sy) - Math.abs(sz)) > limit;
+}
+
+/** How the objects are arranged: shared names, groups that cannot take a turned child exactly, and empty groups. */
+function structureIssues(scene: EditorContext): SceneIssue[] {
+  const issues: SceneIssue[] = [];
+  const hasChildren = new Set<string>();
+  const names = new Set<string>();
+  for (const object of scene.objects) {
+    if (object.parentId !== null) hasChildren.add(object.parentId);
+    const key = `${object.parentId ?? ""}\u0000${object.name}`;
+    if (object.name.length > 0 && names.has(key)) {
+      issues.push({ severity: "warning", objectId: object.id, message: `Shares the name "${object.name}" with another object under the same parent; rename one so each can be told apart` });
+    }
+    names.add(key);
+  }
+  for (const object of scene.objects) {
+    if (hasChildren.has(object.id) && unevenScale(object.transform.scale)) {
+      issues.push({
+        severity: "warning",
+        objectId: object.id,
+        message: "Has children and is scaled by different amounts on different axes, so a turned child cannot be moved under it or out of it and stay where it is. Give it the same scale on every axis and scale the parts instead",
+      });
+    }
+    if (object.type === "empty" && !hasChildren.has(object.id)) {
+      issues.push({ severity: "info", objectId: object.id, message: "Group has no children" });
+    }
+  }
+  return issues;
+}
+
 function hasParentCycle(startId: string, byId: ReadonlyMap<string, EditorContext["objects"][number]>): boolean {
   const visited = new Set<string>();
   let current = byId.get(startId);
@@ -62,7 +98,7 @@ export function createValidationTools({ bridge }: { readonly bridge: EditorBridg
   return [
     defineTool({
       name: "validation.check_scene",
-      description: "Check the current scene for duplicate ids, missing parents, parent cycles, and invalid scale.",
+      description: "Check the current scene for duplicate ids, missing parents, parent cycles, and invalid scale (errors), names shared by objects under one parent and groups scaled unevenly (warnings), and empty groups (information).",
       permission: "read",
       parameters: z.object({}).strict(),
       execute: async (_input, context) => {
