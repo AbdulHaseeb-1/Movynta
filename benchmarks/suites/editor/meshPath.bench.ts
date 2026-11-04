@@ -5,7 +5,8 @@
  *          packages/editor-protocol/src/mesh-path.ts#resolveMeshPath, #stableSteps, #stableMeshPath
  * MEASURES: latency
  * COMPLEXITY: a path by index O(depth); by name O(children of each part on the way); stableSteps O(children);
- *             inspectMesh O(parts of the model) to list the first 100 parts
+ *             inspectMesh O(parts of the model) to list the first 100 parts; a batch that creates and moves objects
+ *             while a Boolean uses one part of the model O(parts), as it has to look at every mesh to find the operand
  * INPUTS: parts 1000..16000 in one flat group (the worst case for a name lookup), each with a distinct name; seed 20260402
  * BASELINE: none yet; record one on the reference machine with BENCH_UPDATE_BASELINE=1. The growth claims below
  *           hold on any machine and are checked on every run.
@@ -16,9 +17,11 @@
  *        modifier that names an operand, never per vertex, so it has to stay far below a frame at 16000 parts.
  */
 import { describe, it } from "vitest";
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from "three";
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Scene } from "three";
 import { resolveMeshPath, stableMeshPath, stableSteps } from "../../../packages/editor-protocol/src/mesh-path";
 import { meshInspectionRequestSchema } from "../../../packages/editor-protocol/src/mesh.schema";
+import { EditorScene } from "@/features/assistant/EditorScene";
+import { ensureManifold } from "@/features/meshGeometry/meshBoolean";
 import { meshAtPath, inspectMesh } from "@/features/meshGeometry/meshInspection";
 import { measureCases, type BenchCase } from "../../lib/harness";
 import { finishWithGrowth } from "../../lib/report";
@@ -84,5 +87,42 @@ describe("mesh paths", () => {
     });
     const results = await measureCases(cases);
     finishWithGrowth("editor/meshPath.inspect", results, [{ key: "parts", declared: 1, tolerance: 0.5 }]);
+  });
+
+  it("runs a batch that creates and moves objects while a Boolean uses a part of a large model, in time linear in the parts", async () => {
+    await ensureManifold();
+    const cases: BenchCase[] = PART_COUNTS.map((parts) => {
+      const editor = new EditorScene(new Scene(), "prj_bench");
+      const model = namedModel(parts);
+      const cutter = model.children[1];
+      if (cutter) cutter.position.set(0.5, 0.5, 0.5);
+      editor.importObject("model", model);
+      const apply = (commands: unknown[]) => {
+        const result = editor.execute(`bench-${editor.currentRevision}`, editor.currentRevision, commands);
+        if (result.status !== "applied") throw new Error(`The fixture batch was rejected: ${JSON.stringify(result)}`);
+      };
+      apply([{ commandId: "box", type: "geometry.create_primitive", objectId: "box", primitive: "box", size: 1, replaceExisting: false }]);
+      apply([{
+        commandId: "cut", type: "geometry.set_modifiers", objectId: "box",
+        modifiers: [{ id: "cut", kind: "boolean", enabled: true, operation: "difference", operandObjectId: "model", operandMeshPath: ["Part_1"] }],
+      }]);
+      let runs = 0;
+      return {
+        name: "create and move with a Boolean on a part",
+        params: { parts },
+        run: () => {
+          runs += 1;
+          // Staged: creating and moving in one batch. Then the new object goes again, so the scene keeps its size.
+          apply([
+            { commandId: "n", type: "geometry.create_primitive", objectId: "n", primitive: "box", size: 1, replaceExisting: false },
+            { commandId: "t", type: "scene.transform_object", objectId: "n", transform: { position: [runs, 0, 0] } },
+          ]);
+          apply([{ commandId: "d", type: "scene.delete_object", objectId: "n" }]);
+          consume(runs);
+        },
+      };
+    });
+    const results = await measureCases(cases);
+    finishWithGrowth("editor/meshPath.staged", results, [{ key: "parts", declared: 1, tolerance: 0.5 }]);
   });
 });

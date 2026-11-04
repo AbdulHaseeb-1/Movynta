@@ -13,7 +13,7 @@ import {
   type Quaternion,
   type Scene,
 } from "three";
-import { CollectionModel, editorCommandListSchema, isWithinBranch, resolveSiblingName, SiblingNames, stableMeshPath, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
+import { CollectionModel, editorCommandListSchema, isWithinBranch, resolveMeshPath, resolveSiblingName, SiblingNames, stableMeshPath, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
@@ -726,6 +726,51 @@ export class EditorScene {
     return undefined;
   }
 
+  /**
+   * Moves the inner parts of each imported model from the object to its copy, so that a Boolean that uses one of them
+   * can be worked out on the copies. Only parts that are not scene objects are moved, and each object keeps its
+   * place among its parents' children. Returns what hands them back exactly as they were, for a batch that fails.
+   * When the batch goes through, the parts stay with the copies, which is where they were going.
+   */
+  private borrowInnerParts(staged: ReadonlyMap<string, Object3D>, copiedFrom: ReadonlyMap<Object3D, Object3D>): () => void {
+    const registered = new Set(this.objects.values());
+    const borrowed: { object: Object3D; replacement: Object3D; children: Object3D[]; inner: Object3D[] }[] = [];
+    for (const [id, object] of this.objects) {
+      const replacement = staged.get(id);
+      // An object that the batch replaced with another shape drops its parts, as it always has.
+      if (!replacement || copiedFrom.get(replacement) !== object) continue;
+      const inner = object.children.filter((child) => !registered.has(child));
+      if (inner.length === 0) continue;
+      borrowed.push({ object, replacement, children: [...object.children], inner });
+      object.children = object.children.filter((child) => registered.has(child));
+      this.adopt(replacement, inner);
+    }
+    return () => {
+      for (const { object, replacement, children, inner } of borrowed) {
+        const parts = new Set(inner);
+        replacement.children = replacement.children.filter((child) => !parts.has(child));
+        object.children = children;
+        for (const part of inner) part.parent = object;
+      }
+    };
+  }
+
+  /**
+   * A Boolean's operand path in the form that keeps leading to the same part: names where parts have them. A path
+   * written with child indexes means whatever is at that position, and the position of a part changes when something
+   * is put in front of the parts or taken away, which would point the Boolean at another part without a word.
+   * An unnamed part has only its index to go by, and a path that leads nowhere is left for the evaluation to report.
+   */
+  private pinOperands(modifiers: readonly MeshModifierSpec[]): MeshModifierSpec[] {
+    return modifiers.map((modifier) => {
+      if (modifier.kind !== "boolean" || !modifier.operandMeshPath.some((step) => typeof step === "number")) return modifier;
+      const root = this.objects.get(modifier.operandObjectId);
+      if (!root || resolveMeshPath(root, modifier.operandMeshPath) === undefined) return modifier;
+      const pinned = stableMeshPath(root, modifier.operandMeshPath);
+      return pinned.every((step, index) => step === modifier.operandMeshPath[index]) ? modifier : { ...modifier, operandMeshPath: pinned };
+    });
+  }
+
   private hasEnabledBoolean(objects: ReadonlyMap<string, Object3D> = this.objects): boolean {
     return sceneMeshes(objects).some((slot) => (modifierStack(slot.mesh)?.modifiers ?? []).some((modifier) => modifier.enabled && modifier.kind === "boolean"));
   }
@@ -862,6 +907,8 @@ export class EditorScene {
     /** The names under each parent that the batch has added so far, so a run of creations does not rescan the scene. */
     const claims = new Map<Object3D | null, SiblingNames>();
     const model = this.collectionModel.clone();
+    /** Hands back the inner parts of imported models that were lent to the copies, if they were. */
+    let giveBack: (() => void) | undefined;
     try {
       commands.forEach((command, index) => {
         current = command;
@@ -870,9 +917,14 @@ export class EditorScene {
         if (name !== undefined && result) result.name = name;
       });
       if (commands.some((command) => command.type === "scene.set_parent" || command.type === "scene.transform_object" || command.type === "scene.move_object" || (command.type === "geometry.create_primitive" && command.replaceExisting))) {
+        // A Boolean can use a part inside an imported model, and the copies have none of those parts, so they are
+        // lent to the copies while the cuts are worked out. Whether there is a Boolean is asked of the scene as it
+        // is, since a batch like this cannot make one.
+        if (this.hasEnabledBoolean()) giveBack = this.borrowInnerParts(staged, copiedFrom);
         this.refreshStagedBooleans(staged);
       }
     } catch (error) {
+      giveBack?.();
       const reason = error instanceof Error ? error.message : "Command failed";
       for (const [id, object] of staged) {
         const original = this.objects.get(id);
@@ -1081,7 +1133,7 @@ export class EditorScene {
               ...(command.cutMaterialIndex === undefined ? {} : { cutMaterialIndex: command.cutMaterialIndex }) }
             : { id, kind: "subdivision" as const, enabled: true, levels: command.levels, ...(command.method ? { method: command.method } : {}) }];
         if (modifiers.length > 8) throw new Error("A mesh supports at most eight modifiers");
-        planned.set(mesh, modifiers);
+        planned.set(mesh, this.pinOperands(modifiers));
         touched.set(mesh, command);
       }
       if (needsBooleanEvaluation(sceneMeshes(this.objects), planned)) {
