@@ -31,6 +31,8 @@ import { evaluateAffected, needsBooleanEvaluation, sceneMeshes, type MeshChange 
 import { ensureManifold } from "../meshGeometry/meshBoolean";
 import type { MeshInspectionRequest } from "@movynta/editor-protocol";
 
+export type { CollectionEntry };
+
 /** What the user is doing with the design tools, as the assistant is told about it. */
 export type DesignFocus = z.infer<typeof designFocusSchema>;
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Scene } from "three";
-import { editorCommandSchema } from "@movynta/editor-protocol";
-import { EditorScene, type OutlineEntry } from "@/features/assistant/EditorScene";
-import { buildSceneTree, canMoveUnder, flattenTree, outlineCommands, revealed, scrollToRow, visibleRange } from "./sceneTree";
+import { editorCommandSchema, HAND_EDIT_COMMAND_TYPES } from "@movynta/editor-protocol";
+import { EditorScene, type CollectionEntry, type OutlineEntry } from "@/features/assistant/EditorScene";
+import { buildSceneTree, canMoveUnder, collectionRowId, dropAction, dropCommands, flattenTree, outlineCommands, revealed, ROOT_ROW_ID, rowTarget, scrollToRow, visibleRange } from "./sceneTree";
 
 const entry = (id: string, parentId: string | null = null, extra: Partial<OutlineEntry> = {}): OutlineEntry => ({
   id, name: id.toUpperCase(), kind: "empty", parentId, visible: true, collectionId: null, ...extra,
@@ -112,10 +112,140 @@ describe("windowing", () => {
 });
 
 describe("the commands a change in the list saves", () => {
+  const all = [
+    outlineCommands.rename("a", "Arm"), outlineCommands.move("a", "b"), outlineCommands.move("a", null), outlineCommands.show("a", false),
+    outlineCommands.makeCollection("k", "Set", null), outlineCommands.makeCollection("k2", "Props", "k"), outlineCommands.renameCollection("k", "Scene set"),
+    outlineCommands.showCollection("k", false), outlineCommands.nestCollection("k2", null), outlineCommands.nestCollection("k2", "k"),
+    outlineCommands.deleteCollection("k"), outlineCommands.collect("a", "k"), outlineCommands.collect("a", null),
+  ];
+
   it("are valid editor commands, the same ones the assistant proposes", () => {
-    for (const command of [outlineCommands.rename("a", "Arm"), outlineCommands.move("a", "b"), outlineCommands.move("a", null), outlineCommands.show("a", false)]) {
-      expect(editorCommandSchema.safeParse(command).success).toBe(true);
-    }
+    for (const command of all) expect(editorCommandSchema.safeParse(command).success, JSON.stringify(command)).toBe(true);
+  });
+
+  it("are all commands the backend accepts as a person's own edit, so none is refused when saved", () => {
+    for (const command of all) expect(HAND_EDIT_COMMAND_TYPES.has(command.type), command.type).toBe(true);
+  });
+});
+
+const col = (id: string, parentId: string | null = null, visible = true): CollectionEntry => ({ id, name: id.toUpperCase(), parentId, visible });
+const inCollection = (id: string, collectionId: string | null, parentId: string | null = null, extra: Partial<OutlineEntry> = {}) => entry(id, parentId, { collectionId, ...extra });
+
+describe("collections in the list", () => {
+  const objects = [
+    inCollection("fig", "set"), inCollection("torso", "set", "fig"), inCollection("rock", "props"),
+    inCollection("cup", "props", "fig"), inCollection("loose", null),
+  ];
+  const tree = buildSceneTree(objects, [col("set"), col("props", "set")]);
+
+  it("lists the scene first, then each collection with its collections and then its objects", () => {
+    const rows = flattenTree(tree, new Set());
+    expect(rows.map((row) => [row.id, row.depth, row.kind])).toEqual([
+      [ROOT_ROW_ID, 0, "root"],
+      ["collection:set", 1, "collection"],
+      ["collection:props", 2, "collection"],
+      ["rock", 3, "empty"],
+      ["cup", 3, "empty"],
+      ["fig", 2, "empty"],
+      ["torso", 3, "empty"],
+      ["loose", 1, "empty"],
+    ]);
+  });
+
+  it("puts an object under its parent only when they are in the same collection, so each appears once", () => {
+    // The cup's parent is in another collection, so it is listed with the props, not under the figure.
+    expect(tree.displayParent.get("cup")).toBe("collection:props");
+    expect(tree.displayParent.get("torso")).toBe("fig");
+    expect(flattenTree(tree, new Set()).filter((row) => row.id === "cup")).toHaveLength(1);
+    // Its parent in space is still the figure.
+    expect(tree.parents.get("cup")).toBe("fig");
+  });
+
+  it("has no line for the scene when there are no collections, so the list is what it was", () => {
+    const plain = buildSceneTree([entry("a"), entry("b", "a")]);
+    expect(flattenTree(plain, new Set()).map((row) => row.id)).toEqual(["a", "b"]);
+  });
+
+  it("hides what a hidden collection holds, and the collections inside it, without touching their own flags", () => {
+    const hidden = buildSceneTree(objects, [col("set", null, false), col("props", "set")]);
+    const rows = new Map(flattenTree(hidden, new Set()).map((row) => [row.id, row]));
+    expect(rows.get("collection:set")).toMatchObject({ visible: false, effectiveVisible: false });
+    expect(rows.get("collection:props")).toMatchObject({ visible: true, effectiveVisible: false });
+    expect(rows.get("rock")).toMatchObject({ visible: true, effectiveVisible: false });
+    expect(rows.get("fig")).toMatchObject({ visible: true, effectiveVisible: false });
+    expect(rows.get("loose")).toMatchObject({ visible: true, effectiveVisible: true });
+  });
+
+  it("skips what is under a collapsed collection or under the scene line", () => {
+    expect(flattenTree(tree, new Set(["collection:props"])).map((row) => row.id)).toEqual([ROOT_ROW_ID, "collection:set", "collection:props", "fig", "torso", "loose"]);
+    expect(flattenTree(tree, new Set([ROOT_ROW_ID])).map((row) => row.id)).toEqual([ROOT_ROW_ID]);
+  });
+
+  it("lists an object whose collection is missing, and a collection whose parent is missing, in the scene", () => {
+    const broken = buildSceneTree([inCollection("a", "nowhere")], [col("c", "gone")]);
+    expect(broken.displayParent.get("a")).toBe(ROOT_ROW_ID);
+    expect(broken.displayParent.get("collection:c")).toBe(ROOT_ROW_ID);
+  });
+
+  it("does not lose collections that data with a loop would hide", () => {
+    const loop = buildSceneTree([], [col("a", "b"), col("b", "a"), col("c")]);
+    expect(new Set(flattenTree(loop, new Set()).map((row) => row.id))).toEqual(new Set([ROOT_ROW_ID, "collection:a", "collection:b", "collection:c"]));
+  });
+
+  it("opens the collections above an object so its line is there", () => {
+    expect(revealed(tree, new Set(["collection:set", "collection:props", ROOT_ROW_ID]), "rock")).toEqual(new Set());
+    expect(revealed(tree, new Set(["fig"]), "torso")).toEqual(new Set());
+  });
+
+  it("tells a line for a collection from one for an object even when they share an id", () => {
+    expect(rowTarget("collection")).toEqual({ kind: "object", id: "collection" });
+    expect(rowTarget(collectionRowId("collection"))).toEqual({ kind: "collection", id: "collection" });
+    expect(rowTarget(ROOT_ROW_ID)).toEqual({ kind: "root" });
+    const same = buildSceneTree([inCollection("set", "set")], [col("set")]);
+    expect(flattenTree(same, new Set()).map((row) => row.id)).toEqual([ROOT_ROW_ID, "collection:set", "set"]);
+  });
+});
+
+describe("what dropping a line does", () => {
+  const tree = buildSceneTree(
+    [inCollection("fig", "set"), inCollection("torso", "set", "fig"), inCollection("rock", null)],
+    [col("set"), col("props", "set"), col("other")],
+  );
+
+  it("makes an object the child of another object, with the rules of re-parenting", () => {
+    expect(dropAction(tree, "rock", "fig")).toEqual({ kind: "parent", objectId: "rock", parentId: "fig" });
+    expect(dropAction(tree, "fig", "torso")).toBeUndefined();
+    expect(dropAction(tree, "fig", "fig")).toBeUndefined();
+  });
+
+  it("puts an object in a collection, or in the scene, unless it is already there", () => {
+    expect(dropAction(tree, "rock", collectionRowId("set"))).toEqual({ kind: "collect", objectId: "rock", collectionId: "set" });
+    expect(dropAction(tree, "fig", ROOT_ROW_ID)).toEqual({ kind: "collect", objectId: "fig", collectionId: null });
+    expect(dropAction(tree, "fig", collectionRowId("set"))).toBeUndefined();
+    expect(dropAction(tree, "rock", ROOT_ROW_ID)).toBeUndefined();
+    expect(dropAction(tree, "rock", collectionRowId("ghost"))).toBeUndefined();
+  });
+
+  it("takes an object out of its parent on the strip, and only an object", () => {
+    expect(dropAction(tree, "torso", null)).toEqual({ kind: "parent", objectId: "torso", parentId: null });
+    expect(dropAction(tree, "rock", null)).toBeUndefined();
+    expect(dropAction(tree, collectionRowId("props"), null)).toBeUndefined();
+  });
+
+  it("nests a collection in another or at the top, but not in itself, in what it holds, or in an object", () => {
+    expect(dropAction(tree, collectionRowId("other"), collectionRowId("set"))).toEqual({ kind: "nest", collectionId: "other", parentCollectionId: "set" });
+    expect(dropAction(tree, collectionRowId("props"), ROOT_ROW_ID)).toEqual({ kind: "nest", collectionId: "props", parentCollectionId: null });
+    expect(dropAction(tree, collectionRowId("set"), collectionRowId("props"))).toBeUndefined();
+    expect(dropAction(tree, collectionRowId("set"), collectionRowId("set"))).toBeUndefined();
+    expect(dropAction(tree, collectionRowId("other"), "fig")).toBeUndefined();
+    expect(dropAction(tree, collectionRowId("other"), ROOT_ROW_ID)).toBeUndefined();
+    expect(dropAction(tree, collectionRowId("props"), collectionRowId("set"))).toBeUndefined();
+  });
+
+  it("cannot drag the scene itself, and each action has a command", () => {
+    expect(dropAction(tree, ROOT_ROW_ID, collectionRowId("set"))).toBeUndefined();
+    const action = dropAction(tree, "rock", collectionRowId("set"));
+    expect(action && dropCommands(action).map((command) => command.type)).toEqual(["scene.move_to_collection"]);
   });
 });
 
@@ -154,5 +284,19 @@ describe("the editor's outline", () => {
     editor.execute("b", 0, [create("g", "other")]);
     expect(editor.currentRevision).toBe(revision);
     expect(editor.version).not.toBe(before);
+  });
+});
+
+describe("the editor feeds the list with its collections", () => {
+  it("lists objects under the collections they are in, as the editor reports them", () => {
+    const editor = new EditorScene(new Scene(), "p");
+    editor.execute("a", 0, [
+      { commandId: "k", type: "scene.create_collection", collectionId: "set", name: "Set" },
+      { commandId: "g", type: "scene.create_object", objectId: "fig", name: "Fig", collectionId: "set" },
+      { commandId: "b", type: "geometry.create_primitive", objectId: "torso", primitive: "box", size: 1, replaceExisting: false, parentId: "fig" },
+      { commandId: "c", type: "geometry.create_primitive", objectId: "rock", primitive: "box", size: 1, replaceExisting: false },
+    ]);
+    const rows = flattenTree(buildSceneTree(editor.outline(), editor.collections()), new Set());
+    expect(rows.map((row) => `${"  ".repeat(row.depth)}${row.name}`)).toEqual(["Scene collection", "  Set", "    Fig", "      box", "  box"]);
   });
 });

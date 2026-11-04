@@ -16,7 +16,7 @@
  *        and neither may be quadratic: a chain of thousands of nested objects is walked with a stack, not recursion.
  */
 import { describe, it } from "vitest";
-import type { OutlineEntry } from "@/features/assistant/EditorScene";
+import type { CollectionEntry, OutlineEntry } from "@/features/assistant/EditorScene";
 import { buildSceneTree, canMoveUnder, flattenTree, visibleRange } from "@/features/designWorkspace/sceneTree";
 import { measureCases, type BenchCase } from "../../lib/harness";
 import { finishWithGrowth } from "../../lib/report";
@@ -30,6 +30,7 @@ const BRANCHING = 8;
 function branching(count: number): OutlineEntry[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `o${index}`,
+    collectionId: null,
     name: `Part.${String(index).padStart(3, "0")}`,
     kind: index % BRANCHING === 0 ? "empty" : "mesh",
     parentId: index === 0 ? null : `o${Math.floor((index - 1) / BRANCHING)}`,
@@ -37,9 +38,19 @@ function branching(count: number): OutlineEntry[] {
   }));
 }
 
+/** A tenth as many collections as objects, nested four deep, with the objects spread across them. */
+function collected(count: number): { entries: OutlineEntry[]; collections: CollectionEntry[] } {
+  const groups = Math.max(1, Math.floor(count / 10));
+  const collections: CollectionEntry[] = Array.from({ length: groups }, (_, index) => ({
+    id: `k${index}`, name: `Collection ${index}`, parentId: index < 4 ? null : `k${Math.floor((index - 4) / 4)}`, visible: index % 7 !== 0,
+  }));
+  const entries = branching(count).map((entry, index) => ({ ...entry, collectionId: `k${index % groups}` }));
+  return { entries, collections };
+}
+
 function chain(count: number): OutlineEntry[] {
   return Array.from({ length: count }, (_, index) => ({
-    id: `c${index}`, name: `Link.${index}`, kind: "empty" as const, parentId: index === 0 ? null : `c${index - 1}`, visible: true,
+    id: `c${index}`, name: `Link.${index}`, kind: "empty" as const, parentId: index === 0 ? null : `c${index - 1}`, visible: true, collectionId: null,
   }));
 }
 
@@ -69,6 +80,25 @@ describe("scene outline", () => {
       "editor/outline.tree",
       results,
       ["buildSceneTree", "flattenTree", "flattenTree(collapsed)"].map((name) => ({
+        key: "objects", declared: 1, tolerance: 0.4, label: name, where: (result: { name: string }) => result.name === name,
+      })),
+    );
+  });
+
+  it("builds and flattens a tree with collections in time linear in the scene", async () => {
+    const cases: BenchCase[] = OBJECT_COUNTS.flatMap((objects) => {
+      const { entries, collections } = collected(objects);
+      const tree = buildSceneTree(entries, collections);
+      return [
+        { name: "buildSceneTree(collections)", params: { objects }, run: () => consume(buildSceneTree(entries, collections).roots.length) },
+        { name: "flattenTree(collections)", params: { objects }, run: () => consume(flattenTree(tree, new Set()).length) },
+      ];
+    });
+    const results = await measureCases(cases);
+    finishWithGrowth(
+      "editor/outline.collections",
+      results,
+      ["buildSceneTree(collections)", "flattenTree(collections)"].map((name) => ({
         key: "objects", declared: 1, tolerance: 0.4, label: name, where: (result: { name: string }) => result.name === name,
       })),
     );

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
+import { HAND_EDIT_COMMAND_TYPES } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../common/errors/app-error.js";
 import { isOneOf } from "../../shared/guards/enum.guard.js";
 import { editorCommandListSchema } from "../../shared/schemas/editor-command.schema.js";
@@ -24,7 +25,7 @@ import {
 const OBJECT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const ASSET_NAME_MAX_LENGTH = 160;
 /** The changes a user can make by hand and have saved with the project. */
-const USER_EDIT_TYPES: ReadonlySet<string> = new Set(["scene.transform_object", "scene.set_visibility", "scene.rename_object", "scene.set_parent", "scene.delete_object", "scene.create_collection", "scene.rename_collection", "scene.set_collection_visibility", "scene.move_collection", "scene.delete_collection", "scene.move_to_collection", "geometry.set_modifiers", "geometry.create_primitive", "geometry.extrude", "geometry.transform_faces", "geometry.subdivide_faces"]);
+const USER_EDIT_TYPES = HAND_EDIT_COMMAND_TYPES;
 
 /** An uploaded model, before it is checked. */
 export interface ModelUpload {
