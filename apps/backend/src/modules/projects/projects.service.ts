@@ -24,7 +24,7 @@ import {
 const OBJECT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const ASSET_NAME_MAX_LENGTH = 160;
 /** The changes a user can make by hand and have saved with the project. */
-const USER_EDIT_TYPES: ReadonlySet<string> = new Set(["scene.transform_object", "scene.set_visibility", "scene.delete_object", "geometry.set_modifiers", "geometry.create_primitive", "geometry.extrude", "geometry.transform_faces", "geometry.subdivide_faces"]);
+const USER_EDIT_TYPES: ReadonlySet<string> = new Set(["scene.transform_object", "scene.set_visibility", "scene.rename_object", "scene.set_parent", "scene.delete_object", "geometry.set_modifiers", "geometry.create_primitive", "geometry.extrude", "geometry.transform_faces", "geometry.subdivide_faces"]);
 
 /** An uploaded model, before it is checked. */
 export interface ModelUpload {
@@ -162,7 +162,9 @@ export class ProjectsService {
 
   /**
    * Records a change the user made to the scene by hand, so the project shows it when reopened. Only
-   * transforms, modifier stacks, extrusion, deletion and new primitives can be recorded this way.
+   * transforms, renaming, re-parenting, visibility, modifier stacks, extrusion, deletion and new primitives can
+   * be recorded this way. The objects a command names, and the parent it names, must be in the project; the
+   * editor has already checked that the change fits the scene (it prepares it before it is saved).
    * Assistant-driven changes still go through approved proposals.
    */
   recordSceneEdit(userId: string, projectId: string, input: unknown, actionId?: string): { proposalId: string } {
@@ -172,19 +174,27 @@ export class ProjectsService {
     }
     const parsed = editorCommandListSchema.safeParse(input);
     if (!parsed.success) throw new ValidationFailedError("These scene changes are not valid");
-    // Only the objects this batch names are looked up; the history itself is never read.
+    // Only the objects this batch names, and the parents it names, are looked up; the history itself is never read.
     const known = this.scenes.existingObjectIds(
       projectId,
-      parsed.data.map((command) => command.objectId),
+      parsed.data.flatMap((command) => {
+        const parentId = "parentId" in command ? command.parentId : undefined;
+        return typeof parentId === "string" ? [command.objectId, parentId] : [command.objectId];
+      }),
     );
     for (const command of parsed.data) {
+      // A parent is an object of the project, or one this batch added earlier. Moving to the top level names none.
+      const parentId = "parentId" in command ? command.parentId : undefined;
+      if (typeof parentId === "string" && !known.has(parentId)) {
+        throw new ValidationFailedError(`Object "${parentId}" is not in this project`);
+      }
       if (command.type === "geometry.create_primitive") {
         if (command.replaceExisting || known.has(command.objectId)) throw new ValidationFailedError("Add shapes with a new object id; replacing existing objects is not allowed here");
         known.add(command.objectId);
         continue;
       }
       if (!USER_EDIT_TYPES.has(command.type)) {
-        throw new ValidationFailedError("Only new primitives, transforms, modifier stacks, extrusion and deletion can be recorded here");
+        throw new ValidationFailedError("Only new primitives, transforms, renaming, re-parenting, visibility, modifier stacks, extrusion and deletion can be recorded here");
       }
       if (!known.has(command.objectId)) {
         throw new ValidationFailedError(`Object "${command.objectId}" is not in this project`);
