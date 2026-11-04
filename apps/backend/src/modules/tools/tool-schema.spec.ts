@@ -201,6 +201,107 @@ describe("checkScene", () => {
   });
 });
 
+describe("mesh paths in requests and commands", () => {
+  it("accepts part names, indexes and a mixture in an inspection request and in commands", () => {
+    for (const meshPath of [[0, 2], ["Body", "Arm#1"], ["Body", 3]]) {
+      expect(meshInspectionRequestSchema.safeParse({ objectId: "model", meshPath }).success).toBe(true);
+      expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.subdivide", objectId: "model", meshPath, levels: 1 }]).success).toBe(true);
+    }
+  });
+
+  it("accepts a name in a boolean operand path, and refuses what is not a path", () => {
+    const modifier = (operandMeshPath: unknown) => [{
+      commandId: "b", type: "geometry.set_modifiers", objectId: "box",
+      modifiers: [{ id: "cut", kind: "boolean", operandObjectId: "model", operandMeshPath }],
+    }];
+    expect(editorCommandListSchema.safeParse(modifier(["Cutter"])).success).toBe(true);
+    for (const bad of [[""], [-1], [{}], ["x".repeat(131)]]) expect(editorCommandListSchema.safeParse(modifier(bad)).success).toBe(false);
+  });
+
+  it("is sent to model providers as a list whose items are an integer or a string, never as a tuple", () => {
+    const json = JSON.stringify(z.toJSONSchema(editorCommandListSchema));
+    expect(json).not.toContain("prefixItems");
+    expect(json).toContain('"items":{"anyOf":[{"type":"integer"');
+  });
+});
+
+describe("checkScene arrangement checks", () => {
+  const object = (id: string, parentId: string | null, name: string, scale: [number, number, number] = [1, 1, 1], type: "mesh" | "empty" = "mesh") => ({
+    id, name, type, parentId, transform: { position: [0, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], scale },
+  });
+  const check = (...objects: ReturnType<typeof object>[]) => checkScene({ ...emptyScene, objects });
+  const found = (result: ReturnType<typeof check>, severity: string) => result.issues.filter((issue) => issue.severity === severity);
+
+  it("warns when objects under one parent share a name, and says which", () => {
+    const result = check(object("a", null, "Arm"), object("b", null, "Arm"), object("c", null, "Leg"));
+    expect(found(result, "warning").map((issue) => issue.objectId)).toEqual(["b"]);
+    expect(found(result, "warning")[0]?.message).toContain('"Arm"');
+    expect(result.ok).toBe(true);
+  });
+
+  it("allows the same name under different parents", () => {
+    const result = check(object("l", null, "Left", [1, 1, 1], "empty"), object("r", null, "Right", [1, 1, 1], "empty"), object("a", "l", "Arm"), object("b", "r", "Arm"));
+    expect(found(result, "warning")).toEqual([]);
+  });
+
+  it("warns about a group with children scaled by different amounts, not one without children or one scaled evenly", () => {
+    const result = check(
+      object("uneven", null, "Uneven", [2, 1, 1], "empty"), object("a", "uneven", "A"),
+      object("lonely", null, "Lonely", [2, 1, 1], "empty"),
+      object("even", null, "Even", [2, 2, 2], "empty"), object("b", "even", "B"),
+    );
+    const warnings = found(result, "warning");
+    expect(warnings.map((issue) => issue.objectId)).toEqual(["uneven"]);
+    expect(warnings[0]?.message).toContain("same scale on every axis");
+  });
+
+  it("notes an empty group as information, which does not fail the check", () => {
+    const result = check(object("g", null, "Group", [1, 1, 1], "empty"), object("full", null, "Full", [1, 1, 1], "empty"), object("m", "full", "Mesh"));
+    expect(found(result, "info").map((issue) => issue.objectId)).toEqual(["g"]);
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe("checkScene collection checks", () => {
+  const withCollections = (collections: { id: string; name: string; parentId: string | null }[], objects: { id: string; collectionId: string | null }[] = []): EditorContext => ({
+    ...emptyScene,
+    collections: collections.map((collection) => ({ ...collection, visible: true })),
+    objects: objects.map((object) => ({
+      id: object.id, name: object.id, type: "mesh", parentId: null, collectionId: object.collectionId,
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+    })) as unknown as EditorContext["objects"],
+  });
+  const messages = (scene: EditorContext, severity: string) => checkScene(scene).issues.filter((issue) => issue.severity === severity).map((issue) => issue.message);
+
+  it("passes a scene whose collections hold objects", () => {
+    const result = checkScene(withCollections([{ id: "set", name: "Set", parentId: null }], [{ id: "a", collectionId: "set" }]));
+    expect(result.ok).toBe(true);
+    expect(result.issues).toEqual([]);
+  });
+
+  it("reports an object in a collection that does not exist, and a collection in one that does not exist", () => {
+    const scene = withCollections([{ id: "c", name: "C", parentId: "gone" }], [{ id: "a", collectionId: "nowhere" }]);
+    expect(messages(scene, "error")).toEqual(expect.arrayContaining(['Is in collection "nowhere", which does not exist', 'Collection "c" sits in "gone", which does not exist']));
+    expect(checkScene(scene).ok).toBe(false);
+  });
+
+  it("reports collections that sit inside themselves", () => {
+    const scene = withCollections([{ id: "a", name: "A", parentId: "b" }, { id: "b", name: "B", parentId: "a" }]);
+    expect(messages(scene, "error").some((message) => message.includes("inside itself"))).toBe(true);
+  });
+
+  it("warns about collections that share a name in one place, not in different places", () => {
+    expect(messages(withCollections([{ id: "a", name: "Props", parentId: null }, { id: "b", name: "Props", parentId: null }]), "warning")).toHaveLength(1);
+    expect(messages(withCollections([{ id: "a", name: "Props", parentId: null }, { id: "set", name: "Set", parentId: null }, { id: "b", name: "Props", parentId: "set" }]), "warning")).toEqual([]);
+  });
+
+  it("notes an empty collection as information only, and one that holds only another collection is not empty", () => {
+    const scene = withCollections([{ id: "outer", name: "Outer", parentId: null }, { id: "inner", name: "Inner", parentId: "outer" }]);
+    expect(messages(scene, "info")).toEqual(['Collection "inner" (Inner) is empty']);
+    expect(checkScene(scene).ok).toBe(true);
+  });
+});
+
 describe("validateAgainstContext", () => {
   it("flags creating an object that already exists", () => {
     const issues = validateAgainstContext(

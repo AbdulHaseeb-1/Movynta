@@ -377,6 +377,34 @@ describe("edits made by the user", () => {
     expect(scene.steps[1]?.commands[0]?.type).toBe("scene.transform_object");
   });
 
+  it("saves renaming and re-parenting, for objects and parents that are in the project", async () => {
+    const project = await create();
+    server.app.get(ProjectScenesService).append(project.id, "prp_1", [box("a", "crate"), box("b", "lid")]);
+    const rename = (commandId: string, objectId: string) => ({ type: "scene.rename_object", commandId, objectId, name: "Renamed" });
+    const parent = (commandId: string, objectId: string, parentId: string | null) => ({ type: "scene.set_parent", commandId, objectId, parentId });
+    expect((await recordEdit(project.id, [rename("r", "crate")])).status).toBe(201);
+    expect((await recordEdit(project.id, [parent("p1", "lid", "crate")])).status).toBe(201);
+    expect((await recordEdit(project.id, [parent("p2", "lid", null)])).status).toBe(201);
+    // Neither the object nor the parent may be one the project does not have.
+    expect((await recordEdit(project.id, [rename("r2", "ghost")])).status).toBe(422);
+    expect((await recordEdit(project.id, [parent("p3", "ghost", "crate")])).status).toBe(422);
+    expect((await recordEdit(project.id, [parent("p4", "lid", "ghost")])).status).toBe(422);
+    // A parent added earlier in the same batch counts, and one the assistant deleted does not.
+    expect((await recordEdit(project.id, [{ ...box("n", "fresh") }, parent("p5", "lid", "fresh")])).status).toBe(201);
+    expect((await recordEdit(project.id, [{ type: "scene.delete_object", commandId: "d", objectId: "crate" }])).status).toBe(201);
+    expect((await recordEdit(project.id, [parent("p6", "lid", "crate")])).status).toBe(422);
+    const scene = (await (await request(`/projects/${project.id}/scene`)).json()) as { steps: { commands: { type: string }[] }[] };
+    expect(scene.steps.flatMap((step) => step.commands.map((command) => command.type))).toEqual(expect.arrayContaining(["scene.rename_object", "scene.set_parent"]));
+  });
+
+  it("still refuses commands that are not edits a user makes by hand", async () => {
+    const project = await create();
+    server.app.get(ProjectScenesService).append(project.id, "prp_1", [box("a", "crate")]);
+    const response = await recordEdit(project.id, [{ type: "scene.move_object", commandId: "m", objectId: "crate", delta: [1, 0, 0] }]);
+    expect(response.status).toBe(422);
+    expect(JSON.stringify(await response.json())).toContain("re-parenting");
+  });
+
   it("can move imported models too", async () => {
     const project = await create();
     expect((await upload(project.id, GLB_HEADER)).status).toBe(201);
@@ -453,5 +481,62 @@ describe("the object index of older projects", () => {
     expect(db.prepare("SELECT COUNT(*) AS n FROM project_objects WHERE project_id = ?").get(project.id)?.["n"]).toBe(1);
     expect((await request(`/projects/${project.id}`, "DELETE")).status).toBe(204);
     expect(db.prepare("SELECT COUNT(*) AS n FROM project_objects WHERE project_id = ?").get(project.id)?.["n"]).toBe(0);
+  });
+});
+
+describe("collections in edits made by the user", () => {
+  const collection = (commandId: string, collectionId: string, parentCollectionId?: string) => ({ type: "scene.create_collection", commandId, collectionId, name: collectionId, ...(parentCollectionId ? { parentCollectionId } : {}) });
+  const put = (commandId: string, objectId: string, collectionId: string | null) => ({ type: "scene.move_to_collection", commandId, objectId, collectionId, includeChildren: true });
+  const scenesOf = () => server.app.get(ProjectScenesService);
+
+  it("saves making, renaming, hiding, moving and deleting collections, and filling them", async () => {
+    const project = await create();
+    scenesOf().append(project.id, "prp_1", [box("a", "crate")]);
+    expect((await recordEdit(project.id, [collection("c1", "set"), collection("c2", "props", "set"), put("m", "crate", "props")])).status).toBe(201);
+    expect((await recordEdit(project.id, [{ type: "scene.rename_collection", commandId: "r", collectionId: "set", name: "Scene set" }])).status).toBe(201);
+    expect((await recordEdit(project.id, [{ type: "scene.set_collection_visibility", commandId: "h", collectionId: "set", visible: false }])).status).toBe(201);
+    expect((await recordEdit(project.id, [{ type: "scene.move_collection", commandId: "mv", collectionId: "props", parentCollectionId: null }])).status).toBe(201);
+    expect((await recordEdit(project.id, [put("m2", "crate", null), { type: "scene.delete_collection", commandId: "d", collectionId: "props" }])).status).toBe(201);
+    const scene = (await (await request(`/projects/${project.id}/scene`)).json()) as { steps: { commands: { type: string }[] }[] };
+    expect(scene.steps.flatMap((step) => step.commands.map((command) => command.type))).toEqual(expect.arrayContaining(["scene.create_collection", "scene.move_to_collection", "scene.delete_collection"]));
+  });
+
+  it("refuses collections the project does not have, and ids that are already used", async () => {
+    const project = await create();
+    scenesOf().append(project.id, "prp_1", [box("a", "crate")]);
+    await recordEdit(project.id, [collection("c1", "set")]);
+    expect((await recordEdit(project.id, [collection("c2", "set")])).status).toBe(422);
+    expect((await recordEdit(project.id, [collection("c3", "x", "ghost")])).status).toBe(422);
+    expect((await recordEdit(project.id, [put("m", "crate", "ghost")])).status).toBe(422);
+    expect((await recordEdit(project.id, [put("m", "ghost", "set")])).status).toBe(422);
+    expect((await recordEdit(project.id, [{ type: "scene.rename_collection", commandId: "r", collectionId: "ghost", name: "X" }])).status).toBe(422);
+    expect((await recordEdit(project.id, [{ ...box("n", "fresh"), collectionId: "ghost" }])).status).toBe(422);
+    expect((await recordEdit(project.id, [{ ...box("n2", "fresh2"), collectionId: "set" }])).status).toBe(201);
+  });
+
+  it("knows a collection is gone after it is deleted, within a batch and after", async () => {
+    const project = await create();
+    await recordEdit(project.id, [collection("c1", "set")]);
+    expect((await recordEdit(project.id, [{ type: "scene.delete_collection", commandId: "d1", collectionId: "set" }, { type: "scene.delete_collection", commandId: "d2", collectionId: "set" }])).status).toBe(422);
+    expect((await recordEdit(project.id, [{ type: "scene.delete_collection", commandId: "d3", collectionId: "set" }])).status).toBe(201);
+    expect((await recordEdit(project.id, [{ type: "scene.rename_collection", commandId: "r", collectionId: "set", name: "X" }])).status).toBe(422);
+  });
+
+  it("keeps the index right through undo and redo, so an undone collection can be made again", async () => {
+    const project = await create();
+    const scenes = scenesOf();
+    expect((await recordEdit(project.id, [collection("c1", "set")])).status).toBe(201);
+    expect((await recordEdit(project.id, [collection("c2", "set")])).status).toBe(422);
+    const undo = scenes.previewHistory(project.id, "undo");
+    scenes.commitHistory(project.id, "undo", undo.version, "collectionUndo");
+    // The collection no longer exists, so naming it is refused and its id is free again.
+    expect((await recordEdit(project.id, [{ type: "scene.rename_collection", commandId: "r", collectionId: "set", name: "X" }])).status).toBe(422);
+    expect((await recordEdit(project.id, [collection("c3", "set")])).status).toBe(201);
+  });
+
+  it("cannot be mistaken for an object: a collection id and an object id may be the same", async () => {
+    const project = await create();
+    scenesOf().append(project.id, "prp_1", [box("a", "figure")]);
+    expect((await recordEdit(project.id, [collection("c1", "figure"), put("m", "figure", "figure")])).status).toBe(201);
   });
 });

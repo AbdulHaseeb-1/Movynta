@@ -112,6 +112,70 @@ describe("editor scene", () => {
     finishWithGrowth("editor/execute.restore", results, [{ key: "steps", declared: 1 }]);
   });
 
+  it("creates a batch of same-named shapes in time linear in the scene", async () => {
+    // Every shape is named "box", the worst case for keeping sibling names unique: each one takes the next
+    // free number. The batch is removed again so the scene keeps its size from one run to the next.
+    const BATCH = 200;
+    const cases: BenchCase[] = OBJECT_COUNTS.map((objects) => {
+      const built = buildEditor(objects);
+      const extra = Array.from({ length: BATCH }, (_, index) => `extra_${index}`);
+      const creates = extra.map((objectId) => ({
+        commandId: `create-${objectId}`,
+        type: "geometry.create_primitive",
+        objectId,
+        primitive: "box",
+        size: 1,
+        replaceExisting: false,
+      }));
+      const removes = extra.map((objectId) => ({ commandId: `remove-${objectId}`, type: "scene.delete_object", objectId }));
+      let runs = 0;
+      return {
+        name: "create 200 same-named shapes",
+        params: { objects },
+        run: () => {
+          runs += 1;
+          const created = built.editor.execute(`create-${runs}`, built.editor.currentRevision, creates);
+          if (created.status !== "applied") throw new Error("The batch was rejected");
+          const removed = built.editor.execute(`remove-${runs}`, built.editor.currentRevision, removes);
+          consume(removed.status === "applied" ? 1 : 0);
+        },
+      };
+    });
+    const results = await measureCases(cases);
+    // The scene is copied for each mixed batch, so the cost is linear in the scene. Before the batch kept an
+    // index of the names under each parent it also rescanned the siblings and searched for a free number from
+    // 1 for every shape: 399 ms to create 2000 shapes in batches of 200, against 134 ms with no naming at all.
+    finishWithGrowth("editor/execute.create", results, [{ key: "objects", declared: 1, tolerance: 0.4 }]);
+  });
+
+  it("hides and shows a collection holding the whole scene in time linear in the scene", async () => {
+    // Every object is in one collection, so hiding it sets what three.js draws for each of them. The collection
+    // commands change nothing in space, so the scene itself is not copied for them.
+    const cases: BenchCase[] = OBJECT_COUNTS.map((objects) => {
+      const built = buildEditor(objects);
+      const put = built.ids.map((objectId) => ({ commandId: `put-${objectId}`, type: "scene.move_to_collection", objectId, collectionId: "all", includeChildren: false }));
+      for (let start = 0; start < put.length; start += 200) {
+        const commands = start === 0 ? [{ commandId: "make", type: "scene.create_collection", collectionId: "all", name: "All" }, ...put.slice(0, 199)] : put.slice(start - 1, start + 199);
+        if (built.editor.execute(built.nextProposal(), built.editor.currentRevision, commands).status !== "applied") throw new Error("The fixture batch was rejected");
+      }
+      let runs = 0;
+      return {
+        name: "hide and show a collection",
+        params: { objects },
+        run: () => {
+          runs += 1;
+          for (const visible of [false, true]) {
+            const result = built.editor.execute(`toggle-${runs}-${visible}`, built.editor.currentRevision, [{ commandId: "t", type: "scene.set_collection_visibility", collectionId: "all", visible }]);
+            if (result.status !== "applied") throw new Error("The batch was rejected");
+          }
+          consume(runs);
+        },
+      };
+    });
+    const results = await measureCases(cases);
+    finishWithGrowth("editor/execute.collection", results, [{ key: "objects", declared: 1, tolerance: 0.4 }]);
+  });
+
   it("reads the scene for the assistant and finds objects in time linear in the scene", async () => {
     const reads: BenchCase[] = [];
     for (const objects of OBJECT_COUNTS) {

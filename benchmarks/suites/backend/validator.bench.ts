@@ -3,11 +3,14 @@
  * TIER: MEDIUM
  * SUBJECT: apps/backend/src/modules/editor-bridge/proposals/command-proposal.service.ts#validateAgainstContext
  * MEASURES: latency
- * COMPLEXITY: O(objects + commands) for creates, transforms and deletes
+ * COMPLEXITY: O(objects + commands) for creates, transforms, moves, deletes and re-parenting
  * INPUTS: scene objects 250..2000 (the cap); 50 commands per batch (the cap); seed 20260402
  * BASELINE: baselines/backend/validator.baseline.json
  * THRESHOLD: fail if median regresses >25% (and beyond 3x the baseline spread) or p95 >40%
  * EXCLUDES: the WebSocket round trip that fetches the scene
+ *        A batch that moves an object to a new parent also follows where objects are (PlacementTracker), to refuse
+ *        a move that would shear a mesh; that copies the scene's transforms once and then costs the depth of the
+ *        hierarchy per move, so it must stay linear in the scene and not grow with every move.
  * NOTES: runs once per proposal the assistant makes. A batch of deletes must find out whether anything still
  *        hangs below each object; scanning the scene for that made 50 deletes cost 12 ms at 2,000 objects.
  */
@@ -46,6 +49,19 @@ const transform = (index: number, objects: number): EditorCommand => ({
   objectId: `obj_${(index * 7) % objects}`,
   transform: { position: [index, 0, 0] },
 });
+const move = (index: number, objects: number): EditorCommand => ({
+  type: "scene.move_object",
+  commandId: `m-${index}`,
+  objectId: `obj_${(index * 7) % objects}`,
+  delta: [index + 1, 0, 0],
+});
+/** A top-level object with nothing below it goes under another, so no move makes a loop. */
+const reparent = (index: number, objects: number): EditorCommand => ({
+  type: "scene.set_parent",
+  commandId: `p-${index}`,
+  objectId: `obj_${(index * 10 + 5) % objects}`,
+  parentId: `obj_${(index * 10 + 3) % objects}`,
+});
 const remove = (index: number, objects: number): EditorCommand => ({
   type: "scene.delete_object",
   commandId: `d-${index}`,
@@ -60,10 +76,15 @@ describe("proposal validation", () => {
       const creates = batch(create);
       const transforms = batch((index) => transform(index, objects));
       const deletes = batch((index) => remove(index, objects));
+      const capable = { ...context, supportsSceneGraph: true };
+      const moves = batch((index) => move(index, objects));
+      const reparents = batch((index) => reparent(index, objects));
       return [
         { name: "validate 50 creates", params: { objects }, run: () => consume(validateAgainstContext(creates, context).length) },
         { name: "validate 50 transforms", params: { objects }, run: () => consume(validateAgainstContext(transforms, context).length) },
         { name: "validate 50 deletes", params: { objects }, run: () => consume(validateAgainstContext(deletes, context).length) },
+        { name: "validate 50 relative moves", params: { objects }, run: () => consume(validateAgainstContext(moves, capable).length) },
+        { name: "validate 50 re-parentings", params: { objects }, run: () => consume(validateAgainstContext(reparents, capable).length) },
       ];
     });
     const results = await measureCases(cases);
@@ -81,6 +102,8 @@ describe("proposal validation", () => {
       claim("validate 50 creates"),
       claim("validate 50 transforms"),
       claim("validate 50 deletes"),
+      claim("validate 50 relative moves"),
+      claim("validate 50 re-parentings"),
     ]);
   });
 });

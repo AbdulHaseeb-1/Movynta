@@ -125,6 +125,12 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
   z.object({
     ...commandBase, type: z.literal("geometry.create_mesh"), objectId: identifierSchema,
     name: nameSchema.optional(),
+    /** The parent to create the mesh under. Left out, the mesh is created at the top level. */
+    parentId: identifierSchema.optional(),
+    /** The collection to put the mesh in. Left out, it joins its parent's collection, or the scene itself. */
+    collectionId: identifierSchema.optional(),
+    /** Where the mesh starts, local to its parent. */
+    transform: transformSchema.optional(),
     shading: z.enum(["flat", "smooth"]).optional(),
     vertices: z.array(vector3.refine((point) => point.every((value) => Math.abs(value) <= 10000), "Vertex coordinates must be within ±10000")).min(3).max(4096),
     faces: z.array(z.array(z.number().int().nonnegative()).min(3).max(64)).min(1).max(4096),
@@ -139,6 +145,8 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       objectId: identifierSchema,
       name: nameSchema,
       parentId: identifierSchema.optional(),
+      /** The collection to put the object in. Left out, it joins its parent's collection, or the scene itself. */
+      collectionId: identifierSchema.optional(),
       transform: transformSchema.optional(),
     })
     .strict(),
@@ -150,6 +158,20 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       transform: transformSchema,
     })
     .strict(),
+  z
+    .object({
+      ...commandBase,
+      type: z.literal("scene.move_object"),
+      objectId: identifierSchema,
+      /**
+       * How far to move the object along its parent's axes, added to where it is when the command runs. Unlike
+       * scene.transform_object, which sets a position, this keeps a move the user made in between.
+       */
+      delta: vector3,
+    })
+    .strict()
+    .refine((command) => command.delta.some((value) => value !== 0), "A move must change the position")
+    .refine((command) => command.delta.every((value) => Math.abs(value) <= 100000), "A move can be at most 100000 units along an axis"),
   z
     .object({
       ...commandBase,
@@ -166,8 +188,17 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       size: z.number().positive().max(100),
       options: primitiveOptions.optional(),
       replaceExisting: z.boolean().default(false),
+      /** A label. The kind of shape when left out. A taken name among the same parent's children gets a number. */
+      name: nameSchema.optional(),
+      /** The parent to create the shape under. Left out, the shape is created at the top level. */
+      parentId: identifierSchema.optional(),
+      /** The collection to put the shape in. Left out, it joins its parent's collection, or the scene itself. */
+      collectionId: identifierSchema.optional(),
+      /** Where the shape starts, local to its parent. */
+      transform: transformSchema.optional(),
     })
     .strict()
+    .refine((command) => !command.replaceExisting || (command.name === undefined && command.parentId === undefined && command.collectionId === undefined && command.transform === undefined), "Replacing a shape keeps the object's name, parent, collection and place; leave name, parentId, collectionId and transform out, or create a new object")
     .refine((command) => Object.keys(command.options ?? {}).every((key) => primitiveOptionKeys[command.primitive]?.includes(key)), "Primitive options do not apply to this shape")
     .refine((command) => command.primitive !== "cylinder" || (command.options?.radiusTop ?? command.size / 2) > 0 || (command.options?.radiusBottom ?? command.size / 2) > 0, "A cylinder needs at least one nonzero radius")
     .refine((command) => command.primitive !== "torus" || (command.options?.tube ?? command.size * 0.15) < (command.options?.radius ?? command.size * 0.35), "Torus tube must be smaller than its ring radius")
@@ -204,6 +235,42 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       parentId: identifierSchema.nullable(),
     })
     .strict(),
+  z
+    .object({
+      ...commandBase,
+      type: z.literal("scene.create_collection"),
+      collectionId: identifierSchema,
+      name: nameSchema,
+      /** The collection to make it inside, or left out for the top. */
+      parentCollectionId: identifierSchema.optional(),
+    })
+    .strict(),
+  z.object({ ...commandBase, type: z.literal("scene.rename_collection"), collectionId: identifierSchema, name: nameSchema }).strict(),
+  z.object({ ...commandBase, type: z.literal("scene.set_collection_visibility"), collectionId: identifierSchema, visible: z.boolean() }).strict(),
+  z
+    .object({
+      ...commandBase,
+      type: z.literal("scene.move_collection"),
+      collectionId: identifierSchema,
+      /** The collection to put it inside, or null for the top. */
+      parentCollectionId: identifierSchema.nullable(),
+    })
+    .strict(),
+  z.object({ ...commandBase, type: z.literal("scene.delete_collection"), collectionId: identifierSchema }).strict(),
+  z
+    .object({
+      ...commandBase,
+      type: z.literal("scene.move_to_collection"),
+      objectId: identifierSchema,
+      /** The collection to put the object in, or null for the scene itself. Nothing moves in space. */
+      collectionId: identifierSchema.nullable(),
+      /** Whether the objects that hang below the object (its children, and theirs) go with it. Defaults to true. */
+      includeChildren: z.boolean().default(true),
+    })
+    .strict(),
 ]);
 
 export const editorCommandListSchema = z.array(editorCommandSchema).min(1).max(MAX_COMMANDS_PER_PROPOSAL);
+
+/** One command as a type. */
+export type EditorCommand = z.infer<typeof editorCommandSchema>;

@@ -109,6 +109,9 @@ export function assignLocalMatrix(object: Object3D, local: Matrix4, bake: boolea
   const quaternion = new Quaternion();
   const scale = new Vector3();
   exact.decompose(position, quaternion, scale);
+  // From a matrix whose axes are not perpendicular, three.js gives a quaternion that is not of unit length. Stored
+  // as it is, the object would stay slightly sheared after the bake and be baked again by its next move.
+  quaternion.normalize();
   object.position.copy(position);
   object.quaternion.copy(quaternion);
   object.scale.copy(scale);

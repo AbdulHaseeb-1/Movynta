@@ -43,7 +43,7 @@ error_handling:
 
 1. Call `editor.get_context` and confirm every target object exists.
 2. Describe the change in plain language, then build the smallest set of commands that achieves it.
-3. Use `scene.transform_object` for position, rotation, and scale changes. Use `geometry.create_primitive` with `replaceExisting` only when the user asked to replace geometry.
+3. Use `scene.transform_object` to set position, rotation, or scale, and `scene.move_object` to move an object by a distance from where it is now. Use `geometry.create_primitive` with `replaceExisting` only when the user asked to replace geometry.
 4. Submit with `editor.propose_commands` and apply with `editor.apply_proposal`.
 5. Validate with `validation.check_scene` and summarise what changed.
 
@@ -55,7 +55,7 @@ Use `geometry.create_primitive` options for exact local-space dimensions and mes
 
 Use `editor.inspect_mesh` with `faceQuery` to find faces by local-space normal direction and/or center bounds. Set `includeSamples: false` when only face IDs are needed. Page the result with `faceQuery.offset` and `faceQuery.limit`, and use the returned inspection view and revision for any edit.
 
-For surface editing, first call `editor.inspect_mesh` with objectId. Imported groups return parts; choose a meshPath and inspect that mesh. Set `view` to `base` for base-cage component IDs or `evaluated` for the displayed mesh (the default). Use offset/limit for local-space vertex, edge and polygon samples. Indices refer to the complete topology. Inspect bounds, counts and boundary/winding defects before choosing an operation.
+For surface editing, first call `editor.inspect_mesh` with objectId. Imported groups return parts; choose a meshPath and inspect that mesh. Paths are given by part name ("Body", "Arm#1" for the second part named Arm) where a part has one, and by child index where it does not; use them exactly as returned, and write a boolean operand path the same way as the path of the mesh it cuts. Set `view` to `base` for base-cage component IDs or `evaluated` for the displayed mesh (the default). Use offset/limit for local-space vertex, edge and polygon samples. Indices refer to the complete topology. Inspect bounds, counts and boundary/winding defects before choosing an operation.
 
 Use `geometry.bevel` with a small positive mesh-local width, profile `circular`, and 3–4 segments for rounded corners. The angle threshold protects shallow creases and coplanar edges are skipped. Use `geometry.subdivide` with 1–3 levels and method `catmull-clark`, `linear`, or `loop`. Inspect the current stack and use `geometry.set_modifiers` to reorder, update or remove entries. Preserve existing IDs and parameters.
 

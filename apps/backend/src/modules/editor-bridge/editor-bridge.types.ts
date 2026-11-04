@@ -10,6 +10,8 @@ export interface EditorCommandResult {
   readonly commandId: string;
   readonly status: "applied" | "failed";
   readonly message: string | undefined;
+  /** The name an object ended up with. Set by commands that create, rename or move an object. */
+  readonly name?: string;
 }
 
 export interface CommandExecutionResult {

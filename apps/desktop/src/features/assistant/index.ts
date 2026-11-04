@@ -1,7 +1,9 @@
 export {
   EditorScene,
   UNSAVED_PROJECT_ID,
+  type CollectionEntry,
   type ImportedModelStep,
+  type OutlineEntry,
   type ObjectTransform,
   type SceneStep,
   type UserEdit,

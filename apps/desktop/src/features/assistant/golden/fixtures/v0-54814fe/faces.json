@@ -1,0 +1,234 @@
+{
+  "meta": {
+    "set": "v0-54814fe",
+    "commit": "54814fe",
+    "scenario": "faces",
+    "description": "Edits to faces: an extrusion, a move and scale of the new cap, subdividing some faces, and filling the hole of an open box."
+  },
+  "steps": [
+    {
+      "kind": "commands",
+      "proposalId": "golden_1",
+      "commands": [
+        {
+          "commandId": "make_slab",
+          "type": "geometry.create_primitive",
+          "objectId": "slab",
+          "primitive": "box",
+          "size": 2,
+          "replaceExisting": false
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_2",
+      "commands": [
+        {
+          "commandId": "pull",
+          "type": "geometry.extrude",
+          "objectId": "slab",
+          "meshPath": [],
+          "kind": "face",
+          "ids": [
+            "2"
+          ],
+          "normalDistance": 1
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_3",
+      "commands": [
+        {
+          "commandId": "shape",
+          "type": "geometry.transform_faces",
+          "objectId": "slab",
+          "meshPath": [],
+          "ids": [
+            "2"
+          ],
+          "space": "local",
+          "transform": {
+            "position": [
+              0,
+              0.2,
+              0
+            ],
+            "scale": [
+              0.8,
+              0.8,
+              0.8
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_4",
+      "commands": [
+        {
+          "commandId": "split",
+          "type": "geometry.subdivide_faces",
+          "objectId": "slab",
+          "meshPath": [],
+          "ids": [
+            "0"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_5",
+      "commands": [
+        {
+          "commandId": "make_sheet",
+          "type": "geometry.create_primitive",
+          "objectId": "sheet",
+          "primitive": "plane",
+          "size": 2,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "place_sheet",
+          "type": "scene.transform_object",
+          "objectId": "sheet",
+          "transform": {
+            "position": [
+              5,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_6",
+      "commands": [
+        {
+          "commandId": "open",
+          "type": "geometry.extrude",
+          "objectId": "sheet",
+          "meshPath": [],
+          "kind": "face",
+          "ids": [
+            "0"
+          ],
+          "normalDistance": 1
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_7",
+      "commands": [
+        {
+          "commandId": "close",
+          "type": "geometry.fill_hole",
+          "objectId": "sheet",
+          "meshPath": [],
+          "ids": [
+            "4_5",
+            "5_6",
+            "6_7",
+            "4_7"
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "revision": 7,
+    "objects": [
+      {
+        "id": "slab",
+        "name": "box",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -1,
+          -1,
+          -1,
+          1,
+          2.2,
+          1
+        ]
+      },
+      {
+        "id": "sheet",
+        "name": "plane",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          5,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          4,
+          -1,
+          0,
+          6,
+          1,
+          1
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "objectId": "slab",
+        "ordinal": 0,
+        "name": "box",
+        "visible": true,
+        "vertices": 56,
+        "triangles": 30,
+        "geometry": "c916d3e5/3f6fc5ed",
+        "world": "5896e645",
+        "modifiers": []
+      },
+      {
+        "objectId": "sheet",
+        "ordinal": 0,
+        "name": "plane",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "ced257e5/e49c3055",
+        "world": "5e3a7325",
+        "modifiers": []
+      }
+    ]
+  }
+}

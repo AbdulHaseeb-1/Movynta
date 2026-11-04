@@ -1,5 +1,6 @@
 export interface SceneIssue {
-  readonly severity: "error" | "warning";
+  /** An error fails the check, a warning is worth fixing, and information is only worth knowing. */
+  readonly severity: "error" | "warning" | "info";
   readonly objectId: string | null;
   readonly message: string;
 }

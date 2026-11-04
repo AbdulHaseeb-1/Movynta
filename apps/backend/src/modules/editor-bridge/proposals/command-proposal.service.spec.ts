@@ -358,3 +358,98 @@ describe("command proposals", () => {
     expect((await service.propose(run, { summary: "Rename many", commands: renames(101) })).requiresApproval).toBe(true);
   });
 });
+
+describe("names the editor gave objects", () => {
+  it("keeps the name each command ended up with, in the result and in the stored result", async () => {
+    const { service, run, bridge } = setup();
+    bridge.executeCommands = (_clientId, request) => Promise.resolve({
+      proposalId: request.proposalId,
+      status: "applied",
+      revision: 5,
+      results: request.commands.map((command) => ({ commandId: command.commandId, status: "applied", message: undefined, name: "Box.001" })),
+      message: undefined,
+    });
+    const proposal = await service.propose(run, { summary: "Add a box", commands: [addBox] });
+    const applied = await service.apply(run, proposal.id);
+    expect(applied.results[0]?.name).toBe("Box.001");
+    // A second apply returns what was stored, read back from the database.
+    expect((await service.apply(run, proposal.id)).results[0]?.name).toBe("Box.001");
+  });
+
+  it("refuses a proposal that uses the new creator fields on an editor that predates them", async () => {
+    const { service, run } = setup();
+    const named: EditorCommand = { commandId: "n1", type: "geometry.create_primitive", objectId: "torso", primitive: "box", size: 1, replaceExisting: false, name: "Torso" };
+    await expect(service.propose(run, { summary: "Torso", commands: [named] })).rejects.toBeInstanceOf(ValidationFailedError);
+  });
+});
+
+describe("relative moves", () => {
+  const move: EditorCommand = { commandId: "m", type: "scene.move_object", objectId: "g", delta: [0, 2, 0] };
+
+  it("run again as they are on a newer scene, so a change made in between is kept", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, supportsSceneGraph: true, objects: [sceneObject("g")] };
+    const proposal = await service.propose(run, { summary: "Raise the group", commands: [move] });
+    // The user changes the scene after the proposal was written.
+    bridge.scene = { ...bridge.scene, revision: 9 };
+    const result = await service.apply(run, proposal.id);
+    expect(result.status).toBe("applied");
+    expect(result.rebased).toBe(true);
+    expect(bridge.executions.map((request) => request.expectedRevision)).toEqual([4, 9]);
+    // The editor was sent the same distance both times, not a position worked out from the old scene.
+    expect(bridge.executions.map((request) => request.commands)).toEqual([[move], [move]]);
+  });
+
+  it("are refused for an editor that does not advertise them", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("g")] };
+    await expect(service.propose(run, { summary: "Raise the group", commands: [move] })).rejects.toBeInstanceOf(ValidationFailedError);
+  });
+
+  it("refuse a re-parenting that would shear a part, before anything is stored", async () => {
+    const { bridge, service, run } = setup();
+    const group = { ...sceneObject("group"), transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [2, 1, 1] } } as EditorContext["objects"][number];
+    const part = { ...sceneObject("part"), transform: { position: [0, 0, 0], rotation: [0, 0.6, 0], scale: [1, 1, 1] } } as EditorContext["objects"][number];
+    bridge.scene = { ...bridge.scene, supportsSceneGraph: true, objects: [group, part] };
+    const command: EditorCommand = { commandId: "s", type: "scene.set_parent", objectId: "part", parentId: "group" };
+    const failure = await service.propose(run, { summary: "Attach", commands: [command] }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ValidationFailedError);
+    // The assistant is shown the issues, which say how to avoid the problem.
+    const issues = failure instanceof ValidationFailedError ? JSON.stringify(failure.details?.["issues"]) : "";
+    expect(issues).toContain("shearing");
+    expect(issues).toContain("parentId");
+    expect(bridge.executions).toHaveLength(0);
+  });
+});
+
+describe("collections in proposals", () => {
+  const make: EditorCommand = { commandId: "c", type: "scene.create_collection", collectionId: "set", name: "Set" };
+
+  it("are refused for an editor that predates them, and accepted for one that has them", async () => {
+    const { bridge, service, run } = setup();
+    await expect(service.propose(run, { summary: "Make a collection", commands: [make] })).rejects.toBeInstanceOf(ValidationFailedError);
+    bridge.scene = { ...bridge.scene, supportsCollections: true };
+    expect((await service.propose(run, { summary: "Make a collection", commands: [make] })).status).toBe("proposed");
+  });
+
+  it("do not need approval to make, move, hide or delete a collection, since nothing is lost", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, supportsCollections: true, collections: [{ id: "set", name: "Set", parentId: null, visible: true }] };
+    const commands: EditorCommand[] = [
+      { commandId: "h", type: "scene.set_collection_visibility", collectionId: "set", visible: false },
+      { commandId: "d", type: "scene.delete_collection", collectionId: "set" },
+    ];
+    expect((await service.propose(run, { summary: "Tidy", commands })).requiresApproval).toBe(false);
+  });
+
+  it("keeps the name the editor gave a collection in the result", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, supportsCollections: true };
+    bridge.executeCommands = (_clientId, request) => Promise.resolve({
+      proposalId: request.proposalId, status: "applied", revision: 5, message: undefined,
+      results: request.commands.map((command) => ({ commandId: command.commandId, status: "applied", message: undefined, name: "Set.001" })),
+    });
+    const proposal = await service.propose(run, { summary: "Make a collection", commands: [make] });
+    expect((await service.apply(run, proposal.id)).results[0]?.name).toBe("Set.001");
+  });
+});

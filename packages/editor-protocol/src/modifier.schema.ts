@@ -1,13 +1,13 @@
 import { z } from "zod";
+import { meshPathSchema } from "./mesh-path.js";
 const common = { id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), enabled: z.boolean().default(true) };
 export const bevelProfileSchema = z.enum(["chamfer", "round", "circular"]);
 export const subdivisionMethodSchema = z.enum(["catmull-clark", "linear", "loop"]);
 export const booleanOperationSchema = z.enum(["difference", "union", "intersect"]);
-const operandMeshPathSchema = z.array(z.number().int().nonnegative().max(100_000)).max(32);
 export const booleanOperandFields = {
   operation: booleanOperationSchema.default("difference"),
   operandObjectId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
-  operandMeshPath: operandMeshPathSchema.default([]),
+  operandMeshPath: meshPathSchema.default([]),
   cutMaterialIndex: z.number().int().nonnegative().max(65535).optional(),
 };
 const capScale = z.number().min(0.01).max(100);

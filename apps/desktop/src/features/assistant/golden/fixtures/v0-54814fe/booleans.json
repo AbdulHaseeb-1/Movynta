@@ -1,0 +1,516 @@
+{
+  "meta": {
+    "set": "v0-54814fe",
+    "commit": "54814fe",
+    "scenario": "booleans",
+    "description": "Cuts made with other scene objects, moved afterwards so the cut is worked out again, and a cut that uses a part of an imported model by index."
+  },
+  "steps": [
+    {
+      "kind": "commands",
+      "proposalId": "golden_1",
+      "commands": [
+        {
+          "commandId": "make_wall",
+          "type": "geometry.create_primitive",
+          "objectId": "wall",
+          "primitive": "box",
+          "size": 2,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_cut1",
+          "type": "geometry.create_primitive",
+          "objectId": "cut1",
+          "primitive": "box",
+          "size": 1,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_cut2",
+          "type": "geometry.create_primitive",
+          "objectId": "cut2",
+          "primitive": "cylinder",
+          "size": 1.2,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "place_cut1",
+          "type": "scene.transform_object",
+          "objectId": "cut1",
+          "transform": {
+            "position": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "commandId": "place_cut2",
+          "type": "scene.transform_object",
+          "objectId": "cut2",
+          "transform": {
+            "position": [
+              -1,
+              1,
+              -1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_2",
+      "commands": [
+        {
+          "commandId": "cutter",
+          "type": "geometry.boolean",
+          "objectId": "wall",
+          "meshPath": [],
+          "operation": "difference",
+          "operandObjectId": "cut1",
+          "operandMeshPath": []
+        },
+        {
+          "commandId": "round",
+          "type": "geometry.bevel",
+          "objectId": "wall",
+          "meshPath": [],
+          "width": 0.05,
+          "segments": 2
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_3",
+      "commands": [
+        {
+          "commandId": "both",
+          "type": "geometry.set_modifiers",
+          "objectId": "wall",
+          "meshPath": [],
+          "modifiers": [
+            {
+              "id": "m1",
+              "enabled": true,
+              "kind": "boolean",
+              "operation": "difference",
+              "operandObjectId": "cut1",
+              "operandMeshPath": []
+            },
+            {
+              "id": "m2",
+              "enabled": true,
+              "kind": "boolean",
+              "operation": "difference",
+              "operandObjectId": "cut2",
+              "operandMeshPath": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_4",
+      "commands": [
+        {
+          "commandId": "place_cut2",
+          "type": "scene.transform_object",
+          "objectId": "cut2",
+          "transform": {
+            "position": [
+              -1,
+              -1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_5",
+      "commands": [
+        {
+          "commandId": "place_wall",
+          "type": "scene.transform_object",
+          "objectId": "wall",
+          "transform": {
+            "position": [
+              2,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0.3,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_6",
+      "commands": [
+        {
+          "commandId": "show_cut1_false",
+          "type": "scene.set_visibility",
+          "objectId": "cut1",
+          "visible": false
+        }
+      ]
+    },
+    {
+      "kind": "import",
+      "assetId": "robot",
+      "objectId": "model",
+      "name": "robot.glb",
+      "format": "glb"
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_8",
+      "commands": [
+        {
+          "commandId": "make_target",
+          "type": "geometry.create_primitive",
+          "objectId": "target",
+          "primitive": "box",
+          "size": 1,
+          "replaceExisting": false
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_9",
+      "commands": [
+        {
+          "commandId": "withpart",
+          "type": "geometry.set_modifiers",
+          "objectId": "target",
+          "meshPath": [],
+          "modifiers": [
+            {
+              "id": "cut",
+              "enabled": true,
+              "kind": "boolean",
+              "operation": "difference",
+              "operandObjectId": "model",
+              "operandMeshPath": [
+                1
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_10",
+      "commands": [
+        {
+          "commandId": "place_target",
+          "type": "scene.transform_object",
+          "objectId": "target",
+          "transform": {
+            "position": [
+              0.02,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_11",
+      "commands": [
+        {
+          "commandId": "place_model",
+          "type": "scene.transform_object",
+          "objectId": "model",
+          "transform": {
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "revision": 11,
+    "objects": [
+      {
+        "id": "wall",
+        "name": "box",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          2,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0.3,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          0.74914,
+          -1,
+          -1.25086,
+          3.25086,
+          1,
+          1.25086
+        ]
+      },
+      {
+        "id": "cut1",
+        "name": "box",
+        "type": "mesh",
+        "parentId": null,
+        "visible": false,
+        "position": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          0.5,
+          0.5,
+          0.5,
+          1.5,
+          1.5,
+          1.5
+        ]
+      },
+      {
+        "id": "cut2",
+        "name": "cylinder",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          -1,
+          -1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -1.6,
+          -1.6,
+          0.4,
+          -0.4,
+          -0.4,
+          1.6
+        ]
+      },
+      {
+        "id": "model",
+        "name": "robot.glb",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          0,
+          -0.5,
+          -0.5,
+          9.5,
+          1,
+          1
+        ]
+      },
+      {
+        "id": "target",
+        "name": "box",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0.02,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -0.48,
+          -0.5,
+          -0.5,
+          0.52,
+          0.5,
+          0.5
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "objectId": "wall",
+        "ordinal": 0,
+        "name": "box",
+        "visible": true,
+        "vertices": 42,
+        "triangles": 24,
+        "geometry": "d80ce89f/3a66ada5",
+        "world": "e6374ce5",
+        "modifiers": [
+          {
+            "id": "m1",
+            "enabled": true,
+            "kind": "boolean",
+            "operation": "difference",
+            "operandObjectId": "cut1",
+            "operandPart": 0
+          },
+          {
+            "id": "m2",
+            "enabled": true,
+            "kind": "boolean",
+            "operation": "difference",
+            "operandObjectId": "cut2",
+            "operandPart": 0
+          }
+        ]
+      },
+      {
+        "objectId": "cut1",
+        "ordinal": 0,
+        "name": "box",
+        "visible": false,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "234dfd65",
+        "modifiers": []
+      },
+      {
+        "objectId": "cut2",
+        "ordinal": 0,
+        "name": "cylinder",
+        "visible": true,
+        "vertices": 148,
+        "triangles": 96,
+        "geometry": "6dbd4ff5/e634a985",
+        "world": "b1893365",
+        "modifiers": []
+      },
+      {
+        "objectId": "model",
+        "ordinal": 0,
+        "name": "Head",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "5e3a7325",
+        "modifiers": []
+      },
+      {
+        "objectId": "model",
+        "ordinal": 1,
+        "name": "Cutter",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "a5204935",
+        "modifiers": []
+      },
+      {
+        "objectId": "model",
+        "ordinal": 2,
+        "name": "Arm",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "4fd3eba5",
+        "modifiers": []
+      },
+      {
+        "objectId": "target",
+        "ordinal": 0,
+        "name": "box",
+        "visible": true,
+        "vertices": 42,
+        "triangles": 24,
+        "geometry": "4117371d/d13864a5",
+        "world": "053e9775",
+        "modifiers": [
+          {
+            "id": "cut",
+            "enabled": true,
+            "kind": "boolean",
+            "operation": "difference",
+            "operandObjectId": "model",
+            "operandPart": 1
+          }
+        ]
+      }
+    ]
+  }
+}

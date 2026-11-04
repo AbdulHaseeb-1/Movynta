@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { meshPathSchema } from "./mesh-path.js";
 import { modifierListSchema } from "./modifier.schema.js";
 
 export const MAX_MESH_INPUT_TRIANGLES = 20_000;
 export const MAX_MESH_OUTPUT_TRIANGLES = 100_000;
-export const meshPathSchema = z.array(z.number().int().nonnegative().max(100_000)).max(32);
+export { meshPathSchema };
 const point = z.array(z.number().finite()).length(3);
 export const meshInspectionRequestSchema = z.object({
   objectId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),

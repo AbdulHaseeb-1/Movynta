@@ -63,6 +63,7 @@
 - Keep TypeScript strict. The compiler options in `apps/desktop/tsconfig.json` and `apps/desktop/tsconfig.node.json` must stay enabled; do not weaken them.
 - Do not use `any`, `@ts-ignore`, or non-null assertions (`!`). Narrow types or validate values instead.
 - Run `pnpm check` (typecheck and oxlint) from the repo root before finishing a change, and fix every error it reports.
+- Saved projects replay their command history, so a change to the editor must keep old histories replaying. `apps/desktop/src/features/assistant/golden/` holds histories recorded by older code; if its test fails, fix the editor or add the difference to `compare.ts` with a reason (see its README). Never re-record the fixtures from current code.
 
 ### Performance and validation
 

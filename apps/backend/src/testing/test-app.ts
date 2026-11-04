@@ -1,12 +1,13 @@
 import { resolve } from "node:path";
 import { NodeAdapter } from "@nestjs/platform-node";
-import { Test } from "@nestjs/testing";
+import { Test, type TestingModuleBuilder } from "@nestjs/testing";
 import { ScriptedModel } from "@openai/agents/testing";
 import type { AddressInfo } from "node:net";
 import { AppModule } from "../app.module.js";
 import { configureApplication } from "../common/bootstrap/configure-application.js";
 import { loadAppConfig } from "../config/configuration.js";
 import { MODEL_PROVIDER } from "../modules/agents/agent.tokens.js";
+import { SECRET_PROTECTOR, type SecretProtector } from "../modules/providers/secret-protector.js";
 import { signToken } from "../modules/auth/token.js";
 import { TEST_AUTH_SECRET } from "./constants.js";
 import type { TestServer } from "./testing.types.js";
@@ -21,7 +22,10 @@ function isListeningServer(value: unknown): value is { address(): AddressInfo | 
  * Boots the real application against an in-memory database. Only the model
  * provider is replaced, with the SDK's scripted model, so no network calls happen.
  */
-export async function startTestServer(port = 0): Promise<TestServer> {
+export async function startTestServer(
+  port = 0,
+  options: { readonly runTimeoutMs?: number; readonly secretProtector?: SecretProtector } = {},
+): Promise<TestServer> {
   process.env["NODE_ENV"] = "test";
   process.env["AUTH_SECRET"] = TEST_AUTH_SECRET;
   process.env["DATABASE_URL"] = ":memory:";
@@ -30,15 +34,17 @@ export async function startTestServer(port = 0): Promise<TestServer> {
   process.env["AGENTS_ENABLED"] = "true";
   process.env["OPENAI_MODEL"] = "test-model";
   process.env["EDITOR_REQUEST_TIMEOUT_MS"] = "3000";
-  process.env["AGENT_RUN_TIMEOUT_MS"] = "20000";
+  process.env["AGENT_RUN_TIMEOUT_MS"] = String(options.runTimeoutMs ?? 20000);
   process.env["RATE_LIMIT_PER_MINUTE"] = "10000";
   const config = loadAppConfig(process.env);
 
   const model = new ScriptedModel();
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+  let builder: TestingModuleBuilder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(MODEL_PROVIDER)
-    .useValue({ getModel: () => model })
-    .compile();
+    .useValue({ getModel: () => model });
+  // Credentials need Windows DPAPI by default; a caller that runs elsewhere supplies its own protector.
+  if (options.secretProtector) builder = builder.overrideProvider(SECRET_PROTECTOR).useValue(options.secretProtector);
+  const moduleRef = await builder.compile();
 
   const adapter = new NodeAdapter();
   const app = moduleRef.createNestApplication(adapter);

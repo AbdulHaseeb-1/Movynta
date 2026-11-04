@@ -5,6 +5,7 @@ const commandSchema = z.looseObject({
   type: z.string(),
   objectId: z.string().optional(),
   name: z.string().optional(),
+  parentId: z.string().optional(),
   primitive: z.string().optional(),
   size: z.number().optional(),
   width: z.number().optional(),
@@ -17,6 +18,11 @@ const commandSchema = z.looseObject({
   operandObjectId: z.string().optional(),
   normalDistance: z.number().optional(),
   offset: z.array(z.number()).length(3).optional(),
+  delta: z.array(z.number()).length(3).optional(),
+  collectionId: z.string().nullable().optional(),
+  parentCollectionId: z.string().nullable().optional(),
+  visible: z.boolean().optional(),
+  includeChildren: z.boolean().optional(),
   space: z.enum(["local", "world"]).optional(),
   transform: z.object({
     position: z.array(z.number()).length(3).optional(),
@@ -59,6 +65,20 @@ function describeCommand(command: Command): string {
   switch (command.type) {
     case "scene.create_object":
       return `Create “${command.name ?? target}”`;
+    case "scene.create_collection":
+      return `Create collection “${command.name ?? command.collectionId ?? "collection"}”${command.parentCollectionId ? ` in ${command.parentCollectionId}` : ""}`;
+    case "scene.rename_collection":
+      return `Rename collection ${command.collectionId ?? ""} to “${command.name ?? ""}”`;
+    case "scene.set_collection_visibility":
+      return `${command.visible === false ? "Hide" : "Show"} collection ${command.collectionId ?? ""}`;
+    case "scene.move_collection":
+      return command.parentCollectionId ? `Move collection ${command.collectionId ?? ""} into ${command.parentCollectionId}` : `Move collection ${command.collectionId ?? ""} to the top`;
+    case "scene.delete_collection":
+      return `Delete the empty collection ${command.collectionId ?? ""}`;
+    case "scene.move_to_collection":
+      return `Put ${target} ${command.includeChildren === false ? "" : "and what hangs below it "}in ${command.collectionId ? `collection ${command.collectionId}` : "the scene itself"}`;
+    case "scene.move_object":
+      return `Move ${target} by [${(command.delta ?? []).join(", ")}] along its parent's axes`;
     case "scene.transform_object":
       return `Move or reshape ${target}`;
     case "scene.delete_object":
@@ -100,7 +120,7 @@ function describeCommand(command: Command): string {
     case "geometry.fill_hole":
       return `Fill the selected boundary loop on ${target}`;
     case "geometry.create_primitive":
-      return `Add a ${command.primitive ?? "shape"} to ${target}${command.size === undefined ? "" : ` (size ${command.size})`}`;
+      return `Add a ${command.primitive ?? "shape"}${command.name === undefined ? "" : ` “${command.name}”`} to ${target}${command.parentId === undefined ? "" : ` under ${command.parentId}`}${command.size === undefined ? "" : ` (size ${command.size})`}`;
     case "geometry.create_mesh":
       return `Add mesh ${command.name ?? target} (${command.vertices?.length ?? 0} vertices, ${command.faces?.length ?? 0} faces)`;
     default:

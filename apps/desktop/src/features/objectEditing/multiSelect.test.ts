@@ -129,7 +129,7 @@ describe("changing and deleting several objects", () => {
     ]);
     // Naming a parent and one of its children, and one object twice, deletes each once.
     const commands = editorCommandListSchema.parse(editor.deleteCommandsFor(["group", "kid1", "a", "a"]));
-    const order = commands.map((command) => command.objectId);
+    const order = commands.map((command) => ("objectId" in command ? command.objectId : ""));
     expect(new Set(order).size).toBe(order.length);
     expect([...order].sort()).toEqual(["a", "group", "kid1", "kid2"]);
     expect(order.indexOf("kid1")).toBeLessThan(order.indexOf("group"));

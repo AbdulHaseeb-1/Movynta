@@ -1,0 +1,612 @@
+{
+  "meta": {
+    "set": "v0-54814fe",
+    "commit": "54814fe",
+    "scenario": "figure",
+    "description": "A figure built the way the assistant built one before: flat parts placed one by one, then parented, renamed and hidden."
+  },
+  "steps": [
+    {
+      "kind": "commands",
+      "proposalId": "golden_1",
+      "commands": [
+        {
+          "commandId": "group_figure",
+          "type": "scene.create_object",
+          "objectId": "figure",
+          "name": "Figure"
+        },
+        {
+          "commandId": "make_torso",
+          "type": "geometry.create_primitive",
+          "objectId": "torso",
+          "primitive": "box",
+          "size": 2,
+          "options": {
+            "width": 1.2,
+            "height": 2,
+            "depth": 0.6
+          },
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_head",
+          "type": "geometry.create_primitive",
+          "objectId": "head",
+          "primitive": "sphere",
+          "size": 1,
+          "options": {
+            "radius": 0.5,
+            "widthSegments": 12,
+            "heightSegments": 8
+          },
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_armL",
+          "type": "geometry.create_primitive",
+          "objectId": "armL",
+          "primitive": "cylinder",
+          "size": 1,
+          "options": {
+            "height": 1.5,
+            "radiusTop": 0.2,
+            "radiusBottom": 0.25,
+            "radialSegments": 12
+          },
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_armR",
+          "type": "geometry.create_primitive",
+          "objectId": "armR",
+          "primitive": "cylinder",
+          "size": 1,
+          "options": {
+            "height": 1.5,
+            "radiusTop": 0.2,
+            "radiusBottom": 0.25,
+            "radialSegments": 12
+          },
+          "replaceExisting": false
+        },
+        {
+          "commandId": "place_torso",
+          "type": "scene.transform_object",
+          "objectId": "torso",
+          "transform": {
+            "position": [
+              0,
+              1,
+              0
+            ]
+          }
+        },
+        {
+          "commandId": "place_head",
+          "type": "scene.transform_object",
+          "objectId": "head",
+          "transform": {
+            "position": [
+              0,
+              2.4,
+              0
+            ]
+          }
+        },
+        {
+          "commandId": "place_armL",
+          "type": "scene.transform_object",
+          "objectId": "armL",
+          "transform": {
+            "position": [
+              -0.9,
+              1.2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0.2
+            ]
+          }
+        },
+        {
+          "commandId": "place_armR",
+          "type": "scene.transform_object",
+          "objectId": "armR",
+          "transform": {
+            "position": [
+              0.9,
+              1.2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              -0.2
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_2",
+      "commands": [
+        {
+          "commandId": "adopt_torso",
+          "type": "scene.set_parent",
+          "objectId": "torso",
+          "parentId": "figure"
+        },
+        {
+          "commandId": "adopt_head",
+          "type": "scene.set_parent",
+          "objectId": "head",
+          "parentId": "figure"
+        },
+        {
+          "commandId": "adopt_armL",
+          "type": "scene.set_parent",
+          "objectId": "armL",
+          "parentId": "torso"
+        },
+        {
+          "commandId": "adopt_armR",
+          "type": "scene.set_parent",
+          "objectId": "armR",
+          "parentId": "torso"
+        },
+        {
+          "commandId": "place_figure",
+          "type": "scene.transform_object",
+          "objectId": "figure",
+          "transform": {
+            "position": [
+              3,
+              0,
+              1
+            ],
+            "rotation": [
+              0,
+              0.5,
+              0
+            ],
+            "scale": [
+              1.5,
+              1.5,
+              1.5
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_3",
+      "commands": [
+        {
+          "commandId": "rename_head",
+          "type": "scene.rename_object",
+          "objectId": "head",
+          "name": "Head"
+        },
+        {
+          "commandId": "rename_torso",
+          "type": "scene.rename_object",
+          "objectId": "torso",
+          "name": "Torso"
+        },
+        {
+          "commandId": "show_armR_false",
+          "type": "scene.set_visibility",
+          "objectId": "armR",
+          "visible": false
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_4",
+      "commands": [
+        {
+          "commandId": "make_crate1",
+          "type": "geometry.create_primitive",
+          "objectId": "crate1",
+          "primitive": "box",
+          "size": 1,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_crate2",
+          "type": "geometry.create_primitive",
+          "objectId": "crate2",
+          "primitive": "box",
+          "size": 1,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "place_crate1",
+          "type": "scene.transform_object",
+          "objectId": "crate1",
+          "transform": {
+            "position": [
+              -4,
+              0.5,
+              0
+            ]
+          }
+        },
+        {
+          "commandId": "place_crate2",
+          "type": "scene.transform_object",
+          "objectId": "crate2",
+          "transform": {
+            "position": [
+              -6,
+              0.5,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_5",
+      "commands": [
+        {
+          "commandId": "rename_crate1",
+          "type": "scene.rename_object",
+          "objectId": "crate1",
+          "name": "Crate"
+        },
+        {
+          "commandId": "group_crate",
+          "type": "scene.create_object",
+          "objectId": "crate",
+          "name": "Crate"
+        },
+        {
+          "commandId": "remove_crate2",
+          "type": "scene.delete_object",
+          "objectId": "crate2"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_6",
+      "commands": [
+        {
+          "commandId": "adopt_armL",
+          "type": "scene.set_parent",
+          "objectId": "armL",
+          "parentId": null
+        },
+        {
+          "commandId": "place_armL",
+          "type": "scene.transform_object",
+          "objectId": "armL",
+          "transform": {
+            "position": [
+              0,
+              3,
+              0
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "revision": 6,
+    "objects": [
+      {
+        "id": "figure",
+        "name": "Figure",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          3,
+          0,
+          1
+        ],
+        "rotation": [
+          0,
+          0.5,
+          0
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ],
+        "bounds": [
+          1.98224,
+          0,
+          -0.25967,
+          4.8832,
+          4.35,
+          2.01776
+        ]
+      },
+      {
+        "id": "torso",
+        "name": "Torso",
+        "type": "mesh",
+        "parentId": "figure",
+        "visible": true,
+        "position": [
+          0,
+          1,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          1.99443,
+          0,
+          -0.25967,
+          4.8832,
+          3,
+          1.8264
+        ]
+      },
+      {
+        "id": "head",
+        "name": "Head",
+        "type": "mesh",
+        "parentId": "figure",
+        "visible": true,
+        "position": [
+          0,
+          2.4,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          1.98224,
+          2.85,
+          -0.01776,
+          4.01776,
+          4.35,
+          2.01776
+        ]
+      },
+      {
+        "id": "armL",
+        "name": "cylinder",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          3,
+          0
+        ],
+        "rotation": [
+          0,
+          0.5,
+          0.2
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ],
+        "bounds": [
+          -0.69846,
+          1.82292,
+          -0.61245,
+          0.69846,
+          4.17708,
+          0.61245
+        ]
+      },
+      {
+        "id": "armR",
+        "name": "cylinder",
+        "type": "mesh",
+        "parentId": "torso",
+        "visible": false,
+        "position": [
+          0.9,
+          0.2,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          -0.2
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          3.48628,
+          0.62292,
+          -0.25967,
+          4.8832,
+          2.97708,
+          0.96522
+        ]
+      },
+      {
+        "id": "crate1",
+        "name": "Crate",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          -4,
+          0.5,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -4.5,
+          0,
+          -0.5,
+          -3.5,
+          1,
+          0.5
+        ]
+      },
+      {
+        "id": "crate",
+        "name": "Crate",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": null
+      }
+    ],
+    "meshes": [
+      {
+        "objectId": "figure",
+        "ordinal": 0,
+        "name": "Torso",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "ddb815a5/26e0eb95",
+        "world": "105136c1",
+        "modifiers": []
+      },
+      {
+        "objectId": "figure",
+        "ordinal": 1,
+        "name": "cylinder",
+        "visible": false,
+        "vertices": 76,
+        "triangles": 48,
+        "geometry": "69d5fe45/5b4ec2c5",
+        "world": "c05589cc",
+        "modifiers": []
+      },
+      {
+        "objectId": "figure",
+        "ordinal": 2,
+        "name": "Head",
+        "visible": true,
+        "vertices": 117,
+        "triangles": 168,
+        "geometry": "066e8729/b54f1fe5",
+        "world": "e704be51",
+        "modifiers": []
+      },
+      {
+        "objectId": "torso",
+        "ordinal": 0,
+        "name": "Torso",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "ddb815a5/26e0eb95",
+        "world": "105136c1",
+        "modifiers": []
+      },
+      {
+        "objectId": "torso",
+        "ordinal": 1,
+        "name": "cylinder",
+        "visible": false,
+        "vertices": 76,
+        "triangles": 48,
+        "geometry": "69d5fe45/5b4ec2c5",
+        "world": "c05589cc",
+        "modifiers": []
+      },
+      {
+        "objectId": "head",
+        "ordinal": 0,
+        "name": "Head",
+        "visible": true,
+        "vertices": 117,
+        "triangles": 168,
+        "geometry": "066e8729/b54f1fe5",
+        "world": "e704be51",
+        "modifiers": []
+      },
+      {
+        "objectId": "armL",
+        "ordinal": 0,
+        "name": "cylinder",
+        "visible": true,
+        "vertices": 76,
+        "triangles": 48,
+        "geometry": "69d5fe45/5b4ec2c5",
+        "world": "79ffb356",
+        "modifiers": []
+      },
+      {
+        "objectId": "armR",
+        "ordinal": 0,
+        "name": "cylinder",
+        "visible": false,
+        "vertices": 76,
+        "triangles": 48,
+        "geometry": "69d5fe45/5b4ec2c5",
+        "world": "c05589cc",
+        "modifiers": []
+      },
+      {
+        "objectId": "crate1",
+        "ordinal": 0,
+        "name": "Crate",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "79de81b5",
+        "modifiers": []
+      }
+    ]
+  }
+}

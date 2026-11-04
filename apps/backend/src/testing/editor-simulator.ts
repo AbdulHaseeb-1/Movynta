@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { viewCaptureRequestSchema, type ViewCaptureRequest } from "@movynta/editor-protocol";
+import { CollectionModel, viewCaptureRequestSchema, type ViewCaptureRequest } from "@movynta/editor-protocol";
 import type { EditorContext, EditorObject } from "../shared/types/editor-context.types.js";
 import { editorCommandListSchema } from "../shared/schemas/editor-command.schema.js";
 import type { EditorCommand, EditorCommandList, OutboundMessage } from "./testing.types.js";
@@ -20,6 +20,11 @@ export class EditorSimulator {
   readonly viewRequests: { readonly request: ViewCaptureRequest; readonly withImages: boolean; readonly captureId: string }[] = [];
   /** When false, the simulator never answers command execution, which exercises timeouts. */
   answerExecutions = true;
+  /** Whether the simulated editor advertises the scene-graph commands. Set false to stand in for an older editor. */
+  supportsSceneGraph = true;
+  /** Whether it advertises collections. Set false to stand in for an editor that predates them. */
+  supportsCollections = true;
+  private readonly collectionModel = new CollectionModel();
   private readonly waiters: (() => void)[] = [];
   private revision = 0;
   private readonly objects: EditorObject[] = [];
@@ -167,12 +172,13 @@ export class EditorSimulator {
       case "geometry.create_mesh":
       case "geometry.create_primitive": {
         const id = command.objectId;
-        const name = command.type === "scene.create_object" ? command.name : command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.primitive;
+        const name = command.type === "scene.create_object" ? command.name : command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.name ?? command.primitive;
         this.objects.push({
           id,
           name,
           type: "mesh",
-          parentId: null,
+          parentId: command.parentId ?? null,
+          collectionId: command.collectionId ?? (command.parentId === undefined ? null : this.collectionModel.collectionOf(command.parentId)),
           transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
         });
         break;
@@ -180,9 +186,34 @@ export class EditorSimulator {
       case "scene.delete_object": {
         const index = this.objects.findIndex((object) => object.id === command.objectId);
         if (index >= 0) this.objects.splice(index, 1);
+        this.collectionModel.forget(command.objectId);
+        break;
+      }
+      case "scene.create_collection":
+        this.collectionModel.create(command.collectionId, command.name, command.parentCollectionId ?? null);
+        break;
+      case "scene.rename_collection":
+        this.collectionModel.rename(command.collectionId, command.name);
+        break;
+      case "scene.set_collection_visibility":
+        this.collectionModel.setVisible(command.collectionId, command.visible);
+        break;
+      case "scene.move_collection":
+        this.collectionModel.move(command.collectionId, command.parentCollectionId);
+        break;
+      case "scene.delete_collection":
+        this.collectionModel.remove(command.collectionId);
+        break;
+      case "scene.move_to_collection": {
+        const moving = [command.objectId];
+        for (let id = moving.pop(); id !== undefined; id = moving.pop()) {
+          this.collectionModel.assign(id, command.collectionId);
+          if (command.includeChildren) moving.push(...this.objects.filter((object) => object.parentId === id).map((object) => object.id));
+        }
         break;
       }
       case "scene.transform_object":
+      case "scene.move_object":
       case "geometry.boolean":
       case "geometry.bevel":
       case "geometry.subdivide":
@@ -212,7 +243,10 @@ export class EditorSimulator {
       revision: this.revision,
       activeSceneName: "Main",
       selectedObjectIds: [],
-      objects: [...this.objects],
+      objects: this.objects.map((object) => ({ ...object, collectionId: this.collectionModel.collectionOf(object.id) })),
+      collections: this.collectionModel.entries(),
+      ...(this.supportsSceneGraph ? { supportsSceneGraph: true } : {}),
+      ...(this.supportsCollections ? { supportsCollections: true } : {}),
     };
   }
 

@@ -1,0 +1,314 @@
+{
+  "meta": {
+    "set": "v0-54814fe",
+    "commit": "54814fe",
+    "scenario": "imported",
+    "description": "An imported model with a shape put under it, which moves its parts to other positions, edited by index before and after."
+  },
+  "steps": [
+    {
+      "kind": "import",
+      "assetId": "robot",
+      "objectId": "model",
+      "name": "robot.glb",
+      "format": "glb"
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_2",
+      "commands": [
+        {
+          "commandId": "place_model",
+          "type": "scene.transform_object",
+          "objectId": "model",
+          "transform": {
+            "position": [
+              0,
+              2,
+              0
+            ],
+            "rotation": [
+              0,
+              0.4,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_3",
+      "commands": [
+        {
+          "commandId": "make_hat",
+          "type": "geometry.create_primitive",
+          "objectId": "hat",
+          "primitive": "box",
+          "size": 0.5,
+          "replaceExisting": false
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_4",
+      "commands": [
+        {
+          "commandId": "adopt_hat",
+          "type": "scene.set_parent",
+          "objectId": "hat",
+          "parentId": "model"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_5",
+      "commands": [
+        {
+          "commandId": "arm",
+          "type": "geometry.subdivide",
+          "objectId": "model",
+          "meshPath": [
+            3
+          ],
+          "levels": 1,
+          "method": "linear"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_6",
+      "commands": [
+        {
+          "commandId": "edge",
+          "type": "geometry.bevel",
+          "objectId": "model",
+          "meshPath": [
+            2
+          ],
+          "width": 0.05,
+          "segments": 2
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_7",
+      "commands": [
+        {
+          "commandId": "rename_hat",
+          "type": "scene.rename_object",
+          "objectId": "hat",
+          "name": "Hat"
+        },
+        {
+          "commandId": "show_model_false",
+          "type": "scene.set_visibility",
+          "objectId": "model",
+          "visible": false
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_8",
+      "commands": [
+        {
+          "commandId": "remove_hat",
+          "type": "scene.delete_object",
+          "objectId": "hat"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_9",
+      "commands": [
+        {
+          "commandId": "head",
+          "type": "geometry.subdivide",
+          "objectId": "model",
+          "meshPath": [
+            0
+          ],
+          "levels": 1,
+          "method": "linear"
+        }
+      ]
+    },
+    {
+      "kind": "import",
+      "assetId": "plain",
+      "objectId": "copy",
+      "name": "plain.glb",
+      "format": "glb"
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_11",
+      "commands": [
+        {
+          "commandId": "place_copy",
+          "type": "scene.transform_object",
+          "objectId": "copy",
+          "transform": {
+            "position": [
+              10,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "revision": 11,
+    "objects": [
+      {
+        "id": "model",
+        "name": "robot.glb",
+        "type": "empty",
+        "parentId": null,
+        "visible": false,
+        "position": [
+          0,
+          2,
+          0
+        ],
+        "rotation": [
+          0,
+          0.4,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          0,
+          1.5,
+          -4.16,
+          8.94479,
+          3,
+          0.92106
+        ]
+      },
+      {
+        "id": "copy",
+        "name": "plain.glb",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          10,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          9.5,
+          -0.5,
+          -0.5,
+          13.5,
+          0.5,
+          0.5
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "objectId": "model",
+        "ordinal": 0,
+        "name": "Head",
+        "visible": true,
+        "vertices": 96,
+        "triangles": 48,
+        "geometry": "e6296745/4c32a005",
+        "world": "e2943608",
+        "modifiers": [
+          {
+            "id": "head",
+            "kind": "subdivision",
+            "enabled": true,
+            "levels": 1,
+            "method": "linear"
+          }
+        ]
+      },
+      {
+        "objectId": "model",
+        "ordinal": 1,
+        "name": "Cutter",
+        "visible": true,
+        "vertices": 264,
+        "triangles": 108,
+        "geometry": "0d5801b5/76a16fd5",
+        "world": "cbeebd0b",
+        "modifiers": [
+          {
+            "id": "edge",
+            "kind": "bevel",
+            "enabled": true,
+            "width": 0.05,
+            "segments": 2
+          }
+        ]
+      },
+      {
+        "objectId": "model",
+        "ordinal": 2,
+        "name": "Arm",
+        "visible": true,
+        "vertices": 96,
+        "triangles": 48,
+        "geometry": "e6296745/4c32a005",
+        "world": "77d71449",
+        "modifiers": [
+          {
+            "id": "arm",
+            "kind": "subdivision",
+            "enabled": true,
+            "levels": 1,
+            "method": "linear"
+          }
+        ]
+      },
+      {
+        "objectId": "copy",
+        "ordinal": 0,
+        "name": "",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "f3cf5905",
+        "modifiers": []
+      },
+      {
+        "objectId": "copy",
+        "ordinal": 1,
+        "name": "",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "284db025",
+        "modifiers": []
+      }
+    ]
+  }
+}

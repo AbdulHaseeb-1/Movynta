@@ -35,6 +35,8 @@ export const commandResultSchema = z
             commandId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
             status: z.enum(["applied", "failed"]),
             message: z.string().max(500).optional(),
+            /** The name an object ended up with, when a command created, renamed or moved one. */
+            name: z.string().max(80).optional(),
           })
           .strict(),
       )
