@@ -200,7 +200,7 @@ export class ExtrudeGesture {
       try {
         const mesh = meshAtPath(editor.getObject(selected.objectId), selected.meshPath);
         if (mesh instanceof SkinnedMesh) throw new Error("Extrude on skinned meshes is not supported yet.");
-        if ((modifierStack(mesh)?.modifiers ?? []).some((modifier) => modifier.enabled)) throw new Error("Disable modifiers before extruding, so the selection matches the base mesh");
+        if ((modifierStack(mesh)?.modifiers ?? []).some((modifier) => modifier.enabled)) throw new Error("Disable modifiers before editing components, so the selection matches the base mesh");
         const cage = readTopology(mesh.geometry);
         checkExtrudeSelection(cage, selected.kind, selected.ids);
         mesh.updateWorldMatrix(true, false);

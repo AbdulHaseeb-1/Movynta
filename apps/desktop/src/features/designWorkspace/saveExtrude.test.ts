@@ -22,7 +22,7 @@ describe("saveExtrude", () => {
     const earlier = scene.execute("extrude", stale, [{ commandId: "earlier", type: "geometry.extrude", objectId: "box", kind: "face", ids: [String(top)], offset: [0, 1, 0] }]);
     expect(earlier.status).toBe("applied");
     const before = mesh.geometry;
-    await expect(saveExtrude(scene, commitAt(stale))).rejects.toThrow(/changed before this extrude was saved/);
+    await expect(saveExtrude(scene, commitAt(stale))).rejects.toThrow(/changed before this edit was saved/);
     expect(mesh.geometry).toBe(before);
     expect(takeComponentSelection(scene, "box")).toBeNull();
   });

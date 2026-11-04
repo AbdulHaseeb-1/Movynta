@@ -50,6 +50,10 @@ describe("validateAgainstContext", () => {
     expect(validateAgainstContext([extrude], emptyScene)[0]?.message).toContain("does not exist");
     expect(validateAgainstContext([{ ...extrude, objectId: "box" }, create("c", "new")], sceneWith({ id: "box", parentId: null }))[0]?.message).toContain("only extrude");
     expect(validateAgainstContext([{ ...extrude, objectId: "box" }], sceneWith({ id: "box", parentId: null }))).toEqual([]);
+    const selectedFaces: EditorCommand = { commandId: "f", type: "geometry.subdivide_faces", objectId: "box", meshPath: [], ids: ["0"] };
+    expect(validateAgainstContext([{ ...selectedFaces, objectId: "missing" }], emptyScene)[0]?.message).toContain("does not exist");
+    expect(validateAgainstContext([selectedFaces, create("c", "new")], sceneWith({ id: "box", parentId: null }))[0]?.message).toContain("only extrude");
+    expect(validateAgainstContext([selectedFaces, { ...extrude, commandId: "e2", objectId: "box" }], sceneWith({ id: "box", parentId: null }))).toEqual([]);
   });
   it("explains the create_object then create_primitive mix-up and how to fix it", () => {
     const issues = validateAgainstContext([create("a", "crate"), primitive("b", "crate")], emptyScene);

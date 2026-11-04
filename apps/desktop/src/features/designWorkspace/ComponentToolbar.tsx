@@ -1,4 +1,6 @@
+import { Grid2x2 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import type { EditorScene } from "@/features/assistant";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -6,14 +8,27 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { setComponentKind } from "./workspaceSlice";
+import { errorMessage, type SerialQueue } from "@/lib";
+import { setComponentError, setComponentKind } from "./workspaceSlice";
 import { MeshSelectionIcon } from "./MeshSelectionIcon";
+import { subdivideSelectedFaces } from "./subdivideSelection";
 
-export function ComponentToolbar() {
+interface ComponentToolbarProps {
+  scene: EditorScene | null;
+  saves: SerialQueue;
+}
+
+export function ComponentToolbar({ scene, saves }: ComponentToolbarProps) {
   const dispatch = useAppDispatch();
-  const { componentKind, componentError } = useAppSelector(
+  const { componentKind, componentError, componentSelection } = useAppSelector(
     (state) => state.designWorkspace,
   );
+  const canSubdivide = componentKind === "face" && (componentSelection?.ids.length ?? 0) > 0;
+  const subdivide = () => {
+    if (!scene || !componentSelection) return;
+    dispatch(setComponentError(""));
+    subdivideSelectedFaces(scene, componentSelection, saves, (failure) => dispatch(setComponentError(errorMessage(failure))));
+  };
   return (
     <div className="relative">
       <TooltipProvider>
@@ -46,6 +61,23 @@ export function ComponentToolbar() {
               </TooltipContent>
             </Tooltip>
           ))}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="size-7 rounded-sm [&_svg]:size-4"
+                aria-label="Subdivide selected faces"
+                disabled={!scene || !canSubdivide}
+                onClick={subdivide}
+              >
+                <Grid2x2 />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {canSubdivide ? "Subdivide selected faces" : "Select faces to subdivide"}
+            </TooltipContent>
+          </Tooltip>
         </fieldset>
       </TooltipProvider>
       {componentError && (

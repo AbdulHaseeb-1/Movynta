@@ -44,6 +44,9 @@ describe("editor command schema", () => {
     expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "face", ids: ["0"], offset: [0, 1, 0] }]).success).toBe(true);
     expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "loop", ids: ["0"], offset: [0, 1, 0] }]).success).toBe(false);
     expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "face", ids: [], offset: [0, 1, 0] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: ["0", "12"] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: [] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: ["0_1"] }]).success).toBe(false);
   });
   it("accepts a valid mixed batch", () => {
     const parsed = editorCommandListSchema.safeParse([

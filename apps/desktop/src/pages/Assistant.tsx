@@ -315,7 +315,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <ProjectBar project={project} onAction={actions.perform} onRename={renameProject} />
         <DesignModeMenu />
-        {designMode === "edit" && <ComponentToolbar />}
+        {designMode === "edit" && <ComponentToolbar scene={editorScene} saves={saves} />}
         <AddShapeMenu scene={editorScene} ensureProject={ensureProject} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} onAdded={() => setSubmitted(true)} />
       </div>
       {/* Panel launchers stay compact until opened. */}

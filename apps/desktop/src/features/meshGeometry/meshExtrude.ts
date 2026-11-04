@@ -172,7 +172,7 @@ function uniqueIds(ids: readonly string[], label: string): void {
   if (new Set(ids).size !== ids.length) throw new Error("The selection repeats a component");
 }
 
-function parseFaces(mesh: PolygonMesh, ids: readonly string[]): number[] {
+export function parseFaces(mesh: PolygonMesh, ids: readonly string[]): number[] {
   uniqueIds(ids, "face");
   return ids.map((id) => {
     if (!COMPONENT.test(id)) throw new Error("Unknown face");

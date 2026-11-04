@@ -23,20 +23,29 @@ import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { extrudeRegion, writeExtrudedGeometry } from "../meshGeometry/meshExtrude";
-import { copyTopology, readTopology } from "../meshGeometry/meshTopology";
+import { extrudeRegion, writeExtrudedGeometry, type ExtrudeResult } from "../meshGeometry/meshExtrude";
+import { subdivideFaces } from "../meshGeometry/meshSubdivideFaces";
+import { copyTopology, readTopology, type PolygonMesh } from "../meshGeometry/meshTopology";
 import { assignLocalMatrix, settleShear } from "../objectEditing/shearFit";
 import { assertEditableMesh, inspectMesh, meshAtPath, evaluateStack, evaluateBase, modifierStack, commitStack, copyModifierStack, disposeModifierStack, type ModifierStackState } from "../meshGeometry";
 import type { MeshInspectionRequest } from "@movynta/editor-protocol";
 
 type Command = z.infer<typeof editorCommandListSchema>[number];
 type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" }>;
-type ExtrudeCommand = Extract<Command, { type: "geometry.extrude" }>;
+/** Commands that rewrite the base cage of one mesh part. They share a batch and the same rules about modifiers. */
+type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.subdivide_faces" }>;
 function isGeometryCommand(command: Command): command is GeometryCommand {
   return command.type === "geometry.bevel" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers";
 }
-function isExtrudeCommand(command: Command): command is ExtrudeCommand {
-  return command.type === "geometry.extrude";
+function isCageEditCommand(command: Command): command is CageEditCommand {
+  return command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces";
+}
+/** Rewrites the base cage for one command: extrude moves a region, subdivide-faces splits only the selected faces. */
+function cageEdit(command: CageEditCommand, cage: PolygonMesh): ExtrudeResult {
+  if (command.type === "geometry.subdivide_faces") return subdivideFaces(cage, command.ids);
+  const [x, y, z] = command.offset;
+  if (x === undefined || y === undefined || z === undefined) throw new Error("Extrude offset must move the selection");
+  return extrudeRegion(cage, command.kind, command.ids, new Vector3(x, y, z));
 }
 function revealExtrudeBackfaces(mesh: Mesh): void {
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -516,7 +525,7 @@ export class EditorScene {
       };
     this.beginChange();
     if (commands.some(isGeometryCommand)) return this.applyGeometryBatch(proposalId, commands, results);
-    if (commands.some(isExtrudeCommand)) return this.applyExtrudeBatch(proposalId, commands, results);
+    if (commands.some(isCageEditCommand)) return this.applyCageEditBatch(proposalId, commands, results);
     // Moving, turning, resizing and deleting are the common edits, and need no copy of the scene to be safe.
     if (commands.every(isInPlace)) return this.applyInPlace(proposalId, commands, results);
     const staged = new Map<string, Object3D>();
@@ -608,7 +617,7 @@ export class EditorScene {
   }
 
   /** Rewrites the base cage, then evaluates the same modifier list. A failure leaves the live mesh untouched. */
-  private applyExtrudeBatch(proposalId: string, commands: Command[], results: { commandId: string; status: "applied" }[]) {
+  private applyCageEditBatch(proposalId: string, commands: Command[], results: { commandId: string; status: "applied" }[]) {
     interface Staged { base: BufferGeometry; display: BufferGeometry; modifiers: ModifierStackState["modifiers"]; reveal: boolean }
     const staged = new Map<Mesh, Staged>();
     let current: Command | undefined;
@@ -622,20 +631,18 @@ export class EditorScene {
       }
     };
     try {
-      if (commands.length > 20 || !commands.every(isExtrudeCommand)) throw new Error("Extrude batches accept only extrude commands, at most 20; create or transform objects in a separate proposal");
+      if (commands.length > 20 || !commands.every(isCageEditCommand)) throw new Error("Component edit batches accept only extrude and subdivide_faces commands, at most 20; create or transform objects in a separate proposal");
       for (const command of commands) {
         current = command;
         const mesh = meshAtPath(this.objects.get(command.objectId), command.meshPath);
         assertEditableMesh(mesh);
-        if (mesh instanceof SkinnedMesh) throw new Error("Extrude on skinned meshes is not supported yet.");
+        if (mesh instanceof SkinnedMesh) throw new Error("Component edits on skinned meshes are not supported yet.");
         const live = modifierStack(mesh);
         const previous = staged.get(mesh);
         const modifiers = previous?.modifiers ?? live?.modifiers ?? [];
-        if (!previous && modifiers.some((modifier) => modifier.enabled)) throw new Error("Disable modifiers before extruding, so the selection matches the base mesh");
+        if (!previous && modifiers.some((modifier) => modifier.enabled)) throw new Error("Disable modifiers before editing components, so the selection matches the base mesh");
         const source = previous?.base ?? live?.base ?? mesh.geometry;
-        const [x, y, z] = command.offset;
-        if (x === undefined || y === undefined || z === undefined) throw new Error("Extrude offset must move the selection");
-        const extruded = extrudeRegion(readTopology(source), command.kind, command.ids, new Vector3(x, y, z));
+        const extruded = cageEdit(command, readTopology(source));
         const base = writeExtrudedGeometry(source, extruded);
         let display = base;
         try {
@@ -648,7 +655,7 @@ export class EditorScene {
           if (previous.base !== live?.base && previous.base !== mesh.geometry) previous.base.dispose();
           if (previous.display !== previous.base && previous.display !== mesh.geometry && previous.display !== live?.geometry) previous.display.dispose();
         }
-        staged.set(mesh, { base, display, modifiers, reveal: (previous?.reveal ?? false) || command.kind !== "face" });
+        staged.set(mesh, { base, display, modifiers, reveal: (previous?.reveal ?? false) || (command.type === "geometry.extrude" && command.kind !== "face") });
         let total = 0;
         for (const state of staged.values()) total += (state.display.index?.count ?? state.display.getAttribute("position")?.count ?? 0) / 3;
         if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
@@ -786,7 +793,7 @@ export class EditorScene {
 
   private apply(objects: Map<string, Object3D>, command: Command) {
     if (isGeometryCommand(command)) throw new Error("Geometry commands require a separate geometry batch");
-    if (isExtrudeCommand(command)) throw new Error("Extrude commands require a separate extrude batch");
+    if (isCageEditCommand(command)) throw new Error("Component edit commands require their own batch");
     const existing = objects.get(command.objectId);
     if (command.type === "scene.delete_object") {
       if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
