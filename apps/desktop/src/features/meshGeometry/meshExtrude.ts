@@ -1,14 +1,22 @@
-import { Vector3 } from "three";
+import { Vector3, type BufferAttribute, type BufferGeometry, type InterleavedBufferAttribute } from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
+import { writeShadedGeometry } from "./meshOutput";
 import { basis, type Weights } from "./meshWeights";
-import { channels, edgeKey, faceNormal, point, topology, type PolygonMesh, type SurfaceChannels } from "./meshTopology";
+import { channels, edgeKey, faceNormal, point, topology, type HalfEdge, type PolygonMesh, type SurfaceChannels } from "./meshTopology";
 
 export type ExtrudeKind = "vertex" | "edge" | "face";
-export interface ExtrudeResult { mesh: PolygonMesh; selection: string[] }
+export interface ExtrudeResult {
+  mesh: PolygonMesh;
+  selection: string[];
+  /** Indices of the quads grown along the boundary. They follow the original faces in `mesh.faces`. */
+  walls: number[];
+}
 
 const COMPONENT = /^\d{1,10}$/;
 const EDGE = /^(\d{1,10})_(\d{1,10})$/;
 const MAX_COMPONENTS = 4096;
+/** A wall whose edge and extrude offset have a sine below this runs along its own edge, so it has no area. */
+const MIN_WALL_SINE = 1e-6;
 
 interface Draft {
   positions: Vector3[];
@@ -17,6 +25,13 @@ interface Draft {
   corners: Weights[][];
   materials: number[];
   copies: Map<number, number>;
+  walls: number[];
+}
+
+interface Span {
+  /** The half-edge that grows the wall; its face decides the wall's side. */
+  half: HalfEdge;
+  incident: HalfEdge[];
 }
 
 function requireOffset(offset: Vector3): void {
@@ -37,6 +52,7 @@ function draftFrom(mesh: PolygonMesh, data: SurfaceChannels): Draft {
     corners: data.corners.map((row) => row.map((weights) => new Map(weights))),
     materials: data.materials.slice(),
     copies: new Map(),
+    walls: [],
   };
 }
 
@@ -57,16 +73,39 @@ function cornerWeight(mesh: PolygonMesh, data: SurfaceChannels, faceIndex: numbe
   return new Map(weight ?? data.positions[vertex] ?? basis(vertex));
 }
 
-function addWall(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, faceIndex: number, from: number, to: number): void {
-  const start = draft.copies.get(from);
-  const end = draft.copies.get(to);
+/** The offset runs along a selected edge, so that edge's wall would have no area. Only this error is an offset problem. */
+export class ZeroAreaWallError extends Error {
+  constructor() {
+    super("The offset runs along a selected edge, so its wall would have no area.");
+    this.name = "ZeroAreaWallError";
+  }
+}
+
+/** The wall is the parallelogram spanned by its edge and its offset. A parallel offset leaves no area. */
+function assertWallArea(positions: readonly Vector3[], a: number, b: number, aTop: number): void {
+  const pa = positions[a];
+  const pb = positions[b];
+  const top = positions[aTop];
+  if (!pa || !pb || !top) throw new Error("Missing extruded vertex");
+  const along = pb.clone().sub(pa);
+  const up = top.clone().sub(pa);
+  const sine = along.clone().cross(up).length() / (along.length() * up.length());
+  if (!(sine > MIN_WALL_SINE)) throw new ZeroAreaWallError();
+}
+
+/** Grows the quad [a, b, b', a'] on edge a→b of `faceIndex`. Its bottom runs a→b, so the caller chooses the winding. */
+function addWall(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, faceIndex: number, a: number, b: number): void {
+  const start = draft.copies.get(a);
+  const end = draft.copies.get(b);
   if (start === undefined || end === undefined) throw new Error("Missing extruded vertex");
-  draft.faces.push([from, to, end, start]);
+  assertWallArea(draft.positions, a, b, start);
+  draft.walls.push(draft.faces.length);
+  draft.faces.push([a, b, end, start]);
   draft.corners.push([
-    cornerWeight(mesh, data, faceIndex, from),
-    cornerWeight(mesh, data, faceIndex, to),
-    cornerWeight(mesh, data, faceIndex, to),
-    cornerWeight(mesh, data, faceIndex, from),
+    cornerWeight(mesh, data, faceIndex, a),
+    cornerWeight(mesh, data, faceIndex, b),
+    cornerWeight(mesh, data, faceIndex, b),
+    cornerWeight(mesh, data, faceIndex, a),
   ]);
   draft.materials.push(data.materials[faceIndex] ?? 0);
 }
@@ -98,7 +137,7 @@ function faceCentroid(positions: readonly Vector3[], face: readonly number[]): V
   return count === 0 ? centroid : centroid.multiplyScalar(1 / count);
 }
 
-/** A vertex or edge wall has no region winding. Point it out of the solid, and away from the interior when it stands on a boundary. */
+/** Interior-edge walls only: point the wall out of the solid, and away from the interior when it stands on a boundary. */
 function orientWall(draft: Draft, preferred: Vector3, center: Vector3): void {
   const index = draft.faces.length - 1;
   const face = draft.faces[index];
@@ -112,6 +151,20 @@ function orientWall(draft: Draft, preferred: Vector3, center: Vector3): void {
     face.reverse();
     corners.reverse();
   }
+}
+
+/**
+ * Grows the wall on one edge. A boundary edge has a single face, so the wall continues that face's surface and
+ * traverses the edge the opposite way. An interior edge has two faces and no winding agrees with both, so its wall
+ * points away from the solid instead.
+ */
+function growWall(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, center: Vector3, edge: HalfEdge, incident: readonly HalfEdge[]): void {
+  if (incident.length === 1) {
+    addWall(draft, mesh, data, edge.face, edge.to, edge.from);
+    return;
+  }
+  addWall(draft, mesh, data, edge.face, edge.from, edge.to);
+  orientWall(draft, adjacentNormal(mesh, incident), center);
 }
 
 function uniqueIds(ids: readonly string[], label: string): void {
@@ -139,7 +192,7 @@ function parseVertices(mesh: PolygonMesh, ids: readonly string[]): number[] {
   });
 }
 
-function parseEdges(mesh: PolygonMesh, ids: readonly string[]): { from: number; to: number; face: number }[] {
+function parseEdges(mesh: PolygonMesh, ids: readonly string[]): HalfEdge[] {
   uniqueIds(ids, "edge");
   const graph = topology(mesh);
   const seen = new Set<string>();
@@ -153,6 +206,26 @@ function parseEdges(mesh: PolygonMesh, ids: readonly string[]): { from: number; 
     seen.add(key);
     return { from: half.from, to: half.to, face: half.face };
   });
+}
+
+/** Edges whose two ends are both selected. Each span keeps every half-edge on that edge. */
+function spansOf(mesh: PolygonMesh, vertices: readonly number[]): Span[] {
+  const selected = new Set(vertices);
+  const spans: Span[] = [];
+  for (const incident of topology(mesh).edges.values()) {
+    const half = incident[0];
+    if (half && selected.has(half.from) && selected.has(half.to)) spans.push({ half, incident });
+  }
+  return spans;
+}
+
+function assertCovered(vertices: readonly number[], spans: readonly Span[]): void {
+  const covered = new Set<number>();
+  for (const { half } of spans) {
+    covered.add(half.from);
+    covered.add(half.to);
+  }
+  if (vertices.some((vertex) => !covered.has(vertex))) throw new Error("Select both vertices of an edge. A lone vertex has no face to grow.");
 }
 
 function finish(draft: Draft, kind: ExtrudeKind, selection: readonly string[]): ExtrudeResult {
@@ -181,7 +254,7 @@ function finish(draft: Draft, kind: ExtrudeKind, selection: readonly string[]): 
     faces,
     channels: { positions: weights, corners: draft.corners, materials: draft.materials },
   };
-  return { mesh, selection: remap(kind, selection, map) };
+  return { mesh, selection: remap(kind, selection, map), walls: draft.walls };
 }
 
 function remap(kind: ExtrudeKind, selection: readonly string[], map: Map<number, number>): string[] {
@@ -198,6 +271,20 @@ function remap(kind: ExtrudeKind, selection: readonly string[], map: Map<number,
     if (from === undefined || to === undefined) throw new Error("Extrude lost a selected edge");
     return edgeKey(from, to);
   });
+}
+
+/**
+ * Checks that a selection can grow, without choosing an offset. The editor runs this before a drag starts,
+ * because a fixed probe offset would wrongly reject edges that run along it.
+ */
+export function checkExtrudeSelection(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonly string[]): void {
+  if (mesh.faces.length === 0) throw new Error("Mesh has no faces");
+  if (kind === "face") parseFaces(mesh, ids);
+  else if (kind === "edge") parseEdges(mesh, ids);
+  else {
+    const vertices = parseVertices(mesh, ids);
+    assertCovered(vertices, spansOf(mesh, vertices));
+  }
 }
 
 /**
@@ -236,8 +323,7 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
     for (const edge of edges) {
       copyVertex(draft, mesh, data, edge.from, offset);
       copyVertex(draft, mesh, data, edge.to, offset);
-      addWall(draft, mesh, data, edge.face, edge.from, edge.to);
-      orientWall(draft, adjacentNormal(mesh, graph.edges.get(edgeKey(edge.from, edge.to)) ?? []), center);
+      growWall(draft, mesh, data, center, edge, graph.edges.get(edgeKey(edge.from, edge.to)) ?? []);
     }
     const selection = edges.map((edge) => {
       const from = draft.copies.get(edge.from);
@@ -248,24 +334,62 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
     return finish(draft, kind, selection);
   }
   const vertices = parseVertices(mesh, ids);
-  const selected = new Set(vertices);
-  const covered = new Set<number>();
+  const spans = spansOf(mesh, vertices);
+  assertCovered(vertices, spans);
   const center = centerOf(mesh);
-  for (const incident of topology(mesh).edges.values()) {
-    const half = incident[0];
-    if (!half || !selected.has(half.from) || !selected.has(half.to)) continue;
+  for (const { half, incident } of spans) {
     copyVertex(draft, mesh, data, half.from, offset);
     copyVertex(draft, mesh, data, half.to, offset);
-    addWall(draft, mesh, data, half.face, half.from, half.to);
-    orientWall(draft, adjacentNormal(mesh, incident), center);
-    covered.add(half.from);
-    covered.add(half.to);
+    growWall(draft, mesh, data, center, half, incident);
   }
-  if (vertices.some((vertex) => !covered.has(vertex))) throw new Error("Select both vertices of an edge. A lone vertex has no face to grow.");
   const selection = vertices.map((vertex) => {
     const copy = draft.copies.get(vertex);
     if (copy === undefined) throw new Error("Missing extruded vertex");
     return String(copy);
   });
   return finish(draft, kind, selection);
+}
+
+/** Writes an extruded cage. Each new wall gets texture area, so its UVs do not collapse onto the edge it grew from. */
+export function writeExtrudedGeometry(source: BufferGeometry, result: ExtrudeResult): BufferGeometry {
+  return writeShadedGeometry(source, result.mesh, (uv, renderCorner) => {
+    for (const wall of result.walls) stretchWall(result.mesh, uv, wall, renderCorner);
+  });
+}
+
+/**
+ * Corners 0 and 1 are the wall's bottom edge; corners 2 and 3 are the copies above them. The top moves across the
+ * bottom's UV edge by the wall's height over its width, so the wall keeps the texel density of its bottom edge.
+ */
+function stretchWall(
+  mesh: PolygonMesh,
+  uv: BufferAttribute | InterleavedBufferAttribute,
+  wall: number,
+  renderCorner: (face: number, corner: number) => number,
+): void {
+  const face = mesh.faces[wall];
+  if (!face || face.length !== 4) return;
+  const a = point(mesh, face[0]);
+  const b = point(mesh, face[1]);
+  const top = point(mesh, face[3]);
+  const width = b.distanceTo(a);
+  if (!(width > 0)) return;
+  const along = b.clone().sub(a).divideScalar(width);
+  const rise = top.clone().sub(a);
+  const height = rise.clone().sub(along.clone().multiplyScalar(rise.dot(along))).length();
+  const bottomA = renderCorner(wall, 0);
+  const bottomB = renderCorner(wall, 1);
+  const topB = renderCorner(wall, 2);
+  const topA = renderCorner(wall, 3);
+  const u0 = uv.getX(bottomA);
+  const v0 = uv.getY(bottomA);
+  const u1 = uv.getX(bottomB);
+  const v1 = uv.getY(bottomB);
+  if (!(Math.hypot(u1 - u0, v1 - v0) > 0)) return;
+  // Perpendicular to the bottom edge in UV space, with length span * height / width.
+  const scale = height / width;
+  const du = -(v1 - v0) * scale;
+  const dv = (u1 - u0) * scale;
+  uv.setXY(topB, u1 + du, v1 + dv);
+  uv.setXY(topA, u0 + du, v0 + dv);
 }

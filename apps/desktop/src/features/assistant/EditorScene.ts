@@ -23,8 +23,7 @@ import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { extrudeRegion } from "../meshGeometry/meshExtrude";
-import { writeShadedGeometry } from "../meshGeometry/meshOutput";
+import { extrudeRegion, writeExtrudedGeometry } from "../meshGeometry/meshExtrude";
 import { copyTopology, readTopology } from "../meshGeometry/meshTopology";
 import { assignLocalMatrix, settleShear } from "../objectEditing/shearFit";
 import { assertEditableMesh, inspectMesh, meshAtPath, evaluateStack, evaluateBase, modifierStack, commitStack, copyModifierStack, disposeModifierStack, type ModifierStackState } from "../meshGeometry";
@@ -617,7 +616,7 @@ export class EditorScene {
         const [x, y, z] = command.offset;
         if (x === undefined || y === undefined || z === undefined) throw new Error("Extrude offset must move the selection");
         const extruded = extrudeRegion(readTopology(source), command.kind, command.ids, new Vector3(x, y, z));
-        const base = writeShadedGeometry(source, extruded.mesh);
+        const base = writeExtrudedGeometry(source, extruded);
         let display = base;
         try {
           if (modifiers.length > 0) display = evaluateBase(base, modifiers);

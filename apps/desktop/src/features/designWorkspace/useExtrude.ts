@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { EditorScene } from "@/features/assistant";
 import { ExtrudeGesture } from "@/features/objectEditing/ExtrudeGesture";
-import { saveManualCommands } from "@/features/objectEditing/saveManualCommands";
 import type { Viewport } from "@/features/viewport3d";
 import { errorMessage, type SerialQueue } from "@/lib";
-import { queueComponentSelection } from "./componentRestore";
+import { saveExtrude } from "./saveExtrude";
 import { setComponentError } from "./workspaceSlice";
 
 /** Edit-mode E extrudes the component selection and saves it with the project. */
@@ -36,23 +35,7 @@ export function useExtrude(
       },
       (commit) => {
         dispatch(setComponentError(""));
-        saves.run(async () => {
-          queueComponentSelection({ objectId: commit.objectId, meshPath: commit.meshPath, ids: commit.selection });
-          try {
-            await saveManualCommands(scene, [{
-              commandId: `extrude_${crypto.randomUUID()}`,
-              type: "geometry.extrude",
-              objectId: commit.objectId,
-              meshPath: commit.meshPath,
-              kind: commit.kind,
-              ids: commit.ids,
-              offset: commit.offset,
-            }]);
-          } catch (error) {
-            queueComponentSelection(null);
-            throw error;
-          }
-        }, (failure) => dispatch(setComponentError(errorMessage(failure))));
+        saves.run(() => saveExtrude(scene, commit), (failure) => dispatch(setComponentError(errorMessage(failure))));
       },
       (error) => dispatch(setComponentError(errorMessage(error))),
       setHint,

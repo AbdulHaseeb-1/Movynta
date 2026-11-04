@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { BoxGeometry, DoubleSide, FrontSide, Mesh, MeshStandardMaterial, PlaneGeometry, Scene, SphereGeometry, Vector3 } from "three";
+import { BoxGeometry, DoubleSide, FrontSide, Mesh, MeshStandardMaterial, PlaneGeometry, Scene, SphereGeometry, Vector3, type BufferGeometry } from "three";
 import { EditorScene } from "../assistant/EditorScene";
 import { commitStack, evaluateStack } from "./modifierStack";
-import { extrudeRegion } from "./meshExtrude";
+import { checkExtrudeSelection, extrudeRegion, writeExtrudedGeometry, ZeroAreaWallError, type ExtrudeResult } from "./meshExtrude";
 import { hardCageVertices, triangulate, writeGeometry, writeShadedGeometry } from "./meshOutput";
 import { assertManifold, edgeKey, faceNormal, point, readTopology, topology, type PolygonMesh } from "./meshTopology";
 import { basis } from "./meshWeights";
@@ -36,6 +36,45 @@ function triangulateSafe(face: readonly number[]): number[][] {
   throw new Error(`Unexpected face with ${face.length} corners`);
 }
 
+/** Every corner of a flat-shaded triangle carries that triangle's normal. */
+function expectFlat(geometry: BufferGeometry): void {
+  const position = geometry.getAttribute("position");
+  const normal = geometry.getAttribute("normal");
+  const index = geometry.getIndex();
+  if (!index) throw new Error("Missing index");
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i);
+    const b = index.getX(i + 1);
+    const c = index.getX(i + 2);
+    const pa = new Vector3().fromBufferAttribute(position, a);
+    const face = new Vector3().fromBufferAttribute(position, b).sub(pa).cross(new Vector3().fromBufferAttribute(position, c).sub(pa)).normalize();
+    for (const vertex of [a, b, c]) expect(new Vector3().fromBufferAttribute(normal, vertex).dot(face)).toBeGreaterThan(0.99);
+  }
+}
+/** First render index of each cage face in a smooth write, where every face corner gets its own vertex. */
+function renderStarts(mesh: PolygonMesh): number[] {
+  const starts: number[] = [];
+  let next = 0;
+  for (const face of mesh.faces) {
+    starts.push(next);
+    next += face.length;
+  }
+  return starts;
+}
+function uvArea(uv: { getX(index: number): number; getY(index: number): number }, a: number, b: number, c: number): number {
+  return Math.abs((uv.getX(b) - uv.getX(a)) * (uv.getY(c) - uv.getY(a)) - (uv.getX(c) - uv.getX(a)) * (uv.getY(b) - uv.getY(a))) / 2;
+}
+function expectTexturedWalls(source: BufferGeometry, result: ExtrudeResult): void {
+  const uv = writeExtrudedGeometry(source, result).getAttribute("uv");
+  const starts = renderStarts(result.mesh);
+  expect(result.walls.length).toBeGreaterThan(0);
+  for (const wall of result.walls) {
+    const first = starts[wall] ?? Number.NaN;
+    expect(uvArea(uv, first, first + 1, first + 2)).toBeGreaterThan(1e-3);
+    expect(uvArea(uv, first, first + 2, first + 3)).toBeGreaterThan(1e-3);
+  }
+}
+
 describe("extrude region", () => {
   it("raises a cube face and keeps the result a closed manifold", () => {
     const cage = readTopology(new BoxGeometry(2, 2, 2));
@@ -57,7 +96,8 @@ describe("extrude region", () => {
     const first = shared?.[0]?.face;
     const second = shared?.[1]?.face;
     if (first === undefined || second === undefined) throw new Error("Missing adjacent faces");
-    const result = extrudeRegion(cage, "face", [String(first), String(second)], new Vector3(0, 1, 0));
+    // An oblique offset: an axis-aligned one runs parallel to a vertical boundary edge and leaves a zero-area wall.
+    const result = extrudeRegion(cage, "face", [String(first), String(second)], new Vector3(0.3, 1, 0.2));
     expect(result.mesh.faces).toHaveLength(12);
     expect(() => assertManifold(result.mesh, topology(result.mesh), true)).not.toThrow();
   });
@@ -80,7 +120,8 @@ describe("extrude region", () => {
     const cube = readTopology(new BoxGeometry(2, 2, 2));
     const interior = [...topology(cube).edges.values()].find((incident) => incident.length === 2)?.[0];
     if (!interior) throw new Error("Missing interior edge");
-    const fin = extrudeRegion(cube, "edge", [edgeKey(interior.from, interior.to)], new Vector3(0, 1, 0));
+    // Oblique, so the offset is not parallel to a vertical edge, which would give the fin no area.
+    const fin = extrudeRegion(cube, "edge", [edgeKey(interior.from, interior.to)], new Vector3(0.3, 1, 0.2));
     expect([...topology(fin.mesh).edges.values()].some((incident) => incident.length === 3)).toBe(true);
   });
 
@@ -122,19 +163,7 @@ describe("extrude region", () => {
     const source = new BoxGeometry(2, 2, 2);
     const cage = readTopology(source);
     const result = extrudeRegion(cage, "face", [String(top(cage))], new Vector3(0, 1, 0));
-    const written = writeShadedGeometry(source, result.mesh);
-    const position = written.getAttribute("position");
-    const normal = written.getAttribute("normal");
-    const index = written.getIndex();
-    if (!index) throw new Error("Missing index");
-    for (let i = 0; i < index.count; i += 3) {
-      const a = index.getX(i);
-      const b = index.getX(i + 1);
-      const c = index.getX(i + 2);
-      const pa = new Vector3().fromBufferAttribute(position, a);
-      const face = new Vector3().fromBufferAttribute(position, b).sub(pa).cross(new Vector3().fromBufferAttribute(position, c).sub(pa)).normalize();
-      for (const vertex of [a, b, c]) expect(new Vector3().fromBufferAttribute(normal, vertex).dot(face)).toBeGreaterThan(0.99);
-    }
+    expectFlat(writeShadedGeometry(source, result.mesh));
     const sphere = new SphereGeometry(1, 8, 6);
     expect(hardCageVertices(sphere, readTopology(sphere)).size).toBe(0);
   });
@@ -150,6 +179,61 @@ describe("extrude region", () => {
     expect(() => extrudeRegion(mesh, "vertex", ["0"], new Vector3(0, 0, 1))).toThrow(/both vertices/);
     expect(() => extrudeRegion(mesh, "face", ["0"], new Vector3(0, 0, 0))).toThrow(/move the selection/);
     expect(() => extrudeRegion(mesh, "face", ["4"], new Vector3(0, 1, 0))).toThrow(/Unknown face/);
+  });
+});
+
+describe("extrude walls", () => {
+  it("winds a boundary wall against its edge so the sheet stays one consistent surface", () => {
+    const plane = readTopology(new PlaneGeometry(1, 1));
+    const boundary = [...topology(plane).edges.values()].find((incident) => incident.length === 1)?.[0];
+    if (!boundary) throw new Error("Missing boundary");
+    const sheet = extrudeRegion(plane, "edge", [edgeKey(boundary.from, boundary.to)], new Vector3(0, 0, 1));
+    expect(() => assertManifold(sheet.mesh, topology(sheet.mesh))).not.toThrow();
+  });
+
+  it("refuses a wall whose offset runs along its own edge, and still accepts that edge as a selection", () => {
+    const cube = readTopology(new BoxGeometry(2, 2, 2));
+    const edge = [...topology(cube).edges.values()].find((incident) => incident.length === 2)?.[0];
+    if (!edge) throw new Error("Missing edge");
+    const along = point(cube, edge.to).clone().sub(point(cube, edge.from));
+    expect(() => extrudeRegion(cube, "edge", [edgeKey(edge.from, edge.to)], along)).toThrow(ZeroAreaWallError);
+    expect(() => checkExtrudeSelection(cube, "edge", [edgeKey(edge.from, edge.to)])).not.toThrow();
+  });
+
+  it("starts a drag on a vertical edge, which a fixed upward probe would have rejected", () => {
+    const cube = readTopology(new BoxGeometry(2, 2, 2));
+    const vertical = [...topology(cube).edges.values()].find((incident) => {
+      const half = incident[0];
+      if (!half) return false;
+      return Math.abs(point(cube, half.to).clone().sub(point(cube, half.from)).normalize().y) > 0.99;
+    })?.[0];
+    if (!vertical) throw new Error("Missing vertical edge");
+    expect(() => checkExtrudeSelection(cube, "edge", [edgeKey(vertical.from, vertical.to)])).not.toThrow();
+    expect(() => extrudeRegion(cube, "edge", [edgeKey(vertical.from, vertical.to)], new Vector3(1, 0, 0))).not.toThrow();
+  });
+
+  it("gives every extruded wall texture area, for face, edge and vertex extrudes", () => {
+    const source = new BoxGeometry(2, 2, 2);
+    const cage = readTopology(source);
+    const topFace = cage.faces.findIndex((face) => faceNormal(cage, face).y > 0.9);
+    expectTexturedWalls(source, extrudeRegion(cage, "face", [String(topFace)], new Vector3(0, 1, 0)));
+    const edge = [...topology(cage).edges.values()].find((incident) => incident.length === 2)?.[0];
+    if (!edge) throw new Error("Missing edge");
+    expectTexturedWalls(source, extrudeRegion(cage, "edge", [edgeKey(edge.from, edge.to)], new Vector3(0.3, 1, 0.2)));
+    const pair = [String(edge.from), String(edge.to)];
+    expectTexturedWalls(source, extrudeRegion(cage, "vertex", pair, new Vector3(0.3, 1, 0.2)));
+  });
+
+  it("keeps cube faces flat after edge and vertex extrudes, including a second extrude of the written result", () => {
+    const source = new BoxGeometry(2, 2, 2);
+    const cage = readTopology(source);
+    const edge = [...topology(cage).edges.values()].find((incident) => incident.length === 2)?.[0];
+    if (!edge) throw new Error("Missing edge");
+    const first = writeExtrudedGeometry(source, extrudeRegion(cage, "edge", [edgeKey(edge.from, edge.to)], new Vector3(0.3, 1, 0.2)));
+    expectFlat(first);
+    const next = readTopology(first);
+    const topFace = next.faces.findIndex((face) => faceNormal(next, face).y > 0.9);
+    expectFlat(writeExtrudedGeometry(first, extrudeRegion(next, "face", [String(topFace)], new Vector3(0, 0.5, 0))));
   });
 });
 
