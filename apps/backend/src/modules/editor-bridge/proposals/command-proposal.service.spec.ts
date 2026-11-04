@@ -149,6 +149,16 @@ describe("command proposals", () => {
     expect((await service.apply(run, proposal.id)).status).toBe("failed");
     expect(bridge.executions).toHaveLength(1);
   });
+  it("requires approval and refuses to rebase face subdivision, like the other base-cage edits", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
+    const proposal = await service.propose(run, { summary: "Subdivide two faces", commands: [{ commandId: "f", type: "geometry.subdivide_faces", objectId: "mesh", meshPath: [], ids: ["0", "4"] }] });
+    expect(proposal.requiresApproval).toBe(true); expect(proposal.strictRevision).toBe(true);
+    bridge.scene = { ...bridge.scene, revision: 5 };
+    expect((await service.apply(run, proposal.id)).status).toBe("failed");
+    expect(bridge.executions).toHaveLength(1);
+  });
+
   it("rejects calculated commands from an obsolete snapshot", async () => {
     const { service, run } = setup();
     await expect(service.propose(run, { summary: "Calculated layout", commands: [addBox], expectedRevision: 3 })).rejects.toThrow(ConflictError);
