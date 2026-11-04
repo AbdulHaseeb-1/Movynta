@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
+import { isWithinBranch } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import { ApprovalPolicy } from "../../approvals/approval.policy.js";
 import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
@@ -337,7 +338,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           );
           break;
         }
-        if (command.parentId !== null && isWithinBranch(command.parentId, command.objectId, parents)) {
+        if (command.parentId !== null && isWithinBranch(command.parentId, command.objectId, (id) => parents.get(id))) {
           issue(
             command.commandId,
             `"${command.objectId}" cannot be placed under "${command.parentId}": that would put it under itself or under something that hangs below it`,
@@ -428,17 +429,6 @@ function booleanCycles(commands: readonly EditorCommand[]): ProposalIssue[] {
     issues.push({ commandId: edge.commandId, message: "Boolean modifiers form a cycle" });
   }
   return issues;
-}
-
-function isWithinBranch(candidate: string, id: string, parents: ReadonlyMap<string, string | null>): boolean {
-  const seen = new Set<string>();
-  let current: string | null | undefined = candidate;
-  while (current && !seen.has(current)) {
-    if (current === id) return true;
-    seen.add(current);
-    current = parents.get(current);
-  }
-  return false;
 }
 
 /** The fix depends on whether the id was taken by this same batch (a common mix-up) or already in the scene. */

@@ -13,7 +13,7 @@ import {
   type Quaternion,
   type Scene,
 } from "three";
-import { editorCommandListSchema, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
+import { editorCommandListSchema, isWithinBranch, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
@@ -1188,9 +1188,8 @@ export class EditorScene {
    * is changed to make up for the new parent's. An object cannot go under itself or under anything below it.
    */
   private reparent(object: Object3D, parent: Object3D | undefined) {
-    for (let above: Object3D | null | undefined = parent; above; above = above.parent)
-      if (above === object)
-        throw new Error("An object cannot be placed under itself or under something that hangs below it");
+    if (isWithinBranch(parent, object, (node) => node.parent))
+      throw new Error("An object cannot be placed under itself or under something that hangs below it");
     object.updateWorldMatrix(true, false);
     const world = object.matrixWorld.clone();
     object.removeFromParent();
