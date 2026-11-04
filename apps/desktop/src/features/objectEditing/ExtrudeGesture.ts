@@ -267,6 +267,8 @@ export class ExtrudeGesture {
     window.addEventListener("contextmenu", contextmenu, true);
     window.addEventListener("blur", blur);
     const unsubscribe = editor.onChange(() => { if (this.session && editor.currentRevision !== this.session.revision) end(false); });
+    // Ends the preview before another change or inspection reads the displayed geometry, so it sees the committed cage.
+    const unsubscribeBefore = editor.onBeforeChange(() => { if (this.session) end(false); });
     const stopFrame = viewport.addFrameListener(() => { if (this.session && !enabled()) end(false); else flush(); });
     this.cleanups.push(
       () => window.removeEventListener("keydown", keydown, true),
@@ -275,6 +277,7 @@ export class ExtrudeGesture {
       () => window.removeEventListener("contextmenu", contextmenu, true),
       () => window.removeEventListener("blur", blur),
       unsubscribe,
+      unsubscribeBefore,
       stopFrame,
       () => end(false),
     );

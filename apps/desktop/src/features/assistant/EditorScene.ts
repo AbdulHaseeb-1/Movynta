@@ -115,6 +115,7 @@ export class EditorScene {
   /** The selected objects in the order they were chosen; the last one is the active object. */
   private selected: readonly string[] = [];
   private readonly listeners = new Set<() => void>();
+  private readonly changeStarts = new Set<() => void>();
   /** Each registered object's id, so finding it from the object never has to search. */
   private ids = new WeakMap<Object3D, string>();
   private readonly idLookup: IdLookup = { has: (id) => this.objects.has(id) };
@@ -158,6 +159,19 @@ export class EditorScene {
 
   private notify() {
     for (const listener of this.listeners) listener();
+  }
+
+  /**
+   * Calls `listener` before a change, a prepared fork or an inspection reads the displayed geometry, so it can end a
+   * preview that is on screen. Those paths must build on the committed geometry, not on a preview.
+   */
+  onBeforeChange(listener: () => void): () => void {
+    this.changeStarts.add(listener);
+    return () => this.changeStarts.delete(listener);
+  }
+
+  private beginChange() {
+    for (const listener of this.changeStarts) listener();
   }
 
   getObject(id: string): Object3D | undefined {
@@ -378,6 +392,7 @@ export class EditorScene {
     }
     if (this.prepared?.id === proposalId) return { ...applied(), revision: this.prepared.candidate.currentRevision };
     if (this.prepared) throw new Error("Another scene change is being prepared");
+    this.beginChange();
     const candidate = this.fork();
     let result: ReturnType<EditorScene["execute"]>;
     try { result = candidate.execute(proposalId, expectedRevision, commands); }
@@ -411,6 +426,7 @@ export class EditorScene {
 
   /** Empties the scene, as when a project is opened again after a failed attempt. */
   reset() {
+    this.beginChange();
     this.discardPrepared();
     for (const object of this.objects.values()) this.disposeTree(object);
     this.objects = new Map();
@@ -440,6 +456,7 @@ export class EditorScene {
     if (this.prepared) throw new Error("Wait for the prepared scene change to finish");
     if (this.objects.has(objectId))
       throw new Error(`Object "${objectId}" already exists`);
+    this.beginChange();
     this.objects.set(objectId, object);
     this.ids.set(object, objectId);
     if (!object.parent) this.scene.add(object);
@@ -449,6 +466,8 @@ export class EditorScene {
 
   context(inspection?: MeshInspectionRequest) {
     this.scene.updateMatrixWorld(true);
+    // Inspection names components on the committed cage, which is what the next edit will change.
+    if (inspection) this.beginChange();
     const bounds = sceneBounds(this.objects.values());
     const objects = [];
     for (const [id, object] of this.objects) {
@@ -495,6 +514,7 @@ export class EditorScene {
         revision: this.revision,
         results: [],
       };
+    this.beginChange();
     if (commands.some(isGeometryCommand)) return this.applyGeometryBatch(proposalId, commands, results);
     if (commands.some(isExtrudeCommand)) return this.applyExtrudeBatch(proposalId, commands, results);
     // Moving, turning, resizing and deleting are the common edits, and need no copy of the scene to be safe.
