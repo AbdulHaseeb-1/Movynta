@@ -1,0 +1,212 @@
+{
+  "meta": {
+    "set": "v0-54814fe",
+    "commit": "54814fe",
+    "scenario": "custom",
+    "description": "A custom polygon mesh, extruded, then given a live bevel."
+  },
+  "steps": [
+    {
+      "kind": "commands",
+      "proposalId": "golden_1",
+      "commands": [
+        {
+          "commandId": "mesh",
+          "type": "geometry.create_mesh",
+          "objectId": "custom",
+          "name": "Custom",
+          "vertices": [
+            [
+              -1,
+              -1,
+              -1
+            ],
+            [
+              1,
+              -1,
+              -1
+            ],
+            [
+              1,
+              1,
+              -1
+            ],
+            [
+              -1,
+              1,
+              -1
+            ],
+            [
+              -1,
+              -1,
+              1
+            ],
+            [
+              1,
+              -1,
+              1
+            ],
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              -1,
+              1,
+              1
+            ]
+          ],
+          "faces": [
+            [
+              0,
+              3,
+              2,
+              1
+            ],
+            [
+              4,
+              5,
+              6,
+              7
+            ],
+            [
+              0,
+              1,
+              5,
+              4
+            ],
+            [
+              1,
+              2,
+              6,
+              5
+            ],
+            [
+              2,
+              3,
+              7,
+              6
+            ],
+            [
+              3,
+              0,
+              4,
+              7
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_2",
+      "commands": [
+        {
+          "commandId": "place_custom",
+          "type": "scene.transform_object",
+          "objectId": "custom",
+          "transform": {
+            "position": [
+              0,
+              1,
+              0
+            ],
+            "rotation": [
+              0,
+              0.6,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_3",
+      "commands": [
+        {
+          "commandId": "out",
+          "type": "geometry.extrude",
+          "objectId": "custom",
+          "meshPath": [],
+          "kind": "face",
+          "ids": [
+            "1"
+          ],
+          "normalDistance": 0.5
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_4",
+      "commands": [
+        {
+          "commandId": "soften",
+          "type": "geometry.bevel",
+          "objectId": "custom",
+          "meshPath": [],
+          "width": 0.08,
+          "segments": 2
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "revision": 4,
+    "objects": [
+      {
+        "id": "custom",
+        "name": "Custom",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          1,
+          0
+        ],
+        "rotation": [
+          0,
+          0.6,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -1.38998,
+          0,
+          -1.38998,
+          1.6723,
+          2,
+          1.80265
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "objectId": "custom",
+        "ordinal": 0,
+        "name": "Custom",
+        "visible": true,
+        "vertices": 312,
+        "triangles": 132,
+        "geometry": "209f88c5/0a0676f5",
+        "world": "1c80d095",
+        "modifiers": [
+          {
+            "id": "soften",
+            "kind": "bevel",
+            "enabled": true,
+            "width": 0.08,
+            "segments": 2
+          }
+        ]
+      }
+    ]
+  }
+}

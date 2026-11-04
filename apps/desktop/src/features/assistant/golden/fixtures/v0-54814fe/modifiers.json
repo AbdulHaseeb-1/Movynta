@@ -1,0 +1,258 @@
+{
+  "meta": {
+    "set": "v0-54814fe",
+    "commit": "54814fe",
+    "scenario": "modifiers",
+    "description": "Live modifier stacks: bevel and subdivision added one by one, then replaced, disabled and cleared."
+  },
+  "steps": [
+    {
+      "kind": "commands",
+      "proposalId": "golden_1",
+      "commands": [
+        {
+          "commandId": "make_block",
+          "type": "geometry.create_primitive",
+          "objectId": "block",
+          "primitive": "box",
+          "size": 2,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_ball",
+          "type": "geometry.create_primitive",
+          "objectId": "ball",
+          "primitive": "icosahedron",
+          "size": 1.5,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "place_ball",
+          "type": "scene.transform_object",
+          "objectId": "ball",
+          "transform": {
+            "position": [
+              4,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_2",
+      "commands": [
+        {
+          "commandId": "bevel",
+          "type": "geometry.bevel",
+          "objectId": "block",
+          "meshPath": [],
+          "width": 0.15,
+          "segments": 3,
+          "profile": "circular"
+        },
+        {
+          "commandId": "smooth",
+          "type": "geometry.subdivide",
+          "objectId": "block",
+          "meshPath": [],
+          "levels": 1,
+          "method": "catmull-clark"
+        },
+        {
+          "commandId": "loop",
+          "type": "geometry.subdivide",
+          "objectId": "ball",
+          "meshPath": [],
+          "levels": 1,
+          "method": "loop"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_3",
+      "commands": [
+        {
+          "commandId": "stack",
+          "type": "geometry.set_modifiers",
+          "objectId": "block",
+          "meshPath": [],
+          "modifiers": [
+            {
+              "id": "b",
+              "enabled": true,
+              "kind": "bevel",
+              "width": 0.1,
+              "segments": 2,
+              "profile": "round"
+            },
+            {
+              "id": "s",
+              "enabled": false,
+              "kind": "subdivision",
+              "levels": 2,
+              "method": "catmull-clark"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_4",
+      "commands": [
+        {
+          "commandId": "place_block",
+          "type": "scene.transform_object",
+          "objectId": "block",
+          "transform": {
+            "position": [
+              0,
+              1,
+              0
+            ],
+            "rotation": [
+              0.2,
+              0.4,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_5",
+      "commands": [
+        {
+          "commandId": "clear",
+          "type": "geometry.set_modifiers",
+          "objectId": "block",
+          "meshPath": [],
+          "modifiers": []
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_6",
+      "commands": [
+        {
+          "commandId": "again",
+          "type": "geometry.subdivide",
+          "objectId": "ball",
+          "meshPath": [],
+          "levels": 1,
+          "method": "linear"
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "revision": 6,
+    "objects": [
+      {
+        "id": "block",
+        "name": "box",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          1,
+          0
+        ],
+        "rotation": [
+          0.2,
+          0.4,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -1.31048,
+          -0.24042,
+          -1.48303,
+          1.31048,
+          2.24042,
+          1.48303
+        ]
+      },
+      {
+        "id": "ball",
+        "name": "icosahedron",
+        "type": "mesh",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          4,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          3.42293,
+          -0.57707,
+          -0.57707,
+          4.57707,
+          0.57707,
+          0.57707
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "objectId": "block",
+        "ordinal": 0,
+        "name": "box",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "dc6ffa65/26e0eb95",
+        "world": "89ad2e67",
+        "modifiers": []
+      },
+      {
+        "objectId": "ball",
+        "ordinal": 0,
+        "name": "icosahedron",
+        "visible": true,
+        "vertices": 960,
+        "triangles": 480,
+        "geometry": "27aae31d/3166a1c5",
+        "world": "3b4384c5",
+        "modifiers": [
+          {
+            "id": "loop",
+            "kind": "subdivision",
+            "enabled": true,
+            "levels": 1,
+            "method": "loop"
+          },
+          {
+            "id": "again",
+            "kind": "subdivision",
+            "enabled": true,
+            "levels": 1,
+            "method": "linear"
+          }
+        ]
+      }
+    ]
+  }
+}

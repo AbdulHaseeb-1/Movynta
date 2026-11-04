@@ -1,0 +1,742 @@
+{
+  "meta": {
+    "set": "v0-54814fe",
+    "commit": "54814fe",
+    "scenario": "duplicates",
+    "description": "Objects that share a name under one parent, which the editor of the time allowed and today's numbers (Part, Part.001)."
+  },
+  "steps": [
+    {
+      "kind": "commands",
+      "proposalId": "golden_1",
+      "commands": [
+        {
+          "commandId": "make_a",
+          "type": "geometry.create_primitive",
+          "objectId": "a",
+          "primitive": "box",
+          "size": 1,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_b",
+          "type": "geometry.create_primitive",
+          "objectId": "b",
+          "primitive": "box",
+          "size": 1,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_c",
+          "type": "geometry.create_primitive",
+          "objectId": "c",
+          "primitive": "box",
+          "size": 1,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "group_g1",
+          "type": "scene.create_object",
+          "objectId": "g1",
+          "name": "Group"
+        },
+        {
+          "commandId": "group_g2",
+          "type": "scene.create_object",
+          "objectId": "g2",
+          "name": "Group"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_2",
+      "commands": [
+        {
+          "commandId": "rename_a",
+          "type": "scene.rename_object",
+          "objectId": "a",
+          "name": "Part"
+        },
+        {
+          "commandId": "rename_b",
+          "type": "scene.rename_object",
+          "objectId": "b",
+          "name": "Part"
+        },
+        {
+          "commandId": "rename_c",
+          "type": "scene.rename_object",
+          "objectId": "c",
+          "name": "Part"
+        },
+        {
+          "commandId": "place_b",
+          "type": "scene.transform_object",
+          "objectId": "b",
+          "transform": {
+            "position": [
+              2,
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "commandId": "place_c",
+          "type": "scene.transform_object",
+          "objectId": "c",
+          "transform": {
+            "position": [
+              4,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_3",
+      "commands": [
+        {
+          "commandId": "group_holder",
+          "type": "scene.create_object",
+          "objectId": "holder",
+          "name": "Holder"
+        },
+        {
+          "commandId": "adopt_a",
+          "type": "scene.set_parent",
+          "objectId": "a",
+          "parentId": "holder"
+        },
+        {
+          "commandId": "adopt_b",
+          "type": "scene.set_parent",
+          "objectId": "b",
+          "parentId": "holder"
+        },
+        {
+          "commandId": "adopt_c",
+          "type": "scene.set_parent",
+          "objectId": "c",
+          "parentId": "holder"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_4",
+      "commands": [
+        {
+          "commandId": "group_p1",
+          "type": "scene.create_object",
+          "objectId": "p1",
+          "name": "Left"
+        },
+        {
+          "commandId": "group_p2",
+          "type": "scene.create_object",
+          "objectId": "p2",
+          "name": "Right"
+        },
+        {
+          "commandId": "make_x",
+          "type": "geometry.create_primitive",
+          "objectId": "x",
+          "primitive": "box",
+          "size": 1,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "make_y",
+          "type": "geometry.create_primitive",
+          "objectId": "y",
+          "primitive": "box",
+          "size": 1,
+          "replaceExisting": false
+        },
+        {
+          "commandId": "adopt_x",
+          "type": "scene.set_parent",
+          "objectId": "x",
+          "parentId": "p1"
+        },
+        {
+          "commandId": "adopt_y",
+          "type": "scene.set_parent",
+          "objectId": "y",
+          "parentId": "p2"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_5",
+      "commands": [
+        {
+          "commandId": "rename_x",
+          "type": "scene.rename_object",
+          "objectId": "x",
+          "name": "Leg"
+        },
+        {
+          "commandId": "rename_y",
+          "type": "scene.rename_object",
+          "objectId": "y",
+          "name": "Leg"
+        }
+      ]
+    },
+    {
+      "kind": "commands",
+      "proposalId": "golden_6",
+      "commands": [
+        {
+          "commandId": "adopt_y",
+          "type": "scene.set_parent",
+          "objectId": "y",
+          "parentId": "p1"
+        }
+      ]
+    },
+    {
+      "kind": "import",
+      "assetId": "robot",
+      "objectId": "m1",
+      "name": "robot.glb",
+      "format": "glb"
+    },
+    {
+      "kind": "import",
+      "assetId": "robot",
+      "objectId": "m2",
+      "name": "robot.glb",
+      "format": "glb"
+    }
+  ],
+  "expected": {
+    "revision": 8,
+    "objects": [
+      {
+        "id": "a",
+        "name": "Part",
+        "type": "mesh",
+        "parentId": "holder",
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -0.5,
+          -0.5,
+          -0.5,
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "id": "b",
+        "name": "Part",
+        "type": "mesh",
+        "parentId": "holder",
+        "visible": true,
+        "position": [
+          2,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          1.5,
+          -0.5,
+          -0.5,
+          2.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "id": "c",
+        "name": "Part",
+        "type": "mesh",
+        "parentId": "holder",
+        "visible": true,
+        "position": [
+          4,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          3.5,
+          -0.5,
+          -0.5,
+          4.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "id": "g1",
+        "name": "Group",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": null
+      },
+      {
+        "id": "g2",
+        "name": "Group",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": null
+      },
+      {
+        "id": "holder",
+        "name": "Holder",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -0.5,
+          -0.5,
+          -0.5,
+          4.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "id": "p1",
+        "name": "Left",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -0.5,
+          -0.5,
+          -0.5,
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Right",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": null
+      },
+      {
+        "id": "x",
+        "name": "Leg",
+        "type": "mesh",
+        "parentId": "p1",
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -0.5,
+          -0.5,
+          -0.5,
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "id": "y",
+        "name": "Leg",
+        "type": "mesh",
+        "parentId": "p1",
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          -0.5,
+          -0.5,
+          -0.5,
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "id": "m1",
+        "name": "robot.glb",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          0,
+          -0.5,
+          -0.5,
+          9.5,
+          1,
+          1
+        ]
+      },
+      {
+        "id": "m2",
+        "name": "robot.glb",
+        "type": "empty",
+        "parentId": null,
+        "visible": true,
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": [
+          0,
+          -0.5,
+          -0.5,
+          9.5,
+          1,
+          1
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "objectId": "a",
+        "ordinal": 0,
+        "name": "Part",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "5896e645",
+        "modifiers": []
+      },
+      {
+        "objectId": "b",
+        "ordinal": 0,
+        "name": "Part",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "68324c05",
+        "modifiers": []
+      },
+      {
+        "objectId": "c",
+        "ordinal": 0,
+        "name": "Part",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "3b4384c5",
+        "modifiers": []
+      },
+      {
+        "objectId": "holder",
+        "ordinal": 0,
+        "name": "Part",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "5896e645",
+        "modifiers": []
+      },
+      {
+        "objectId": "holder",
+        "ordinal": 1,
+        "name": "Part",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "68324c05",
+        "modifiers": []
+      },
+      {
+        "objectId": "holder",
+        "ordinal": 2,
+        "name": "Part",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "3b4384c5",
+        "modifiers": []
+      },
+      {
+        "objectId": "p1",
+        "ordinal": 0,
+        "name": "Leg",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "5896e645",
+        "modifiers": []
+      },
+      {
+        "objectId": "p1",
+        "ordinal": 1,
+        "name": "Leg",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "5896e645",
+        "modifiers": []
+      },
+      {
+        "objectId": "x",
+        "ordinal": 0,
+        "name": "Leg",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "5896e645",
+        "modifiers": []
+      },
+      {
+        "objectId": "y",
+        "ordinal": 0,
+        "name": "Leg",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "5896e645",
+        "modifiers": []
+      },
+      {
+        "objectId": "m1",
+        "ordinal": 0,
+        "name": "Head",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "5e3a7325",
+        "modifiers": []
+      },
+      {
+        "objectId": "m1",
+        "ordinal": 1,
+        "name": "Cutter",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "a5204935",
+        "modifiers": []
+      },
+      {
+        "objectId": "m1",
+        "ordinal": 2,
+        "name": "Arm",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "4fd3eba5",
+        "modifiers": []
+      },
+      {
+        "objectId": "m2",
+        "ordinal": 0,
+        "name": "Head",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "5e3a7325",
+        "modifiers": []
+      },
+      {
+        "objectId": "m2",
+        "ordinal": 1,
+        "name": "Cutter",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "a5204935",
+        "modifiers": []
+      },
+      {
+        "objectId": "m2",
+        "ordinal": 2,
+        "name": "Arm",
+        "visible": true,
+        "vertices": 24,
+        "triangles": 12,
+        "geometry": "66b493e5/26e0eb95",
+        "world": "4fd3eba5",
+        "modifiers": []
+      }
+    ]
+  }
+}
