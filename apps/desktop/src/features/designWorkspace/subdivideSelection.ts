@@ -1,6 +1,6 @@
 import type { EditorScene } from "@/features/assistant";
 import type { SerialQueue } from "@/lib";
-import { meshAtPath } from "@/features/meshGeometry";
+import { meshAtPath, modifierStack } from "@/features/meshGeometry";
 import { subdivideFaces } from "@/features/meshGeometry/meshSubdivideFaces";
 import { readTopology } from "@/features/meshGeometry/meshTopology";
 import { saveCageEdit } from "./saveCageEdit";
@@ -24,6 +24,9 @@ export function subdivideSelectedFaces(
 ): void {
   try {
     const mesh = meshAtPath(scene.getObject(choice.objectId), choice.meshPath);
+    // The picks name the display mesh while a modifier is enabled, so they cannot be subdivided until it is off.
+    if ((modifierStack(mesh)?.modifiers ?? []).some((modifier) => modifier.enabled))
+      throw new Error("Disable modifiers before editing components, so the selection matches the base mesh");
     const revision = scene.currentRevision;
     const { selection } = subdivideFaces(readTopology(mesh.geometry), choice.ids);
     saves.run(() => saveCageEdit(scene, {

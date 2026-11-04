@@ -18,7 +18,7 @@ import {
   type Object3D,
   type Scene,
 } from "three";
-import { editorCommandListSchema } from "@movynta/editor-protocol";
+import { editorCommandListSchema, type designFocusSchema } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
@@ -29,6 +29,9 @@ import { copyTopology, readTopology, type PolygonMesh } from "../meshGeometry/me
 import { assignLocalMatrix, settleShear } from "../objectEditing/shearFit";
 import { assertEditableMesh, inspectMesh, meshAtPath, evaluateStack, evaluateBase, modifierStack, commitStack, copyModifierStack, disposeModifierStack, type ModifierStackState } from "../meshGeometry";
 import type { MeshInspectionRequest } from "@movynta/editor-protocol";
+
+/** What the user is doing with the design tools, as the assistant is told about it. */
+export type DesignFocus = z.infer<typeof designFocusSchema>;
 
 type Command = z.infer<typeof editorCommandListSchema>[number];
 type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" }>;
@@ -125,6 +128,7 @@ export class EditorScene {
   private selected: readonly string[] = [];
   private readonly listeners = new Set<() => void>();
   private readonly changeStarts = new Set<() => void>();
+  private focus: DesignFocus = { mode: "object", componentKind: null, componentSelection: null };
   /** Each registered object's id, so finding it from the object never has to search. */
   private ids = new WeakMap<Object3D, string>();
   private readonly idLookup: IdLookup = { has: (id) => this.objects.has(id) };
@@ -473,6 +477,25 @@ export class EditorScene {
     this.notify();
   }
 
+  /** Mirrors the workspace's design mode and Edit-mode picks, so the assistant can see what the user has selected. */
+  setDesignFocus(focus: DesignFocus): void {
+    this.focus = focus;
+  }
+
+  /** The focus as the assistant should see it: the picked mesh is checked, and a stale pick is dropped. */
+  private designFocusSnapshot(): DesignFocus {
+    const selection = this.focus.componentSelection;
+    if (!selection) return this.focus;
+    const object = this.objects.get(selection.objectId);
+    if (!object) return { ...this.focus, componentSelection: null };
+    try {
+      const modifiers = modifierStack(meshAtPath(object, selection.meshPath))?.modifiers ?? [];
+      return { ...this.focus, componentSelection: { ...selection, modifiersEnabled: modifiers.some((modifier) => modifier.enabled) } };
+    } catch {
+      return { ...this.focus, componentSelection: null };
+    }
+  }
+
   context(inspection?: MeshInspectionRequest) {
     this.scene.updateMatrixWorld(true);
     // Inspection names components on the committed cage, which is what the next edit will change.
@@ -503,6 +526,7 @@ export class EditorScene {
       selectedObjectIds: this.selected.slice(-500),
       objects,
       supportsPreparedCommands: true,
+      designFocus: this.designFocusSnapshot(),
       ...(inspection ? { meshInspection: inspectMesh(this.objects.get(inspection.objectId), inspection) } : {}),
     };
   }

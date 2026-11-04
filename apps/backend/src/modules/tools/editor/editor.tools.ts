@@ -28,7 +28,7 @@ export function createEditorTools({ bridge, proposals }: EditorToolDependencies)
     }),
     defineTool({
       name: "editor.get_context",
-      description: "Read the current editor scene: objects, parents, local transforms, world-space geometry bounds when supported, visibility, selection, and revision.",
+      description: "Read the current editor scene: objects, parents, local transforms, world-space geometry bounds when supported, visibility, selection, and revision. designFocus gives the design mode and, in Edit mode, the components the user has picked (componentSelection). Those ids name base cage faces, vertices or edges when modifiersEnabled is false; when it is true they name the evaluated display mesh, so disable the modifiers before acting on them.",
       permission: "read",
       parameters: noInput,
       execute: (_input, context) => {

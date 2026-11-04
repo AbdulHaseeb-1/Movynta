@@ -45,4 +45,21 @@ describe("Edit-mode Subdivide", () => {
     expect(failure.message).toContain("Unknown face");
     expect(scene.currentRevision).toBe(revision);
   });
+
+  it("refuses while a modifier is enabled, because the picks would name the display mesh", async () => {
+    const scene = new EditorScene(new Scene(), "project");
+    const mesh = new Mesh(new BoxGeometry(2, 2, 2));
+    scene.importObject("box", mesh);
+    const bevelled = scene.execute("bevel", scene.currentRevision, [{ commandId: "b", type: "geometry.bevel", objectId: "box", width: 0.1 }]);
+    expect(bevelled.status).toBe("applied");
+    const revision = scene.currentRevision;
+    const saves = createSerialQueue();
+    const errors = vi.fn();
+    subdivideSelectedFaces(scene, { objectId: "box", meshPath: [], ids: ["0"] }, saves, errors);
+    await saves.flush();
+    const failure: unknown = errors.mock.calls[0]?.[0];
+    if (!(failure instanceof Error)) throw new Error("Expected an error to be reported");
+    expect(failure.message).toContain("Disable modifiers");
+    expect(scene.currentRevision).toBe(revision);
+  });
 });

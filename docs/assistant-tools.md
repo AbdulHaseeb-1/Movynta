@@ -10,7 +10,7 @@ The modeling coordinator agent (`apps/backend/src/modules/agents/definitions/mod
 
 | Tool | Provider name | Permission | Approval | What it does | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| `editor.get_context` | `editor__get_context` | `read` | Never | Returns objects, parents, local transforms, visibility, world-space geometry bounds when supported, selection and revision. | `modules/tools/editor/editor.tools.ts` |
+| `editor.get_context` | `editor__get_context` | `read` | Never | Returns objects, parents, local transforms, visibility, world-space geometry bounds when supported, selection, revision, and `designFocus`: the design mode and, in Edit mode, the components the user has picked. `componentSelection.modifiersEnabled` says whether its ids name the base cage or the display mesh. | `modules/tools/editor/editor.tools.ts` |
 | `editor.get_scene_summary` | `editor__get_scene_summary` | `read` | Never | Returns object counts by type, selection and revision. | `modules/tools/editor/editor.tools.ts` |
 | `editor.inspect_mesh` | `editor__inspect_mesh` | `read` | Never | Returns bounded local-space vertex/edge/face samples, topology counts, attributes, bounds, world matrix and mesh paths inside imported objects. Parameters: `objectId`, optional `meshPath` (default `[]`), `offset` (default 0), `limit` (1–100, default 25). | `modules/tools/editor/editor.tools.ts` |
 | `viewport.capture` | `viewport__capture` | `read` | Never | Draws the live scene from 1–6 points of view and returns the images with exact object bounds and where each object lands in each image. Nothing changes in the scene. See [Visual review](#visual-review). | `modules/tools/viewport/viewport.tools.ts` |
@@ -216,6 +216,14 @@ Skills are in `skills/<id>/SKILL.md`. Their `tools:` list tells the model which 
 | `mesh-editing` | `editor.get_context`, `editor.inspect_mesh`, `modeling.generate_commands`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 
 ## Not exposed to the assistant
+
+Every change to the scene that the desktop can make is a command the assistant can propose (all eleven command types). These are deliberately outside its reach:
+
+- **Undo and redo.** History belongs to the user. The assistant's changes are saved in it, so the user can undo them.
+- **Projects, accounts and settings.** Duplicating, renaming, archiving or deleting projects, and provider keys and settings, are not editing actions.
+- **Files.** Importing a model needs a file the user chooses. The assistant sees only models the user has imported.
+- **Selection and viewport.** Object and component selection, Object/Edit mode and the camera are interface state. The assistant can read them (`selectedObjectIds`, `designFocus`) and capture views, but not change them.
+- **Operations the desktop does not have.** Materials and colours, and component scale, rotate or inset, are not implemented in the editor, so no command exists for them.
 
 - **MCP tools.** `McpRegistry` (`modules/mcp/mcp.registry.ts`) is default-deny: a tool is usable only when its server is enabled and the tool is listed in `allowedTools`. No MCP tool is wired into the agent yet, so none appears in the inventory above.
 
