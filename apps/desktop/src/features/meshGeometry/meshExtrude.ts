@@ -62,9 +62,10 @@ function budget(faces: readonly (readonly number[])[]): void {
 function draftFrom(mesh: PolygonMesh, data: SurfaceChannels): Draft {
   return {
     positions: mesh.positions.map((position) => position.clone()),
-    weights: data.positions.map((weights) => new Map(weights)),
+    // Weight maps are shared, not copied: they are never edited, and every new entry is a fresh map.
+    weights: data.positions.slice(),
     faces: mesh.faces.map((face) => face.slice()),
-    corners: data.corners.map((row) => row.map((weights) => new Map(weights))),
+    corners: data.corners.slice(),
     materials: data.materials.slice(),
     copies: new Map(),
     walls: [],
@@ -252,6 +253,19 @@ function fansOf(mesh: PolygonMesh, graph: Topology, selected: ReadonlySet<number
   return { fans, fanAt };
 }
 
+/**
+ * A finished cage is never edited in place, and a drag rebuilds the same cage every frame, so its graph is kept.
+ * Only extrude uses this cache: builders such as bevel fill a mesh before they ask for its graph.
+ */
+const graphs = new WeakMap<PolygonMesh, Topology>();
+function cageTopology(mesh: PolygonMesh): Topology {
+  const known = graphs.get(mesh);
+  if (known) return known;
+  const built = topology(mesh);
+  graphs.set(mesh, built);
+  return built;
+}
+
 function uniqueIds(ids: readonly string[], label: string): void {
   if (ids.length === 0 || ids.length > MAX_COMPONENTS) throw new Error(`Extrude needs one ${label} and at most ${MAX_COMPONENTS} components`);
   if (new Set(ids).size !== ids.length) throw new Error("The selection repeats a component");
@@ -279,7 +293,7 @@ function parseVertices(mesh: PolygonMesh, ids: readonly string[]): number[] {
 
 function parseEdges(mesh: PolygonMesh, ids: readonly string[]): HalfEdge[] {
   uniqueIds(ids, "edge");
-  const graph = topology(mesh);
+  const graph = cageTopology(mesh);
   const seen = new Set<string>();
   return ids.map((id) => {
     const match = EDGE.exec(id);
@@ -297,7 +311,7 @@ function parseEdges(mesh: PolygonMesh, ids: readonly string[]): HalfEdge[] {
 function spansOf(mesh: PolygonMesh, vertices: readonly number[]): Span[] {
   const selected = new Set(vertices);
   const spans: Span[] = [];
-  for (const incident of topology(mesh).edges.values()) {
+  for (const incident of cageTopology(mesh).edges.values()) {
     const half = incident[0];
     if (half && selected.has(half.from) && selected.has(half.to)) spans.push({ half, incident });
   }
@@ -385,7 +399,7 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
   if (kind === "face") {
     const faces = parseFaces(mesh, ids);
     const selected = new Set(faces);
-    const graph = topology(mesh);
+    const graph = cageTopology(mesh);
     const { fans, fanAt } = fansOf(mesh, graph, selected);
     // One moved vertex per fan. Unselected faces keep their vertices, so the walls close around them.
     const moved = fans.map((fan) => addVertex(draft, mesh, data, fan.vertex, offset));
@@ -412,7 +426,7 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
   }
   if (kind === "edge") {
     const edges = parseEdges(mesh, ids);
-    const graph = topology(mesh);
+    const graph = cageTopology(mesh);
     const center = centerOf(mesh);
     for (const edge of edges) {
       copyVertex(draft, mesh, data, edge.from, offset);

@@ -134,7 +134,11 @@ export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: b
   output.setAttribute("position", new Float32BufferAttribute(positions, 3)); output.setIndex(indices);
   for (const [name, attribute] of Object.entries(source.attributes)) {
     if (["position", "normal", "tangent", "skinIndex", "skinWeight"].includes(name)) continue;
-    output.setAttribute(name, new Float32BufferAttribute(renderWeights.flatMap((weights) => Array.from({ length: attribute.itemSize }, (_, c) => sample(attribute, weights, c))), attribute.itemSize));
+    const values = new Float32Array(renderWeights.length * attribute.itemSize);
+    renderWeights.forEach((weights, index) => {
+      for (let c = 0; c < attribute.itemSize; c += 1) values[index * attribute.itemSize + c] = sample(attribute, weights, c);
+    });
+    output.setAttribute(name, new Float32BufferAttribute(values, attribute.itemSize));
   }
   // Before the topology is remembered, so the cached signature matches the final texture coordinates.
   const uv = output.getAttribute("uv");
