@@ -1,16 +1,28 @@
 import { Mesh, Vector3, type Object3D } from "three";
-import type { MeshInspection, MeshInspectionRequest } from "@movynta/editor-protocol";
+import { resolveMeshPath, stableMeshPath, stableSteps, type MeshInspection, type MeshInspectionRequest, type MeshPath, type MeshStep } from "@movynta/editor-protocol";
 import { cageKey, faceNormal, readTopology, topology, type PolygonMesh, type Topology } from "./meshTopology";
 import { modifierStack } from "./modifierStack";
 const inspectionGraphs = new WeakMap<PolygonMesh, Topology>();
 const inspectionNormals = new WeakMap<PolygonMesh, Vector3[]>();
 
 export function isEditableTarget(node: Object3D | undefined): node is Mesh { return node instanceof Mesh; }
-export function meshAtPath(root: Object3D | undefined, path: readonly number[]): Mesh {
-  let node = root;
-  for (const index of path) node = node?.children[index];
+/** The mesh a path leads to, whether it is written with part names or with child indices. */
+export function meshAtPath(root: Object3D | undefined, path: MeshPath): Mesh {
+  const node = resolveMeshPath(root, path);
   if (!isEditableTarget(node)) throw new Error("Target is not a mesh; inspect the object and choose a meshPath from its parts");
   return node;
+}
+
+/** The path to `node` inside `root`, by part names where parts have them, or undefined when it is not inside `root`. */
+export function meshPathOf(root: Object3D, node: Object3D): MeshStep[] | undefined {
+  const indexes: number[] = [];
+  for (let current: Object3D = node; current !== root; ) {
+    const parent: Object3D | null = current.parent;
+    if (!parent) return undefined;
+    indexes.unshift(parent.children.indexOf(current));
+    current = parent;
+  }
+  return stableMeshPath(root, indexes);
 }
 
 export function inspectMesh(root: Object3D | undefined, request: MeshInspectionRequest): MeshInspection {
@@ -19,14 +31,17 @@ export function inspectMesh(root: Object3D | undefined, request: MeshInspectionR
     offset: request.offset, vertices: [], faces: [], edges: [],
   };
   if (!root) { result.message = "Object does not exist"; return result; }
-  const pending = [{ node: root, path: [] as number[] }];
+  // Paths are given by part name where a part has one, so they keep meaning the same part when others are added or reordered.
+  const pending = [{ node: root, path: [] as MeshStep[] }];
   while (pending.length > 0) {
     const entry = pending.pop(); if (!entry) continue;
     if (isEditableTarget(entry.node)) result.parts.push({ path: entry.path, name: entry.node.name.slice(0, 120) });
     if (result.parts.length >= 100) { result.partsTruncated = pending.length > 0 || entry.node.children.length > 0; break; }
     if (entry.path.length >= 32) { if (entry.node.children.length > 0) result.partsTruncated = true; continue; }
+    const steps = stableSteps(entry.node);
     for (let i = entry.node.children.length - 1; i >= 0; i -= 1) {
-      const child = entry.node.children[i]; if (child) pending.push({ node: child, path: [...entry.path, i] });
+      const child = entry.node.children[i]; const step = steps[i];
+      if (child && step !== undefined) pending.push({ node: child, path: [...entry.path, step] });
     }
   }
   try {

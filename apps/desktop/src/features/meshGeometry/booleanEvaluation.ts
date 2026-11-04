@@ -1,9 +1,12 @@
 import { Mesh, SkinnedMesh, type BufferGeometry, type Object3D } from "three";
-import type { MeshModifierSpec } from "@movynta/editor-protocol";
+import { resolveMeshPath, type MeshModifierSpec, type MeshPath } from "@movynta/editor-protocol";
 import { evaluateBase, modifierStack, type ModifierEvalContext, type ModifierStackState } from "./modifierStack";
 
 export interface SceneMesh {
   objectId: string;
+  /** The scene object this mesh is part of, which a path to one of its meshes is taken from. */
+  root: Object3D;
+  /** Where the mesh is in that object, as child indices. */
   meshPath: number[];
   mesh: Mesh;
 }
@@ -15,8 +18,15 @@ export interface MeshChange {
 
 type BooleanModifier = Extract<MeshModifierSpec, { kind: "boolean" }>;
 
-function samePath(left: readonly number[], right: readonly number[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+/**
+ * The mesh a boolean modifier names: the one `path` leads to inside the object `objectId`, whether the path is
+ * written with names or with child indices. The path is followed in the object, not compared with other paths, so a
+ * name and an index that lead to the same mesh find the same mesh.
+ */
+function operandSlot(slots: readonly SceneMesh[], objectId: string, path: MeshPath): SceneMesh | undefined {
+  const root = slots.find((entry) => entry.objectId === objectId)?.root;
+  const target = root ? resolveMeshPath(root, path) : undefined;
+  return target === undefined ? undefined : slots.find((entry) => entry.objectId === objectId && entry.mesh === target);
 }
 
 function isMesh(node: Object3D): node is Mesh {
@@ -28,7 +38,7 @@ export function sceneMeshes(objects: ReadonlyMap<string, Object3D>): SceneMesh[]
   const found: SceneMesh[] = [];
   for (const [objectId, root] of objects) {
     const visit = (node: Object3D, path: number[]) => {
-      if (isMesh(node)) found.push({ objectId, meshPath: path, mesh: node });
+      if (isMesh(node)) found.push({ objectId, root, meshPath: path, mesh: node });
       node.children.forEach((child, index) => visit(child, [...path, index]));
     };
     visit(root, []);
@@ -53,7 +63,7 @@ export function needsBooleanEvaluation(slots: readonly SceneMesh[], planned: Rea
   const changed = new Set(planned.keys());
   for (const slot of slots) {
     for (const modifier of enabledBooleans(modifierStack(slot.mesh)?.modifiers ?? [])) {
-      const operand = slots.find((entry) => entry.objectId === modifier.operandObjectId && samePath(entry.meshPath, modifier.operandMeshPath));
+      const operand = operandSlot(slots, modifier.operandObjectId, modifier.operandMeshPath);
       if (operand && changed.has(operand.mesh)) return true;
     }
   }
@@ -61,7 +71,7 @@ export function needsBooleanEvaluation(slots: readonly SceneMesh[], planned: Rea
 }
 
 function findOperand(slots: readonly SceneMesh[], modifier: BooleanModifier, target: Mesh): SceneMesh {
-  const slot = slots.find((entry) => entry.objectId === modifier.operandObjectId && samePath(entry.meshPath, modifier.operandMeshPath));
+  const slot = operandSlot(slots, modifier.operandObjectId, modifier.operandMeshPath);
   if (!slot) throw new Error(`Boolean operand "${modifier.operandObjectId}" does not exist`);
   if (slot.mesh === target) throw new Error("A boolean modifier cannot use its own mesh");
   return slot;
@@ -101,7 +111,7 @@ export function evaluateAffected(
           const booleans = enabledBooleans(modifiersFor(slot.mesh));
           if (!booleans.length) continue;
           const affected = changed.has(slot.mesh) || booleans.some((modifier) => {
-            const operand = slots.find((entry) => entry.objectId === modifier.operandObjectId && samePath(entry.meshPath, modifier.operandMeshPath));
+            const operand = operandSlot(slots, modifier.operandObjectId, modifier.operandMeshPath);
             return operand !== undefined && changed.has(operand.mesh);
           });
           if (affected) { must.add(slot.mesh); changed.add(slot.mesh); grew = true; }
@@ -116,7 +126,7 @@ export function evaluateAffected(
       for (const slot of slots) {
         if (must.has(slot.mesh)) continue;
         for (const modifier of enabledBooleans(modifiersFor(slot.mesh))) {
-          const operand = slots.find((entry) => entry.objectId === modifier.operandObjectId && samePath(entry.meshPath, modifier.operandMeshPath));
+          const operand = operandSlot(slots, modifier.operandObjectId, modifier.operandMeshPath);
           if (operand && must.has(operand.mesh)) { must.add(slot.mesh); grew = true; }
         }
       }
@@ -162,7 +172,7 @@ export function evaluateAffected(
         matrixWorld: mesh.matrixWorld,
         materialSlots: Array.isArray(mesh.material) ? mesh.material.length : 1,
         operand(objectId, meshPath) {
-          const operand = slots.find((entry) => entry.objectId === objectId && samePath(entry.meshPath, meshPath));
+          const operand = operandSlot(slots, objectId, meshPath);
           if (!operand) throw new Error(`Boolean operand "${objectId}" does not exist`);
           if (operand.mesh === mesh) throw new Error("A boolean modifier cannot use its own mesh");
           operand.mesh.updateWorldMatrix(true, false);

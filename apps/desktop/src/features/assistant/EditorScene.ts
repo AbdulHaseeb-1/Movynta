@@ -13,7 +13,7 @@ import {
   type Quaternion,
   type Scene,
 } from "three";
-import { CollectionModel, editorCommandListSchema, isWithinBranch, resolveSiblingName, SiblingNames, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
+import { CollectionModel, editorCommandListSchema, isWithinBranch, resolveSiblingName, SiblingNames, stableMeshPath, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { Scene as ThreeScene } from "three";
@@ -627,7 +627,8 @@ export class EditorScene {
       return {
         ...this.focus,
         componentSelection: {
-          objectId: selection.objectId, meshPath: selection.meshPath, kind: selection.kind, ids: selection.ids,
+          // By part name where parts have one, so the assistant's reference to the picked part survives other parts changing.
+          objectId: selection.objectId, meshPath: stableMeshPath(object, selection.meshPath), kind: selection.kind, ids: selection.ids,
           modifiersEnabled, ...(baseFaceIds ? { baseFaceIds } : {}),
         },
       };

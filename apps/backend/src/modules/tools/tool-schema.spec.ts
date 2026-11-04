@@ -201,6 +201,30 @@ describe("checkScene", () => {
   });
 });
 
+describe("mesh paths in requests and commands", () => {
+  it("accepts part names, indexes and a mixture in an inspection request and in commands", () => {
+    for (const meshPath of [[0, 2], ["Body", "Arm#1"], ["Body", 3]]) {
+      expect(meshInspectionRequestSchema.safeParse({ objectId: "model", meshPath }).success).toBe(true);
+      expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.subdivide", objectId: "model", meshPath, levels: 1 }]).success).toBe(true);
+    }
+  });
+
+  it("accepts a name in a boolean operand path, and refuses what is not a path", () => {
+    const modifier = (operandMeshPath: unknown) => [{
+      commandId: "b", type: "geometry.set_modifiers", objectId: "box",
+      modifiers: [{ id: "cut", kind: "boolean", operandObjectId: "model", operandMeshPath }],
+    }];
+    expect(editorCommandListSchema.safeParse(modifier(["Cutter"])).success).toBe(true);
+    for (const bad of [[""], [-1], [{}], ["x".repeat(131)]]) expect(editorCommandListSchema.safeParse(modifier(bad)).success).toBe(false);
+  });
+
+  it("is sent to model providers as a list whose items are an integer or a string, never as a tuple", () => {
+    const json = JSON.stringify(z.toJSONSchema(editorCommandListSchema));
+    expect(json).not.toContain("prefixItems");
+    expect(json).toContain('"items":{"anyOf":[{"type":"integer"');
+  });
+});
+
 describe("checkScene arrangement checks", () => {
   const object = (id: string, parentId: string | null, name: string, scale: [number, number, number] = [1, 1, 1], type: "mesh" | "empty" = "mesh") => ({
     id, name, type, parentId, transform: { position: [0, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], scale },

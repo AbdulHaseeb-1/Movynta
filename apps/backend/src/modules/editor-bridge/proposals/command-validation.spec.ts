@@ -367,3 +367,23 @@ describe("validateAgainstContext with collections", () => {
     expect(validateAgainstContext([{ commandId: "x", type: "scene.delete_object", objectId: "rock" }, dropCollection("d", "set")], scene)).toEqual([]);
   });
 });
+
+describe("validateAgainstContext with part names in boolean operands", () => {
+  const scene = {
+    ...emptyScene,
+    objects: [{ id: "box", name: "box", type: "mesh", parentId: null, transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } }],
+  } as unknown as EditorContext;
+  const boolean = (operandMeshPath: (string | number)[], meshPath: (string | number)[] = []): EditorCommand => ({
+    commandId: "b", type: "geometry.boolean", objectId: "box", meshPath, operandObjectId: "box", operandMeshPath, operation: "difference",
+  } as EditorCommand);
+
+  it("sees a mesh used as its own operand when both are written the same way, by name or by index", () => {
+    expect(validateAgainstContext([boolean(["Arm"], ["Arm"])], scene)[0]?.message).toContain("its own mesh");
+    expect(validateAgainstContext([boolean([2], [2])], scene)[0]?.message).toContain("its own mesh");
+    expect(validateAgainstContext([boolean(["Arm"], ["Leg"])], scene)).toEqual([]);
+  });
+
+  it("leaves a name and an index that lead to the same part for the editor to find, since only it has the parts", () => {
+    expect(validateAgainstContext([boolean(["Arm"], [2])], scene)).toEqual([]);
+  });
+});

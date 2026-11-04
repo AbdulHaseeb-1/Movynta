@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Mesh, Object3D } from "three";
+import type { Mesh } from "three";
 import type { MeshModifierSpec } from "@movynta/editor-protocol";
 import { modifierListSchema } from "@movynta/editor-protocol";
 import {
@@ -39,9 +39,9 @@ import {
 } from "@/components/ui/tooltip";
 import type { EditorScene } from "@/features/assistant";
 import { modifierStack } from "@/features/meshGeometry/modifierStack";
-import { isEditableTarget } from "@/features/meshGeometry/meshInspection";
 import { errorMessage, type SerialQueue } from "@/lib";
 import { saveModifiers } from "./manualModifiers";
+import { listedPath, partsOf, pathFrom, pathValue, type OperandChoice } from "./meshParts";
 import { saveManualCommands } from "./saveManualCommands";
 
 interface ModifierPanelProps {
@@ -49,19 +49,6 @@ interface ModifierPanelProps {
   saves: SerialQueue;
   disabled: boolean;
   onBusyChange: (busy: boolean) => void;
-}
-interface MeshPart {
-  mesh: Mesh;
-  path: number[];
-}
-function partsOf(root: Object3D | undefined): MeshPart[] {
-  const parts: MeshPart[] = [];
-  const visit = (node: Object3D, path: number[]) => {
-    if (isEditableTarget(node)) parts.push({ mesh: node, path });
-    node.children.forEach((child, index) => visit(child, [...path, index]));
-  };
-  if (root) visit(root, []);
-  return parts;
 }
 const SUBDIVISION_METHODS = [
   { value: "catmull-clark", label: "Catmull–Clark" },
@@ -87,11 +74,6 @@ const BOOLEAN_OPERATIONS = [
 type SubdivisionMethod = (typeof SUBDIVISION_METHODS)[number]["value"];
 type BevelProfile = (typeof BEVEL_PROFILES)[number]["value"];
 type BooleanOperation = (typeof BOOLEAN_OPERATIONS)[number]["value"];
-interface OperandChoice {
-  objectId: string;
-  name: string;
-  parts: MeshPart[];
-}
 function isSubdivisionMethod(value: string): value is SubdivisionMethod {
   return SUBDIVISION_METHODS.some((method) => method.value === value);
 }
@@ -100,16 +82,6 @@ function isBevelProfile(value: string): value is BevelProfile {
 }
 function isBooleanOperation(value: string): value is BooleanOperation {
   return BOOLEAN_OPERATIONS.some((operation) => operation.value === value);
-}
-function pathValue(path: readonly number[]): string {
-  return path.length === 0 ? "root" : path.join(",");
-}
-function pathFrom(value: string): number[] {
-  if (value === "root") return [];
-  return value.split(",").flatMap((part) => {
-    const index = Number(part);
-    return Number.isInteger(index) && index >= 0 ? [index] : [];
-  });
 }
 function modifierName(kind: MeshModifierSpec["kind"]): string {
   if (kind === "bevel") return "Bevel";
@@ -184,7 +156,7 @@ function BooleanFields(props: {
       {chosen && chosen.parts.length > 1 && (
         <div className="grid gap-1 text-[11px] text-muted-foreground">
           <span>Mesh part</span>
-          <Select value={pathValue(props.entry.operandMeshPath)} disabled={props.locked} onValueChange={(value) => {
+          <Select value={pathValue(listedPath(chosen, props.entry.operandMeshPath))} disabled={props.locked} onValueChange={(value) => {
             props.onChange({ ...props.entry, operandMeshPath: pathFrom(value) });
           }}>
             <SelectTrigger className="h-8 text-xs" aria-label={`Boolean mesh part ${props.index + 1}`}>
@@ -302,7 +274,7 @@ function ModifierEditor({
   for (const [objectId, object] of scene.entries()) {
     const meshes = partsOf(object).filter((candidate) => candidate.mesh !== part.mesh);
     if (meshes.length === 0) continue;
-    operands.push({ objectId, name: object.name || objectId, parts: meshes });
+    operands.push({ objectId, name: object.name || objectId, parts: meshes, root: object });
   }
   const materialSlots = (Array.isArray(part.mesh.material) ? part.mesh.material : [part.mesh.material])
     .map(({ name }, index) => ({ id: String(index), label: name || `Slot ${index + 1}` }));

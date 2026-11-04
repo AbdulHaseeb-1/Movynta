@@ -15,7 +15,7 @@ export interface BooleanOperandView {
 export interface ModifierEvalContext {
   matrixWorld: Matrix4;
   materialSlots: number;
-  operand(objectId: string, meshPath: readonly number[]): BooleanOperandView;
+  operand(objectId: string, meshPath: readonly (number | string)[]): BooleanOperandView;
 }
 
 export interface ModifierStackState { base: BufferGeometry; modifiers: MeshModifierSpec[]; geometry: BufferGeometry }

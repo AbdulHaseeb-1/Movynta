@@ -263,7 +263,9 @@ function booleanOperandIssues(
 /** Detect cycles among the mesh parts configured in this proposal. */
 function booleanCycles(commands: readonly EditorCommand[]): ProposalIssue[] {
   const edges = new Map<string, { commandId: string; operands: string[] }>();
-  const key = (objectId: string, path: readonly number[]) => `${objectId}/${path.join("/")}`;
+  // JSON, since a part's name can contain a slash. A cycle through paths written in different forms (a name here, an
+  // index there) is not seen here; the editor finds it when it evaluates.
+  const key = (objectId: string, path: readonly (string | number)[]) => `${objectId}/${JSON.stringify(path)}`;
   for (const command of commands) {
     if (command.type !== "geometry.set_modifiers" && command.type !== "geometry.boolean") continue;
     const id = key(command.objectId, command.meshPath);
