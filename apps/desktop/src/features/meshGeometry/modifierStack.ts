@@ -8,19 +8,37 @@ const stacks = new WeakMap<Mesh, ModifierStackState>();
 export function modifierStack(mesh: Mesh): ModifierStackState | undefined { return stacks.get(mesh); }
 function cloneGeometry(source: BufferGeometry): BufferGeometry { const copy = source.clone(); copyTopology(source, copy); return copy; }
 
-export function evaluateStack(mesh: Mesh, modifiers: MeshModifierSpec[], previous = stacks.get(mesh)): ModifierStackState {
-  const base = previous?.base ?? cloneGeometry(mesh.geometry);
+function operation(modifier: MeshModifierSpec): MeshModifier {
+  return modifier.kind === "bevel"
+    ? { type: "geometry.bevel", width: modifier.width, segments: modifier.segments, ...(modifier.profile === undefined ? {} : { profile: modifier.profile }), ...(modifier.angle === undefined ? {} : { angle: modifier.angle }) }
+    : { type: "geometry.subdivide", levels: modifier.levels, ...(modifier.method === undefined ? {} : { method: modifier.method }) };
+}
+
+/** Evaluates `modifiers` from `base`. The base buffer itself stays intact. */
+export function evaluateBase(base: BufferGeometry, modifiers: readonly MeshModifierSpec[]): BufferGeometry {
   let geometry = cloneGeometry(base);
   try {
     for (const modifier of modifiers) {
       if (!modifier.enabled) continue;
-      const operation: MeshModifier = modifier.kind === "bevel"
-        ? { type: "geometry.bevel", width: modifier.width, segments: modifier.segments, ...(modifier.profile === undefined ? {} : { profile: modifier.profile }), ...(modifier.angle === undefined ? {} : { angle: modifier.angle }) }
-        : { type: "geometry.subdivide", levels: modifier.levels, ...(modifier.method === undefined ? {} : { method: modifier.method }) };
-      const next = modifyGeometry(geometry, operation); geometry.dispose(); geometry = next;
+      const next = modifyGeometry(geometry, operation(modifier));
+      geometry.dispose();
+      geometry = next;
     }
-    return { base, modifiers, geometry };
-  } catch (error) { geometry.dispose(); if (!previous) base.dispose(); throw error; }
+    return geometry;
+  } catch (error) {
+    geometry.dispose();
+    throw error;
+  }
+}
+
+export function evaluateStack(mesh: Mesh, modifiers: MeshModifierSpec[], previous = stacks.get(mesh)): ModifierStackState {
+  const base = previous?.base ?? cloneGeometry(mesh.geometry);
+  try {
+    return { base, modifiers, geometry: evaluateBase(base, modifiers) };
+  } catch (error) {
+    if (!previous) base.dispose();
+    throw error;
+  }
 }
 export function commitStack(mesh: Mesh, state: ModifierStackState): void { stacks.set(mesh, state); mesh.geometry = state.geometry; }
 export function copyModifierStack(source: Mesh, target: Mesh): void {

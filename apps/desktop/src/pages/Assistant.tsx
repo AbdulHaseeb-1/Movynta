@@ -49,7 +49,7 @@ import {
 import { errorMessage } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
-import { AddShapeMenu, ComponentToolbar, useComponentSelection, DesignModeMenu, DesignWorkspacePanel, setDesignMode, setPanelOpen as setWorkspacePanelOpen } from "@/features/designWorkspace";
+import { AddShapeMenu, ComponentToolbar, useComponentSelection, useExtrude, DesignModeMenu, DesignWorkspacePanel, setDesignMode, setPanelOpen as setWorkspacePanelOpen } from "@/features/designWorkspace";
 
 /** A saved project, fetched in full before the workspace shows it. */
 interface SavedProject {
@@ -114,6 +114,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     disabled: run.busy || modifierBusy || opening !== "ready" || designMode === "edit",
     saves,
   });
+  const extrude = useExtrude(viewport, editorScene, run.busy || modifierBusy || opening !== "ready", saves);
   useComponentSelection(viewport, editorScene, run.busy || modifierBusy || opening !== "ready");
 
   const importer = useModelImport({
@@ -290,7 +291,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
             panelOpen ? "left-[340px]" : "left-4",
           )}
         >
-          {editing.transformHint ? <output className="pointer-events-none rounded-full bg-popover px-3 py-2 text-xs text-popover-foreground shadow-xl">{editing.transformHint}</output> : <ToolHint hasSelection={editing.selected !== null} />}
+          {extrude.hint || editing.transformHint ? <output className="pointer-events-none rounded-full bg-popover px-3 py-2 text-xs text-popover-foreground shadow-xl">{extrude.hint || editing.transformHint}</output> : <ToolHint hasSelection={editing.selected !== null} />}
           <ViewportToolbar
             viewport={viewport}
             hasSelection={editing.selected !== null}

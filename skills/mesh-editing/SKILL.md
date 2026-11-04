@@ -14,7 +14,7 @@ tags:
   - bevel
   - subdivision
 when_to_use:
-  - The user asks to move, scale, rotate, replace, or clean up existing geometry.
+  - The user asks to move, scale, rotate, extrude, replace, or clean up existing geometry.
   - The user asks to change the topology of an object that already exists.
 required_inputs:
   - The objects to change, identified from the editor context.
@@ -49,5 +49,7 @@ For repeated layouts or mathematical placement, calculate command arrays with `m
 For surface editing, first call `editor.inspect_mesh` with objectId. Imported groups return parts; choose a meshPath and inspect that mesh. Use offset/limit for local-space vertex, edge and polygon samples; indices refer to the complete topology, not just the sample. Inspect bounds, counts and boundary/winding defects before choosing an operation.
 
 Use `geometry.bevel` with a small positive local-space width, 1–8 segments (default 1), profile `round` (default; 3–4 segments) or `chamfer`, and `angle` 0–180 (default 0 bevels every edge; 30 keeps sharper edges). Use `geometry.subdivide` with 1–3 levels and method `catmull-clark` (default), `linear` or `loop`. These append live modifiers. Inspect the mesh's `modifiers`, then use `geometry.set_modifiers` with the full ordered list to edit parameters, reorder, disable (`enabled: false`) or remove entries. Each entry has a unique id and kind (`bevel` or `subdivision`); preserve existing ids and any method, profile or angle already set. Up to eight entries are supported, and an empty list restores the original base mesh.
+
+Use `geometry.extrude` to grow a region of the base cage. `kind` is `face`, `edge` or `vertex`. `ids` come from `editor.inspect_mesh`: a face index, a canonical edge key `min_max`, or a vertex index. `offset` is a non-zero mesh-local `[x, y, z]`. Face extrude moves the selected faces together and fills each boundary edge with a quad. Edge extrude adds a quad for each edge. Vertex extrude does that only for edges whose two vertices are both selected. Disable every enabled modifier first, because ids name the base cage. Submit extrude commands in their own batch of at most 20. A zero offset is rejected.
 
 Concave and open manifold meshes are supported; open boundaries remain open. UV seams, material assignments, vertex colors, skin weights and morph targets are preserved/interpolated. New bevel strips and corner patches use adjacent materials and interpolated UVs; they do not create an automatic texture unwrap. Both geometric and stack edits require approval, use strict scene revisions, and must be submitted separately from creation/transforms (at most 20 commands). Reduce overlapping widths and excessive refinement or explain unsupported topology rather than replacing the model. Users can edit the active mesh part in the manual Modifiers panel; a crease editor is not implemented.

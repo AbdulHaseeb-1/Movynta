@@ -12,6 +12,7 @@ const commandSchema = z.looseObject({
   segments: z.number().optional(),
   method: z.string().optional(),
   profile: z.string().optional(),
+  kind: z.string().optional(),
   modifiers: z.array(z.unknown()).optional(),
 });
 
@@ -48,6 +49,8 @@ function describeCommand(command: Command): string {
       return `Subdivide ${target} (${command.levels ?? "?"} ${command.method === "linear" ? "Linear" : command.method === "loop" ? "Loop" : "Catmull–Clark"} levels); adds a live modifier`;
     case "geometry.set_modifiers":
       return `Set the modifier stack on ${target} (${command.modifiers?.length ?? 0} modifiers)`;
+    case "geometry.extrude":
+      return `Extrude the selected ${command.kind ?? "components"} of ${target}`;
     case "geometry.create_primitive":
       return `Add a ${command.primitive ?? "shape"} to ${target}${command.size === undefined ? "" : ` (size ${command.size})`}`;
     default:

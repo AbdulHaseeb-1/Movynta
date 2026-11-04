@@ -185,6 +185,7 @@ export class EditorSimulator {
       case "geometry.bevel":
       case "geometry.subdivide":
       case "geometry.set_modifiers":
+      case "geometry.extrude":
       case "scene.set_visibility":
         break;
       case "scene.rename_object": {

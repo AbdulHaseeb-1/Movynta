@@ -24,7 +24,7 @@ import {
 const OBJECT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const ASSET_NAME_MAX_LENGTH = 160;
 /** The changes a user can make by hand and have saved with the project. */
-const USER_EDIT_TYPES: ReadonlySet<string> = new Set(["scene.transform_object", "scene.delete_object", "geometry.set_modifiers", "geometry.create_primitive"]);
+const USER_EDIT_TYPES: ReadonlySet<string> = new Set(["scene.transform_object", "scene.delete_object", "geometry.set_modifiers", "geometry.create_primitive", "geometry.extrude"]);
 
 /** An uploaded model, before it is checked. */
 export interface ModelUpload {
@@ -162,7 +162,7 @@ export class ProjectsService {
 
   /**
    * Records a change the user made to the scene by hand, so the project shows it when reopened. Only
-   * transforms, modifier stacks, deletion and new primitives can be recorded this way.
+   * transforms, modifier stacks, extrusion, deletion and new primitives can be recorded this way.
    * Assistant-driven changes still go through approved proposals.
    */
   recordSceneEdit(userId: string, projectId: string, input: unknown, actionId?: string): { proposalId: string } {
@@ -184,7 +184,7 @@ export class ProjectsService {
         continue;
       }
       if (!USER_EDIT_TYPES.has(command.type)) {
-        throw new ValidationFailedError("Only new primitives, transforms, modifier stacks and deletion can be recorded here");
+        throw new ValidationFailedError("Only new primitives, transforms, modifier stacks, extrusion and deletion can be recorded here");
       }
       if (!known.has(command.objectId)) {
         throw new ValidationFailedError(`Object "${command.objectId}" is not in this project`);

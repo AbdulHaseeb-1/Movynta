@@ -41,6 +41,9 @@ describe("editor command schema", () => {
     expect(editorCommandListSchema.safeParse([{ commandId: "s", type: "geometry.subdivide", objectId: "a", levels: 1, method: "nurbs" }]).success).toBe(false);
     expect(editorCommandListSchema.safeParse([{ commandId: "b", type: "geometry.bevel", objectId: "a", width: .1, profile: "chamfer", angle: 30 }]).success).toBe(true);
     expect(editorCommandListSchema.safeParse([{ commandId: "b", type: "geometry.bevel", objectId: "a", width: .1, angle: 181 }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "face", ids: ["0"], offset: [0, 1, 0] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "loop", ids: ["0"], offset: [0, 1, 0] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "face", ids: [], offset: [0, 1, 0] }]).success).toBe(false);
   });
   it("accepts a valid mixed batch", () => {
     const parsed = editorCommandListSchema.safeParse([

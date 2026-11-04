@@ -23,6 +23,7 @@ import {
   pickComponent,
   type ComponentGeometry,
 } from "./componentGeometry";
+import { extrudeIsActive } from "@/features/objectEditing/ExtrudeGesture";
 import type { ComponentKind } from "./workspaceSlice";
 
 interface Target {
@@ -47,6 +48,7 @@ function isDrawable(node: Object3D): node is Mesh | LineSegments | Points {
 export class ComponentSelection {
   private targets: Target[] = [];
   private selected: Selection | null = null;
+  private readonly tint: Color;
   private stop: () => void;
   private stopFrame: () => void;
   private stopKeys: () => void;
@@ -62,6 +64,7 @@ export class ComponentSelection {
     this.onSelect = onSelect;
     // Match the object-selection outline; the neutral mesh wire is black.
     const tint = new Color(0xff9b21);
+    this.tint = tint;
     const visit = (node: Object3D, path: number[]) => {
       if (isEditableTarget(node)) {
         if ("isSkinnedMesh" in node)
@@ -176,7 +179,7 @@ export class ComponentSelection {
           ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName))
       )
         return;
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !extrudeIsActive()) {
         event.stopImmediatePropagation();
         this.selected = null;
         this.highlight(tint);
@@ -188,12 +191,20 @@ export class ComponentSelection {
       window.removeEventListener("keydown", onKeyDown, true);
     this.sync();
   }
+  /** Selects components after a rebuild, such as the cap left by an extrude. */
+  select(path: readonly number[], ids: readonly string[]): void {
+    this.selected = { path: [...path], ids: [...ids] };
+    this.highlight(this.tint);
+    this.onSelect(this.selected);
+  }
   private sync() {
     for (const target of this.targets) {
       target.source.updateWorldMatrix(true, false);
       target.proxy.matrixWorld.copy(target.source.matrixWorld);
       target.overlay.matrix.copy(target.source.matrixWorld);
-      target.overlay.visible = target.source.visible;
+      // The overlay is built from the cage at selection time. Hide it while E is moving a preview,
+      // otherwise the old wireframe stays put and the face looks bent until the extrude is saved.
+      target.overlay.visible = target.source.visible && !extrudeIsActive();
     }
   }
   private highlight(tint: Color) {

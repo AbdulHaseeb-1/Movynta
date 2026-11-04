@@ -47,8 +47,48 @@ export function triangulate(mesh: PolygonMesh, face: readonly number[]): number[
   return projected;
 }
 
+/**
+ * Cage vertices whose source samples do not share a normal. A flat-shaded cube corner is hard;
+ * a smooth sphere vertex is not. Extrude uses this so new faces keep the authored shading.
+ */
+export function hardCageVertices(source: BufferGeometry, mesh: PolygonMesh): Set<number> {
+  const position = source.getAttribute("position");
+  const normal = source.getAttribute("normal");
+  const hard = new Set<number>();
+  if (!position || !normal || normal.itemSize < 3) return hard;
+  source.computeBoundingBox();
+  const size = source.boundingBox?.getSize(new Vector3()).length() ?? 1;
+  const epsilon = Math.max(size * 1e-5, 1e-8);
+  const keyOf = (index: number): string => `${Math.round(position.getX(index) / epsilon)}_${Math.round(position.getY(index) / epsilon)}_${Math.round(position.getZ(index) / epsilon)}`;
+  const groups = new Map<string, Vector3>();
+  const hardKeys = new Set<string>();
+  const direction = new Vector3();
+  for (let index = 0; index < position.count; index += 1) {
+    direction.fromBufferAttribute(normal, index);
+    if (direction.lengthSq() < 1e-12) continue;
+    direction.normalize();
+    const key = keyOf(index);
+    const existing = groups.get(key);
+    if (!existing) groups.set(key, direction.clone());
+    else if (existing.dot(direction) < 0.999) hardKeys.add(key);
+  }
+  const data = channels(mesh);
+  mesh.positions.forEach((_, vertex) => {
+    for (const sourceIndex of data.positions[vertex]?.keys() ?? []) {
+      if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= position.count) continue;
+      if (hardKeys.has(keyOf(sourceIndex))) hard.add(vertex);
+    }
+  });
+  return hard;
+}
+
+/** Writes a mesh and keeps hard edges hard. Smooth vertices stay averaged. */
+export function writeShadedGeometry(source: BufferGeometry, mesh: PolygonMesh): BufferGeometry {
+  return writeGeometry(source, mesh, false, hardCageVertices(source, mesh));
+}
+
 /** Render corners are distinct from control vertices, so UV and material seams remain intact. */
-export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: boolean): BufferGeometry {
+export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: boolean, hardVertices?: ReadonlySet<number>): BufferGeometry {
   const vertices = mesh.faces.reduce((count, face) => count + (flat ? (face.length - 2) * 3 : face.length), 0);
   const attributeSize = Object.values(source.attributes).reduce((sum, attribute) => sum + attribute.itemSize, 0);
   const morphSize = Object.values(source.morphAttributes).flatMap((targets) => targets ?? []).reduce((sum, attribute) => sum + attribute.itemSize, 0);
@@ -116,7 +156,7 @@ export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: b
       attribute.name = target.name; return attribute;
     });
   }
-  recomputeNormals(output, indices, vertexIds, mesh.positions.length, !flat);
+  recomputeNormals(output, indices, vertexIds, mesh.positions.length, !flat, hardVertices);
   const morphPositions = output.morphAttributes.position;
   if (morphPositions) {
     const base = output.getAttribute("position"); const baseNormals = output.getAttribute("normal");
@@ -125,7 +165,7 @@ export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: b
       const values: number[] = [];
       for (let i = 0; i < target.count; i += 1) for (let c = 0; c < 3; c += 1) values.push(target.getComponent(i, c) + (output.morphTargetsRelative ? base.getComponent(i, c) : 0));
       temporary.setAttribute("position", new Float32BufferAttribute(values, 3)); temporary.setIndex(indices);
-      recomputeNormals(temporary, indices, vertexIds, mesh.positions.length, !flat);
+      recomputeNormals(temporary, indices, vertexIds, mesh.positions.length, !flat, hardVertices);
       const normal = temporary.getAttribute("normal"); const deltas: number[] = [];
       for (let i = 0; i < normal.count; i += 1) for (let c = 0; c < 3; c += 1) deltas.push(normal.getComponent(i, c) - (output.morphTargetsRelative ? baseNormals.getComponent(i, c) : 0));
       const attribute = new Float32BufferAttribute(deltas, 3); attribute.name = target.name; temporary.dispose(); return attribute;
@@ -141,18 +181,23 @@ export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: b
   return output;
 }
 
-function recomputeNormals(geometry: BufferGeometry, indices: number[], vertexIds: number[], count: number, smooth: boolean): void {
+function recomputeNormals(geometry: BufferGeometry, indices: number[], vertexIds: number[], count: number, smooth: boolean, hardVertices?: ReadonlySet<number>): void {
   geometry.computeVertexNormals();
-  if (smooth) {
-    const sums = Array.from({ length: count }, () => new Vector3()); const normals = geometry.getAttribute("normal");
-    for (let i = 0; i < indices.length; i += 3) {
-      const a = indices[i]; const b = indices[i + 1]; const c = indices[i + 2];
-      if (a === undefined || b === undefined || c === undefined) continue;
-      const pa = new Vector3().fromBufferAttribute(geometry.getAttribute("position"), a);
-      const normal = new Vector3().fromBufferAttribute(geometry.getAttribute("position"), b).sub(pa).cross(new Vector3().fromBufferAttribute(geometry.getAttribute("position"), c).sub(pa));
-      for (const index of [a, b, c]) sums[vertexIds[index] ?? -1]?.add(normal);
-    }
-    sums.forEach((normal) => normal.normalize());
-    vertexIds.forEach((id, index) => { const normal = sums[id]; if (normal) normals.setXYZ(index, normal.x, normal.y, normal.z); });
+  if (!smooth) return;
+  const sums = Array.from({ length: count }, () => new Vector3());
+  const normals = geometry.getAttribute("normal");
+  if (!normals) return;
+  for (let i = 0; i < indices.length; i += 3) {
+    const a = indices[i]; const b = indices[i + 1]; const c = indices[i + 2];
+    if (a === undefined || b === undefined || c === undefined) continue;
+    const pa = new Vector3().fromBufferAttribute(geometry.getAttribute("position"), a);
+    const normal = new Vector3().fromBufferAttribute(geometry.getAttribute("position"), b).sub(pa).cross(new Vector3().fromBufferAttribute(geometry.getAttribute("position"), c).sub(pa));
+    for (const index of [a, b, c]) sums[vertexIds[index] ?? -1]?.add(normal);
   }
+  sums.forEach((normal) => normal.normalize());
+  vertexIds.forEach((id, index) => {
+    if (hardVertices?.has(id)) return;
+    const normal = sums[id];
+    if (normal && normal.lengthSq() > 1e-12) normals.setXYZ(index, normal.x, normal.y, normal.z);
+  });
 }

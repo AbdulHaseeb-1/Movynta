@@ -19,7 +19,7 @@ export function ComponentToolbar() {
       <TooltipProvider>
         <fieldset
           aria-label="Mesh selection"
-          className="flex h-8 items-center gap-0.5 rounded-full border border-border bg-card p-0.5 shadow-xl"
+          className="flex h-8 items-center gap-0.5 rounded-md border border-border bg-card p-0.5 shadow-xl"
         >
           {(
             [
@@ -33,7 +33,7 @@ export function ComponentToolbar() {
                 <Button
                   size="icon-sm"
                   variant={componentKind === kind ? "secondary" : "ghost"}
-                  className="size-7 rounded-full [&_svg]:size-4"
+                  className="size-7 rounded-sm [&_svg]:size-4"
                   aria-label={`Select ${label.toLowerCase()}`}
                   aria-pressed={componentKind === kind}
                   onClick={() => dispatch(setComponentKind(kind))}

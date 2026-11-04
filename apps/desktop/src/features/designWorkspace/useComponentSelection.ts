@@ -4,6 +4,7 @@ import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
 import { errorMessage } from "@/lib";
 import { ComponentSelection } from "./ComponentSelection";
+import { takeComponentSelection } from "./componentRestore";
 import { setComponentError, setComponentSelection } from "./workspaceSlice";
 
 export function useComponentSelection(
@@ -26,7 +27,6 @@ export function useComponentSelection(
       controller?.dispose();
       controller = undefined;
       dispatch(setComponentSelection(null));
-      dispatch(setComponentError(""));
       const id = scene.selection;
       const root = id ? scene.getObject(id) : undefined;
       if (!root || !id) return;
@@ -48,6 +48,8 @@ export function useComponentSelection(
               ),
             ),
         );
+        const queued = takeComponentSelection(id);
+        if (queued) controller.select(queued.meshPath, queued.ids);
       } catch (error) {
         dispatch(setComponentError(errorMessage(error)));
       }
