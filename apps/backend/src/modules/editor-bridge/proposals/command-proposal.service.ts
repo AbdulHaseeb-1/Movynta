@@ -57,7 +57,7 @@ export class CommandProposalService {
       projectId: run.projectId,
       clientId: run.clientId,
       baseRevision: context.revision,
-      strictRevision: input.expectedRevision !== undefined || input.commands.some((command) => command.type === "geometry.bevel" || command.type === "geometry.extrude" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers")),
+      strictRevision: input.expectedRevision !== undefined || input.commands.some((command) => command.type === "geometry.bevel" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers")),
       summary: input.summary,
       commands: input.commands,
       requiresApproval: this.policy.requiresApproval(input.commands),
@@ -250,12 +250,12 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
   const seenCommandIds = new Set<string>();
   const issues: ProposalIssue[] = [];
   const modifiers = commands.filter((command) => command.type === "geometry.bevel" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers"));
-  const extrudes = commands.filter((command) => command.type === "geometry.extrude");
+  const cageEdits = commands.filter((command) => command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces");
   if (modifiers.length > 0 && (modifiers.length !== commands.length || commands.length > 20)) {
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Geometry batches accept only bevel/subdivision commands, at most 20; create/transform in separate proposals" }];
   }
-  if (extrudes.length > 0 && (extrudes.length !== commands.length || commands.length > 20)) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Extrude batches accept only extrude commands, at most 20; create or transform objects in a separate proposal" }];
+  if (cageEdits.length > 0 && (cageEdits.length !== commands.length || commands.length > 20)) {
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Component edit batches accept only extrude and subdivide_faces commands, at most 20; create or transform objects in a separate proposal" }];
   }
   const issue = (commandId: string, message: string) => issues.push({ commandId, message });
   const missing = (commandId: string, objectId: string) =>
@@ -303,6 +303,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       case "geometry.subdivide":
       case "geometry.set_modifiers":
       case "geometry.extrude":
+      case "geometry.subdivide_faces":
       case "scene.rename_object":
       case "scene.set_visibility":
         if (!parents.has(command.objectId)) missing(command.commandId, command.objectId);

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAppSelector } from "@/app/hooks";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -142,6 +143,8 @@ function ModifierEditor({
   const part = parts[partIndex] ?? parts[0];
   const [draft, setDraft] = useState<MeshModifierSpec[]>([]);
   const [busy, setBusy] = useState(false);
+  // Modifiers always act on the whole object, so they are held back while components are picked.
+  const componentsPicked = useAppSelector((state) => state.designWorkspace.mode === "edit" && (state.designWorkspace.componentSelection?.ids.length ?? 0) > 0);
   const [error, setError] = useState("");
   const mesh = part?.mesh;
   const [sourceMesh, setSourceMesh] = useState<Mesh | undefined>(undefined);
@@ -222,8 +225,13 @@ function ModifierEditor({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44 p-1.5">
+              {componentsPicked && (
+                <p className="px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
+                  Modifiers apply to the whole object. Clear the selection (Esc) to add one, or use Subdivide in the Edit toolbar.
+                </p>
+              )}
               <DropdownMenuItem
-                disabled={full}
+                disabled={full || componentsPicked}
                 onSelect={() => add({ id: `bevel_${crypto.randomUUID()}`, kind: "bevel", enabled: true, width: 0.1, segments: 3, profile: "round", angle: 30 })}
               >
                 Bevel
@@ -233,7 +241,7 @@ function ModifierEditor({
               {SUBDIVISION_METHODS.map((method) => (
                 <DropdownMenuItem
                   key={method.value}
-                  disabled={full}
+                  disabled={full || componentsPicked}
                   onSelect={() => add({ id: `sub_${crypto.randomUUID()}`, kind: "subdivision", enabled: true, levels: 1, method: method.value })}
                 >
                   {method.label}

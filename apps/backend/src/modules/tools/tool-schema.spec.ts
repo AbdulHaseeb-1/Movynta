@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { editorCommandListSchema, MAX_COMMANDS_PER_PROPOSAL } from "../../shared/schemas/editor-command.schema.js";
 import type { EditorContext } from "../../shared/types/editor-context.types.js";
+import { editorContextSchema } from "../../shared/schemas/editor-context.schema.js";
 import { validateAgainstContext } from "../editor-bridge/proposals/command-proposal.service.js";
 import { defineTool, toProviderToolName } from "./tool.types.js";
 import { checkScene } from "./validation/validation.tools.js";
@@ -44,6 +45,12 @@ describe("editor command schema", () => {
     expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "face", ids: ["0"], offset: [0, 1, 0] }]).success).toBe(true);
     expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "loop", ids: ["0"], offset: [0, 1, 0] }]).success).toBe(false);
     expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "face", ids: [], offset: [0, 1, 0] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: ["0", "12"] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: [] }]).success).toBe(false);
+    const focus = { ...emptyScene, designFocus: { mode: "edit", componentKind: "face", componentSelection: { objectId: "a", meshPath: [0], kind: "face", ids: ["0", "3_4"], modifiersEnabled: false } } };
+    expect(editorContextSchema.safeParse(focus).success).toBe(true);
+    expect(editorContextSchema.safeParse({ ...focus, designFocus: { mode: "edit", componentKind: "face", componentSelection: { objectId: "a", meshPath: [], kind: "face", ids: ["0"] } } }).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: ["0_1"] }]).success).toBe(false);
   });
   it("accepts a valid mixed batch", () => {
     const parsed = editorCommandListSchema.safeParse([

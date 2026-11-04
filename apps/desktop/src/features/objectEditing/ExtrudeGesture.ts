@@ -2,8 +2,7 @@ import { DoubleSide, SkinnedMesh, Vector2, Vector3, type BufferGeometry, type Ca
 import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
 import { meshAtPath, modifierStack } from "@/features/meshGeometry";
-import { extrudeRegion, type ExtrudeKind } from "@/features/meshGeometry/meshExtrude";
-import { writeShadedGeometry } from "@/features/meshGeometry/meshOutput";
+import { checkExtrudeSelection, extrudeRegion, writeExtrudedGeometry, ZeroAreaWallError, type ExtrudeKind } from "@/features/meshGeometry/meshExtrude";
 import { readTopology, type PolygonMesh } from "@/features/meshGeometry/meshTopology";
 
 type Axis = "x" | "y" | "z";
@@ -26,6 +25,8 @@ export interface ExtrudeCommit {
   ids: string[];
   offset: [number, number, number];
   selection: string[];
+  /** The scene revision the preview was computed on. The ids are only valid for that revision. */
+  revision: number;
 }
 interface Session {
   mesh: Mesh;
@@ -44,6 +45,8 @@ interface Session {
   preview: BufferGeometry | null;
   offset: Vector3 | null;
   selection: string[] | null;
+  /** Why the pointer's current offset cannot be built. The last valid preview stays on screen and is what confirm keeps. */
+  blocked: string | null;
   restoreMaterial: () => void;
 }
 function isTyping(target: EventTarget | null): boolean {
@@ -124,7 +127,8 @@ export class ExtrudeGesture {
     const restore = () => {
       const session = this.session;
       if (!session) return;
-      session.mesh.geometry = session.original;
+      // Undo only our own preview. If another edit has replaced the displayed geometry, that result stays.
+      if (session.preview && session.mesh.geometry === session.preview) session.mesh.geometry = session.original;
       session.preview?.dispose();
       session.preview = null;
     };
@@ -144,7 +148,7 @@ export class ExtrudeGesture {
       const selection = session.selection;
       const commit = confirmed && offset && selection && offset.lengthSq() > 1e-12 ? {
         objectId: session.objectId, meshPath: session.meshPath, kind: session.kind, ids: session.ids,
-        offset: [offset.x, offset.y, offset.z] as [number, number, number], selection,
+        offset: [offset.x, offset.y, offset.z] as [number, number, number], selection, revision: session.revision,
       } : null;
       stop(session);
       if (commit) onCommit(commit);
@@ -160,16 +164,24 @@ export class ExtrudeGesture {
           restore();
           session.offset = offset;
           session.selection = null;
+          session.blocked = null;
         } else {
-          const result = extrudeRegion(session.cage, session.kind, session.ids, offset);
-          const preview = writeShadedGeometry(session.original, result.mesh);
-          session.preview?.dispose();
-          session.preview = preview;
-          session.mesh.geometry = preview;
-          session.offset = offset;
-          session.selection = result.selection;
+          try {
+            const result = extrudeRegion(session.cage, session.kind, session.ids, offset);
+            const preview = writeExtrudedGeometry(session.original, result);
+            session.preview?.dispose();
+            session.preview = preview;
+            session.mesh.geometry = preview;
+            session.offset = offset;
+            session.selection = result.selection;
+            session.blocked = null;
+          } catch (error) {
+            if (!(error instanceof ZeroAreaWallError)) throw error;
+            // A grab along an edge is not a failure. Keep the last valid preview and say why it did not follow.
+            session.blocked = error.message;
+          }
         }
-        status(hint(session.axis));
+        status(session.blocked ? `${hint(session.axis)}  ·  ${session.blocked}` : hint(session.axis));
       } catch (error) {
         if (this.session) stop(this.session);
         onError(error);
@@ -188,15 +200,15 @@ export class ExtrudeGesture {
       try {
         const mesh = meshAtPath(editor.getObject(selected.objectId), selected.meshPath);
         if (mesh instanceof SkinnedMesh) throw new Error("Extrude on skinned meshes is not supported yet.");
-        if ((modifierStack(mesh)?.modifiers ?? []).some((modifier) => modifier.enabled)) throw new Error("Disable modifiers before extruding, so the selection matches the base mesh");
+        if ((modifierStack(mesh)?.modifiers ?? []).some((modifier) => modifier.enabled)) throw new Error("Disable modifiers before editing components, so the selection matches the base mesh");
         const cage = readTopology(mesh.geometry);
-        extrudeRegion(cage, selected.kind, selected.ids, new Vector3(0, 1, 0));
+        checkExtrudeSelection(cage, selected.kind, selected.ids);
         mesh.updateWorldMatrix(true, false);
         this.session = {
           mesh, original: mesh.geometry, cage, kind: selected.kind, ids: [...selected.ids], objectId: selected.objectId,
           meshPath: [...selected.meshPath], origin: componentOrigin(mesh, cage, selected.kind, selected.ids), axis: null,
           start: this.pointer?.clone() ?? null, current: this.pointer?.clone() ?? null, revision: editor.currentRevision,
-          cameraEnabled: viewport.controls.enabled, preview: null, offset: null, selection: null,
+          cameraEnabled: viewport.controls.enabled, preview: null, offset: null, selection: null, blocked: null,
           restoreMaterial: selected.kind === "face" ? () => undefined : revealBackfaces(mesh),
         };
         active = true;
@@ -255,6 +267,8 @@ export class ExtrudeGesture {
     window.addEventListener("contextmenu", contextmenu, true);
     window.addEventListener("blur", blur);
     const unsubscribe = editor.onChange(() => { if (this.session && editor.currentRevision !== this.session.revision) end(false); });
+    // Ends the preview before another change or inspection reads the displayed geometry, so it sees the committed cage.
+    const unsubscribeBefore = editor.onBeforeChange(() => { if (this.session) end(false); });
     const stopFrame = viewport.addFrameListener(() => { if (this.session && !enabled()) end(false); else flush(); });
     this.cleanups.push(
       () => window.removeEventListener("keydown", keydown, true),
@@ -263,6 +277,7 @@ export class ExtrudeGesture {
       () => window.removeEventListener("contextmenu", contextmenu, true),
       () => window.removeEventListener("blur", blur),
       unsubscribe,
+      unsubscribeBefore,
       stopFrame,
       () => end(false),
     );

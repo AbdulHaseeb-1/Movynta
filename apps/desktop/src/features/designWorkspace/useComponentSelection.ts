@@ -48,7 +48,7 @@ export function useComponentSelection(
               ),
             ),
         );
-        const queued = takeComponentSelection(id);
+        const queued = takeComponentSelection(scene, id);
         if (queued) controller.select(queued.meshPath, queued.ids);
       } catch (error) {
         dispatch(setComponentError(errorMessage(error)));

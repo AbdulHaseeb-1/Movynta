@@ -44,6 +44,13 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
     ids: z.array(z.string().regex(/^\d{1,10}(_\d{1,10})?$/)).min(1).max(4096),
     offset: vector3,
   }).strict(),
+  z.object({
+    ...commandBase,
+    type: z.literal("geometry.subdivide_faces"),
+    objectId: identifierSchema,
+    meshPath: meshPathSchema.default([]),
+    ids: z.array(z.string().regex(/^\d{1,10}$/)).min(1).max(4096),
+  }).strict(),
   z.object({ ...commandBase, type: z.literal("geometry.subdivide"), objectId: identifierSchema,
     meshPath: meshPathSchema.default([]), levels: z.number().int().min(1).max(3),
     method: subdivisionMethodSchema.optional(),

@@ -51,6 +51,8 @@ function describeCommand(command: Command): string {
       return `Set the modifier stack on ${target} (${command.modifiers?.length ?? 0} modifiers)`;
     case "geometry.extrude":
       return `Extrude the selected ${command.kind ?? "components"} of ${target}`;
+    case "geometry.subdivide_faces":
+      return `Subdivide the selected faces of ${target}`;
     case "geometry.create_primitive":
       return `Add a ${command.primitive ?? "shape"} to ${target}${command.size === undefined ? "" : ` (size ${command.size})`}`;
     default:

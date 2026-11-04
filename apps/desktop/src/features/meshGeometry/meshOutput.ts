@@ -82,13 +82,19 @@ export function hardCageVertices(source: BufferGeometry, mesh: PolygonMesh): Set
   return hard;
 }
 
+/**
+ * Lets a caller rewrite texture coordinates of render corners before the topology is remembered.
+ * `renderCorner(face, corner)` gives the render index of a face corner in a smooth write.
+ */
+export type CornerUvPatch = (uv: BufferAttribute | InterleavedBufferAttribute, renderCorner: (face: number, corner: number) => number) => void;
+
 /** Writes a mesh and keeps hard edges hard. Smooth vertices stay averaged. */
-export function writeShadedGeometry(source: BufferGeometry, mesh: PolygonMesh): BufferGeometry {
-  return writeGeometry(source, mesh, false, hardCageVertices(source, mesh));
+export function writeShadedGeometry(source: BufferGeometry, mesh: PolygonMesh, patchUv?: CornerUvPatch): BufferGeometry {
+  return writeGeometry(source, mesh, false, hardCageVertices(source, mesh), patchUv);
 }
 
 /** Render corners are distinct from control vertices, so UV and material seams remain intact. */
-export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: boolean, hardVertices?: ReadonlySet<number>): BufferGeometry {
+export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: boolean, hardVertices?: ReadonlySet<number>, patchUv?: CornerUvPatch): BufferGeometry {
   const vertices = mesh.faces.reduce((count, face) => count + (flat ? (face.length - 2) * 3 : face.length), 0);
   const attributeSize = Object.values(source.attributes).reduce((sum, attribute) => sum + attribute.itemSize, 0);
   const morphSize = Object.values(source.morphAttributes).flatMap((targets) => targets ?? []).reduce((sum, attribute) => sum + attribute.itemSize, 0);
@@ -97,9 +103,11 @@ export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: b
   const positions: number[] = []; const indices: number[] = []; const vertexIds: number[] = [];
   const renderWeights: Weights[] = []; const geometricWeights: Weights[] = [];
   const controlCorners: Weights[][] = [];
+  const firstRender: number[] = [];
   mesh.faces.forEach((face, faceId) => {
     const corners: Weights[] = [];
     const begin = indices.length;
+    firstRender.push(vertexIds.length);
     const emit = (corner: number): number => {
       const id = face[corner]; if (id === undefined) throw new Error("Invalid face corner");
       const p = point(mesh, id); const index = vertexIds.length;
@@ -126,8 +134,15 @@ export function writeGeometry(source: BufferGeometry, mesh: PolygonMesh, flat: b
   output.setAttribute("position", new Float32BufferAttribute(positions, 3)); output.setIndex(indices);
   for (const [name, attribute] of Object.entries(source.attributes)) {
     if (["position", "normal", "tangent", "skinIndex", "skinWeight"].includes(name)) continue;
-    output.setAttribute(name, new Float32BufferAttribute(renderWeights.flatMap((weights) => Array.from({ length: attribute.itemSize }, (_, c) => sample(attribute, weights, c))), attribute.itemSize));
+    const values = new Float32Array(renderWeights.length * attribute.itemSize);
+    renderWeights.forEach((weights, index) => {
+      for (let c = 0; c < attribute.itemSize; c += 1) values[index * attribute.itemSize + c] = sample(attribute, weights, c);
+    });
+    output.setAttribute(name, new Float32BufferAttribute(values, attribute.itemSize));
   }
+  // Before the topology is remembered, so the cached signature matches the final texture coordinates.
+  const uv = output.getAttribute("uv");
+  if (patchUv && uv) patchUv(uv, (face, corner) => (firstRender[face] ?? 0) + corner);
   const skinIndex = source.getAttribute("skinIndex"); const skinWeight = source.getAttribute("skinWeight");
   if (Boolean(skinIndex) !== Boolean(skinWeight)) throw new Error("Skin indices and weights must be supplied together");
   if (skinIndex && skinWeight) {

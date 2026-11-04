@@ -49,7 +49,7 @@ import {
 import { errorMessage } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
-import { AddShapeMenu, ComponentToolbar, useComponentSelection, useExtrude, DesignModeMenu, DesignWorkspacePanel, setDesignMode, setPanelOpen as setWorkspacePanelOpen } from "@/features/designWorkspace";
+import { AddShapeMenu, ComponentToolbar, useComponentSelection, useDesignFocus, useExtrude, DesignModeMenu, DesignWorkspacePanel, setDesignMode, setPanelOpen as setWorkspacePanelOpen } from "@/features/designWorkspace";
 
 /** A saved project, fetched in full before the workspace shows it. */
 interface SavedProject {
@@ -115,6 +115,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     saves,
   });
   const extrude = useExtrude(viewport, editorScene, run.busy || modifierBusy || opening !== "ready", saves);
+  useDesignFocus(editorScene);
   useComponentSelection(viewport, editorScene, run.busy || modifierBusy || opening !== "ready");
 
   const importer = useModelImport({
@@ -315,7 +316,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <ProjectBar project={project} onAction={actions.perform} onRename={renameProject} />
         <DesignModeMenu />
-        {designMode === "edit" && <ComponentToolbar />}
+        {designMode === "edit" && <ComponentToolbar scene={editorScene} saves={saves} />}
         <AddShapeMenu scene={editorScene} ensureProject={ensureProject} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} onAdded={() => setSubmitted(true)} />
       </div>
       {/* Panel launchers stay compact until opened. */}

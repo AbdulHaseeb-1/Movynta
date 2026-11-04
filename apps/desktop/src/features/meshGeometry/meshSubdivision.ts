@@ -20,7 +20,7 @@ function samplesMatch(sources: readonly ContinuityChannel[], left: Weights, righ
   return true;
 }
 /** A face is convex when every corner turns the same way as its normal. */
-function isConvex(mesh: PolygonMesh, face: readonly number[]): boolean {
+export function isConvex(mesh: PolygonMesh, face: readonly number[]): boolean {
   const normal = faceNormal(mesh, face);
   for (let i = 0; i < face.length; i += 1) {
     const a = point(mesh, face[i]); const b = point(mesh, face[(i + 1) % face.length]); const c = point(mesh, face[(i + 2) % face.length]);
