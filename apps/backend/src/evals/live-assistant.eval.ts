@@ -7,6 +7,7 @@ import { ProvidersService } from "../modules/providers/providers.service.js";
 import type { SecretProtector } from "../modules/providers/secret-protector.js";
 import type { EditorObject } from "../shared/types/editor-context.types.js";
 import { EditorSimulator } from "../testing/editor-simulator.js";
+import { openEventStream } from "../testing/event-stream.js";
 import { startTestServer } from "../testing/test-app.js";
 import type { EditorCommand, TestServer } from "../testing/testing.types.js";
 
@@ -38,6 +39,10 @@ interface RunOutcome {
   readonly error: string;
   readonly finalOutput: string;
   readonly approvals: readonly string[];
+  /** Skills the request selected, as the run reported them when it started. */
+  readonly skillsSelected: readonly string[];
+  /** Skills the model read with skills.load_skill. */
+  readonly skillsLoaded: readonly string[];
   readonly proposals: readonly (readonly EditorCommand[])[];
   readonly objects: readonly EditorObject[];
 }
@@ -53,7 +58,9 @@ const runSchema = z.object({
   finalOutput: z.string().nullish(),
   error: z.object({ message: z.string() }).nullish(),
 });
-const acceptedSchema = z.object({ runId: z.string() });
+const acceptedSchema = z.object({ runId: z.string(), eventsUrl: z.string() });
+const TERMINAL_EVENTS: readonly string[] = ["run.completed", "run.failed", "run.cancelled"];
+const skillIdPayload = z.object({ skillId: z.string() });
 const approvalsSchema = z.array(z.object({ id: z.string(), status: z.string(), toolName: z.string() }));
 const vec3 = z.tuple([z.number(), z.number(), z.number()]);
 
@@ -99,7 +106,7 @@ const figure: Scenario = {
   message:
     "Build a simple standing figure out of primitives: a box torso, a sphere head on top of it, and two cylinder arms attached to the torso. Put every part under one parent called Figure, and give each part its own descriptive name.",
   scene: [],
-  grade({ objects, approvals }) {
+  grade({ objects, approvals, ...outcome }) {
     const root = objects.find((object) => object.name === "Figure");
     const parts = objects.filter((object) => object.id !== root?.id);
     const torso = parts.find((part) => part.name.toLowerCase().includes("torso"));
@@ -131,6 +138,11 @@ const figure: Scenario = {
         parts.map((part) => part.name).join(", "),
       ),
       check("needs no approval", approvals.length === 0, approvals.join(", ")),
+      check(
+        "character-modeling skill was selected for the request",
+        outcome.skillsSelected.includes("character-modeling"),
+        outcome.skillsSelected.join(", ") || "none",
+      ),
     ];
   },
 };
@@ -224,9 +236,12 @@ async function runOnce(server: TestServer, token: string, scenario: Scenario, re
       projectId,
       editorClientId: editor.clientId,
       message: scenario.message,
+      dimension: "3d",
       providerId: PROVIDER_ID,
       model: MODEL,
     });
+    // The stream replays from the start, so it holds the skills selected at run.started and every skill.loaded.
+    const stream = openEventStream(server.baseUrl + accepted.eventsUrl, token);
     const approvalsSeen = new Set<string>();
     const approvals: string[] = [];
     const deadline = Date.now() + RUN_TIMEOUT_MS;
@@ -242,11 +257,21 @@ async function runOnce(server: TestServer, token: string, scenario: Scenario, re
       await new Promise((resolve) => setTimeout(resolve, 1000));
       run = await call(server, token, "GET", `/api/v1/agent-runs/${accepted.runId}`, runSchema);
     }
+    await stream.waitFor((event) => TERMINAL_EVENTS.includes(event.envelope.type), 30_000).catch(() => undefined);
+    stream.stop();
+    const started = stream.events.find((event) => event.envelope.type === "run.started");
+    const selected = z.array(z.string()).safeParse(started?.envelope.payload["selectedSkillIds"]);
+    const skillsLoaded = stream.events.flatMap((event) => {
+      const parsed = skillIdPayload.safeParse(event.envelope.payload);
+      return event.envelope.type === "skill.loaded" && parsed.success ? [parsed.data.skillId] : [];
+    });
     return {
       status: TERMINAL.includes(run.status) ? run.status : `timed out (${run.status})`,
       error: run.error?.message ?? "",
       finalOutput: (run.finalOutput ?? "").slice(0, 600),
       approvals,
+      skillsSelected: selected.success ? selected.data : [],
+      skillsLoaded,
       proposals: editor.executions.map((execution) => execution.commands),
       objects: editor.scene.objects,
     };
