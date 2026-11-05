@@ -20,7 +20,7 @@ import {
 } from "./modelFormats";
 import { makeObjectId } from "./objectId";
 import { parseModel } from "./parseModel";
-import { prepareModel } from "./prepareModel";
+import { prepareModel, scaleNotice } from "./prepareModel";
 
 const encode = (text: string) => new TextEncoder().encode(text).buffer;
 const sized = (x: number, y: number, z: number, at = new Vector3()) => {
@@ -154,6 +154,16 @@ describe("prepareModel", () => {
     expect(bounds(prepareModel(sized(3, 3, 3), "ok").object).getSize(new Vector3()).x).toBeCloseTo(3);
     expect(bounds(prepareModel(sized(500, 500, 500), "huge").object).getSize(new Vector3()).x).toBeCloseTo(2);
     expect(bounds(prepareModel(sized(0.01, 0.01, 0.01), "tiny").object).getSize(new Vector3()).x).toBeCloseTo(2);
+  });
+
+  it("reports how much a model was resized, so its real size can be recovered", () => {
+    const kept = prepareModel(sized(3, 3, 3), "ok");
+    expect(kept.scaleFactor).toBe(1);
+    expect(scaleNotice("ok.glb", kept.scaleFactor, kept.originalSize)).toBeUndefined();
+    const huge = prepareModel(sized(500, 250, 100), "huge");
+    expect(huge.scaleFactor).toBeCloseTo(2 / 500);
+    expect(huge.originalSize).toBeCloseTo(500);
+    expect(scaleNotice("huge.glb", huge.scaleFactor, huge.originalSize)).toContain("500 → 2 units");
   });
 
   it("counts triangles and rejects files with nothing to show", () => {

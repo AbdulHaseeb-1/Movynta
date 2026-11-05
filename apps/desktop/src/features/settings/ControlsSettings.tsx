@@ -41,7 +41,7 @@ const groups: readonly ControlGroup[] = [
       { action: "Exact object transform", keys: "Type a number / Backspace", detail: "During G, R or S, type a signed distance, rotation in degrees, or scale factor from 0.001 to 100. Without an axis, movement follows camera-right and rotation uses the view axis. Backspace edits the value." },
       { action: "Confirm / cancel transform", keys: "Enter / click · Esc / right-click", detail: "Confirm the preview or restore the original transforms." },
       { action: "Snap gizmo", keys: "Shift + drag", detail: "Hold Shift while dragging a transform handle to snap its movement." },
-      { action: "Delete selected object", keys: "Delete / X", detail: "Delete the active object using the confirmation flow." },
+      { action: "Delete selected object", keys: "Delete / X", detail: "Delete the selected objects at once. There is no confirmation; use Undo to bring them back. Delete does nothing in Edit mode." },
       { action: "Deselect", keys: "Esc", detail: "Clear the object selection, or cancel an active selection rectangle." },
       { action: "Add shape", keys: "Add shape menu", detail: "Add a cube, sphere, cylinder, cone, torus, plane, tetrahedron, octahedron or icosahedron." },
       { action: "Duplicate object", keys: "Shift + D", detail: "Duplicate the selected object and its registered children in place, then move the selected copy." },

@@ -11,11 +11,12 @@ import {
 } from "./modelFormats";
 import { makeObjectId } from "./objectId";
 import { parseModel } from "./parseModel";
-import { disposeModel, prepareModel } from "./prepareModel";
+import { disposeModel, prepareModel, scaleNotice } from "./prepareModel";
 
 export interface ImportedModelSummary {
   name: string;
   triangles: number;
+  scaleFactor: number;
 }
 
 interface ModelImportOptions {
@@ -30,7 +31,10 @@ export interface ModelImport {
   importing: boolean;
   /** Why the last import failed, until it is dismissed or another import starts. */
   error: string;
+  /** A note about a successful import, such as the model having been resized. Empty when there is nothing to say. */
+  notice: string;
   dismissError: () => void;
+  dismissNotice: () => void;
   importFile: (file: File) => Promise<void>;
 }
 
@@ -46,10 +50,12 @@ export function useModelImport({
 }: ModelImportOptions): ModelImport {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const performImport = useCallback(
     async (file: File) => {
       setError("");
+      setNotice("");
       const format = modelFormatOf(file.name);
       if (!format) return setError(unsupportedFileMessage(file.name));
       if (file.size === 0) return setError(`${file.name} is empty.`);
@@ -72,7 +78,8 @@ export function useModelImport({
         scene.importObject(objectId, prepared.object);
         const added = prepared;
         prepared = undefined;
-        onImported?.({ name: file.name, triangles: added.triangles });
+        setNotice(scaleNotice(file.name, added.scaleFactor, added.originalSize) ?? "");
+        onImported?.({ name: file.name, triangles: added.triangles, scaleFactor: added.scaleFactor });
       } catch (failure) {
         if (prepared) disposeModel(prepared.object);
         setError(`Could not import ${file.name}. ${errorMessage(failure)}`);
@@ -93,7 +100,9 @@ export function useModelImport({
   return {
     importing,
     error,
+    notice,
     dismissError: () => setError(""),
+    dismissNotice: () => setNotice(""),
     importFile,
   };
 }

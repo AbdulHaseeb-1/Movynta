@@ -65,22 +65,26 @@ export function ImportButton({
         )}
         {importer.importing ? "Importing…" : "Import"}
       </Button>
-      {importer.error && (
-        <div
-          role="alert"
-          className="flex w-[min(320px,calc(100vw-32px))] items-start gap-2.5 rounded-xl bg-popover p-3.5 text-xs leading-5 text-popover-foreground shadow-xl ring-1 ring-border"
-        >
-          <p className="min-w-0 flex-1">{importer.error}</p>
-          <button
-            type="button"
-            onClick={importer.dismissError}
-            aria-label="Dismiss"
-            className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            <X className="size-3.5" />
-          </button>
-        </div>
-      )}
+      {importer.error && <Message kind="alert" text={importer.error} onDismiss={importer.dismissError} />}
+      {!importer.error && importer.notice && <Message kind="status" text={importer.notice} onDismiss={importer.dismissNotice} />}
     </div>
+  );
+}
+
+function Message({ kind, text, onDismiss }: { kind: "alert" | "status"; text: string; onDismiss: () => void }) {
+  const className = "flex w-[min(320px,calc(100vw-32px))] items-start gap-2.5 rounded-xl bg-popover p-3.5 text-xs leading-5 text-popover-foreground shadow-xl ring-1 ring-border";
+  const Box = kind === "alert" ? "div" : "output";
+  return (
+    <Box role={kind === "alert" ? "alert" : undefined} className={className}>
+      <p className="min-w-0 flex-1">{text}</p>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+      >
+        <X className="size-3.5" />
+      </button>
+    </Box>
   );
 }
