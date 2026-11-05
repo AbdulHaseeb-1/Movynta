@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
+  boxToFrame,
   CoordinateViewport,
   ViewportToolbar,
   type Viewport,
@@ -116,11 +117,18 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     viewport,
     scene: editorScene,
     disabled: run.busy || modifierBusy || opening !== "ready" || designMode === "edit" || measurementPicking,
+    // Edit mode only pauses object transforms; its saved component edits can still be undone.
+    historyDisabled: run.busy || modifierBusy || opening !== "ready" || measurementPicking,
     saves,
   });
   const extrude = useExtrude(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking, saves);
   useDesignFocus(editorScene);
   useComponentSelection(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking);
+
+  const frame = useCallback((scope: "selection" | "all") => {
+    const box = editorScene ? boxToFrame(editorScene, scope) : null;
+    if (box) viewport?.frameBox(box);
+  }, [editorScene, viewport]);
 
   const importer = useModelImport({
     saves,
@@ -303,6 +311,9 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
               hasSelection={editing.selected !== null}
               disabled={run.busy || modifierBusy}
               onDelete={editing.requestDelete}
+              onFrame={frame}
+              onUndo={editing.undo}
+              onRedo={editing.redo}
               orientation="horizontal"
               className="animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none"
             ><ObjectActions scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} /></ViewportToolbar>

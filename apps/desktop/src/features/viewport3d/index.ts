@@ -11,6 +11,7 @@ export {
   type Press,
 } from "./clicks";
 export { addCoordinateSpace } from "./coordinateSpace";
+export { boxToFrame, framePose, type CameraPose, type FrameLimits, type FrameSource } from "./framing";
 export { ThreeViewport, type ThreeViewportProps } from "./ThreeViewport";
 export {
   createViewport,

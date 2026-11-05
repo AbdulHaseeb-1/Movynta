@@ -24,6 +24,7 @@ const groups: readonly ControlGroup[] = [
       { action: "Pan", keys: "H / Space + drag", detail: "Choose the Hand tool with H, or hold Space and drag temporarily." },
       { action: "Zoom", keys: "Scroll / = / + / −", detail: "Scroll or use =, + and − to move the camera closer or farther away." },
       { action: "Reset view", keys: "0", detail: "Return the camera to its starting view." },
+      { action: "Frame selected / all", keys: ". / Home", detail: "Move the camera to show the selected objects, or everything when nothing is selected. Home always frames the whole scene." },
       { action: "Measurements", keys: "Ruler button · Esc / right-click to cancel", detail: "Choose Distance or Angle and pick viewport points with a live preview. Snap controls select Surface, Vertex or Grid; hold Shift for a triangle vertex or Alt for the unit ground grid. Inspect selected dimensions in World/Local axes, read an Edit-mode edge, or measure gaps between two objects. Save named annotations and use the eye to hide them. Scene scale controls calibration. If loading fails or another session changes measurements, reload and review the latest settings before saving again." },
     ],
   },
@@ -124,7 +125,7 @@ const groups: readonly ControlGroup[] = [
     name: "History, values and chat",
     context: "Project editing and the assistant",
     controls: [
-      { action: "Undo / redo", keys: "Ctrl + Z / Ctrl + Shift + Z / Ctrl + Y", detail: "Undo with Ctrl + Z. Redo with Ctrl + Shift + Z or Ctrl + Y. Use Command on macOS." },
+      { action: "Undo / redo", keys: "Ctrl + Z / Ctrl + Shift + Z / Ctrl + Y", detail: "Undo with Ctrl + Z. Redo with Ctrl + Shift + Z or Ctrl + Y. Use Command on macOS. The Undo and Redo buttons in the Object-mode toolbar do the same. Works in Edit mode too, but not while the assistant runs." },
       { action: "Adjust a value", keys: "Drag label / arrow keys", detail: "Drag a numeric label, or focus it and use arrow keys. Hold Shift for finer label adjustments." },
       { action: "Enter a value", keys: "Click value / Enter / Esc", detail: "Type a value and press Enter to apply it, or Esc to cancel." },
       { action: "Modifiers", keys: "Modifiers panel", detail: "Add Bevel, Subdivision, Boolean, Array or Mirror. Configure, reorder, enable or remove modifiers, then apply the changes. Existing live extrusions can also be adjusted here." },

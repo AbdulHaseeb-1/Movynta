@@ -4,9 +4,12 @@ import {
   Maximize,
   Move3d,
   MousePointer2,
+  Redo2,
   Rotate3d,
   Scale3d,
+  ScanSearch,
   Trash2,
+  Undo2,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -90,6 +93,11 @@ interface ViewportToolbarProps {
   hasSelection: boolean;
   disabled: boolean;
   onDelete: () => void;
+  /** Moves the camera to show the selection ("selection", or everything when nothing is selected) or the whole scene. */
+  onFrame?: (scope: "selection" | "all") => void;
+  /** Steps back or forward through the saved edits of the project. */
+  onUndo?: () => void;
+  onRedo?: () => void;
   /** A vertical pill for the side of the view, or a horizontal one for its bottom edge. */
   orientation?: "vertical" | "horizontal";
   /** Tools of other features, shown in a group of their own after Select, Move, Rotate and Scale. */
@@ -106,6 +114,9 @@ export function ViewportToolbar({
   hasSelection,
   disabled,
   onDelete,
+  onFrame,
+  onUndo,
+  onRedo,
   orientation = "vertical",
   children,
   className,
@@ -124,6 +135,7 @@ export function ViewportToolbar({
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       if (
+        event.defaultPrevented ||
         event.repeat ||
         event.ctrlKey ||
         event.metaKey ||
@@ -143,6 +155,10 @@ export function ViewportToolbar({
         viewport?.zoomBy(1 / ZOOM_STEP);
       } else if (key === "0") {
         viewport?.resetView();
+      } else if (key === "." && onFrame) {
+        onFrame("selection");
+      } else if (event.key === "Home" && onFrame) {
+        onFrame("all");
       } else if ((event.key === "Delete" || key === "x") && hasSelection) {
         event.preventDefault();
         if (!disabled) onDelete();
@@ -150,7 +166,7 @@ export function ViewportToolbar({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, viewport, hasSelection, disabled, onDelete]);
+  }, [dispatch, viewport, hasSelection, disabled, onDelete, onFrame]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -239,6 +255,17 @@ export function ViewportToolbar({
         >
           <ZoomOut className="size-[15px]" />
         </ToolButton>
+        {onFrame && (
+          <ToolButton
+            tooltipSide={tooltipSide}
+            label="Frame selected"
+            hint=". · Home frames everything"
+            shortcut=". Home"
+            onClick={() => onFrame("selection")}
+          >
+            <ScanSearch className="size-[15px]" />
+          </ToolButton>
+        )}
         <ToolButton tooltipSide={tooltipSide} label="Reset view" hint="0" shortcut="0" onClick={() => viewport?.resetView()}>
           <Maximize className="size-[15px]" />
         </ToolButton>
@@ -246,6 +273,16 @@ export function ViewportToolbar({
           orientation={horizontal ? "vertical" : "horizontal"}
           className={cn("bg-foreground/10", horizontal ? "mx-0.5 h-[17px]" : "my-0.5 w-[17px]")}
         />
+        {onUndo && (
+          <ToolButton tooltipSide={tooltipSide} label="Undo" hint="Ctrl+Z" shortcut="Control+Z" disabled={disabled} onClick={onUndo}>
+            <Undo2 className="size-[15px]" />
+          </ToolButton>
+        )}
+        {onRedo && (
+          <ToolButton tooltipSide={tooltipSide} label="Redo" hint="Ctrl+Shift+Z · Ctrl+Y" shortcut="Control+Shift+Z Control+Y" disabled={disabled} onClick={onRedo}>
+            <Redo2 className="size-[15px]" />
+          </ToolButton>
+        )}
         <ToolButton
           tooltipSide={tooltipSide}
           label="Delete selected object"
