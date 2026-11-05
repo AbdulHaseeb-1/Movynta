@@ -115,6 +115,7 @@ export function ProvidersSettings() {
               active: false,
               model: "",
               baseUrl: "",
+              acceptsImages: true,
             };
             const subscription = isSubscriptionProvider(id);
             const sessionSummary = subscription

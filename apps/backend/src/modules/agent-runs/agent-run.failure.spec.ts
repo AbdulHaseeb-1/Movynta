@@ -13,16 +13,15 @@ class ApiError extends Error {
 
 describe("classifyFailure", () => {
   it("explains provider errors by status", () => {
-    expect(classifyFailure(new ApiError("x", 401), false).code).toBe("provider_auth");
-    expect(classifyFailure(new ApiError("x", 404), false).code).toBe("provider_model_not_found");
-    expect(classifyFailure(new ApiError("x", 429), false).code).toBe("provider_rate_limited");
-    expect(classifyFailure(new ApiError("x", 503), false).code).toBe("provider_unavailable");
+    expect(classifyFailure(new ApiError("x", 401)).code).toBe("provider_auth");
+    expect(classifyFailure(new ApiError("x", 404)).code).toBe("provider_model_not_found");
+    expect(classifyFailure(new ApiError("x", 429)).code).toBe("provider_rate_limited");
+    expect(classifyFailure(new ApiError("x", 503)).code).toBe("provider_unavailable");
   });
 
   it("passes on the provider's reason for bad requests", () => {
     const failure = classifyFailure(
       new ApiError("400", 400, { message: "Unsupported value: 'minimal' is not supported with this model." }),
-      false,
     );
     expect(failure.code).toBe("provider_bad_request");
     expect(failure.message).toContain("'minimal' is not supported");
@@ -30,24 +29,28 @@ describe("classifyFailure", () => {
 
   it("finds the status on a wrapped cause", () => {
     const wrapped = new Error("run failed", { cause: new ApiError("x", 429) });
-    expect(classifyFailure(wrapped, false).code).toBe("provider_rate_limited");
+    expect(classifyFailure(wrapped).code).toBe("provider_rate_limited");
   });
 
-  it("recognizes network failures and timeouts", () => {
+  it("recognizes network failures", () => {
     const refused = Object.assign(new Error("fetch failed"), { cause: Object.assign(new Error("connect"), { code: "ECONNREFUSED" }) });
-    expect(classifyFailure(refused, false).code).toBe("provider_unreachable");
-    expect(classifyFailure(new Error("anything"), true).code).toBe("run_timeout");
+    expect(classifyFailure(refused).code).toBe("provider_unreachable");
+  });
+
+  it("reports a run stopped for its total time or for going quiet", () => {
+    expect(classifyFailure(new Error("anything"), "timeout").code).toBe("run_timeout");
+    expect(classifyFailure(new Error("anything"), "stalled").code).toBe("run_stalled");
   });
 
   it("explains an empty length stop from Chat Completions", () => {
     const error = new Error("Chat Completions response terminated with finish_reason='length' but produced no assistant text, tool call, or refusal.");
-    const failure = classifyFailure(error, false);
+    const failure = classifyFailure(error);
     expect(failure.code).toBe("model_output_truncated");
     expect(failure.message).toContain("output limit");
   });
 
   it("falls back to a generic failure", () => {
-    expect(classifyFailure(new Error("boom"), false).code).toBe("run_failed");
+    expect(classifyFailure(new Error("boom")).code).toBe("run_failed");
   });
 });
 

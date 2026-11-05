@@ -139,7 +139,11 @@ export function createValidationTools({ bridge }: { readonly bridge: EditorBridg
       execute: async (_input, context) => {
         bridge.assertConnection(context.userId, context.projectId, context.clientId);
         const scene = await bridge.getContext(context.clientId);
-        return checkScene(scene);
+        const check = checkScene(scene);
+        // Only the latest check counts: the run is finished once it has seen the scene without errors.
+        context.progress.unverifiedChanges = false;
+        context.progress.sceneErrors = check.issues.filter((issue) => issue.severity === "error").length;
+        return check;
       },
     }),
   ];

@@ -52,6 +52,18 @@ function appliedVersions(service: DatabaseService): number[] {
 }
 
 describe("schema migrations", () => {
+  it("adds run progress and the picture setting to a database at version 14", () => {
+    const service = newDatabaseService();
+    service.open(databaseAt(14));
+    expect(columnsOf(service, "agent_runs")).toContain("progress_json");
+    expect(columnsOf(service, "model_providers")).toContain("accepts_images");
+    // A provider stored before the column existed keeps sending pictures.
+    service.db.prepare("INSERT INTO model_providers (user_id, provider_id, model, encrypted_key, active) VALUES ('u', 'openai', 'gpt', 'k', 0)").run();
+    expect(service.db.prepare("SELECT accepts_images FROM model_providers WHERE user_id = 'u'").get()?.["accepts_images"]).toBe(1);
+    expect(appliedVersions(service)).toContain(15);
+    service.close();
+  });
+
   it("adds measurement storage to a database at version 13", () => {
     const service = newDatabaseService();
     service.open(databaseAt(13));

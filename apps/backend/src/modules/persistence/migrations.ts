@@ -230,4 +230,14 @@ export const MIGRATIONS: readonly Migration[] = [
       addColumnIfMissing(db, "projects", "measurements_version", "INTEGER NOT NULL DEFAULT 0");
     },
   },
+  {
+    // Plans and unfinished work survive an approval pause. Pictures can be switched off for a compatible provider
+    // whose model cannot read them; every existing provider keeps sending them.
+    version: 15,
+    name: "run_progress_and_picture_setting",
+    statements: [
+      `ALTER TABLE agent_runs ADD COLUMN progress_json TEXT`,
+      `ALTER TABLE model_providers ADD COLUMN accepts_images INTEGER NOT NULL DEFAULT 1`,
+    ],
+  },
 ];

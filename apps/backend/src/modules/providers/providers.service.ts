@@ -17,6 +17,7 @@ import { ChatgptAuthService } from "./chatgpt/chatgpt-auth.service.js";
 import { ChatgptModelCatalog } from "./chatgpt/chatgpt-model-catalog.js";
 import {
   PROVIDER_IDS,
+  isCompatibleProvider,
   isSubscriptionProvider,
   type ProviderId,
   type ProviderView,
@@ -53,7 +54,7 @@ export class ProvidersService {
     return PROVIDER_IDS.map((id) => {
       const row = this.database.db
         .prepare(
-          "SELECT model, active, base_url FROM model_providers WHERE user_id = ? AND provider_id = ?",
+          "SELECT model, active, base_url, accepts_images FROM model_providers WHERE user_id = ? AND provider_id = ?",
         )
         .get(userId, id);
       // A subscription provider is configured by an unexpired sign-in, not by a saved key.
@@ -67,8 +68,23 @@ export class ProvidersService {
         configured,
         active: configured && row ? integerColumn(row, "active") === 1 : false,
         baseUrl: row ? (optionalTextColumn(row, "base_url") ?? "") : "",
+        acceptsImages: row ? integerColumn(row, "accepts_images") === 1 : true,
       };
     });
+  }
+
+  /**
+   * Whether pictures may be sent to the model of a provider. Only the compatible endpoints can refuse them,
+   * because only they can serve a model that cannot read images.
+   */
+  picturesAllowed(userId: string, id?: ProviderId): boolean {
+    if (id === undefined || !isCompatibleProvider(id)) return true;
+    const row = this.database.db
+      .prepare(
+        "SELECT accepts_images FROM model_providers WHERE user_id = ? AND provider_id = ?",
+      )
+      .get(userId, id);
+    return row ? integerColumn(row, "accepts_images") === 1 : true;
   }
 
   async save(
@@ -77,13 +93,17 @@ export class ProvidersService {
     model: string,
     apiKey: string | undefined,
     baseUrl?: string,
+    acceptsImages?: boolean,
   ): Promise<ProviderView[]> {
     if (isSubscriptionProvider(id)) return this.saveSubscriptionModel(userId, id, model);
     const previous = this.database.db
       .prepare(
-        "SELECT encrypted_key, base_url FROM model_providers WHERE user_id = ? AND provider_id = ?",
+        "SELECT encrypted_key, base_url, accepts_images FROM model_providers WHERE user_id = ? AND provider_id = ?",
       )
       .get(userId, id);
+    const previousPictures = previous ? integerColumn(previous, "accepts_images") === 1 : true;
+    // Native providers always send pictures; a compatible endpoint keeps its setting unless the user changes it.
+    const pictures = isCompatibleProvider(id) ? (acceptsImages ?? previousPictures) : true;
     const previousUrl = previous
       ? optionalTextColumn(previous, "base_url")
       : undefined;
@@ -101,9 +121,9 @@ export class ProvidersService {
       throw new ConflictError("An API key is required for a new provider");
     this.database.db
       .prepare(
-        `INSERT INTO model_providers (user_id, provider_id, model, encrypted_key, active, base_url) VALUES (?, ?, ?, ?, 0, ?) ON CONFLICT(user_id, provider_id) DO UPDATE SET model = excluded.model, encrypted_key = excluded.encrypted_key, base_url = excluded.base_url`,
+        `INSERT INTO model_providers (user_id, provider_id, model, encrypted_key, active, base_url, accepts_images) VALUES (?, ?, ?, ?, 0, ?, ?) ON CONFLICT(user_id, provider_id) DO UPDATE SET model = excluded.model, encrypted_key = excluded.encrypted_key, base_url = excluded.base_url, accepts_images = excluded.accepts_images`,
       )
-      .run(userId, id, model, encrypted, endpoint ?? null);
+      .run(userId, id, model, encrypted, endpoint ?? null, pictures ? 1 : 0);
     if (!this.list(userId).some((provider) => provider.active))
       this.activate(userId, id);
     return this.list(userId);

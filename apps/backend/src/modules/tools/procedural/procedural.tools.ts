@@ -66,6 +66,7 @@ export function createProceduralTools({ bridge, proposals }: Pick<EditorToolDepe
         { id: context.runId, userId: context.userId, projectId: context.projectId, clientId: context.clientId },
         { summary, commands, expectedRevision: scene.revision },
       );
+      context.progress.proposals.push({ id: proposal.id });
       context.events.emit("editor.proposal.created", {
         proposalId: proposal.id, summary: proposal.summary, requiresApproval: proposal.requiresApproval,
         commandCount: proposal.commands.length, baseRevision: proposal.baseRevision, supersedes: null, planStepId: null,

@@ -22,8 +22,8 @@ export function createModelingTools({ knownToolNames }: ModelingToolDependencies
             availableTools: knownToolNames,
           };
         }
-        context.plans.push(plan);
-        return { status: "recorded", planNumber: context.plans.length, stepCount: plan.steps.length };
+        context.progress.plans.push(plan);
+        return { status: "recorded", planNumber: context.progress.plans.length, stepCount: plan.steps.length };
       },
     }),
   ];

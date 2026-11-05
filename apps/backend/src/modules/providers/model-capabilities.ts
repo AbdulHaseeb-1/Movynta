@@ -118,9 +118,19 @@ export function reasoningModelSettings(
  */
 export const CHAT_COMPLETION_MAX_TOKENS = 16_384;
 
+/**
+ * Output budget for Anthropic-compatible endpoints. The Anthropic adapter caps an unrecognised model name at
+ * 4,096 output tokens, which a batch of scene commands can exceed mid-call. Claude 4 and later accept this
+ * budget; the Claude 2 and 3 families accept less, so they keep the adapter's own limit.
+ */
+export const ANTHROPIC_COMPATIBLE_MAX_TOKENS = 16_384;
+const LEGACY_CLAUDE_MODEL = /^(claude-instant|claude-2|claude-3)/;
+
 /** Settings a provider needs on every run, whatever the user selects. */
-export function requiredModelSettings(providerId: ProviderId): ModelSettings {
+export function requiredModelSettings(providerId: ProviderId, model = ""): ModelSettings {
   if (providerId === "chatgpt") return CHATGPT_MODEL_SETTINGS;
   if (providerId === "openai-compatible") return { maxTokens: CHAT_COMPLETION_MAX_TOKENS };
+  if (providerId === "anthropic-compatible" && !LEGACY_CLAUDE_MODEL.test(model.toLowerCase()))
+    return { maxTokens: ANTHROPIC_COMPATIBLE_MAX_TOKENS };
   return {};
 }

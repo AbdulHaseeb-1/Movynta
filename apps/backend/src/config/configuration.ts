@@ -54,6 +54,8 @@ export function loadAppConfig(source: NodeJS.ProcessEnv): AppConfig {
       model: env.OPENAI_MODEL,
       tracingDisabled: env.OPENAI_AGENTS_DISABLE_TRACING,
       runTimeoutMs: env.AGENT_RUN_TIMEOUT_MS,
+      runIdleTimeoutMs: env.AGENT_RUN_IDLE_TIMEOUT_MS,
+      continuationLimit: env.AGENT_CONTINUATION_LIMIT,
       maxTurns: env.AGENT_MAX_TURNS,
     },
     editor: { requestTimeoutMs: env.EDITOR_REQUEST_TIMEOUT_MS },

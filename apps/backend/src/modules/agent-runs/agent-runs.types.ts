@@ -1,14 +1,13 @@
 import type { RunState, StreamedRunResult } from "@openai/agents";
 import type { AppAgent } from "../agents/definitions/definitions.types.js";
 import type { ApprovalPreview } from "../approvals/approvals.types.js";
-import type {
-  ModelingDimension,
-  ModelingPlan,
-} from "../../shared/types/modeling-plan.types.js";
+import type { ModelingDimension } from "../../shared/types/modeling-plan.types.js";
 import type { AGENT_RUN_EVENT_TYPES } from "./agent-run.events.js";
 import type { AGENT_RUN_STATUSES } from "./agent-run.state-machine.js";
 import type { ReasoningEffort } from "../providers/model-capabilities.js";
 import type { ProviderId } from "../providers/providers.types.js";
+import type { RunProgress } from "./run-progress.js";
+import type { RunClock } from "./run-clock.js";
 
 export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 
@@ -30,8 +29,9 @@ export interface AgentRunContext {
   readonly selectedSkillIds: readonly string[];
   readonly events: AgentRunEventSink;
   readonly signal: AbortSignal;
-  readonly plans: ModelingPlan[];
-  /** False when the model's provider cannot take images inside a tool result, so tools send text only. */
+  /** Plans, batches and verification state, updated by the tools as the run goes. */
+  readonly progress: RunProgress;
+  /** False when pictures must not be sent to this run's model, so tools return measurements only. */
   readonly supportsToolImages: boolean;
 }
 
@@ -88,6 +88,11 @@ export type AgentRunEventPayloads = {
     readonly approvalId: string;
     readonly decision: "approve" | "reject";
   };
+  /** The model stopped before the work was finished, so the run asks it to carry on. */
+  readonly "agent.continued": {
+    readonly attempt: number;
+    readonly reasons: readonly string[];
+  };
   readonly "run.completed": { readonly usage: number };
   readonly "run.failed": { readonly code: string; readonly message: string };
   readonly "run.cancelled": { readonly runId: string };
@@ -132,6 +137,8 @@ export interface AgentRunRecord {
   readonly errorCode: string | undefined;
   readonly errorMessage: string | undefined;
   readonly usage: Readonly<Record<string, number>> | undefined;
+  /** Plans and unfinished work saved when the run paused for an approval. Server-side only. */
+  readonly progress?: RunProgress | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -160,6 +167,7 @@ export interface RunUpdate {
   readonly errorMessage?: string;
   readonly usage?: Readonly<Record<string, number>>;
   readonly runState?: string | null;
+  readonly progressJson?: string | null;
 }
 
 export interface AgentRunAccepted {
@@ -204,7 +212,9 @@ export interface ApprovalDecisionResult {
 export type RunResult = StreamedRunResult<AgentRunContext, AppAgent>;
 export type RunStateOf = RunState<AgentRunContext, AppAgent>;
 
+/** A run that is executing now: its abort handle, its clock, and the subscription that feeds the clock. */
 export interface ActiveRun {
   readonly controller: AbortController;
-  readonly timer: NodeJS.Timeout;
+  readonly clock: RunClock;
+  readonly unsubscribe: () => void;
 }

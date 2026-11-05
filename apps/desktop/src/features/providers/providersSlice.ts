@@ -15,6 +15,8 @@ export const providerSchema = z.object({
   configured: z.boolean(),
   active: z.boolean(),
   baseUrl: z.string().default(""),
+  /** False when a compatible endpoint's model cannot read pictures; the assistant then gets measurements only. */
+  acceptsImages: z.boolean().default(true),
 });
 export const providersSchema = z.array(providerSchema);
 export type Provider = z.infer<typeof providerSchema>;

@@ -169,6 +169,9 @@ export function useAssistantRun(
           (event) => {
             patchMessage(reply.id, (current) => applyRunEvent(current, event));
             if (event.type === "tool.started") setStatus("Working");
+            // The assistant stopped with work still open, so the run asks it to carry on.
+            if (event.type === "agent.continued")
+              setStatus("Finishing the unfinished work");
             if (event.type === "approval.required") {
               setPhase("waiting_approval");
               setStatus("Waiting for your approval");

@@ -10,6 +10,6 @@ export function isAgentRunContext(value: unknown): value is AgentRunContext {
     "userId" in value &&
     typeof value.userId === "string" &&
     "events" in value &&
-    "plans" in value
+    "progress" in value
   );
 }

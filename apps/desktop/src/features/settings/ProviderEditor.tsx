@@ -3,6 +3,7 @@ import { z } from "zod";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   DialogContent,
   DialogDescription,
@@ -35,6 +36,7 @@ export function ProviderEditor({
   const [model, setModel] = useState(provider.model);
   const compatible = isCompatibleProvider(provider.id);
   const [baseUrl, setBaseUrl] = useState(provider.baseUrl);
+  const [pictures, setPictures] = useState(provider.acceptsImages);
   const endpoint = compatible ? { baseUrl: baseUrl.trim() } : {};
   const endpointChanged =
     compatible &&
@@ -59,6 +61,7 @@ export function ProviderEditor({
           {
             model: submittedModel.trim(),
             ...endpoint,
+            ...(compatible ? { acceptsImages: pictures } : {}),
             ...(typeof key === "string" && key.trim()
               ? { apiKey: key.trim() }
               : {}),
@@ -141,6 +144,24 @@ export function ProviderEditor({
               API prefix, usually ending in /v1. Use HTTPS, or HTTP for
               localhost.
             </p>
+          </div>
+        )}
+        {compatible && (
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="provider-pictures" className="text-xs">
+                Send pictures
+              </label>
+              <p className="text-[11px] leading-5 text-muted-foreground">
+                Turn off for a model that cannot read images. The assistant
+                then checks the scene from measurements only.
+              </p>
+            </div>
+            <Switch
+              id="provider-pictures"
+              checked={pictures}
+              onCheckedChange={setPictures}
+            />
           </div>
         )}
         <div className="flex flex-col gap-2">
