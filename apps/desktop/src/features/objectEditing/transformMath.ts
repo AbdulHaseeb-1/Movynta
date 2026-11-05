@@ -65,6 +65,8 @@ export function formatNumber(value: number): string {
  * half-typed or mistyped value is dropped instead of moving an object somewhere unexpected.
  */
 export function parseNumber(text: string): number | undefined {
+  // "1,000" could mean one or a thousand depending on locale, so it is ignored rather than guessed.
+  if (/^[-+]?\d+,\d{3}$/.test(text.trim())) return undefined;
   const trimmed = text.trim().replace(",", ".");
   if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(trimmed)) return undefined;
   const value = Number(trimmed);

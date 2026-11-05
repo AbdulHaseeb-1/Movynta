@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
 import { composeTrs, decomposeTrs, hasCollapsedAxis, invertAffine, isExactTrs, multiplyMat4, type Mat4, type Trs, type Vec3 } from "@movynta/editor-protocol";
 import { assignLocalMatrix } from "./shearFit";
-import { fieldCommitValue, rotationSign } from "./transformMath";
+import { fieldCommitValue, parseNumber, rotationSign } from "./transformMath";
 import { PerspectiveCamera } from "three";
 
 /** A small seeded generator, so a failing case can be reproduced. */
@@ -177,5 +177,13 @@ describe("fieldCommitValue", () => {
   it("keeps the result at or above a minimum", () => {
     expect(fieldCommitValue("-2", 1, { min: 0.001 })).toBe(0.001);
     expect(fieldCommitValue("0", 1, { min: 0.001 })).toBe(0.001);
+  });
+});
+
+describe("parseNumber", () => {
+  it("reads a decimal comma but not an ambiguous thousands-style one", () => {
+    expect(parseNumber("1,5")).toBe(1.5);
+    expect(parseNumber("2.25")).toBe(2.25);
+    expect(parseNumber("1,000")).toBeUndefined();
   });
 });

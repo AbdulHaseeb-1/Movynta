@@ -69,7 +69,9 @@ function transformGeometry(geometry: BufferGeometry, residual: Matrix4): void {
   if (normal) transformDirections(normal, normalMatrix);
   for (const target of geometry.morphAttributes.normal ?? []) transformDirections(target, normalMatrix);
   const tangent = geometry.getAttribute("tangent");
-  if (tangent) transformDirections(tangent, normalMatrix);
+  // A tangent lies along the surface, so it follows the matrix itself; only normals use the inverse transpose.
+  // The residual never mirrors (a mirror stays in the object's scale), so the handedness in w is unchanged.
+  if (tangent) transformDirections(tangent, new Matrix3().setFromMatrix4(linear));
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
 }
