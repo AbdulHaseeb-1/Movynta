@@ -1,0 +1,699 @@
+{
+  "intro": "Every tool the modeling assistant can call, with what it needs, what it returns, a worked example and a visual drawn from that example. The examples are checked against the code by the backend test suite, so they stay accurate as the tools change.",
+  "rules": [
+    "Only editor.apply_proposal changes the scene. Every other tool reads, calculates, plans or stores.",
+    "A calculated batch is strict. Pass expectedRevision; if the scene changes first, the proposal fails and must be made again rather than moved onto the new scene.",
+    "A failed tool returns { \"error\": \"...\", \"details\": ... } to the model, so it can correct the call. The run keeps going."
+  ],
+  "conventions": [
+    { "term": "Identifiers", "meaning": "Match [A-Za-z0-9_-]{1,64}. Object and collection ids are separate." },
+    { "term": "Revisions", "meaning": "Nonnegative integers. Every read reports one, and calculated or proposed batches refer back to it." },
+    { "term": "Mesh paths", "meaning": "Name a mesh inside an imported object. Each step is a part name (Arm), a repeat (Arm#1 is the second one) or a child index. Use the paths the inspection returns." },
+    { "term": "Vectors", "meaning": "[x, y, z] in scene units. Positions are local to the parent unless a tool says world." },
+    { "term": "Matrices", "meaning": "Sixteen numbers, column-major." },
+    { "term": "Units", "meaning": "Scene units unless the project is calibrated; then measurementUnits says how many meters one scene unit is." }
+  ],
+  "types": [
+    { "id": "read", "label": "Read", "hint": "These tools look at the scene or calculate a result. Nothing changes." },
+    { "id": "plan", "label": "Plan", "hint": "Records intent and the steps for a task. It changes nothing." },
+    { "id": "propose", "label": "Propose", "hint": "Stores a batch of changes for review. The scene is still unchanged." },
+    { "id": "apply", "label": "Apply", "hint": "Changes the scene by applying a stored proposal." },
+    { "id": "skill", "label": "Skill", "hint": "Loads the workflow for a skill selected for this request." }
+  ],
+  "scene": {
+    "projectId": "demo-project",
+    "revision": 12,
+    "activeSceneName": "Main",
+    "selectedObjectIds": ["crate"],
+    "supportsSceneGraph": true,
+    "supportsRepetition": true,
+    "supportsPreparedCommands": true,
+    "designFocus": { "mode": "object", "componentKind": null, "componentSelection": null },
+    "objects": [
+      { "id": "figure", "name": "Figure", "type": "empty", "parentId": null, "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [-1.05, 0.25, -0.3], "max": [1.05, 1.8, 0.3] } },
+      { "id": "torso", "name": "Torso", "type": "mesh", "parentId": "figure", "transform": { "position": [0, 1, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [-0.5, 0.25, -0.3], "max": [0.5, 1.75, 0.3] } },
+      { "id": "arm_left", "name": "Arm", "type": "mesh", "parentId": "figure", "transform": { "position": [-0.9, 1.2, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [-1.05, 0.6, -0.15], "max": [-0.75, 1.8, 0.15] } },
+      { "id": "arm_right", "name": "Arm", "type": "mesh", "parentId": "figure", "transform": { "position": [0.9, 1.2, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [0.75, 0.6, -0.15], "max": [1.05, 1.8, 0.15] } },
+      { "id": "crate", "name": "Crate", "type": "mesh", "parentId": null, "transform": { "position": [3, 0.5, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [2.5, 0, -0.5], "max": [3.5, 1, 0.5] } },
+      { "id": "props", "name": "Props", "type": "empty", "parentId": null, "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": null }
+    ]
+  },
+  "tools": [
+    {
+      "name": "editor.get_context", "type": "read", "group": "Inspect",
+      "provider": "editor__get_context", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "code",
+      "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.get_context.md",
+      "summary": "Reads the whole scene: every object with its parent and transform, the selection, the revision, and which features the editor supports.",
+      "when": ["First step of any change. It is the only way to learn object ids and the current revision.", "Again when a proposal may have been overtaken by a change."],
+      "input": { "note": "No input. Send an empty object.", "rows": [] },
+      "result": { "rows": [
+        { "field": "revision", "meaning": "The scene revision. Pass it as expectedRevision or sourceRevision." },
+        { "field": "objects", "meaning": "id, name, type, parentId, transform, visible, collectionId and worldBounds for each object." },
+        { "field": "selectedObjectIds", "meaning": "Objects the user has selected." },
+        { "field": "designFocus", "meaning": "Object or Edit mode, and in Edit mode the components the user has picked." },
+        { "field": "supportsSceneGraph, supportsRepetition, supportsPreparedCommands, supportsCollections", "meaning": "Which command families this editor accepts." }
+      ] },
+      "request": {}, "response": "$scene",
+      "flow": ["Assistant calls editor.get_context", "Editor sends a snapshot for this client", "Assistant uses the ids and revision in its next call"],
+      "visual": { "kind": "tree", "caption": "The sample scene at revision 12. Indentation is the parent relation." },
+      "tips": ["Use editor.get_scene_summary when only counts are needed; this result can be large.", "worldBounds includes descendants and hidden geometry. It uses geometry bounding boxes, not evaluated shapes."],
+      "limits": ["A snapshot holds up to 2000 objects.", "It does not evaluate geometry. Use editor.measure or editor.inspect_mesh for shape."],
+      "related": ["editor.get_scene_summary", "validation.check_scene", "editor.propose_commands"]
+    },
+    {
+      "name": "editor.get_scene_summary", "type": "read", "group": "Inspect",
+      "provider": "editor__get_scene_summary", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "code",
+      "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.get_scene_summary.md",
+      "summary": "Counts the objects by type and reports what is selected. A quick orientation before a larger read.",
+      "when": ["When the assistant needs the size and shape of the scene without the full object list."],
+      "input": { "note": "No input. Send an empty object.", "rows": [] },
+      "result": { "rows": [
+        { "field": "revision", "meaning": "The scene revision." },
+        { "field": "activeSceneName", "meaning": "The open scene's name, or null." },
+        { "field": "objectCount", "meaning": "Total objects." },
+        { "field": "countsByType", "meaning": "How many objects of each type. Only types that occur are listed." },
+        { "field": "selectedObjectIds", "meaning": "The selected object ids." }
+      ] },
+      "request": {},
+      "response": { "revision": 12, "activeSceneName": "Main", "objectCount": 6, "countsByType": { "empty": 2, "mesh": 4 }, "selectedObjectIds": ["crate"] },
+      "visual": { "kind": "counts", "caption": "Counts by type for the sample scene.", "counts": [{ "label": "empty", "value": 2 }, { "label": "mesh", "value": 4 }], "selected": ["crate"] },
+      "tips": ["It reports counts and selection only. For parents, transforms or names, use editor.get_context."],
+      "limits": ["No positions, names or parents in the result."],
+      "related": ["editor.get_context"]
+    },
+    {
+      "name": "editor.inspect_mesh", "type": "read", "group": "Inspect",
+      "provider": "editor__inspect_mesh", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "live",
+      "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.inspect_mesh.md",
+      "summary": "Reads the topology of one mesh: vertices, edges and faces, the faces that match a direction or position query, and its bounds.",
+      "when": ["Before any geometry change, so the change uses real ids.", "To answer questions such as which faces point up, or whether a mesh is closed."],
+      "input": { "note": "The request is validated by meshInspectionRequestSchema.", "rows": [
+        { "name": "objectId", "type": "identifier", "required": true, "meaning": "The object to inspect." },
+        { "name": "meshPath", "type": "mesh path", "required": false, "default": "[]", "meaning": "A mesh inside the object. [] is the object itself." },
+        { "name": "view", "type": "base | evaluated", "required": false, "default": "evaluated", "meaning": "base reads the unmodified cage that edits change; evaluated reads the displayed mesh." },
+        { "name": "offset", "type": "integer 0–100000", "required": false, "default": "0", "meaning": "Page offset for the vertex, edge and face samples." },
+        { "name": "limit", "type": "integer 1–100", "required": false, "default": "25", "meaning": "Samples per page." },
+        { "name": "includeSamples", "type": "boolean", "required": false, "meaning": "false omits the vertex, edge and face pages." },
+        { "name": "materialsOnly", "type": "boolean", "required": false, "meaning": "true reads materials without topology." },
+        { "name": "faceQuery", "type": "object", "required": false, "meaning": "Filters faces. Needs normal, or a centerMin/centerMax bound." }
+      ] },
+      "result": { "rows": [
+        { "field": "revision, message", "meaning": "The scene revision, and why the inspection is unavailable when it is." },
+        { "field": "inspection.status", "meaning": "ok, unsupported or not_found." },
+        { "field": "inspection.stats", "meaning": "vertices (welded), renderVertices, edges, faces (polygons), triangles, boundaryEdges, nonManifoldEdges, inconsistentEdges, materialSlots." },
+        { "field": "localBounds, matrixWorld", "meaning": "Bounds in mesh space, and the matrix that places the mesh in the scene." },
+        { "field": "vertices, edges, faces", "meaning": "One page of samples. Indices refer to the whole mesh, not to the page." },
+        { "field": "faceMatches", "meaning": "ids of matching faces on this page, with total, offset and hasMore." }
+      ] },
+      "details": [{ "title": "faceQuery fields", "rows": [
+        { "label": "normal", "meaning": "A nonzero direction in mesh-local space." },
+        { "label": "minDot", "meaning": "How closely a face must point along normal, from -1 to 1. The description's default is 0.9." },
+        { "label": "centerMin, centerMax", "meaning": "Local bounds that a face's centre must lie inside." },
+        { "label": "offset, limit", "meaning": "Paging for matches. limit is 1–1000, default 100." }
+      ] }],
+      "request": { "objectId": "crate", "view": "evaluated", "limit": 25, "faceQuery": { "normal": [0, 1, 0], "minDot": 0.95, "limit": 100 } },
+      "response": {
+        "revision": 12, "message": null,
+        "inspection": {
+          "objectId": "crate", "meshPath": [], "view": "evaluated", "status": "ok", "parts": [], "partsTruncated": false,
+          "stats": { "renderVertices": 24, "vertices": 8, "edges": 12, "faces": 6, "triangles": 12, "boundaryEdges": 0, "nonManifoldEdges": 0, "inconsistentEdges": 0, "attributes": ["normal", "position", "uv"], "materialGroups": 1, "materialSlots": 1 },
+          "offset": 0, "baseTriangles": 12, "skinned": false,
+          "localBounds": { "min": [-0.5, -0.5, -0.5], "max": [0.5, 0.5, 0.5] },
+          "matrixWorld": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 3, 0.5, 0, 1],
+          "faceMatches": { "ids": ["5"], "total": 1, "offset": 0, "hasMore": false },
+          "edges": [
+            { "vertices": [0, 1], "faces": [0, 4] }, { "vertices": [0, 3], "faces": [0, 2] }, { "vertices": [1, 2], "faces": [0, 3] },
+            { "vertices": [2, 3], "faces": [0, 5] }, { "vertices": [0, 4], "faces": [2, 4] }, { "vertices": [3, 7], "faces": [2, 5] },
+            { "vertices": [1, 5], "faces": [3, 4] }, { "vertices": [2, 6], "faces": [3, 5] }, { "vertices": [4, 5], "faces": [1, 4] },
+            { "vertices": [5, 6], "faces": [1, 3] }, { "vertices": [4, 7], "faces": [1, 2] }, { "vertices": [6, 7], "faces": [1, 5] }
+          ],
+          "vertices": [
+            { "index": 0, "position": [-0.5, -0.5, -0.5] }, { "index": 1, "position": [0.5, -0.5, -0.5] },
+            { "index": 2, "position": [0.5, 0.5, -0.5] }, { "index": 3, "position": [-0.5, 0.5, -0.5] },
+            { "index": 4, "position": [-0.5, -0.5, 0.5] }, { "index": 5, "position": [0.5, -0.5, 0.5] },
+            { "index": 6, "position": [0.5, 0.5, 0.5] }, { "index": 7, "position": [-0.5, 0.5, 0.5] }
+          ],
+          "faces": [
+            { "index": 0, "vertices": [0, 3, 2, 1] }, { "index": 1, "vertices": [4, 5, 6, 7] }, { "index": 2, "vertices": [0, 4, 7, 3] },
+            { "index": 3, "vertices": [1, 2, 6, 5] }, { "index": 4, "vertices": [0, 1, 5, 4] }, { "index": 5, "vertices": [3, 7, 6, 2] }
+          ]
+        }
+      },
+      "flow": ["Assistant asks for the base or evaluated mesh", "Editor returns stats and one page of samples", "Face ids are used with the same view and revision in the next call"],
+      "visual": { "kind": "mesh", "caption": "Isometric view of the crate. Matched: face 5 (+Y, minDot 0.95).", "vertices": [[-0.5, -0.5, -0.5], [0.5, -0.5, -0.5], [0.5, 0.5, -0.5], [-0.5, 0.5, -0.5], [-0.5, -0.5, 0.5], [0.5, -0.5, 0.5], [0.5, 0.5, 0.5], [-0.5, 0.5, 0.5]], "faces": [[0, 3, 2, 1], [4, 5, 6, 7], [0, 4, 7, 3], [1, 2, 6, 5], [0, 1, 5, 4], [3, 7, 6, 2]], "highlight": [5] },
+      "tips": ["Inspect the base view before editing: geometry edits change the base cage.", "faceMatches holds ids, not positions. Read hasMore before relying on a page."],
+      "limits": ["Meshes above about 20,000 triangles may be unsupported.", "Inspection reports geometry counts. It does not judge appearance; use viewport.capture for that."],
+      "related": ["editor.inspect_materials", "modeling.generate_commands", "editor.propose_commands"]
+    },
+    {
+      "name": "editor.inspect_materials", "type": "read", "group": "Inspect",
+      "provider": "editor__inspect_materials", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "live",
+      "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.inspect_materials.md",
+      "summary": "Reads the material slots of one object: name, shader, colour, roughness, metalness, opacity, sidedness and texture channels, without reading topology.",
+      "when": ["Before any material proposal. The slot indices and revision it returns are what material commands use."],
+      "input": { "rows": [
+        { "name": "objectId", "type": "identifier", "required": true, "meaning": "The object whose materials to read." },
+        { "name": "meshPath", "type": "mesh path", "required": false, "default": "[]", "meaning": "A mesh inside the object." },
+        { "name": "offset", "type": "integer ≥ 0", "required": false, "default": "0", "meaning": "First slot to return." },
+        { "name": "limit", "type": "integer 1–100", "required": false, "default": "25", "meaning": "Slots per page." }
+      ] },
+      "result": { "rows": [
+        { "field": "revision", "meaning": "Use as expectedRevision for material commands." },
+        { "field": "status, message", "meaning": "ok, unsupported or not_found, and the reason." },
+        { "field": "materialSlotCount", "meaning": "Total slots on this mesh, across all pages." },
+        { "field": "materials[]", "meaning": "slot, name, type, editable, color, emissive, roughness, metalness, opacity, transparent, depthWrite, side, textures." },
+        { "field": "parts", "meaning": "For a group, the mesh paths available inside it." }
+      ] },
+      "request": { "objectId": "crate", "meshPath": [], "offset": 0, "limit": 25 },
+      "response": { "revision": 12, "status": "ok", "materialSlotCount": 1, "parts": [], "message": null, "materials": [ { "slot": 0, "name": "Crate wood", "type": "MeshStandardMaterial", "editable": true, "color": "#B08A5A", "roughness": 0.8, "metalness": 0, "opacity": 1, "transparent": false, "depthWrite": true, "emissive": "#000000", "emissiveIntensity": 0, "side": "front", "textures": ["map"] } ] },
+      "visual": { "kind": "swatch", "name": "Crate wood", "color": "#B08A5A", "meta": "slot 0 · MeshStandardMaterial · editable", "meters": [{ "label": "roughness", "value": 0.8 }, { "label": "metalness", "value": 0 }, { "label": "opacity", "value": 1 }], "textures": ["map"] },
+      "tips": ["Standard and Physical materials are editable. Other shaders need material.replace_slot, which discards their maps and settings. Do not replace a shader just to change a colour."],
+      "limits": ["Texture channels are named, not exposed. Creating or importing textures is not available."],
+      "related": ["editor.inspect_mesh", "editor.propose_commands"]
+    },
+    {
+      "name": "viewport.capture", "type": "read", "group": "Inspect",
+      "provider": "viewport__capture", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "live",
+      "source": "apps/backend/src/modules/tools/viewport/viewport.tools.ts", "doc": "viewport.capture.md",
+      "summary": "Lets the assistant look at the scene. The editor draws it from one to six views and returns the pictures, with where each object sits in each one.",
+      "when": ["To check shapes, proportions, placement and surface problems that numbers cannot show.", "Before applying a proposal, by passing its proposalId."],
+      "input": { "rows": [
+        { "name": "views", "type": "1–6 views", "required": true, "meaning": "Each view places the camera by preset, orbit or exact camera, with optional label, projection and zoom." },
+        { "name": "proposalId", "type": "identifier", "required": false, "meaning": "Draw this pending proposal from the run as an isolated copy." },
+        { "name": "focus, highlight", "type": "up to 50 ids each", "required": false, "meaning": "Objects to frame and report bounds for; objects to box in orange." },
+        { "name": "isolate", "type": "boolean", "required": false, "meaning": "Draw only the focused objects." },
+        { "name": "mode", "type": "solid | wireframe | normals", "required": false, "default": "solid", "meaning": "normals shows flipped or faceted faces." },
+        { "name": "labels, guides", "type": "boolean", "required": false, "default": "true", "meaning": "Object ids on the picture; a floor grid and axes." },
+        { "name": "width, height", "type": "integers 128–1024", "required": false, "default": "768 × 576", "meaning": "Image size in pixels." }
+      ] },
+      "result": { "rows": [
+        { "field": "status, coordinates, note", "meaning": "The result status, the axis conventions, and how to read the measurements." },
+        { "field": "scene", "meaning": "Object count and the bounds of everything." },
+        { "field": "focus", "meaning": "For each focused object: bounds, size and center." },
+        { "field": "views[]", "meaning": "label, size, camera used, and each listed object's screenBounds and inFrame." },
+        { "field": "proposalId", "meaning": "Present when a proposal was drawn." }
+      ] },
+      "details": [{ "title": "Camera placement, in order of priority", "rows": [
+        { "label": "camera", "meaning": "Exact position, target and optional fov, in world space." },
+        { "label": "orbit", "meaning": "azimuthDegrees and elevationDegrees around the framed objects. Azimuth 0 looks at the front from +Z." },
+        { "label": "preset", "meaning": "front, back, left, right, top, bottom, isometric (default), or current for the user's own camera." }
+      ] }],
+      "request": { "views": [{ "label": "Front", "preset": "front" }, { "label": "Top", "preset": "top" }], "focus": ["figure", "torso", "arm_left", "arm_right"], "mode": "solid", "width": 512, "height": 384 },
+      "response": {
+        "status": "ok",
+        "coordinates": "Y is up. A front view looks along -Z (it sees the +Z side), a right view looks along -X, a left view looks along +X, a back view looks along +Z.",
+        "scene": { "objectCount": 6, "bounds": { "min": [-1.05, 0, -0.5], "max": [3.5, 1.8, 0.5] } },
+        "focus": [
+          { "id": "figure", "name": "Figure", "bounds": { "min": [-1.05, 0.25, -0.3], "max": [1.05, 1.8, 0.3] }, "size": [2.1, 1.55, 0.6], "center": [0, 1.025, 0] },
+          { "id": "torso", "name": "Torso", "bounds": { "min": [-0.5, 0.25, -0.3], "max": [0.5, 1.75, 0.3] }, "size": [1, 1.5, 0.6], "center": [0, 1, 0] },
+          { "id": "arm_left", "name": "Arm", "bounds": { "min": [-1.05, 0.6, -0.15], "max": [-0.75, 1.8, 0.15] }, "size": [0.3, 1.2, 0.3], "center": [-0.9, 1.2, 0] },
+          { "id": "arm_right", "name": "Arm", "bounds": { "min": [0.75, 0.6, -0.15], "max": [1.05, 1.8, 0.15] }, "size": [0.3, 1.2, 0.3], "center": [0.9, 1.2, 0] }
+        ],
+        "missingIds": [],
+        "views": [
+          { "image": 1, "label": "Front", "width": 512, "height": 384, "camera": { "projection": "orthographic", "position": [0, 1.025, 10], "target": [0, 1.025, 0], "fov": null, "orthographicHeight": 2.9 }, "objects": [
+            { "id": "figure", "name": "Figure", "screenBounds": { "x": 117, "y": 89, "width": 278, "height": 205 }, "inFrame": true },
+            { "id": "torso", "name": "Torso", "screenBounds": { "x": 190, "y": 96, "width": 132, "height": 199 }, "inFrame": true },
+            { "id": "arm_left", "name": "Arm", "screenBounds": { "x": 117, "y": 89, "width": 40, "height": 159 }, "inFrame": true },
+            { "id": "arm_right", "name": "Arm", "screenBounds": { "x": 355, "y": 89, "width": 40, "height": 159 }, "inFrame": true }
+          ] },
+          { "image": 2, "label": "Top", "width": 512, "height": 384, "camera": { "projection": "orthographic", "position": [0, 10, 0.01], "target": [0, 1.025, 0], "fov": null, "orthographicHeight": 2.9 }, "objects": [
+            { "id": "figure", "name": "Figure", "screenBounds": { "x": 117, "y": 152, "width": 278, "height": 80 }, "inFrame": true },
+            { "id": "torso", "name": "Torso", "screenBounds": { "x": 190, "y": 152, "width": 132, "height": 80 }, "inFrame": true },
+            { "id": "arm_left", "name": "Arm", "screenBounds": { "x": 117, "y": 172, "width": 40, "height": 40 }, "inFrame": true },
+            { "id": "arm_right", "name": "Arm", "screenBounds": { "x": 355, "y": 172, "width": 40, "height": 40 }, "inFrame": true }
+          ] }
+        ],
+        "note": "The images follow in the order of views. screenBounds is each object's projected bounding box in pixels, not a visibility test."
+      },
+      "flow": ["Assistant chooses views and what to focus on", "Editor draws offscreen and returns a JPEG per view with measurements", "Model reads the measurements, then the pictures, and states its conclusion in its reply"],
+      "visual": { "kind": "frames", "caption": "Projected boxes from screenBounds. They show where objects are, not whether they are visible.", "views": [
+        { "label": "Front", "projection": "orthographic", "width": 512, "height": 384, "boxes": [
+          { "name": "Figure", "x": 117, "y": 89, "width": 278, "height": 205 }, { "name": "Torso", "x": 190, "y": 96, "width": 132, "height": 199 },
+          { "name": "Arm", "x": 117, "y": 89, "width": 40, "height": 159 }, { "name": "Arm", "x": 355, "y": 89, "width": 40, "height": 159 }
+        ] },
+        { "label": "Top", "projection": "orthographic", "width": 512, "height": 384, "boxes": [
+          { "name": "Figure", "x": 117, "y": 152, "width": 278, "height": 80 }, { "name": "Torso", "x": 190, "y": 152, "width": 132, "height": 80 },
+          { "name": "Arm", "x": 117, "y": 172, "width": 40, "height": 40 }, { "name": "Arm", "x": 355, "y": 172, "width": 40, "height": 40 }
+        ] }
+      ] },
+      "tips": ["Start with overview views, then focus and zoom into anything suspicious.", "Pass proposalId to check a stored proposal before it is applied."],
+      "limits": ["Up to six views per call; each JPEG stays under about 1.5 MB.", "The call times out after EDITOR_REQUEST_TIMEOUT_MS (15 seconds by default).", "Models behind an OpenAI-compatible Chat Completions endpoint get measurements only, with a note saying so.", "The editor window keeps the last 12 captures. Pictures are not kept in the saved conversation."],
+      "related": ["editor.propose_commands", "modeling.propose_generated", "validation.check_scene"]
+    },
+    {
+      "name": "validation.check_scene", "type": "read", "group": "Inspect",
+      "provider": "validation__check_scene", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "code",
+      "source": "apps/backend/src/modules/tools/validation/validation.tools.ts", "doc": "validation.check_scene.md",
+      "summary": "Checks the scene for structural problems and reports each with a severity: errors, warnings and information.",
+      "when": ["As the last step of a change, after the proposal is applied. The mesh-editing and character-modeling skills both do this.", "When the user asks whether the scene is in order."],
+      "input": { "note": "No input. Send an empty object.", "rows": [] },
+      "result": { "rows": [
+        { "field": "ok", "meaning": "false only when there is at least one error." },
+        { "field": "objectCount", "meaning": "Objects in the snapshot." },
+        { "field": "issues[]", "meaning": "severity, objectId (null for a collection or scene-wide issue) and message." }
+      ] },
+      "details": [{ "title": "What is checked", "rows": [
+        { "label": "error · ids and parents", "meaning": "Duplicate object ids; a parent that does not exist; a parent chain that loops." },
+        { "label": "error · scale", "meaning": "A scale that is zero or negative on any axis." },
+        { "label": "error · collections", "meaning": "A collection in a missing collection or inside itself; an object in a missing collection." },
+        { "label": "warning · names", "meaning": "Two objects with the same name under one parent (the later one is reported); two collections with the same name in one place." },
+        { "label": "warning · structure", "meaning": "A group with children scaled by different amounts on different axes, and a selected id that is not in the scene." },
+        { "label": "warning · size", "meaning": "More than 500 objects, where checks may be slow to review." },
+        { "label": "info", "meaning": "A group with no children, or a collection with nothing in it." }
+      ] }],
+      "request": {},
+      "response": {
+        "ok": true, "objectCount": 6,
+        "issues": [
+          { "severity": "warning", "objectId": "arm_right", "message": "Shares the name \"Arm\" with another object under the same parent; rename one so each can be told apart" },
+          { "severity": "info", "objectId": "props", "message": "Group has no children" }
+        ]
+      },
+      "visual": { "kind": "issues", "caption": "Result for the sample scene: no errors, one warning, one note.", "ok": true, "objectCount": 6, "issues": [
+        { "severity": "warning", "objectId": "arm_right", "message": "Shares the name \"Arm\" with another object under the same parent" },
+        { "severity": "info", "objectId": "props", "message": "Group has no children" }
+      ] },
+      "tips": ["A warning does not stop an edit. But a later move under or out of an unevenly scaled group is refused, so fix that warning first."],
+      "limits": ["It reads the snapshot only. It cannot find self-intersections or overlaps; use editor.measure or viewport.capture for those."],
+      "related": ["editor.get_context", "editor.apply_proposal", "viewport.capture"]
+    },
+    {
+      "name": "editor.measure", "type": "read", "group": "Calculate",
+      "provider": "editor__measure", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "live",
+      "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.measure.md",
+      "summary": "Measures the geometry the editor shows: size, distance, angle, edge length or the clearance between two objects, from evaluated geometry.",
+      "when": ["When the user asks how big something is, how far apart two things are, or whether two objects touch.", "To confirm a placement after it has been applied."],
+      "input": { "rows": [
+        { "name": "request", "type": "measurement request", "required": true, "meaning": "One of five kinds, selected by request.kind (see the table)." }
+      ] },
+      "details": [{ "title": "Measurement kinds", "rows": [
+        { "label": "dimensions", "meaning": "target {objectId, meshPath?, descendants?} and space (world default, or local). Returns bounds, size, center." },
+        { "label": "distance", "meaning": "from and to, each a point or a vertex reference {objectId, vertex, revision}. Returns delta and length." },
+        { "label": "edge", "meaning": "objectId, revision and an edge id a_b. Returns endpoints and length." },
+        { "label": "angle", "meaning": "from, at and to. Returns degrees at the middle point." },
+        { "label": "clearance", "meaning": "first and second targets, method bounds (axis gaps) or surface (closest boundary distance). Returns distance and axisGap." }
+      ] }],
+      "result": { "rows": [
+        { "field": "revision", "meaning": "The scene revision. Use it for placement proposals." },
+        { "field": "units", "meaning": "null, or the display unit and metersPerSceneUnit." },
+        { "field": "result", "meaning": "{ status: ok, data } or { status: unavailable, message } with the reason." }
+      ] },
+      "request": { "request": { "kind": "clearance", "first": { "objectId": "torso" }, "second": { "objectId": "crate" }, "method": "bounds" } },
+      "response": {
+        "revision": 12, "units": null,
+        "result": { "status": "ok", "data": {
+          "kind": "clearance", "method": "bounds", "distance": 2,
+          "firstBounds": { "min": [-0.5, 0.25, -0.3], "max": [0.5, 1.75, 0.3] },
+          "secondBounds": { "min": [2.5, 0, -0.5], "max": [3.5, 1, 0.5] },
+          "axisGap": [2, 0, 0],
+          "secondParentWorldInverse": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+        } }
+      },
+      "visual": { "kind": "top-view", "caption": "Top view: x across, z toward the bottom. The gap between the torso and the crate is 2.", "boxes": [
+        { "label": "Torso", "x0": -0.5, "x1": 0.5, "z0": -0.3, "z1": 0.3, "tone": "solid" },
+        { "label": "Crate", "x0": 2.5, "x1": 3.5, "z0": -0.5, "z1": 0.5, "tone": "solid" }
+      ], "gap": { "x0": 0.5, "x1": 2.5, "label": "gap 2" } },
+      "tips": ["Measure again after applying a placement, particularly when a Boolean changes the shape.", "Use surface clearance to find touching or intersecting objects. Bounds clearance only gives axis gaps."],
+      "limits": ["Surface clearance is limited to 20,000 triangles per target and a bounded amount of work.", "Skinned and morph-deformed meshes allow dimensions, but not component references.", "Lengths are scene units unless the project is calibrated."],
+      "related": ["editor.plan_placement", "editor.inspect_mesh"]
+    },
+    {
+      "name": "editor.plan_placement", "type": "read", "group": "Calculate",
+      "provider": "editor__plan_placement", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "code",
+      "source": "apps/backend/src/modules/tools/editor/placement.tools.ts", "doc": "editor.plan_placement.md",
+      "summary": "Works out the moves that align, space or snap objects, using the world bounds of evaluated geometry. It returns scene.move_object commands and changes nothing.",
+      "when": ["When a placement must be exact: put the crate on the floor, leave a 20 mm gap, space four posts evenly.", "Typing coordinates by hand misses bounds and parents. This tool does not."],
+      "input": { "rows": [
+        { "name": "request", "type": "placement request", "required": true, "meaning": "One of four operations, selected by request.kind (see the table)." }
+      ] },
+      "details": [{ "title": "Placement operations", "rows": [
+        { "label": "align", "meaning": "objectIds (1–50), referenceId, axes (x, y, z), sourceAnchor and referenceAnchor (min, center or max). Matches bounds or centres." },
+        { "label": "gap", "meaning": "objectIds, referenceId, axis, side (positive or negative), a signed gap, and unit (scene, mm, cm, m, in or ft). Physical units need calibration." },
+        { "label": "distribute", "meaning": "At least three objectIds in increasing order on one axis. The endpoints stay put; mode gaps or centers spaces the rest." },
+        { "label": "snap", "meaning": "Exactly one object, world points from and to, and expectedRevision. Moves from onto to." }
+      ] }],
+      "result": { "rows": [
+        { "field": "sourceRevision", "meaning": "Propose the commands with this as expectedRevision." },
+        { "field": "commands", "meaning": "scene.move_object commands, each with a delta in the parent's axes. Empty when nothing needs to move." },
+        { "field": "status", "meaning": "planned, or already_placed." },
+        { "field": "nextAction", "meaning": "The next step: propose, apply, then measure again." }
+      ] },
+      "request": { "request": { "kind": "align", "objectIds": ["crate"], "referenceId": "torso", "axes": ["y"], "sourceAnchor": "min", "referenceAnchor": "min" } },
+      "response": {
+        "sourceRevision": 12,
+        "commands": [{ "commandId": "placement_0", "type": "scene.move_object", "objectId": "crate", "delta": [0, 0.25, 0] }],
+        "status": "planned",
+        "nextAction": "Propose commands with expectedRevision: sourceRevision, then apply. Re-measure the result."
+      },
+      "flow": ["Read the bounds at sourceRevision", "Work out the wanted position for each object", "Convert it to each parent's axes", "Propose with expectedRevision, apply, then measure"],
+      "visual": { "kind": "side-view", "caption": "Side view: x across, y up. The crate rises 0.25 so its bottom matches the torso's.", "ground": 0,
+        "boxes": [
+          { "label": "Torso", "x0": -0.5, "x1": 0.5, "y0": 0.25, "y1": 1.75, "tone": "solid" },
+          { "label": "Crate (now)", "x0": 2.5, "x1": 3.5, "y0": 0, "y1": 1, "tone": "ghost" },
+          { "label": "Crate (planned)", "x0": 2.5, "x1": 3.5, "y0": 0.25, "y1": 1.25, "tone": "new" }
+        ],
+        "guide": { "y": 0.25, "label": "bottoms aligned at y 0.25" } },
+      "tips": ["Use align with min anchors to put objects on a shared floor.", "Bounds placement does not guarantee contact or the absence of collisions. Measure again afterwards."],
+      "limits": ["A physical gap needs a calibrated project.", "Distribute fails when the endpoints leave too little room for non-overlapping gaps."],
+      "errors": [
+        { "message": "Scene changed; inspect the points again", "cause": "snap was planned against an older expectedRevision." },
+        { "message": "Calibrate project units before physical placement", "cause": "A gap used mm, cm, m, in or ft without a calibration." },
+        { "message": "Placement targets cannot contain ancestors and descendants", "cause": "A moving object and the reference are in one branch of the hierarchy." }
+      ],
+      "related": ["editor.measure", "editor.plan_duplicates", "editor.propose_commands"]
+    },
+    {
+      "name": "editor.plan_duplicates", "type": "read", "group": "Calculate",
+      "provider": "editor__plan_duplicates", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "code",
+      "source": "apps/backend/src/modules/tools/editor/duplication.tools.ts", "doc": "editor.plan_duplicates.md",
+      "summary": "Plans independent copies of an object and everything under it. Each copy gets fresh ids and an offset. It returns one scene.duplicate_hierarchy command.",
+      "when": ["To make a row, a grid or a stack of copies of a finished part.", "For a row of new simple shapes, modeling.generate_commands is the alternative."],
+      "input": { "rows": [
+        { "name": "sourceId", "type": "identifier", "required": true, "meaning": "The object to copy. Its descendants are copied with it." },
+        { "name": "copies", "type": "integer 1–63", "required": true, "meaning": "Additional copies." },
+        { "name": "offset", "type": "[x, y, z]", "required": true, "meaning": "Within ±100000 per axis. Copy n moves by offset × n." },
+        { "name": "space", "type": "parent | world", "required": false, "default": "parent", "meaning": "Whether the offset is in the parent's axes or in world axes." },
+        { "name": "name", "type": "string 1–80", "required": false, "meaning": "A label for the copies' roots. Names are numbered among siblings when applied." }
+      ] },
+      "result": { "rows": [
+        { "field": "sourceRevision", "meaning": "Propose with this as expectedRevision." },
+        { "field": "commands", "meaning": "One scene.duplicate_hierarchy command with a new objectId for each root and each registered descendant." },
+        { "field": "nextAction", "meaning": "The next step." }
+      ] },
+      "request": { "sourceId": "figure", "copies": 2, "offset": [2.5, 0, 0], "space": "world", "name": "Figure copy" },
+      "response": {
+        "sourceRevision": 12,
+        "commands": [{
+          "commandId": "duplicate", "type": "scene.duplicate_hierarchy", "sourceId": "figure", "offset": [2.5, 0, 0], "space": "world",
+          "copies": [
+            { "objectId": "obj_9a1e6c2f-3b7d-4e5a-8c9f-1d2e3f4a5b60", "name": "Figure copy", "descendants": [
+              { "sourceId": "torso", "objectId": "obj_0f7c4d2a-6e1b-4a9d-b3c8-5e2f1a7d9c10" },
+              { "sourceId": "arm_left", "objectId": "obj_2b8e5a13-9d4f-4c6e-a1b7-7f3e0c2d8a21" },
+              { "sourceId": "arm_right", "objectId": "obj_c4d19e7f-1a2b-4f3c-8d5e-6a9b0c1e2f32" }
+            ] },
+            { "objectId": "obj_e83a6b05-4c2d-4e1f-9b7a-3d8c5f6e0a43", "name": "Figure copy", "descendants": [
+              { "sourceId": "torso", "objectId": "obj_15f0c9d2-7b8e-4a6f-8c3d-2e9a1b4f7c54" },
+              { "sourceId": "arm_left", "objectId": "obj_a6d2e8b4-0c5f-4d7a-9e1b-8f3c2a6d5e65" },
+              { "sourceId": "arm_right", "objectId": "obj_7c9b3f1e-2d6a-4b8e-a0f4-1c5d9e7b3a76" }
+            ] }
+          ]
+        }],
+        "nextAction": "Propose these commands with expectedRevision: sourceRevision, then apply and inspect the copies."
+      },
+      "flow": ["Read the hierarchy at the current revision", "Generate fresh ids for each copy root and descendant", "Propose one scene.duplicate_hierarchy command", "Apply it, then inspect a copy"],
+      "visual": { "kind": "top-view", "caption": "Top view. Copy n moves by [2.5, 0, 0] × n in world space.", "boxes": [
+        { "label": "Figure", "x0": -1.05, "x1": 1.05, "z0": -0.3, "z1": 0.3, "tone": "solid" },
+        { "label": "copy 1", "x0": 1.45, "x1": 3.55, "z0": -0.3, "z1": 0.3, "tone": "ghost" },
+        { "label": "copy 2", "x0": 3.95, "x1": 6.05, "z0": -0.3, "z1": 0.3, "tone": "ghost" }
+      ] },
+      "tips": ["Copies are independent: geometry, materials and skeletons are separate. Texture images are shared.", "Ids change on every call, so refer to copies by name after they are applied."],
+      "limits": ["The scene may hold 2000 objects, copies included. Geometry is budgeted at 128 MiB.", "A skinned hierarchy must include all of its bones, or the copy is rejected."],
+      "errors": [
+        { "message": "Update the editor for hierarchy duplication", "cause": "The connected editor does not report supportsRepetition." },
+        { "message": "Source object does not exist", "cause": "sourceId is not in the scene." },
+        { "message": "Copies exceed the 2000-object scene limit", "cause": "The copies would take the scene past 2000 objects." }
+      ],
+      "related": ["editor.propose_commands", "editor.plan_placement", "modeling.generate_commands"]
+    },
+    {
+      "name": "modeling.generate_commands", "type": "read", "group": "Calculate",
+      "provider": "modeling__generate_commands", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "code",
+      "source": "apps/backend/src/modules/tools/procedural/procedural.tools.ts", "doc": "modeling.generate_commands.md",
+      "summary": "Runs a short JavaScript function in an isolated sandbox and returns the editor commands it calculates. Nothing is applied or proposed.",
+      "when": ["For layouts with arithmetic in them: a row, a ring, a grid, or a mesh built from computed vertices.", "A direct scene.transform_object is simpler when the layout is simple."],
+      "input": { "rows": [
+        { "name": "source", "type": "string, 1–16,000 characters", "required": true, "meaning": "The body of a synchronous function. Return an array of commands." },
+        { "name": "inspection", "type": "mesh inspection request", "required": false, "meaning": "When given, the inspected mesh is passed as the second argument, mesh." }
+      ] },
+      "details": [
+        { "title": "What the program receives", "rows": [
+          { "label": "scene", "meaning": "A JSON snapshot: revision, objects, selectedObjectIds and world bounds." },
+          { "label": "mesh", "meaning": "The inspection, or null." }
+        ] },
+        { "title": "Sandbox limits", "rows": [
+          { "label": "Time", "meaning": "250 ms of run time." },
+          { "label": "Memory and stack", "meaning": "16 MiB of heap, 256 KiB of stack." },
+          { "label": "Output", "meaning": "256,000 characters. 1–200 commands with unique commandIds." },
+          { "label": "Not available", "meaning": "Imports, files, network, timers and asynchronous code." }
+        ] }
+      ],
+      "result": { "rows": [
+        { "field": "status: generated", "meaning": "sourceRevision and commands, parsed by the strict command schema (defaults such as replaceExisting: false are filled in)." },
+        { "field": "status: rejected", "meaning": "sourceRevision and issues (each with a commandId), or a message when the program failed." }
+      ] },
+      "request": { "source": "const posts = [];\nfor (let i = 0; i < 5; i += 1) {\n  posts.push({\n    commandId: \"post_\" + i,\n    type: \"geometry.create_primitive\",\n    objectId: \"post_\" + i,\n    primitive: \"box\",\n    size: 1,\n    name: \"Post\",\n    transform: { position: [i * 1.5, 0.5, -3] },\n  });\n}\nreturn posts;" },
+      "response": {
+        "status": "generated", "sourceRevision": 12,
+        "commands": [
+          { "commandId": "post_0", "type": "geometry.create_primitive", "objectId": "post_0", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [0, 0.5, -3] } },
+          { "commandId": "post_1", "type": "geometry.create_primitive", "objectId": "post_1", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [1.5, 0.5, -3] } },
+          { "commandId": "post_2", "type": "geometry.create_primitive", "objectId": "post_2", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [3, 0.5, -3] } },
+          { "commandId": "post_3", "type": "geometry.create_primitive", "objectId": "post_3", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [4.5, 0.5, -3] } },
+          { "commandId": "post_4", "type": "geometry.create_primitive", "objectId": "post_4", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [6, 0.5, -3] } }
+        ]
+      },
+      "flow": ["The assistant writes a function body", "The sandbox runs it against a scene snapshot", "Commands are parsed and checked against the scene", "The commands go to editor.propose_commands with expectedRevision: sourceRevision"],
+      "visual": { "kind": "top-view", "caption": "Top view of the five create_primitive commands. Each box is 1 unit wide.", "boxes": [
+        { "label": "Post", "x0": -0.5, "x1": 0.5, "z0": -3.5, "z1": -2.5, "tone": "new" },
+        { "label": "Post", "x0": 1, "x1": 2, "z0": -3.5, "z1": -2.5, "tone": "new" },
+        { "label": "Post", "x0": 2.5, "x1": 3.5, "z0": -3.5, "z1": -2.5, "tone": "new" },
+        { "label": "Post", "x0": 4, "x1": 5, "z0": -3.5, "z1": -2.5, "tone": "new" },
+        { "label": "Post", "x0": 5.5, "x1": 6.5, "z0": -3.5, "z1": -2.5, "tone": "new" }
+      ] },
+      "tips": ["Use a program when the layout has arithmetic or repetition. Use direct commands for one or two edits.", "Use geometry.create_mesh for custom shapes: 3–4096 vertices, 1–4096 faces, and no more than 20,000 triangles."],
+      "limits": ["Nothing is proposed or applied. Pass the commands to editor.propose_commands with expectedRevision set to sourceRevision.", "Material and texture commands cannot be generated. They need a separate proposal after editor.inspect_materials."],
+      "errors": [
+        { "message": "Tool input did not match its schema", "cause": "The source is empty or longer than 16,000 characters, or the inspection request is invalid." }
+      ],
+      "related": ["modeling.propose_generated", "editor.plan_duplicates", "editor.inspect_mesh"]
+    },
+    {
+      "name": "modeling.generate_model_plan", "type": "plan",
+      "provider": "modeling__generate_model_plan", "permission": "plan", "approval": "Never", "needsEditor": false, "verify": "code",
+      "source": "apps/backend/src/modules/tools/modeling/modeling.tools.ts", "doc": "modeling.generate_model_plan.md",
+      "summary": "Writes down the goal and the ordered steps, and the tool each step will use. Recording a plan changes nothing in the scene.",
+      "when": ["At the start of a multi-step change, before any proposal.", "So the user can see what will happen, and so proposals can name the step they carry out with stepId."],
+      "input": { "rows": [
+        { "name": "goal", "type": "string 1–500", "required": true, "meaning": "What the user wants." },
+        { "name": "dimension", "type": "2d | 2.5d | 3d", "required": true, "meaning": "The kind of model." },
+        { "name": "steps", "type": "array of 1–30 steps", "required": true, "meaning": "Ordered. Each step is described below." }
+      ] },
+      "details": [{ "title": "Step fields", "rows": [
+        { "label": "id", "meaning": "[a-z0-9-], 1–40 characters, unique in the plan." },
+        { "label": "title", "meaning": "Short name, up to 120 characters." },
+        { "label": "toolName", "meaning": "A tool the assistant can call. Unknown names are rejected." },
+        { "label": "description", "meaning": "What the step does, up to 500 characters." },
+        { "label": "requiresApproval", "meaning": "Recorded for the user, default false. Assistant proposals still apply automatically." }
+      ] }],
+      "result": { "rows": [
+        { "field": "status: recorded", "meaning": "planNumber and stepCount." },
+        { "field": "status: rejected", "meaning": "reason, unknownTools and availableTools." }
+      ] },
+      "request": {
+        "goal": "Add a row of posts beside the figure and check the result",
+        "dimension": "3d",
+        "steps": [
+          { "id": "read-scene", "title": "Read the scene", "toolName": "editor.get_context", "description": "Confirm the figure and crate ids and the current revision.", "requiresApproval": false },
+          { "id": "make-posts", "title": "Generate five posts", "toolName": "modeling.propose_generated", "description": "Run a bounded program that places five boxes in a row.", "requiresApproval": false },
+          { "id": "review", "title": "Review from the front", "toolName": "viewport.capture", "description": "Capture a front view to check spacing and height.", "requiresApproval": false },
+          { "id": "apply", "title": "Apply and check", "toolName": "editor.apply_proposal", "description": "Apply the stored proposal, then run the scene check.", "requiresApproval": false }
+        ]
+      },
+      "response": { "status": "recorded", "planNumber": 1, "stepCount": 4 },
+      "flow": ["The assistant writes the goal and steps", "Each toolName is checked against the registered tools", "The plan becomes the latest plan", "Proposals may reference a step with stepId"],
+      "visual": { "kind": "steps", "caption": "Four steps, each naming the tool that carries it out.", "goal": "Add a row of posts beside the figure and check the result", "dimension": "3d", "steps": [
+        { "title": "Read the scene", "tool": "editor.get_context", "description": "Confirm the figure and crate ids and the current revision." },
+        { "title": "Generate five posts", "tool": "modeling.propose_generated", "description": "Run a bounded program that places five boxes in a row." },
+        { "title": "Review from the front", "tool": "viewport.capture", "description": "Capture a front view to check spacing and height." },
+        { "title": "Apply and check", "tool": "editor.apply_proposal", "description": "Apply the stored proposal, then run the scene check." }
+      ] },
+      "tips": ["Keep steps small: each should map to one tool call.", "A newer plan replaces the current one, and stepId is checked against the latest plan only."],
+      "limits": ["A plan lasts for the run. It is not saved with the project.", "Up to 30 steps."],
+      "errors": [
+        { "message": "Plan references unknown tools. Each step's toolName must be one of the available tools.", "cause": "A step names a tool that is not registered. The result lists unknownTools and availableTools." }
+      ],
+      "related": ["editor.propose_commands", "skills.load_skill"]
+    },
+    {
+      "name": "editor.propose_commands", "type": "propose", "group": "",
+      "provider": "editor__propose_commands", "permission": "propose", "approval": "Never", "needsEditor": true, "verify": "code",
+      "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.propose_commands.md",
+      "summary": "Stores a batch of scene commands for review. The batch is checked against the scene and kept waiting. Nothing changes until editor.apply_proposal runs.",
+      "when": ["For every change to the scene: read, calculate, propose, apply.", "To replace a waiting proposal when the request changes, by sending supersedes."],
+      "input": { "rows": [
+        { "name": "summary", "type": "string 1–300", "required": true, "meaning": "What the batch does, in words the user will read." },
+        { "name": "commands", "type": "1–200 commands", "required": true, "meaning": "Run in order. A later command may use an object an earlier one created." },
+        { "name": "expectedRevision", "type": "integer ≥ 0", "required": false, "meaning": "The revision the batch was written for. Makes the proposal strict." },
+        { "name": "supersedes", "type": "identifier", "required": false, "meaning": "A waiting proposal from this run that this one replaces." },
+        { "name": "stepId", "type": "identifier", "required": false, "meaning": "A step of the latest plan that this batch carries out." }
+      ] },
+      "details": [{ "title": "Common commands", "rows": [
+        { "label": "scene.move_object", "meaning": "Move by a delta. Keeps a move the user made after the read." },
+        { "label": "scene.transform_object", "meaning": "Set a position, rotation or scale. Overwrites moves made in between." },
+        { "label": "scene.rename_object, scene.set_visibility", "meaning": "Change a name or visibility without recreating the object." },
+        { "label": "scene.set_parent", "meaning": "Move under another object, or to the top level (null). Refused when the move cannot be exact." },
+        { "label": "scene.delete_object", "meaning": "Remove an object. Its children must be removed first." },
+        { "label": "geometry.create_primitive, geometry.create_mesh", "meaning": "Create a shape or a polygon mesh, optionally under a parent." },
+        { "label": "geometry.set_modifiers, geometry.boolean", "meaning": "Live modifier stacks and Boolean cuts. Strict and automatic." },
+        { "label": "material.set_properties, material.assign", "meaning": "Edit a slot, or assign faces to a slot. Strict; needs inspected revision." }
+      ] }],
+      "result": { "rows": [
+        { "field": "proposalId", "meaning": "The id to pass to editor.apply_proposal or viewport.capture." },
+        { "field": "status", "meaning": "proposed, or rejected for a bad stepId. Later: superseded, applied, failed." },
+        { "field": "requiresApproval", "meaning": "Always false for assistant proposals." },
+        { "field": "commandCount, baseRevision", "meaning": "How many commands, and the revision they were checked on." },
+        { "field": "nextAction", "meaning": "The next call to make." }
+      ] },
+      "request": {
+        "summary": "Raise the crate 2 units and rename it",
+        "expectedRevision": 12,
+        "commands": [
+          { "commandId": "raise", "type": "scene.move_object", "objectId": "crate", "delta": [0, 2, 0] },
+          { "commandId": "rename", "type": "scene.rename_object", "objectId": "crate", "name": "Supply crate" }
+        ]
+      },
+      "response": {
+        "proposalId": "prp_7e2b9c4d1a6f4b08", "status": "proposed", "requiresApproval": false, "commandCount": 2, "baseRevision": 12,
+        "supersedes": null, "planStep": null,
+        "nextAction": "Call editor.apply_proposal with this proposalId to apply automatically."
+      },
+      "flow": ["Assistant writes the commands", "The backend checks them against the scene", "The proposal is stored and waits", "editor.apply_proposal applies it"],
+      "visual": { "kind": "batch", "caption": "A proposal of two commands, waiting to be applied.",
+        "rows": [
+          { "type": "scene.move_object", "target": "crate", "detail": "by [0, 2, 0]", "tone": "neutral" },
+          { "type": "scene.rename_object", "target": "crate", "detail": "to \"Supply crate\"", "tone": "neutral" }
+        ],
+        "stages": [
+          { "label": "Proposed", "detail": "revision 12 · 2 commands", "state": "done" },
+          { "label": "Apply next", "detail": "editor.apply_proposal", "state": "current" },
+          { "label": "Applied", "detail": "saved in history", "state": "next" }
+        ] },
+      "tips": ["Set expectedRevision whenever the batch depends on what was read. A strict proposal fails instead of being rebased.", "Use scene.move_object for \"move by\". scene.transform_object sets absolute values, so it would overwrite a move the user made meanwhile."],
+      "limits": ["At most 200 commands per proposal.", "Batches with geometry, material or hierarchy-copy commands are always strict.", "Collections and scene-graph features need an editor that supports them."],
+      "errors": [
+        { "message": "stepId does not match a step of the latest plan. Record a plan first, or leave stepId out.", "cause": "The result is rejected and lists availableStepIds. Nothing is stored." },
+        { "message": "Proposal conflicts with the current scene", "cause": "A command does not fit the scene. The error lists each commandId and what to fix." }
+      ],
+      "related": ["editor.apply_proposal", "modeling.propose_generated", "viewport.capture"]
+    },
+    {
+      "name": "modeling.propose_generated", "type": "propose", "group": "",
+      "provider": "modeling__propose_generated", "permission": "propose", "approval": "Never", "needsEditor": true, "verify": "code",
+      "source": "apps/backend/src/modules/tools/procedural/procedural.tools.ts", "doc": "modeling.propose_generated.md",
+      "summary": "Runs the same sandbox program as modeling.generate_commands, then stores the result as a proposal. The commands are not echoed back to the model.",
+      "when": ["When the command list would be long, such as a grid of hundreds of blocks, so the model reads only the proposal id and count.", "The mesh-editing skill recommends it for larger generated arrays."],
+      "input": { "rows": [
+        { "name": "summary", "type": "string 1–300", "required": true, "meaning": "What the proposal does." },
+        { "name": "source", "type": "string 1–16,000", "required": true, "meaning": "The function body, as for modeling.generate_commands." },
+        { "name": "inspection", "type": "mesh inspection request", "required": false, "meaning": "When given, the mesh is passed to the program. Use faceQuery with includeSamples false to target faces by id." }
+      ] },
+      "result": { "rows": [
+        { "field": "proposalId, status, commandCount, baseRevision", "meaning": "The stored proposal, proposed, with its size and the revision it was checked on." },
+        { "field": "status: rejected", "meaning": "A message when the program failed, or issues (each with a commandId) when a command does not fit." }
+      ] },
+      "request": {
+        "summary": "Five posts in a row",
+        "source": "const posts = [];\nfor (let i = 0; i < 5; i += 1) {\n  posts.push({\n    commandId: \"post_\" + i,\n    type: \"geometry.create_primitive\",\n    objectId: \"post_\" + i,\n    primitive: \"box\",\n    size: 1,\n    name: \"Post\",\n    transform: { position: [i * 1.5, 0.5, -3] },\n  });\n}\nreturn posts;"
+      },
+      "response": { "proposalId": "prp_3a9d0c5e2b7f4a61", "status": "proposed", "summary": "Five posts in a row", "requiresApproval": false, "commandCount": 5, "baseRevision": 12 },
+      "flow": ["The program runs in the sandbox", "Commands are checked at the current revision", "The proposal is stored; the commands are not echoed", "viewport.capture reviews it, then editor.apply_proposal applies it"],
+      "visual": { "kind": "batch", "caption": "What the model sees: the id, the count and the revision. The commands stay in the backend.",
+        "rows": [],
+        "stages": [
+          { "label": "Sandbox run", "detail": "5 commands, not echoed", "state": "done" },
+          { "label": "Checked", "detail": "revision 12", "state": "done" },
+          { "label": "Stored", "detail": "prp_3a9d0c5e2b7f4a61", "state": "current" },
+          { "label": "Apply next", "detail": "editor.apply_proposal", "state": "next" }
+        ] },
+      "tips": ["Inspect faces with faceQuery and includeSamples false, then pass the ids in the program through mesh.faceMatches.ids.", "Check faceMatches.hasMore before using a page."],
+      "limits": ["Same sandbox limits as modeling.generate_commands.", "At most 200 commands per proposal. Programs cannot reach files, the network or the host."],
+      "related": ["modeling.generate_commands", "viewport.capture", "editor.apply_proposal"]
+    },
+    {
+      "name": "editor.apply_proposal", "type": "apply", "group": "",
+      "provider": "editor__apply_proposal", "permission": "apply", "approval": "Never. Assistant proposals apply automatically.", "needsEditor": true, "verify": "live",
+      "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.apply_proposal.md",
+      "summary": "Applies a stored proposal to the editor. It is the only assistant tool that changes the scene. The commands join the project history, so the user can undo them.",
+      "when": ["Right after a successful propose call, whose nextAction says so.", "After viewport.capture has shown the proposal to be right."],
+      "input": { "rows": [
+        { "name": "proposalId", "type": "identifier", "required": true, "meaning": "The id returned by the propose call." }
+      ] },
+      "details": [{ "title": "Outcomes", "rows": [
+        { "label": "status: applied", "meaning": "The batch ran. revision is the scene revision afterwards." },
+        { "label": "status: failed", "meaning": "The scene was not changed. The message says why." },
+        { "label": "rebased: true", "meaning": "The scene had changed, and a non-strict batch was checked again and ran on the new scene." },
+        { "label": "results[].name", "meaning": "The name an object received. A name already used by a sibling gets a number, so read this value." }
+      ] }],
+      "result": { "rows": [
+        { "field": "proposalId, status, revision", "meaning": "Which proposal, whether it applied, and the revision afterwards." },
+        { "field": "results[]", "meaning": "One entry per command: commandId, status, message and name when relevant." },
+        { "field": "message, rebased", "meaning": "Why it failed, if it did, and whether the batch was rebased." }
+      ] },
+      "request": { "proposalId": "prp_7e2b9c4d1a6f4b08" },
+      "response": {
+        "proposalId": "prp_7e2b9c4d1a6f4b08", "status": "applied", "revision": 13, "message": null, "rebased": false,
+        "results": [
+          { "commandId": "raise", "status": "applied", "message": null },
+          { "commandId": "rename", "status": "applied", "message": null, "name": "Supply crate" }
+        ]
+      },
+      "flow": ["Ownership and the proposed status are checked", "The revision is compared with the proposal's", "The editor runs the batch in an isolated copy", "The result is saved to history, then shown in the scene"],
+      "visual": { "kind": "batch", "caption": "Applied at revision 13. The rename gave the crate the name Supply crate.",
+        "rows": [
+          { "type": "applied", "target": "raise", "detail": "move by [0, 2, 0]", "tone": "ok" },
+          { "type": "applied", "target": "rename", "detail": "name → Supply crate", "tone": "ok" }
+        ],
+        "stages": [
+          { "label": "proposed", "detail": "prp_7e2b9c4d1a6f4b08", "state": "done" },
+          { "label": "applying", "detail": "isolated copy", "state": "done" },
+          { "label": "applied", "detail": "revision 13", "state": "current" }
+        ] },
+      "tips": ["Read results[].name rather than assuming the name you asked for.", "Undo is the user's. The assistant cannot undo its own change."],
+      "limits": ["There is no approval prompt for assistant proposals.", "A failed batch leaves the scene unchanged.", "A batch is capped at 200 commands."],
+      "errors": [
+        { "message": "Scene changed; regenerate and propose again", "cause": "A strict proposal (with expectedRevision, or geometry, material or copy commands) saw a changed scene." },
+        { "message": "Scene changed since these commands were calculated. Regenerate and propose again.", "cause": "A command no longer fits the scene after a rebase." }
+      ],
+      "related": ["editor.propose_commands", "modeling.propose_generated", "validation.check_scene"]
+    },
+    {
+      "name": "skills.load_skill", "type": "skill",
+      "provider": "skills__load_skill", "permission": "skill", "approval": "Never", "needsEditor": false, "verify": "code",
+      "source": "apps/backend/src/modules/tools/skills/skills.tools.ts", "doc": "skills.load_skill.md",
+      "summary": "Loads the full workflow for a skill that was selected for this request, so only the instructions the task needs enter the prompt.",
+      "when": ["When the request matches a skill's when_to_use, so the skill is selected for the run.", "The model then calls this tool once to read the workflow."],
+      "input": { "rows": [
+        { "name": "skillId", "type": "string, up to 64, [a-z0-9][a-z0-9.-]{1,63}", "required": true, "meaning": "The skill's folder name, such as mesh-editing." }
+      ] },
+      "details": [{ "title": "Result statuses", "rows": [
+        { "label": "loaded", "meaning": "The skill was selected and found. The result holds version, instructions, toolNames, validation and errorHandling." },
+        { "label": "not_selected", "meaning": "The skill exists but was not selected for this request. Nothing is loaded." },
+        { "label": "not_found", "meaning": "No skill has that id." }
+      ] }],
+      "result": { "rows": [
+        { "field": "status, skillId, version", "meaning": "Which skill was loaded and its version." },
+        { "field": "instructions", "meaning": "The whole body of SKILL.md." },
+        { "field": "toolNames", "meaning": "The tools the workflow names. Informational: the model still receives every tool." },
+        { "field": "validation, errorHandling", "meaning": "The checks to run and what to do when something goes wrong." }
+      ] },
+      "request": { "skillId": "mesh-editing" },
+      "response": {
+        "status": "loaded", "skillId": "mesh-editing", "version": "1.7.0",
+        "instructions": "# Mesh editing workflow\n\n1. Call `editor.get_context` and confirm every target object exists.\n2. Describe the change in plain language, then build the smallest set of commands that achieves it.\n… (the rest of the workflow is in skills/mesh-editing/SKILL.md)",
+        "toolNames": ["editor.get_context", "editor.inspect_mesh", "editor.inspect_materials", "editor.measure", "editor.plan_placement", "editor.plan_duplicates", "viewport.capture", "modeling.generate_commands", "modeling.propose_generated", "editor.propose_commands", "editor.apply_proposal", "validation.check_scene"],
+        "validation": ["Each target object id exists in the latest editor context.", "Transforms use finite numbers, and scale values are positive.", "Replacing geometry is an explicit destructive command and applies automatically through a proposal."],
+        "errorHandling": ["If a target object is missing, stop and ask the user which object to change.", "If the user rejects a destructive proposal, do not retry it. Propose a non-destructive alternative instead.", "Report revision conflicts, read the current context, and recalculate before proposing corrected commands."]
+      },
+      "flow": ["The request matches a skill's when_to_use", "The skill is selected for the run", "The assistant calls load_skill", "The workflow comes back and the assistant follows it"],
+      "visual": { "kind": "lists", "caption": "mesh-editing, version 1.7.0, status loaded.", "groups": [
+        { "title": "Tools the workflow names", "items": ["editor.get_context", "editor.inspect_mesh", "editor.inspect_materials", "editor.measure", "editor.plan_placement", "editor.plan_duplicates", "viewport.capture", "modeling.generate_commands", "modeling.propose_generated", "editor.propose_commands", "editor.apply_proposal", "validation.check_scene"], "tone": "neutral" },
+        { "title": "Validation", "items": ["Each target object id exists in the latest editor context.", "Transforms use finite numbers, and scale values are positive."], "tone": "ok" },
+        { "title": "Error handling", "items": ["If a target object is missing, stop and ask the user which object to change.", "Report revision conflicts, read the current context, and recalculate before proposing corrected commands."], "tone": "warn" }
+      ] },
+      "tips": ["Only selected skills load, so a workflow for another task cannot enter the prompt."],
+      "limits": ["The registry loads skills once, when the backend starts. Restart the backend after editing a SKILL.md.", "A skill file must be at most 64 KiB."],
+      "related": ["modeling.generate_model_plan", "editor.propose_commands"]
+    }
+  ]
+}
