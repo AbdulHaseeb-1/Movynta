@@ -464,6 +464,22 @@ describe("agent run: legacy approval infrastructure (test-only policy)", () => {
     expect(editor.executions).toHaveLength(0);
     editor.close();
   }, 40_000);
+
+  it("refuses a second run on a project while one is still active, and accepts one after it is cancelled", async () => {
+    const token = server.token("frank");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-busy", torsoScene);
+    const { run } = await startDeleteRun(token, "proj-busy", editor);
+
+    const second = await http<{ error?: { message?: string } }>("POST", "/api/v1/agent-runs", { token, body: { projectId: "proj-busy", editorClientId: editor.clientId, message: "Also rename it" } });
+    expect(second.status).toBe(409);
+    expect(JSON.stringify(second.body)).toContain("already working on this project");
+
+    await http("POST", `/api/v1/agent-runs/${run.runId}/cancel`, { token });
+    server.model.enqueue([assistantMessage("ok")]);
+    const third = await http("POST", "/api/v1/agent-runs", { token, body: { projectId: "proj-busy", editorClientId: editor.clientId, message: "Now rename it" } });
+    expect(third.status).toBe(202);
+    editor.close();
+  }, 40_000);
 });
 
 describe("tenant isolation", () => {
