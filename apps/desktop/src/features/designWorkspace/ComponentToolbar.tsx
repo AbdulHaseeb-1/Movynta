@@ -79,12 +79,12 @@ export function ComponentToolbar({ scene, saves, start, disabled }: ComponentToo
           <Tooltip>
             <TooltipTrigger asChild>
               <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4"
-                aria-label="Move selected faces" disabled={!selected || componentKind !== "face"}
+                aria-label="Move selected components" disabled={!selected}
                 onClick={() => startTool("move")}>
                 <Move />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Move selected faces · G</TooltipContent>
+            <TooltipContent>Move selected components · G (R rotates, S scales)</TooltipContent>
           </Tooltip>
           <DropdownMenu onOpenChange={(open) => {
             extrudeMenuOpen.current = open;

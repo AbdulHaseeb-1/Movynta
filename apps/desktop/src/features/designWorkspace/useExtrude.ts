@@ -46,7 +46,9 @@ export function useExtrude(
         dispatch(setComponentError(""));
         saves.run(async () => { try { await saveCageEdit(scene, {
           ...commit,
-          edit: { type: "geometry.transform_faces", ids: commit.ids, space: "world", transform: commit.transform },
+          edit: commit.kind === "face"
+            ? { type: "geometry.transform_faces", ids: commit.ids, space: "world", transform: commit.transform }
+            : { type: "geometry.transform_components", kind: commit.kind, ids: commit.ids, space: "world", transform: commit.transform },
         }, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
       },
       (commit, preview) => {

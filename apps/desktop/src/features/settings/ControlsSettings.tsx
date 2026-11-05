@@ -59,7 +59,7 @@ const groups: readonly ControlGroup[] = [
       { action: "Component selection", keys: "Click / Shift + click", detail: "Choose vertex, edge or face selection in the toolbar. Shift-click adds or removes components." },
       { action: "Box select components", keys: "B, then drag", detail: "Select component centers in the rectangle. Hold Shift to add. Esc cancels the rectangle." },
       { action: "Clear components", keys: "Esc", detail: "Clear the current component selection when no edit preview is active." },
-      { action: "Move / rotate / scale faces", keys: "G / R / S", detail: "Transform selected faces. Use X, Y or Z to constrain an axis." },
+      { action: "Move / rotate / scale components", keys: "G / R / S", detail: "Transform selected vertices, edges or faces around the middle of the selection. Use X, Y or Z to constrain an axis." },
       { action: "Extrude region", keys: "E", detail: "Extrude selected vertices, edges or faces. Selected faces start along their average normal when available." },
       { action: "Other extrusion tools", keys: "Extrusion menu", detail: "Extrude faces along vertex normals, extrude individual faces, or close an entire planar sheet as a solid." },
       { action: "Inset faces", keys: "I", detail: "Create a border around selected faces. See the inset controls below." },
