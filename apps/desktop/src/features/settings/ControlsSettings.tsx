@@ -38,6 +38,7 @@ const groups: readonly ControlGroup[] = [
       { action: "Rotate", keys: "R", detail: "Rotate selected objects, or choose the Rotate tool." },
       { action: "Scale", keys: "S", detail: "Scale selected objects, or choose the Scale tool." },
       { action: "Constrain transform", keys: "X / Y / Z", detail: "During a keyboard transform, constrain it to an axis. Press the same key again to release it." },
+      { action: "Exact object transform", keys: "Type a number", detail: "During G, R or S, type a signed distance, rotation in degrees, or positive scale factor. Move without an axis uses camera-right. Backspace edits the value." },
       { action: "Confirm / cancel transform", keys: "Enter / click · Esc / right-click", detail: "Confirm the preview or restore the original transforms." },
       { action: "Snap gizmo", keys: "Shift + drag", detail: "Hold Shift while dragging a transform handle to snap its movement." },
       { action: "Delete selected object", keys: "Delete / X", detail: "Delete the active object using the confirmation flow." },

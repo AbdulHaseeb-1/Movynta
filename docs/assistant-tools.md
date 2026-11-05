@@ -96,6 +96,8 @@ The chat shows what the assistant sees. Under the "Looking at the scene" step of
 
 ## Proposals
 
+In Object mode, keyboard G/R/S transforms accept typed values: signed distance, rotation in degrees, or a scale factor from 0.001 to 100. X/Y/Z constrain the axis; without an axis, numeric movement uses camera-right and rotation uses the view axis. Backspace edits the entry; invalid input cannot be confirmed.
+
 In Object mode, Shift+D duplicates the single selected hierarchy in place and selects the copy; use G to move it. Ctrl+M opens the Modifiers panel, where Mirror / symmetry can be added and configured. E switches from Object to Edit mode; O switches back. E remains Extrude in Edit mode. Duplicates are recorded as manual `scene.duplicate_hierarchy` commands with saved undo/redo.
 
 Manual mesh cleanup is available in the Edit-mode Mesh menu: merge at center/first/last (M opens the menu with vertices selected), dissolve coplanar internal edges, and fill one boundary loop (F). These save `geometry.merge_vertices`, `geometry.dissolve_edges`, and `geometry.fill_hole` through the manual edit route and support saved undo/redo. Enabled modifiers must be disabled, and a live extrusion removed first. Geometry validation runs before saving; invalid topology leaves the scene unchanged.

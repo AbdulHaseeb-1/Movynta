@@ -36,33 +36,34 @@ export function useExtrude(
         if (!selected || selected.ids.length === 0) return null;
         return { objectId: selected.objectId, meshPath: selected.meshPath, kind: current.current.componentKind, ids: selected.ids };
       },
-      (commit) => {
+      (commit, preview) => {
         dispatch(setComponentError(""));
-        saves.run(() => saveExtrude(scene, commit), (failure) => dispatch(setComponentError(errorMessage(failure))));
+        saves.run(async () => { try { await saveExtrude(scene, commit, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
       },
       (error) => dispatch(setComponentError(errorMessage(error))),
       setHint,
-      (commit) => {
+      (commit, preview) => {
         dispatch(setComponentError(""));
-        saves.run(() => saveCageEdit(scene, {
+        saves.run(async () => { try { await saveCageEdit(scene, {
           ...commit,
           edit: { type: "geometry.transform_faces", ids: commit.ids, space: "world", transform: commit.transform },
-        }), (failure) => dispatch(setComponentError(errorMessage(failure))));
+        }, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
       },
-      (commit) => {
+      (commit, preview) => {
         dispatch(setComponentError(""));
-        saves.run(() => saveCageEdit(scene, {
+        saves.run(async () => { try { await saveCageEdit(scene, {
           ...commit,
           edit: { type: "geometry.inset_faces", ids: commit.ids, ...commit.options },
-        }), (failure) => dispatch(setComponentError(errorMessage(failure))));
+        }, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
       },
-      (commit) => {
+      (commit, preview) => {
         dispatch(setComponentError(""));
-        saves.run(() => saveCageEdit(scene, {
+        saves.run(async () => { try { await saveCageEdit(scene, {
           ...commit,
           edit: { type: "geometry.bevel_edges", ids: commit.ids, width: commit.width, segments: commit.segments, profile: "circular" },
-        }), (failure) => dispatch(setComponentError(errorMessage(failure))));
+        }, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
       },
+      true,
     );
     gestureRef.current = gesture;
     return () => {

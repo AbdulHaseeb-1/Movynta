@@ -82,6 +82,7 @@ export type InsetCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | 
   options: InsetOptions;
 };
 export type BevelCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & { width: number; segments: number };
+export interface ConfirmedPreview { show: () => void; dispose: () => void }
 interface InsetSession {
   options: InsetOptions;
   depthMode: boolean;
@@ -279,15 +280,17 @@ export class ExtrudeGesture {
     enabled: () => boolean,
     editing: () => boolean,
     target: () => ExtrudeTarget | null,
-    onCommit: (commit: ExtrudeCommit) => void,
+    onCommit: (commit: ExtrudeCommit, preview?: ConfirmedPreview) => void,
     onError: (error: unknown) => void,
     status: (text: string) => void,
-    onTransform?: (commit: FaceTransformCommit) => void,
-    onInset?: (commit: InsetCommit) => void,
-    onBevel?: (commit: BevelCommit) => void,
+    onTransform?: (commit: FaceTransformCommit, preview?: ConfirmedPreview) => void,
+    onInset?: (commit: InsetCommit, preview?: ConfirmedPreview) => void,
+    onBevel?: (commit: BevelCommit, preview?: ConfirmedPreview) => void,
+    holdConfirmedPreview = false,
   ) {
     const dom = viewport.renderer.domElement;
     let pendingMove = false;
+    let pendingPreview: ConfirmedPreview | undefined;
     const restore = () => {
       const session = this.session;
       if (!session) return;
@@ -349,11 +352,30 @@ export class ExtrudeGesture {
               ...(session.tool === "solid" ? { closeOpenSurface: true as const, normalDistance: session.normalDistance } : {}),
             }
           : null;
+      const geometry = holdConfirmedPreview && (commit || faceCommit || insetCommit || bevelCommit) ? session.preview : null;
+      if (geometry) { session.preview = null; session.mesh.geometry = session.original; }
       stop(session);
-      if (commit) onCommit(commit);
-      if (faceCommit) onTransform?.(faceCommit);
-      if (insetCommit) onInset?.(insetCommit);
-      if (bevelCommit) onBevel?.(bevelCommit);
+      let preview: ConfirmedPreview | undefined;
+      if (geometry) {
+        let disposed = false;
+        const hide = () => { if (session.mesh.geometry === geometry) session.mesh.geometry = session.original; };
+        const unsubscribe = editor.onBeforeChange(() => {
+          hide();
+          // Inspections and forks need the committed cage; restore the visual after their synchronous read.
+          queueMicrotask(() => preview?.show());
+        });
+        active = true; previewMesh = session.mesh;
+        preview = {
+          show: () => { if (!disposed && editor.currentRevision === session.revision && session.mesh.geometry === session.original) session.mesh.geometry = geometry; },
+          dispose: () => { if (disposed) return; disposed = true; unsubscribe(); hide(); geometry.dispose(); active = false; if (previewMesh === session.mesh) previewMesh = null; pendingPreview = undefined; },
+        };
+        pendingPreview = preview;
+        preview.show();
+      }
+      if (commit) onCommit(commit, preview);
+      if (faceCommit) onTransform?.(faceCommit, preview);
+      if (insetCommit) onInset?.(insetCommit, preview);
+      if (bevelCommit) onBevel?.(bevelCommit, preview);
     };
     const updateBevel = (session: Session) => {
       const bevel = session.bevel;
@@ -553,7 +575,7 @@ export class ExtrudeGesture {
         (session.mesh.geometry === session.original || session.mesh.geometry === session.preview);
     };
     this.start = (tool) => {
-      if (!enabled() || !editing() || this.session) return;
+      if (!enabled() || !editing() || this.session || pendingPreview) return;
       const selected = target();
       const transforming = tool === "move" || tool === "scale" || tool === "rotate";
       if (
@@ -652,6 +674,7 @@ export class ExtrudeGesture {
         return;
       const key = event.key.toLowerCase();
       const session = this.session;
+      if (!session && event.target instanceof HTMLElement && (event.target.closest('button, [role="menu"], [role="dialog"]'))) return;
       if (session) {
         if (session.bevel && key !== "escape" && key !== "enter") {
           if (!/^[0-9.]$/.test(key) && key !== "backspace") return;
@@ -785,6 +808,7 @@ export class ExtrudeGesture {
     let blockContextMenu = false;
     const down = (event: PointerEvent) => {
       if (!this.session) return;
+      if (typeof Element !== "undefined" && event.target instanceof Element && event.target !== dom) return;
       if (event.button !== 0 && event.button !== 2) return;
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -801,6 +825,7 @@ export class ExtrudeGesture {
     const wheel = (event: WheelEvent) => {
       const session = this.session;
       if (!session?.bevel) return;
+      if (typeof Element !== "undefined" && event.target instanceof Element && event.target !== dom) return;
       event.preventDefault(); event.stopImmediatePropagation(); flush();
       session.bevel.segments = Math.max(1, Math.min(8, session.bevel.segments + (event.deltaY < 0 ? 1 : -1)));
       updateBevel(session);
@@ -833,6 +858,7 @@ export class ExtrudeGesture {
       unsubscribe,
       unsubscribeBefore,
       stopFrame,
+      () => pendingPreview?.dispose(),
       () => end(false),
     );
   }

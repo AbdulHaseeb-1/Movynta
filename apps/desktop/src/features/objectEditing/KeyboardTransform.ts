@@ -21,6 +21,7 @@ interface Session {
   revision: number;
   selected: readonly string[];
   cameraEnabled: boolean;
+  numeric: string;
 }
 const AXIS = {
   x: new Vector3(1, 0, 0),
@@ -87,24 +88,33 @@ export class KeyboardTransform {
     };
     const update = () => {
       const session = this.session;
-      if (!session || !session.start || !session.current) return;
+      if (!session) return;
+      const numeric = session.numeric === "" ? null : Number(session.numeric);
+      if (numeric !== null && (!Number.isFinite(numeric) || (session.operation === "scale" && (numeric < 0.001 || numeric > 100)))) {
+        status("Enter a valid number" + (session.operation === "scale" ? " from 0.001 to 100" : "") + " · Esc cancels");
+        return;
+      }
       const rect = dom.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      const delta = session.current.clone().sub(session.start);
+      const start = session.start ?? new Vector2(); const current = session.current ?? start;
+      const delta = current.clone().sub(start);
       const screenPivot = pivotOrigin.clone().project(viewport.camera);
       const center = new Vector2(
         rect.left + ((screenPivot.x + 1) * rect.width) / 2,
         rect.top + ((1 - screenPivot.y) * rect.height) / 2,
       );
-      const startVector = session.start.clone().sub(center);
-      const currentVector = session.current.clone().sub(center);
+      const startVector = start.clone().sub(center);
+      const currentVector = current.clone().sub(center);
       this.pivot.position.copy(pivotOrigin);
       this.pivot.quaternion.identity();
       this.pivot.scale.set(1, 1, 1);
       const axis = session.axis ? AXIS[session.axis] : undefined;
       if (session.operation === "move") {
         const projected = pivotOrigin.clone().project(viewport.camera);
-        if (axis) {
+        if (numeric !== null) {
+          const direction = axis ?? new Vector3(1, 0, 0).applyQuaternion(viewport.camera.quaternion);
+          this.pivot.position.addScaledVector(direction, numeric);
+        } else if (axis) {
           const tip = pivotOrigin.clone().add(axis).project(viewport.camera);
           const screen = new Vector2(
             ((tip.x - projected.x) * rect.width) / 2,
@@ -134,15 +144,15 @@ export class KeyboardTransform {
                   startVector.y * currentVector.x,
                 startVector.dot(currentVector),
               );
-        this.pivot.quaternion.setFromAxisAngle(direction, -angle);
+        this.pivot.quaternion.setFromAxisAngle(direction, numeric === null ? -angle : numeric * Math.PI / 180);
       } else {
-        const factor =
+        const factor = numeric ?? (
           startVector.length() < 8
             ? Math.exp(Math.max(-4, Math.min(4, (delta.x - delta.y) / 150)))
             : Math.max(
                 0.001,
                 Math.min(100, currentVector.length() / startVector.length()),
-              );
+              ));
         if (session.axis) this.pivot.scale[session.axis] = factor;
         else this.pivot.scale.setScalar(factor);
       }
@@ -151,7 +161,7 @@ export class KeyboardTransform {
       const transformed = active ? editor.transformOf(active) : undefined;
       if (active && transformed) live(active, transformed);
       const previewError = editor.previewBooleans();
-      status(previewError ?? `${session.operation[0]?.toUpperCase() ?? ""}${session.operation.slice(1)}${session.axis ? ` · ${session.axis.toUpperCase()}` : ""}  ·  X/Y/Z constrain  ·  Click or Enter confirm  ·  Esc cancel`);
+      status(previewError ?? `${session.operation[0]?.toUpperCase() ?? ""}${session.operation.slice(1)}${session.axis ? ` · ${session.axis.toUpperCase()}` : ""}${session.numeric ? ` · ${session.numeric}${session.operation === "rotate" ? "°" : ""}` : ""}  ·  Type a value · X/Y/Z constrain  ·  Click or Enter confirm  ·  Esc cancel`);
     };
     const pivotOrigin = new Vector3();
     const flushMove = () => {
@@ -170,7 +180,14 @@ export class KeyboardTransform {
         return;
       const key = event.key.toLowerCase();
       const session = this.session;
+      if (!session && event.target instanceof HTMLElement && event.target.closest('button, [role="menu"], [role="dialog"]')) return;
       if (session) {
+        if (/^[0-9.-]$/.test(key) || key === "backspace") {
+          event.preventDefault(); event.stopImmediatePropagation(); pendingMove = false;
+          const value = key === "backspace" ? session.numeric.slice(0, -1) : session.numeric + key;
+          if (/^-?\d*(\.\d*)?$/.test(value) && value.length <= 16) { session.numeric = value; update(); }
+          return;
+        }
         if (
           key === "escape" ||
           key === "enter" ||
@@ -181,6 +198,7 @@ export class KeyboardTransform {
           event.preventDefault();
           event.stopImmediatePropagation();
           if (key === "escape" || key === "enter") {
+            if (key === "enter" && session.numeric !== "" && (!Number.isFinite(Number(session.numeric)) || (session.operation === "scale" && (Number(session.numeric) < 0.001 || Number(session.numeric) > 100)))) return;
             if (key === "enter") flushMove();
             else pendingMove = false;
             finish(key === "enter");
@@ -233,6 +251,7 @@ export class KeyboardTransform {
         revision: editor.currentRevision,
         selected: editor.selectedIds,
         cameraEnabled: viewport.controls.enabled,
+        numeric: "",
       };
       viewport.controls.enabled = false;
       status(
@@ -251,6 +270,7 @@ export class KeyboardTransform {
         finish(false);
         return;
       }
+      if (session.numeric !== "") return;
       session.start ??= this.pointer.clone();
       session.current = this.pointer.clone();
       pendingMove = true;
@@ -258,7 +278,9 @@ export class KeyboardTransform {
     let blockContextMenu = false;
     const down = (event: PointerEvent) => {
       if (!this.session) return;
+      if (typeof Element !== "undefined" && event.target instanceof Element && event.target !== viewport.renderer.domElement) return;
       if (event.button !== 0 && event.button !== 2) return;
+      if (event.button === 0 && this.session.numeric !== "" && (!Number.isFinite(Number(this.session.numeric)) || (this.session.operation === "scale" && (Number(this.session.numeric) < 0.001 || Number(this.session.numeric) > 100)))) { event.preventDefault(); event.stopImmediatePropagation(); return; }
       event.preventDefault();
       event.stopImmediatePropagation();
       blockContextMenu = event.button === 2;

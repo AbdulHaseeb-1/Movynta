@@ -95,6 +95,28 @@ function fixture() {
   };
 }
 describe("keyboard transforms", () => {
+  it("accepts exact axis movement, degrees of rotation and a scale factor", () => {
+    const f = fixture();
+    f.key("g"); f.key("x"); f.key("-"); f.key("2");
+    expect(f.first.position.x).toBeCloseTo(-2); f.key("Enter");
+    expect(f.commits.mock.calls[0]?.[0][0]?.after.position[0]).toBeCloseTo(-2);
+    f.key("r"); f.key("z"); f.key("9"); f.key("0");
+    expect(f.first.rotation.z).toBeCloseTo(Math.PI / 2); f.key("Escape");
+    f.key("s"); f.key("2"); expect(f.first.scale.x).toBeCloseTo(2);
+    f.key("Enter"); expect(f.commits.mock.calls[1]?.[0][0]?.after.scale[0]).toBeCloseTo(2);
+    f.keyboard.dispose();
+  });
+  it("blocks confirmation of incomplete numeric input", () => {
+    const f = fixture(); f.key("g"); f.key("x"); f.key("-"); f.key("Enter");
+    expect(f.commits).not.toHaveBeenCalled(); expect(f.controls.enabled).toBe(false);
+    f.key("1"); f.key("Enter"); expect(f.commits).toHaveBeenCalledOnce(); f.keyboard.dispose();
+  });
+  it("restores the initial transform when the numeric entry is erased", () => {
+    const f = fixture(); f.key("g"); f.key("x"); f.key("2");
+    expect(f.first.position.x).toBeCloseTo(2); f.key("Backspace");
+    expect(f.first.position.x).toBeCloseTo(0); f.key("Enter");
+    expect(f.commits).not.toHaveBeenCalled(); f.keyboard.dispose();
+  });
   it("coalesces movement until the next frame and flushes before confirmation", () => {
     const f = fixture();
     f.mouse(400, 400);

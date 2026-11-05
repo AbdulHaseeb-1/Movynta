@@ -26,7 +26,7 @@ export function ObjectActions({ scene, disabled, saves }: ObjectActionsProps) {
       try {
         if (scene.currentRevision !== revision) throw new Error("The scene changed. Select the object and try again.");
         await saveManualCommands(scene, [{ commandId: `duplicate_${crypto.randomUUID()}`, type: "scene.duplicate_hierarchy", sourceId, copies: [{ objectId, descendants }], offset: [0, 0, 0], space: "parent" }]);
-        scene.select(objectId);
+        if (scene.selectedIds.length === 1 && scene.selection === sourceId) scene.select(objectId);
       } finally { pending.current = false; setBusy(false); }
     }, (failure) => setError(errorMessage(failure)));
   };

@@ -4,6 +4,10 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 export let BACKEND_URL = "http://127.0.0.1:3001";
 let accessToken = "";
 let connecting: Promise<void> | undefined;
+export class BackendResponseError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) { super(message); this.name = "BackendResponseError"; this.status = status; }
+}
 export async function ensureBackendConnection(): Promise<void> {
   if (accessToken) return;
   if (!isTauri())
@@ -51,7 +55,7 @@ export async function backendRequest<T>(
   // A 204 has no body, e.g. after deleting something.
   const data: unknown =
     response.status === 204 ? undefined : await response.json();
-  if (!response.ok) throw new Error(failureMessage(data));
+  if (!response.ok) throw new BackendResponseError(failureMessage(data), response.status);
   return schema.parse(data);
 }
 

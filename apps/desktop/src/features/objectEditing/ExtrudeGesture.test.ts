@@ -10,7 +10,7 @@ import {
 import type { Viewport } from "@/features/viewport3d";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { assertManifold, faceNormal, readTopology, topology } from "@/features/meshGeometry/meshTopology";
-import { ExtrudeGesture, type ExtrudeCommit, type FaceTransformCommit, type InsetCommit, type BevelCommit } from "./ExtrudeGesture";
+import { ExtrudeGesture, type ConfirmedPreview, type ExtrudeCommit, type FaceTransformCommit, type InsetCommit, type BevelCommit } from "./ExtrudeGesture";
 
 beforeEach(() => {
   vi.stubGlobal("window", new EventTarget());
@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function fixture(editing = true, kind: "face" | "edge" = "face") {
+function fixture(editing = true, kind: "face" | "edge" = "face", hold = false) {
   const scene = new EditorScene(new Scene(), "project");
   const mesh = new Mesh(new BoxGeometry(2, 2, 2));
   scene.importObject("box", mesh);
@@ -63,6 +63,7 @@ function fixture(editing = true, kind: "face" | "edge" = "face") {
   const bevels = vi.fn<(commit: BevelCommit) => void>();
   const errors = vi.fn();
   const status = vi.fn();
+  let held: ConfirmedPreview | undefined;
   const gesture = new ExtrudeGesture(
     viewport,
     scene,
@@ -78,8 +79,9 @@ function fixture(editing = true, kind: "face" | "edge" = "face") {
     errors,
     status,
     transforms,
-    insets,
+    (commit, preview) => { insets(commit); held = preview; },
     bevels,
+    hold,
   );
   const key = (value: string, ctrlKey = false) => {
     const event = new Event("keydown", { cancelable: true });
@@ -111,6 +113,7 @@ function fixture(editing = true, kind: "face" | "edge" = "face") {
     gesture,
     key,
     move,
+    held: () => held,
   };
 }
 
@@ -140,6 +143,26 @@ describe("bevel shortcut", () => {
 });
 
 describe("inset shortcut", () => {
+  it("does not confirm when clicking another app control", () => {
+    vi.stubGlobal("Element", HTMLElement);
+    const f = fixture(); f.key("i"); f.key("."); f.key("2");
+    const event = new Event("pointerdown", { cancelable: true });
+    Object.assign(event, { button: 0 });
+    Object.defineProperty(event, "target", { value: new HTMLElement() });
+    window.dispatchEvent(event);
+    expect(f.insets).not.toHaveBeenCalled(); expect(event.defaultPrevented).toBe(false);
+    f.key("Escape"); f.gesture.dispose();
+  });
+  it("keeps a confirmed preview visible and temporarily hides it for scene inspection", () => {
+    const f = fixture(true, "face", true); const original = f.mesh.geometry;
+    f.key("i"); f.key("."); f.key("2"); const preview = f.mesh.geometry;
+    f.key("Enter"); expect(f.mesh.geometry).toBe(preview);
+    f.scene.context({ objectId: "box", meshPath: [], offset: 0, limit: 10 });
+    expect(f.mesh.geometry).toBe(original);
+    f.held()?.show(); expect(f.mesh.geometry).toBe(preview);
+    f.held()?.dispose(); expect(f.mesh.geometry).toBe(original);
+    f.gesture.dispose();
+  });
   it("previews numeric thickness and depth and commits the selected border", () => {
     const f = fixture();
     const original = f.mesh.geometry;

@@ -1,9 +1,9 @@
 import type { EditorScene } from "@/features/assistant";
-import type { ExtrudeCommit } from "@/features/objectEditing/ExtrudeGesture";
+import type { ConfirmedPreview, ExtrudeCommit } from "@/features/objectEditing/ExtrudeGesture";
 import { saveCageEdit } from "./saveCageEdit";
 
 /** Saves one previewed extrude. Its ids and offset only mean something on the mesh that was previewed. */
-export function saveExtrude(scene: EditorScene, commit: ExtrudeCommit): Promise<void> {
+export function saveExtrude(scene: EditorScene, commit: ExtrudeCommit, preview?: ConfirmedPreview): Promise<void> {
   return saveCageEdit(scene, {
     revision: commit.revision,
     objectId: commit.objectId,
@@ -15,5 +15,5 @@ export function saveExtrude(scene: EditorScene, commit: ExtrudeCommit): Promise<
       ...(commit.normalMode ? { normalMode: commit.normalMode } : {}),
       ...(commit.closeOpenSurface ? { closeOpenSurface: true } : {}),
     },
-  });
+  }, preview);
 }

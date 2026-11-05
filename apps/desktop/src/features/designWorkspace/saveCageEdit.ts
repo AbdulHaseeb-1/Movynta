@@ -4,6 +4,7 @@ import type { ExtrudeKind } from "@/features/meshGeometry/meshExtrude";
 import type { FaceTransform } from "@/features/meshGeometry/meshFaceTransform";
 import type { InsetOptions } from "@/features/meshGeometry/meshInset";
 import { queueComponentSelection } from "./componentRestore";
+import type { ConfirmedPreview } from "@/features/objectEditing/ExtrudeGesture";
 
 /** The change a component edit makes to the base cage of one mesh part. */
 export type CageEdit =
@@ -30,7 +31,7 @@ export interface CageEditSave {
  * Saves one component edit. A scene that has moved on since the edit was chosen is refused rather than edited from
  * the wrong state. The selection is restored only for the rebuild this save causes, and cleared once the save settles.
  */
-export async function saveCageEdit(scene: EditorScene, save: CageEditSave): Promise<void> {
+export async function saveCageEdit(scene: EditorScene, save: CageEditSave, preview?: ConfirmedPreview): Promise<void> {
   if (scene.currentRevision !== save.revision)
     throw new Error("The mesh changed before this edit was saved. Select the components and try again.");
   queueComponentSelection({ scene, objectId: save.objectId, meshPath: save.meshPath, ids: save.selection });
@@ -40,7 +41,7 @@ export async function saveCageEdit(scene: EditorScene, save: CageEditSave): Prom
       objectId: save.objectId,
       meshPath: save.meshPath,
       ...save.edit,
-    }]);
+    }], preview);
   } finally {
     // The rebuild that follows a commit has already taken the selection. Anything left is stale.
     queueComponentSelection(null);
