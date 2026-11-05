@@ -8,6 +8,6 @@ import { ProjectsService } from "./projects.service.js";
 @Module({
   controllers: [ProjectsController],
   providers: [ProjectAccessService, ProjectsRepository, ProjectsService, ProjectScenesService],
-  exports: [ProjectAccessService, ProjectScenesService],
+  exports: [ProjectAccessService, ProjectScenesService, ProjectsService],
 })
 export class ProjectsModule {}

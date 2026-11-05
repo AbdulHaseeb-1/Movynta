@@ -39,7 +39,7 @@ export class CommandProposalService {
   async propose(run: ProposalRun, input: ProposalInput): Promise<CommandProposalRecord> {
     this.bridge.assertConnection(run.userId, run.projectId, run.clientId);
     if (input.expectedRevision === undefined && input.commands.some(
-      (command) => ((command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.fill_hole") && command.componentView === "base") ||
+      (command) => command.type === "scene.duplicate_hierarchy" || command.type === "material.add_slot" || command.type === "material.replace_slot" || command.type === "material.set_properties" || ((command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.fill_hole") && command.componentView === "base") ||
         (command.type === "geometry.set_modifiers" && command.modifiers.some((modifier) => modifier.kind === "extrusion")),
     )) {
       throw new ValidationFailedError("Base-cage or live geometry edits require expectedRevision from the scene context or mesh inspection.");
@@ -63,7 +63,7 @@ export class CommandProposalService {
       projectId: run.projectId,
       clientId: run.clientId,
       baseRevision: context.revision,
-      strictRevision: input.expectedRevision !== undefined || input.commands.some((command) => command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers")),
+      strictRevision: input.commands.some((command) => command.type === "scene.duplicate_hierarchy" || command.type.startsWith("material.")) || input.expectedRevision !== undefined || input.commands.some((command) => command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers")),
       summary: input.summary,
       commands: input.commands,
       requiresApproval: this.policy.requiresApproval(input.commands),

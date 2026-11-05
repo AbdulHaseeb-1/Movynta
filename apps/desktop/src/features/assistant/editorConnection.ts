@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { editorCommandListSchema, identifierSchema, meshInspectionRequestSchema, viewCaptureRequestSchema } from "@movynta/editor-protocol";
+import { editorCommandListSchema, identifierSchema, measurementRequestSchema, meshInspectionRequestSchema, viewCaptureRequestSchema } from "@movynta/editor-protocol";
 import {
   BACKEND_URL,
   backendToken,
@@ -145,7 +145,10 @@ export async function connectEditor(
         )
           send("context.response", {
             requestId: message.data["requestId"],
-            context: editor.context(message.data["inspection"] === undefined ? undefined : meshInspectionRequestSchema.parse(message.data["inspection"])),
+            context: editor.context(
+              message.data["inspection"] === undefined ? undefined : meshInspectionRequestSchema.parse(message.data["inspection"]),
+              message.data["measurement"] === undefined ? undefined : measurementRequestSchema.parse(message.data["measurement"]),
+            ),
           });
         if (message.event === "commands.execute") {
           const request = executionSchema.parse(message.data);

@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { projectMeasurementsSchema, type ProjectMeasurements } from "@movynta/editor-protocol";
 import { DatabaseService } from "../persistence/database.service.js";
 import type { SqlRow } from "../persistence/persistence.types.js";
 import { integerColumn, optionalTextColumn, textColumn } from "../persistence/row.js";
@@ -75,6 +76,17 @@ const SELECT_VIEW = `
 @Injectable()
 export class ProjectsRepository {
   constructor(private readonly database: DatabaseService) {}
+
+  measurements(projectId: string) {
+    const row = this.database.db.prepare("SELECT measurements_json, measurements_version FROM projects WHERE id = ?").get(projectId);
+    if (!row) throw new Error("Project does not exist");
+    return { version: integerColumn(row, "measurements_version"), value: projectMeasurementsSchema.parse(JSON.parse(textColumn(row, "measurements_json"))) };
+  }
+
+  saveMeasurements(projectId: string, version: number, value: ProjectMeasurements): boolean {
+    return this.database.db.prepare("UPDATE projects SET measurements_json = ?, measurements_version = measurements_version + 1 WHERE id = ? AND measurements_version = ?")
+      .run(JSON.stringify(value), projectId, version).changes === 1;
+  }
 
   insert(project: Omit<ProjectRecord, "archivedAt" | "starred">): void {
     this.database.db

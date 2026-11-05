@@ -4,6 +4,7 @@ import type { ActivityStep, ChatMessage } from "./types";
 const TOOL_LABELS: Readonly<Record<string, string>> = {
   "editor.inspect_mesh": "Inspecting mesh geometry",
   "editor.get_context": "Reading the scene",
+  "editor.measure": "Measuring the scene",
   "editor.get_scene_summary": "Summarizing the scene",
   "editor.propose_commands": "Planning scene changes",
   "editor.apply_proposal": "Applying scene changes",

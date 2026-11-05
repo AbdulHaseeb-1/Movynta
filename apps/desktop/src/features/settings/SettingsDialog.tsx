@@ -1,5 +1,5 @@
 import { useState, type ComponentType } from "react";
-import { Boxes, Settings } from "lucide-react";
+import { Boxes, Keyboard, Settings } from "lucide-react";
 import {
   DialogContent,
   DialogDescription,
@@ -7,9 +7,10 @@ import {
 } from "@/components/ui/dialog";
 import { ProvidersSettings } from "./ProvidersSettings";
 import { BackendConnection } from "./BackendConnection";
+import { ControlsSettings } from "./ControlsSettings";
 import { cn } from "@/lib/utils";
 
-type SettingsTab = "general" | "providers";
+type SettingsTab = "general" | "providers" | "controls";
 type NavigationItem = {
   id: SettingsTab;
   label: string;
@@ -19,6 +20,7 @@ type NavigationItem = {
 const navigation: NavigationItem[] = [
   { id: "general", label: "General", icon: Settings },
   { id: "providers", label: "Providers", icon: Boxes },
+  { id: "controls", label: "Shortcuts", icon: Keyboard },
 ];
 
 export function SettingsDialog({
@@ -36,7 +38,7 @@ export function SettingsDialog({
         </DialogTitle>
       </div>
       <DialogDescription className="sr-only">
-        Manage application settings and model providers.
+        Manage application settings, model providers, and control references.
       </DialogDescription>
       <div className="flex min-h-0 flex-1">
         <nav
@@ -64,13 +66,13 @@ export function SettingsDialog({
         </nav>
         <section
           aria-labelledby={
-            tab === "general"
-              ? "general-settings-heading"
-              : "settings-section-heading"
+            tab === "general" ? "general-settings-heading"
+              : tab === "controls" ? "controls-settings-heading" : "settings-section-heading"
           }
           className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8"
         >
           {tab === "general" && <BackendConnection />}
+          {tab === "controls" && <ControlsSettings />}
           <div hidden={tab !== "providers"}>
             <ProvidersSettings />
           </div>

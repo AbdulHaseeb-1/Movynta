@@ -158,6 +158,8 @@ function raycastDense(this: Mesh, raycaster: Raycaster, intersects: Intersection
   const side = material.side;
   // The nearest accepted hit. A hit outside near/far must not hide a farther one that is in range.
   let best = Infinity;
+  let bestTriangle = -1;
+  const bestNormal = new Vector3();
   let limit = Infinity;
   for (let chunk = 0; chunk < index.chunks; chunk += 1) {
     if (!crosses(index.boxes, chunk * 6, origin.x, origin.y, origin.z, ix, iy, iz, limit)) continue;
@@ -181,12 +183,24 @@ function raycastDense(this: Mesh, raycaster: Raycaster, intersects: Intersection
       const distance = raycaster.ray.origin.distanceTo(worldPoint);
       if (distance < raycaster.near || distance > raycaster.far || distance >= best) continue;
       best = distance;
+      bestTriangle = triangle;
+      bestNormal.subVectors(c, b).cross(new Vector3().subVectors(a, b)).normalize();
       limit = origin.distanceTo(point);
       bestPoint.copy(worldPoint);
     }
   }
   if (best === Infinity) return;
-  intersects.push({ distance: best, point: bestPoint.clone(), object: this });
+  const first = bestTriangle * 3;
+  intersects.push({
+    distance: best, point: bestPoint.clone(), object: this, faceIndex: bestTriangle,
+    face: {
+      a: indices ? indices.getX(first) : first,
+      b: indices ? indices.getX(first + 1) : first + 1,
+      c: indices ? indices.getX(first + 2) : first + 2,
+      normal: bestNormal,
+      materialIndex: 0,
+    },
+  });
 }
 
 /**

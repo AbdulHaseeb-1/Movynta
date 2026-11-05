@@ -2,6 +2,7 @@ import { Mesh, Vector3, type Object3D } from "three";
 import { resolveMeshPath, stableMeshPath, stableSteps, type MeshInspection, type MeshInspectionRequest, type MeshPath, type MeshStep } from "@movynta/editor-protocol";
 import { cageKey, faceNormal, readTopology, topology, type PolygonMesh, type Topology } from "./meshTopology";
 import { modifierStack } from "./modifierStack";
+import { inspectMaterials, materialSlots } from "../materials/materialEdits";
 const inspectionGraphs = new WeakMap<PolygonMesh, Topology>();
 const inspectionNormals = new WeakMap<PolygonMesh, Vector3[]>();
 
@@ -46,6 +47,9 @@ export function inspectMesh(root: Object3D | undefined, request: MeshInspectionR
   }
   try {
     const target = meshAtPath(root, request.meshPath);
+    result.materials = inspectMaterials(target, request.offset, request.limit);
+    result.materialSlotCount = materialSlots(target).length;
+    if (request.materialsOnly) { result.status = "ok"; return result; }
     const stack = modifierStack(target); result.modifiers = stack?.modifiers ?? [];
     const base = stack?.base ?? target.geometry;
     const geometry = request.view === "base" ? base : target.geometry;

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { meshInspectionSchema, meshPathSchema } from "./mesh.schema.js";
+import { measurementAnnotationSchema, measurementResultSchema, measurementUnitsSchema } from "./measurement.schema.js";
 
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const vector3 = z.tuple([z.number().finite(), z.number().finite(), z.number().finite()]);
@@ -53,6 +54,7 @@ export const designFocusSchema = z
 /** Snapshot of the editor scene that the backend receives over the editor bridge. */
 export const editorContextSchema = z
   .object({
+    supportsRepetition: z.boolean().optional(),
     projectId: z.string().min(1).max(128),
     revision: z.number().int().nonnegative(),
     activeSceneName: z.string().max(120).nullable(),
@@ -61,6 +63,9 @@ export const editorContextSchema = z
     /** Missing for editors that predate collections. */
     collections: z.array(editorCollectionSchema).max(500).optional(),
     meshInspection: meshInspectionSchema.optional(),
+    measurement: measurementResultSchema.optional(),
+    measurementUnits: measurementUnitsSchema.optional(),
+    measurementAnnotations: z.array(measurementAnnotationSchema).max(50).optional(),
     supportsPreparedCommands: z.boolean().optional(),
     /**
      * Whether the editor keeps names unique among siblings, accepts name, parentId and transform on the

@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrubNumberInput } from "./ScrubNumberInput";
+import { RepetitionFields } from "./RepetitionFields";
 import {
   Select,
   SelectContent,
@@ -87,6 +88,8 @@ function modifierName(kind: MeshModifierSpec["kind"]): string {
   if (kind === "bevel") return "Bevel";
   if (kind === "extrusion") return "Extrusion";
   if (kind === "boolean") return "Boolean";
+  if (kind === "array") return "Array";
+  if (kind === "mirror") return "Mirror / symmetry";
   return "Subdivision";
 }
 function angleChoices(angle: number): { value: string; label: string }[] {
@@ -381,6 +384,9 @@ function ModifierEditor({
                 <p className="px-2 py-1 text-[11px] leading-4 text-muted-foreground">Add another solid to use as the cutter.</p>
               )}
               <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={full || componentsPicked} onSelect={() => add({ id: `array_${crypto.randomUUID()}`, kind: "array", enabled: true, count: 2, offset: [2, 0, 0] })}>Array</DropdownMenuItem>
+              <DropdownMenuItem disabled={full || componentsPicked} onSelect={() => add({ id: `mirror_${crypto.randomUUID()}`, kind: "mirror", enabled: true, axis: "x", origin: 0, bisect: true, keepSide: "positive", mergeDistance: 0.000001 })}>Mirror / symmetry</DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuLabel>Subdivision</DropdownMenuLabel>
               {SUBDIVISION_METHODS.map((method) => (
                 <DropdownMenuItem
@@ -483,6 +489,8 @@ function ModifierEditor({
                     </>
                   )}
                 </div>
+              ) : entry.kind === "array" || entry.kind === "mirror" ? (
+                <RepetitionFields entry={entry} locked={locked} onChange={(next) => update(index, next)} />
               ) : (
                 <div className="mt-1 flex items-center gap-1">
                   <Select

@@ -14,6 +14,7 @@ import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
 import { meshAtPath, modifierStack } from "@/features/meshGeometry";
 import {
+  parseFaces,
   checkExtrudeSelection,
   extrudeAlongRegionNormal,
   extrudeRegion,
@@ -22,6 +23,7 @@ import {
   ZeroAreaWallError,
   type ExtrudeKind,
 } from "@/features/meshGeometry/meshExtrude";
+import { insetFaces, type InsetOptions } from "@/features/meshGeometry/meshInset";
 import {
   readTopology,
   faceNormal,
@@ -34,7 +36,7 @@ import { ExtrudePreviewOverlay } from "./ExtrudePreviewOverlay";
 
 type Axis = "x" | "y" | "z";
 type ExtrudeMode = "move" | "scale" | "rotate";
-export type FaceTool = ExtrudeMode | "extrude" | "normals" | "individual" | "solid";
+export type FaceTool = ExtrudeMode | "extrude" | "normals" | "individual" | "solid" | "inset";
 interface CapShape { capScale?: number; twistDegrees?: number; capRotationDegrees?: number[] }
 const AXIS = {
   x: new Vector3(1, 0, 0),
@@ -75,6 +77,34 @@ export interface ExtrudeCommit {
 export type FaceTransformCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & {
   transform: FaceTransform;
 };
+export type InsetCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & {
+  options: InsetOptions;
+};
+interface InsetSession {
+  options: InsetOptions;
+  depthMode: boolean;
+  numeric: string;
+}
+const insetToggles = {
+  b: "boundary", e: "offsetEven", l: "offsetRelative", r: "edgeRail",
+  o: "outset", i: "individual", s: "selectOuter", u: "interpolate",
+} as const;
+function insetToggle(key: string): (typeof insetToggles)[keyof typeof insetToggles] | undefined {
+  return Object.entries(insetToggles).find(([shortcut]) => shortcut === key)?.[1];
+}
+function insetHint(inset: InsetSession): string {
+  const options = inset.options;
+  const toggles = [
+    `I ${options.individual ? "Individual" : "Region"}`, `O ${options.outset ? "Outset" : "Inset"}`,
+    `B Boundary ${options.boundary ? "on" : "off"}`, `E Even ${options.offsetEven ? "on" : "off"}`,
+    `L Relative ${options.offsetRelative ? "on" : "off"}`, `R Rail ${options.edgeRail ? "on" : "off"}`,
+    `S Select ${options.selectOuter ? "border" : "inside"}`, `U Interpolate ${options.interpolate ? "on" : "off"}`,
+  ];
+  const amount = (key: "thickness" | "depth") => (
+    (key === "depth") === inset.depthMode && inset.numeric !== "" ? inset.numeric : (options[key] ?? 0).toPrecision(4)
+  );
+  return `Thickness ${amount("thickness")} · Depth ${amount("depth")} · Move or type a value · Ctrl or D for depth · ${toggles.join(" · ")} · Enter confirm · Esc cancel`;
+}
 interface Session {
   mesh: Mesh;
   original: BufferGeometry;
@@ -92,6 +122,7 @@ interface Session {
   normalDistance: number;
   faceSelection: ReturnType<typeof faceTransformSelection> | null;
   transform: FaceTransform | null;
+  inset: InsetSession | null;
   shape: CapShape;
   shapeBase: CapShape;
   moveBase: Vector3;
@@ -249,6 +280,7 @@ export class ExtrudeGesture {
     onError: (error: unknown) => void,
     status: (text: string) => void,
     onTransform?: (commit: FaceTransformCommit) => void,
+    onInset?: (commit: InsetCommit) => void,
   ) {
     const dom = viewport.renderer.domElement;
     let pendingMove = false;
@@ -285,6 +317,10 @@ export class ExtrudeGesture {
         objectId: session.objectId, meshPath: session.meshPath, ids: session.ids,
         selection, revision: session.revision, transform: session.transform,
       } : null;
+      const insetCommit = valid && session.inset && selection ? {
+        objectId: session.objectId, meshPath: session.meshPath, ids: session.ids,
+        selection, revision: session.revision, options: session.inset.options,
+      } : null;
       const commit =
         valid && offset && selection && offset.lengthSq() > 1e-12
           ? {
@@ -308,9 +344,33 @@ export class ExtrudeGesture {
       stop(session);
       if (commit) onCommit(commit);
       if (faceCommit) onTransform?.(faceCommit);
+      if (insetCommit) onInset?.(insetCommit);
+    };
+    const updateInset = (session: Session, inset: InsetSession) => {
+      session.blocked = inset.numeric !== "" && !Number.isFinite(Number(inset.numeric))
+        ? "Finish entering a number" : null;
+      if (session.blocked) {
+        status(`${insetHint(inset)} · ${session.blocked}`);
+        return;
+      }
+      if (inset.options.thickness === 0 && !inset.options.depth) {
+        restore();
+        session.selection = null;
+      } else {
+        try {
+          showPreview(session, insetFaces(session.cage, session.ids, inset.options));
+        } catch (error) {
+          session.blocked = error instanceof Error ? error.message : "Inset preview failed";
+        }
+      }
+      status(session.blocked ? `${insetHint(inset)} · ${session.blocked}` : insetHint(inset));
     };
     const update = () => {
       const session = this.session;
+      if (session?.inset) {
+        updateInset(session, session.inset);
+        return;
+      }
       if (!session || !session.start || !session.current) return;
       const rect = dom.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
@@ -493,9 +553,14 @@ export class ExtrudeGesture {
           );
         const cage = readTopology(mesh.geometry);
         const faceSelection = transforming ? faceTransformSelection(cage, selected.ids) : null;
-        if (!faceSelection) checkExtrudeSelection(cage, selected.kind, selected.ids);
+        const inset = tool === "inset" ? {
+          options: { thickness: 0, depth: 0, boundary: true, offsetEven: true, interpolate: true },
+          depthMode: false, numeric: "",
+        } : null;
+        if (inset) parseFaces(cage, selected.ids);
+        else if (!faceSelection) checkExtrudeSelection(cage, selected.kind, selected.ids);
         let normal: Vector3 | null = null;
-        if (!transforming && selected.kind === "face") {
+        if (!inset && !transforming && selected.kind === "face") {
           try {
             normal = regionNormal(cage, selected.ids);
           } catch (error) {
@@ -521,6 +586,7 @@ export class ExtrudeGesture {
           normalDistance: 0,
           faceSelection,
           transform: null,
+          inset,
           shape: {},
           shapeBase: {},
           moveBase: new Vector3(),
@@ -540,7 +606,7 @@ export class ExtrudeGesture {
         };
         active = true;
         viewport.controls.enabled = false;
-        status(hint(this.session));
+        status(inset ? insetHint(inset) : hint(this.session));
       } catch (error) {
         onError(error);
       }
@@ -548,7 +614,7 @@ export class ExtrudeGesture {
     const keydown = (event: KeyboardEvent) => {
       if (
         isTyping(event.target) ||
-        event.ctrlKey ||
+        (event.ctrlKey && !(this.session?.inset && (event.key === "Enter" || event.key === "Escape"))) ||
         event.metaKey ||
         event.altKey ||
         event.repeat
@@ -557,6 +623,36 @@ export class ExtrudeGesture {
       const key = event.key.toLowerCase();
       const session = this.session;
       if (session) {
+        const inset = session.inset;
+        if (inset && key !== "escape" && key !== "enter") {
+          const toggle = insetToggle(key);
+          const numberKey = /^[0-9.-]$/.test(key) || key === "backspace";
+          if (!toggle && !numberKey && key !== "d") return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          flush();
+          if (toggle) {
+            const toggledOn = !inset.options[toggle];
+            inset.options = { ...inset.options, [toggle]: toggledOn };
+            if (toggledOn && toggle === "outset") inset.options.individual = false;
+            if (toggledOn && toggle === "individual") inset.options.outset = false;
+          } else if (key === "d") {
+            inset.depthMode = !inset.depthMode;
+            inset.numeric = "";
+          } else {
+            const value = key === "backspace" ? inset.numeric.slice(0, -1) : inset.numeric + key;
+            if (/^-?\d*(\.\d*)?$/.test(value) && value.length <= 16) {
+              inset.numeric = value;
+              const amount = Number(value);
+              if (Number.isFinite(amount)) {
+                if (inset.depthMode) inset.options = { ...inset.options, depth: amount };
+                else inset.options = { ...inset.options, thickness: Math.max(0, amount) };
+              }
+            }
+          }
+          updateInset(session, inset);
+          return;
+        }
         if (
           !["escape", "enter", "x", "y", "z", "g", "s", "r", "e"].includes(key)
         )
@@ -599,18 +695,34 @@ export class ExtrudeGesture {
         }
         return;
       }
-      const tool = key === "e" ? "extrude" : key === "g" ? "move" : key === "r" ? "rotate" : key === "s" ? "scale" : null;
+      const tool = key === "e" ? "extrude" : key === "i" ? "inset" : key === "g" ? "move" : key === "r" ? "rotate" : key === "s" ? "scale" : null;
       if (!tool || !enabled() || !editing() || (tool !== "extrude" && target()?.kind !== "face")) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       this.start(tool);
     };
     const move = (event: PointerEvent) => {
+      const previous = this.pointer;
       this.pointer = new Vector2(event.clientX, event.clientY);
       const session = this.session;
       if (!session) return;
       if (!live(session)) {
         end(false);
+        return;
+      }
+      if (session.inset) {
+        const inset = session.inset;
+        if (previous && inset.numeric === "") {
+          const rect = dom.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const delta = this.pointer.clone().sub(previous);
+          const worldPixel = grabWorldDelta(viewport.camera, rect, session.origin, new Vector2(), new Vector2(1, 0), null);
+          const amount = (delta.x - delta.y) * toLocalOffset(session.mesh, worldPixel).length();
+          inset.options = event.ctrlKey || inset.depthMode
+            ? { ...inset.options, depth: (inset.options.depth ?? 0) + amount }
+            : { ...inset.options, thickness: Math.max(0, inset.options.thickness + amount) };
+          pendingMove = true;
+        }
         return;
       }
       session.start ??= this.pointer.clone();

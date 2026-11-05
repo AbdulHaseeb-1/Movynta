@@ -10,7 +10,7 @@ import {
 import type { Viewport } from "@/features/viewport3d";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { assertManifold, faceNormal, readTopology, topology } from "@/features/meshGeometry/meshTopology";
-import { ExtrudeGesture, type ExtrudeCommit, type FaceTransformCommit } from "./ExtrudeGesture";
+import { ExtrudeGesture, type ExtrudeCommit, type FaceTransformCommit, type InsetCommit } from "./ExtrudeGesture";
 
 beforeEach(() => {
   vi.stubGlobal("window", new EventTarget());
@@ -55,6 +55,7 @@ function fixture(editing = true) {
   } as unknown as Viewport;
   const commits = vi.fn<(commit: ExtrudeCommit) => void>();
   const transforms = vi.fn<(commit: FaceTransformCommit) => void>();
+  const insets = vi.fn<(commit: InsetCommit) => void>();
   const errors = vi.fn();
   const status = vi.fn();
   const gesture = new ExtrudeGesture(
@@ -72,6 +73,7 @@ function fixture(editing = true) {
     errors,
     status,
     transforms,
+    insets,
   );
   const key = (value: string) => {
     const event = new Event("keydown", { cancelable: true });
@@ -96,6 +98,7 @@ function fixture(editing = true) {
     viewportScene,
     commits,
     transforms,
+    insets,
     errors,
     status,
     gesture,
@@ -103,6 +106,51 @@ function fixture(editing = true) {
     move,
   };
 }
+
+describe("inset shortcut", () => {
+  it("previews numeric thickness and depth and commits the selected border", () => {
+    const f = fixture();
+    const original = f.mesh.geometry;
+    f.key("i");
+    for (const key of [".", "2", "d", "-", ".", "1", "s"]) f.key(key);
+    expect(f.mesh.geometry).not.toBe(original);
+    expect(readTopology(f.mesh.geometry).faces).toHaveLength(10);
+    f.key("Enter");
+    expect(f.insets).toHaveBeenCalledOnce();
+    const commit = f.insets.mock.calls[0]?.[0];
+    expect(commit?.options).toMatchObject({ thickness: 0.2, depth: -0.1, selectOuter: true });
+    expect(commit?.selection).toEqual(["6", "7", "8", "9"]);
+    expect(f.mesh.geometry).toBe(original);
+    expect(f.errors).not.toHaveBeenCalled();
+    f.gesture.dispose();
+  });
+
+  it("restores the original geometry on cancel after a pointer preview", () => {
+    const f = fixture();
+    const original = f.mesh.geometry;
+    f.move(400, 400);
+    f.key("i");
+    f.move(420, 400);
+    expect(f.mesh.geometry).not.toBe(original);
+    f.key("Escape");
+    expect(f.mesh.geometry).toBe(original);
+    expect(f.insets).not.toHaveBeenCalled();
+    f.gesture.dispose();
+  });
+
+  it("does not confirm a previous preview while a signed number is incomplete", () => {
+    const f = fixture();
+    f.key("i");
+    for (const key of [".", "2", "d", "-"]) f.key(key);
+    f.key("Enter");
+    expect(f.insets).not.toHaveBeenCalled();
+    expect(f.status.mock.lastCall?.[0]).toContain("Finish entering a number");
+    f.key("1");
+    f.key("Enter");
+    expect(f.insets.mock.calls[0]?.[0].options.depth).toBe(-1);
+    f.gesture.dispose();
+  });
+});
 
 /** Index of the cage face that points up, for extruding the top of the box. */
 function topFaceOf(geometry: BufferGeometry): number {

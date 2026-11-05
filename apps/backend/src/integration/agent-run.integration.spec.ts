@@ -1,4 +1,6 @@
 import type { AgentInputItem } from "@openai/agents";
+import { jest } from "@jest/globals";
+import { ToolRegistry } from "../modules/tools/tool.registry.js";
 import { assistantMessage, functionCall, modelResponder } from "@openai/agents/testing";
 import { startTestServer } from "../testing/test-app.js";
 import { openEventStream } from "../testing/event-stream.js";
@@ -344,7 +346,13 @@ describe("agent run: propose, approve-free apply, and streaming", () => {
   }, 30_000);
 });
 
-describe("agent run: approvals", () => {
+describe("agent run: legacy approval infrastructure (test-only policy)", () => {
+  beforeEach(() => {
+    const tool = server.app.get(ToolRegistry).get("editor.apply_proposal");
+    if (!tool) throw new Error("Missing apply tool");
+    jest.spyOn(tool, "requiresApproval").mockResolvedValue(true);
+  });
+  afterEach(() => { jest.restoreAllMocks(); });
   async function startDeleteRun(token: string, projectId: string, editor: EditorSimulator) {
     server.model.enqueue(
       [functionCall("editor__get_context", {}, { callId: "ctx-d" })],

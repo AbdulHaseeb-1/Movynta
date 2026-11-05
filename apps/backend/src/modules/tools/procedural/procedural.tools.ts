@@ -21,7 +21,7 @@ export function createProceduralTools({ bridge, proposals }: Pick<EditorToolDepe
       "Example: return Array.from({length: 5}, (_, i) => ({commandId: 'move_' + i, type: 'scene.transform_object', objectId: scene.selectedObjectIds[i], transform: {position: [i * 2, 0, 0]}}));",
       "No imports, host access, files, network, timers or async work. Limits: 16000 source characters, 250ms interpreter time, 16MiB guest heap.",
       "Nothing is applied or proposed. Submit successful commands to editor.propose_commands with expectedRevision equal to sourceRevision, then editor.apply_proposal.",
-      "Use direct commands for simple edits. To generate custom shapes, return geometry.create_mesh commands with bounded vertices and indexed faces. Custom materials remain unavailable.",
+      "Use direct commands for simple edits. To generate custom shapes, return geometry.create_mesh commands with bounded vertices and indexed faces. Material property/slot commands use separate proposals after editor.inspect_materials; texture creation and UV authoring remain unavailable.",
     ].join(" "),
     permission: "read",
     parameters: z.object(parameters).strict(),
@@ -44,7 +44,7 @@ export function createProceduralTools({ bridge, proposals }: Pick<EditorToolDepe
     description: [
       "Generate structured commands using the same isolated synchronous JavaScript environment as modeling.generate_commands and create a proposal without returning the full command arrays to the model.",
       "Arguments: summary, source, optional inspection. The guest receives scene and mesh. Use inspection.faceQuery with includeSamples false and mesh.faceMatches.ids to target local faces without repeating IDs in your prompt. Reject truncated pages or explicitly page them.",
-      "The proposal is tied to the source revision and uses normal validation and approval. Use viewport.capture with the proposalId for geometry review, then call editor.apply_proposal to request approval or apply.",
+      "The proposal is tied to the source revision and uses normal validation and automatic application. Use viewport.capture with the proposalId for geometry review, then call editor.apply_proposal to apply automatically without an approval prompt.",
       "Supports bounded geometry.create_mesh, parameterized primitives, and existing commands. It cannot access files, network or the host. Limits: 16000 source characters, 250ms interpreter time, 16MiB heap and 200 commands.",
     ].join(" "),
     permission: "propose",

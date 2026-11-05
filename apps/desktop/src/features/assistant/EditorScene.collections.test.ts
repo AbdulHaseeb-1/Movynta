@@ -104,6 +104,24 @@ describe("what is in a collection", () => {
     editor.execute("c", 2, [{ commandId: "d", type: "scene.delete_object", objectId: "one" }]);
     expect(editor.execute("d", 3, [remove("x", "set")]).status).toBe("applied");
   });
+
+  it("preserves an object's own visibility when replacing it, including inside a hidden collection", () => {
+    const editor = new EditorScene(new Scene(), "p");
+    editor.execute("a", 0, [collection("set", "Set"), box("one", { collectionId: "set" }), box("loose")]);
+    editor.execute("b", 1, [
+      { commandId: "v1", type: "scene.set_visibility", objectId: "one", visible: false },
+      { commandId: "v2", type: "scene.set_visibility", objectId: "loose", visible: false },
+      hide("h", "set", false),
+    ]);
+    expect(editor.execute("c", 2, [
+      { ...box("one"), commandId: "r1", replaceExisting: true },
+      { ...box("loose"), commandId: "r2", replaceExisting: true },
+    ]).status).toBe("applied");
+    expect(editor.outline().map((entry) => entry.visible)).toEqual([false, false]);
+    editor.execute("d", 3, [hide("s", "set", true)]);
+    expect(editor.getObject("one")?.visible).toBe(false);
+    expect(editor.getObject("loose")?.visible).toBe(false);
+  });
 });
 
 describe("deleting a collection", () => {
@@ -122,6 +140,15 @@ describe("deleting a collection", () => {
     expect(editor.execute("b", 1, [put("m", "rock", null), remove("d1", "sub"), remove("d2", "set")]).status).toBe("applied");
     expect(editor.context().collections).toEqual([]);
     expect(where(editor)).toEqual({ rock: null });
+  });
+
+  it("restores object visibility when a hidden last collection is emptied and deleted in one batch", () => {
+    const editor = new EditorScene(new Scene(), "p");
+    editor.execute("a", 0, [collection("set", "Set"), box("shown", { collectionId: "set" }), box("hidden", { collectionId: "set" })]);
+    editor.execute("b", 1, [{ commandId: "v", type: "scene.set_visibility", objectId: "hidden", visible: false }, hide("h", "set", false)]);
+    expect(editor.execute("c", 2, [put("m1", "shown", null), put("m2", "hidden", null), remove("d", "set")]).status).toBe("applied");
+    expect(editor.getObject("shown")?.visible).toBe(true);
+    expect(editor.getObject("hidden")?.visible).toBe(false);
   });
 
   it("rolls the whole batch back when a later command fails", () => {

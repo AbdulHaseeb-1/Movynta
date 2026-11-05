@@ -36,14 +36,18 @@ function quadDiagonal(mesh: PolygonMesh, face: readonly number[], normal: Vector
 export function triangulate(mesh: PolygonMesh, face: readonly number[]): number[][] {
   if (face.length === 3) return [[0, 1, 2]];
   const normal = faceNormal(mesh, face);
+  // A valid quad diagonal wins over projection, so skip Earcut when the diagonal already works.
+  if (face.length === 4) {
+    const diagonal = quadDiagonal(mesh, face, normal);
+    if (diagonal) return diagonal;
+  }
   const axis = Math.abs(normal.x) > Math.abs(normal.y) ? (Math.abs(normal.x) > Math.abs(normal.z) ? 0 : 2) : (Math.abs(normal.y) > Math.abs(normal.z) ? 1 : 2);
   const contour = face.map((id) => { const p = point(mesh, id); return axis === 0 ? new Vector2(p.y, p.z) : axis === 1 ? new Vector2(p.x, p.z) : new Vector2(p.x, p.y); });
   const projected = ShapeUtils.triangulateShape(contour, []).map((triangle) => {
     const [a, b, c] = triangle.map((corner) => point(mesh, face[corner]));
     return a && b && c && b.clone().sub(a).cross(c.clone().sub(a)).dot(normal) < 0 ? [...triangle].reverse() : triangle;
   });
-  // Quads keep their own vertex order so neighbouring triangles agree on winding even when the quad is non-planar.
-  if (face.length === 4) return quadDiagonal(mesh, face, normal) ?? (projected.length === 2 ? projected : []);
+  if (face.length === 4 && projected.length !== 2) return [];
   return projected;
 }
 

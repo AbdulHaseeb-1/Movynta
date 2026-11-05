@@ -176,6 +176,21 @@ describe("collections in the list", () => {
     expect(rows.get("loose")).toMatchObject({ visible: true, effectiveVisible: true });
   });
 
+  it("accounts for spatial parents and their collections across collection boundaries", () => {
+    const crossCollectionObjects = [
+      inCollection("parent", "hidden"),
+      inCollection("child", "visible", "parent"),
+      inCollection("grandchild", null, "child"),
+      inCollection("other", "visible"),
+    ];
+    const rows = new Map(flattenTree(buildSceneTree(crossCollectionObjects, [col("hidden", null, false), col("visible")]), new Set()).map((row) => [row.id, row]));
+    expect(rows.get("child")).toMatchObject({ visible: true, effectiveVisible: false });
+    expect(rows.get("grandchild")).toMatchObject({ visible: true, effectiveVisible: false });
+    expect(rows.get("other")?.effectiveVisible).toBe(true);
+    const hiddenParent = buildSceneTree([entry("p", null, { visible: false }), inCollection("c", "visible", "p")], [col("visible")]);
+    expect(flattenTree(hiddenParent, new Set()).find((row) => row.id === "c")?.effectiveVisible).toBe(false);
+  });
+
   it("skips what is under a collapsed collection or under the scene line", () => {
     expect(flattenTree(tree, new Set(["collection:props"])).map((row) => row.id)).toEqual([ROOT_ROW_ID, "collection:set", "collection:props", "fig", "torso", "loose"]);
     expect(flattenTree(tree, new Set([ROOT_ROW_ID])).map((row) => row.id)).toEqual([ROOT_ROW_ID]);

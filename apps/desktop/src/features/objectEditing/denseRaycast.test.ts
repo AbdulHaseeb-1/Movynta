@@ -83,6 +83,12 @@ describe("accelerated ray tests on dense meshes", () => {
     expect(hits).toHaveLength(1);
     expect(hits[0]?.object).toBe(mesh);
     expect(hits[0]?.point.z).toBeGreaterThan(0);
+    const hit = hits[0];
+    if (!hit?.face || hit.faceIndex === undefined || hit.faceIndex === null) throw new Error("Missing triangle for vertex snapping");
+    expect(hit.face.a).toBe(hit.faceIndex * 3);
+    expect(hit.face.b).toBe(hit.faceIndex * 3 + 1);
+    expect(hit.face.c).toBe(hit.faceIndex * 3 + 2);
+    expect(hit.face.normal.length()).toBeCloseTo(1);
   });
 
   it("misses when the ray goes past", () => {

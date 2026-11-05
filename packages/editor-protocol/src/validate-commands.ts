@@ -48,13 +48,21 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
   const createdInBatch = new Set<string>();
   const seenCommandIds = new Set<string>();
   const issues: ProposalIssue[] = [];
+  if (commands.some((command) => command.type === "scene.duplicate_hierarchy") && commands.length !== 1) return [{ commandId: commands[0]?.commandId ?? "batch", message: "Duplicate one hierarchy per proposal" }];
+  const materialEdits = commands.filter((command) => command.type === "material.set_properties" || command.type === "material.add_slot" || command.type === "material.replace_slot");
+  if (materialEdits.length && (materialEdits.length !== commands.length || commands.length > 20)) {
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use a separate batch of at most 20 material property/slot commands; assign faces in a following proposal" }];
+  }
+  if (commands.length !== 1 && commands.some((command) => command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut")) {
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use one topology-changing merge, dissolve or loop cut per proposal; inspect the resulting IDs before the next edit" }];
+  }
   const modifiers = commands.filter((command) => command.type === "geometry.bevel" || command.type === "geometry.boolean" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers"));
-  const cageEdits = commands.filter((command) => command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole");
+  const cageEdits = commands.filter((command) => command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole");
   if (modifiers.length > 0 && (modifiers.length !== commands.length || commands.length > 20)) {
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Geometry batches accept only bevel/subdivision and Boolean modifier commands, at most 20; create/transform in separate proposals" }];
   }
   if (cageEdits.length > 0 && (cageEdits.length !== commands.length || commands.length > 20)) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Component edit batches accept only extrude, transform_faces, fill_hole, and subdivide_faces commands, at most 20. Create or transform objects in a separate proposal." }];
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Component edit batches accept only extrude, transform_components, transform_faces, fill_hole, inset_faces, and subdivide_faces commands, at most 20. Create or transform objects in a separate proposal." }];
   }
   const issue = (commandId: string, message: string) => issues.push({ commandId, message });
   const missing = (commandId: string, objectId: string) =>
@@ -96,6 +104,21 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
     seenCommandIds.add(command.commandId);
 
     switch (command.type) {
+      case "scene.duplicate_hierarchy": {
+        if (!parents.has(command.sourceId)) missing(command.commandId, command.sourceId);
+        if (context.supportsRepetition !== true) issue(command.commandId, "Update the editor for hierarchy duplication");
+        const descendantIds = new Set(context.objects.filter((object) => object.id !== command.sourceId && isWithinBranch(object.id, command.sourceId, (id) => parents.get(id))).map((object) => object.id));
+        let added = 0;
+        for (const copy of command.copies) {
+          if (copy.descendants.length !== descendantIds.size || copy.descendants.some((entry) => !descendantIds.has(entry.sourceId))) issue(command.commandId, "Map every registered descendant exactly once");
+          for (const id of [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]) {
+            if (parents.has(id)) issue(command.commandId, `Copy objectId "${id}" already exists`);
+            parents.set(id, null); added++;
+          }
+        }
+        if (context.objects.length + added > 2000) issue(command.commandId, "Copies exceed the 2000-object scene limit");
+        break;
+      }
       case "scene.create_object":
         if (parents.has(command.objectId)) {
           issue(command.commandId, existsMessage(command.objectId, createdInBatch, "scene.create_object"));
@@ -168,10 +191,20 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       case "geometry.bevel":
       case "geometry.subdivide":
       case "geometry.set_modifiers":
+      case "geometry.merge_vertices":
+      case "geometry.dissolve_edges":
+      case "geometry.slide_edges":
+      case "geometry.loop_cut":
+      case "material.assign":
+      case "material.set_properties":
+      case "material.add_slot":
+      case "material.replace_slot":
+      case "geometry.transform_components":
       case "geometry.transform_faces":
       case "geometry.extrude":
       case "geometry.fill_hole":
       case "geometry.subdivide_faces":
+      case "geometry.inset_faces":
       case "scene.rename_object":
       case "scene.set_visibility":
         if (!parents.has(command.objectId)) missing(command.commandId, command.objectId);
@@ -181,6 +214,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
         if (command.type === "scene.transform_object") placement?.transformed(command.objectId, command.transform);
         if (command.type === "scene.move_object") placement?.moved(command.objectId, command.delta);
         if (command.type === "geometry.set_modifiers" || command.type === "geometry.boolean") booleanOperandIssues(command, parents, issue);
+        if (command.type === "geometry.set_modifiers" && command.modifiers.some((entry) => entry.kind === "array" || entry.kind === "mirror") && context.supportsRepetition !== true) issue(command.commandId, "Update the editor for array/mirror modifiers");
         break;
       case "scene.set_parent": {
         if (!parents.has(command.objectId)) {

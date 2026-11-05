@@ -82,7 +82,7 @@ function changesExistingObject(command: EditorCommand): boolean {
     command.type === "scene.set_collection_visibility" ||
     command.type === "scene.move_collection" ||
     command.type === "scene.move_to_collection" ||
-    command.type === "scene.transform_object" || command.type === "scene.move_object" || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers") ||
+    command.type === "scene.transform_object" || command.type === "scene.move_object" || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.add_slot" || command.type === "material.replace_slot" || command.type === "material.set_properties" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers") ||
     command.type === "scene.rename_object" ||
     command.type === "scene.set_visibility" ||
     command.type === "scene.set_parent"
@@ -92,6 +92,10 @@ function changesExistingObject(command: EditorCommand): boolean {
 /** Keeps `objects` in step with what `commands` create and delete. */
 function trackObjects(db: DatabaseSync, projectId: string, commands: readonly EditorCommand[]): void {
   for (const command of commands) {
+    if (command.type === "scene.duplicate_hierarchy") {
+      for (const copy of command.copies) for (const id of [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]) statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, id);
+      continue;
+    }
     if (command.type === "scene.create_collection") {
       statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, collectionKey(command.collectionId));
       continue;

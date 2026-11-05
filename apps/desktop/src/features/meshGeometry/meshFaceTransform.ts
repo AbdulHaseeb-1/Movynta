@@ -28,11 +28,12 @@ export function transformFaces(
   transform: FaceTransform,
   localToSpace = new Matrix4(),
   selected = faceTransformSelection(mesh, ids),
+  originOverride?: Vector3,
 ): ExtrudeResult {
   const { vertices, pivot } = selected;
   const inverse = localToSpace.clone().invert();
   if (!inverse.determinant()) throw new Error("The mesh transform is singular");
-  const origin = pivot.clone().applyMatrix4(localToSpace);
+  const origin = originOverride?.clone() ?? pivot.clone().applyMatrix4(localToSpace);
   const rotation = new Quaternion().setFromEuler(new Euler(
     transform.rotation?.[0] ?? 0, transform.rotation?.[1] ?? 0, transform.rotation?.[2] ?? 0,
   ));

@@ -31,6 +31,8 @@ export interface SceneTree {
   readonly displayParent: ReadonlyMap<string, string>;
   /** The lines listed under each line: collections first, then objects, each in the order they were made. */
   readonly displayChildren: ReadonlyMap<string, readonly string[]>;
+  /** Whether each object is drawn after both spatial and collection ancestry are considered. */
+  readonly objectVisibility: ReadonlyMap<string, boolean>;
   /** The lines listed directly in the scene itself. */
   readonly roots: readonly string[];
 }
@@ -89,7 +91,33 @@ export function buildSceneTree(list: readonly OutlineEntry[], collectionList: re
       place(entry.id, entry.collectionId !== null && collections.has(entry.collectionId) ? collectionRowId(entry.collectionId) : ROOT_ROW_ID);
     }
   }
-  return { entries, collections, parents, collectionParents, displayParent, displayChildren, roots: displayChildren.get(ROOT_ROW_ID) ?? [] };
+  // Both hierarchies affect drawing, even where an object is displayed under a different collection.
+  // Memoize each walk so deep or wide trees remain linear and do not use the call stack.
+  const visibility = (ids: Iterable<string>, parentOf: (id: string) => string | null | undefined, own: (id: string) => boolean) => {
+    const result = new Map<string, boolean>();
+    for (const id of ids) {
+      const path: string[] = [];
+      let current: string | null | undefined = id;
+      while (current !== null && current !== undefined && !result.has(current)) {
+        path.push(current);
+        current = parentOf(current);
+      }
+      let shown = current === null || current === undefined ? true : (result.get(current) ?? true);
+      for (let i = path.length - 1; i >= 0; i -= 1) {
+        const node = path[i];
+        if (node === undefined) continue;
+        shown = shown && own(node);
+        result.set(node, shown);
+      }
+    }
+    return result;
+  };
+  const collectionVisibility = visibility(collections.keys(), (id) => collectionParents.get(id), (id) => collections.get(id)?.visible ?? true);
+  const objectVisibility = visibility(entries.keys(), (id) => parents.get(id), (id) => {
+    const entry = entries.get(id);
+    return (entry?.visible ?? true) && (entry?.collectionId === null || entry?.collectionId === undefined || (collectionVisibility.get(entry.collectionId) ?? true));
+  });
+  return { entries, collections, parents, collectionParents, displayParent, displayChildren, objectVisibility, roots: displayChildren.get(ROOT_ROW_ID) ?? [] };
 }
 
 /**
@@ -148,7 +176,8 @@ export function flattenTree(tree: SceneTree, collapsed: ReadonlySet<string>): Tr
       kind = entry.kind;
       visible = entry.visible;
     }
-    rows.push({ id: top.id, name, kind, depth: top.depth, hasChildren: kids.length > 0, collapsed: isCollapsed, visible, effectiveVisible: top.above && visible });
+    const effectiveVisible = target.kind === "object" ? (tree.objectVisibility.get(target.id) ?? true) : top.above && visible;
+    rows.push({ id: top.id, name, kind, depth: top.depth, hasChildren: kids.length > 0, collapsed: isCollapsed, visible, effectiveVisible });
     if (isCollapsed) continue;
     for (let i = kids.length - 1; i >= 0; i -= 1) {
       const kid = kids[i];

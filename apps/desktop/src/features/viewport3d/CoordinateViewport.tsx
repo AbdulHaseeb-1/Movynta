@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import type { Group } from "three";
-import { addCoordinateSpace, anchorToOrigin } from "./coordinateSpace";
+import { addCoordinateSpace, anchorToOrigin, updateCoordinateSpace } from "./coordinateSpace";
 import { ThreeViewport } from "./ThreeViewport";
 import type { Viewport } from "./viewport";
 
@@ -32,8 +32,16 @@ export function CoordinateViewport({
     grid.visible = showGrid;
     gridRef.current = grid;
     onReady?.(viewport);
+    const updateGrid = () => updateCoordinateSpace(grid, viewport.controls.target, viewport.controls.getDistance());
+    updateGrid();
+    const stopGrid = viewport.addFrameListener(updateGrid);
     const anchor = anchorRef.current;
-    return anchor ? anchorToOrigin(viewport, anchor) : undefined;
+    const stopAnchor = anchor ? anchorToOrigin(viewport, anchor) : undefined;
+    return () => {
+      stopGrid();
+      stopAnchor?.();
+      gridRef.current = null;
+    };
   };
 
   return (

@@ -39,6 +39,14 @@ export function validExtrusionShape(input: {
   return !input.closeOpenSurface || (input.normalDistance !== undefined && (input.normalMode === undefined || input.normalMode === "region"));
 }
 export const modifierSchema = z.discriminatedUnion("kind", [
+  z.object({ ...common, kind: z.literal("array"), count: z.number().int().min(1).max(64),
+    offset: z.array(z.number().finite().min(-10000).max(10000)).length(3),
+  }).strict().refine((entry) => entry.count === 1 || entry.offset.some((value) => Math.abs(value) > 1e-9), "Repeated copies need a nonzero offset"),
+  z.object({ ...common, kind: z.literal("mirror"), axis: z.enum(["x", "y", "z"]),
+    origin: z.number().finite().min(-10000).max(10000).default(0), bisect: z.boolean().default(true),
+    keepSide: z.enum(["positive", "negative"]).default("positive"),
+    mergeDistance: z.number().finite().min(0).max(1).default(0.000001),
+  }).strict(),
   z.object({
     ...common,
     kind: z.literal("bevel"),

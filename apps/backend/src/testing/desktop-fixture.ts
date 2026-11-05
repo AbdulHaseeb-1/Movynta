@@ -98,6 +98,76 @@ export async function startDesktopFixture() {
     );
   }
   return {
+    enqueueDuplication: (expectedRevision: number) => server.model.enqueue(
+      [functionCall("editor__plan_duplicates", { sourceId: "root", copies: 1, offset: [3, 0, 0] }, { callId: "plan-copies" })],
+      [functionCall("editor__propose_commands", { summary: "Copy assembly", expectedRevision, commands: [{ commandId: "copy", type: "scene.duplicate_hierarchy", sourceId: "root",
+        copies: [{ objectId: "copy", descendants: [{ sourceId: "child", objectId: "child-copy" }] }], offset: [3, 0, 0], space: "world",
+      }] }, { callId: "propose-copy" })],
+      modelResponder((call) => {
+        const proposalId = JSON.stringify(call.request.input).match(/prp_[0-9a-f-]{36}/g)?.at(-1);
+        if (!proposalId) throw new Error("Missing copy proposal");
+        return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-copy" })];
+      }), [assistantMessage("The assembly copy is saved.")],
+    ),
+    enqueueRepetition: (expectedRevision: number, kind: "array" | "mirror") => server.model.enqueue(
+      [functionCall("editor__inspect_mesh", { objectId: "box", view: "base" }, { callId: "inspect-repetition" })],
+      [functionCall("editor__propose_commands", { summary: "Repeat mesh", expectedRevision, commands: [{ commandId: "repeat", type: "geometry.set_modifiers", objectId: "box",
+        modifiers: kind === "array" ? [{ id: "array", kind, enabled: true, count: 3, offset: [3, 0, 0] }] : [{ id: "mirror", kind, enabled: true, axis: "x", origin: 0, bisect: true, keepSide: "positive", mergeDistance: 1e-6 }],
+      }] }, { callId: "propose-repetition" })],
+      modelResponder((call) => {
+        const proposalId = JSON.stringify(call.request.input).match(/prp_[0-9a-f-]{36}/g)?.at(-1);
+        if (!proposalId) throw new Error("Missing repetition proposal");
+        return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-repetition" })];
+      }), [assistantMessage("The live repetition is saved.")],
+    ),
+    enqueueMaterialEdit: (expectedRevision: number, edit: Record<string, unknown>) => server.model.enqueue(
+      [functionCall("editor__inspect_materials", { objectId: "box" }, { callId: "inspect-materials" })],
+      modelResponder((call) => {
+        if (!JSON.stringify(call.request.input).includes("materialSlotCount")) throw new Error("Material slots did not reach the model");
+        return [functionCall("editor__propose_commands", { summary: "Change material", expectedRevision,
+          commands: [{ ...edit, commandId: "material", objectId: "box" }],
+        }, { callId: "propose-material" })];
+      }),
+      modelResponder((call) => {
+        const proposalId = JSON.stringify(call.request.input).match(/prp_[0-9a-f-]{36}/g)?.at(-1);
+        if (!proposalId) throw new Error("Missing material proposal");
+        return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-material" })];
+      }),
+      [assistantMessage("The material edit is saved.")],
+    ),
+    enqueueTopologyEdit: (expectedRevision: number, edit: Record<string, unknown>) => server.model.enqueue(
+      [functionCall("editor__inspect_mesh", { objectId: "mesh", meshPath: [], view: "base", offset: 0, limit: 100 }, { callId: "inspect-topology" })],
+      [functionCall("editor__propose_commands", { summary: "Edit mesh topology", expectedRevision,
+        commands: [{ ...edit, commandId: "topology", objectId: "mesh", componentView: "base" }],
+      }, { callId: "propose-topology" })],
+      modelResponder((call) => {
+        const proposalId = JSON.stringify(call.request.input).match(/prp_[0-9a-f-]{36}/g)?.at(-1);
+        if (!proposalId) throw new Error("Missing topology proposal");
+        return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-topology" })];
+      }),
+      [assistantMessage("The mesh edit is saved.")],
+    ),
+    enqueueComponentTransform: (expectedRevision: number, kind: "vertex" | "edge", ids: string[]) => server.model.enqueue(
+      [functionCall("editor__inspect_mesh", { objectId: "box", meshPath: [], view: "base", offset: 0, limit: 25 }, { callId: "inspect-components" })],
+      [functionCall("editor__propose_commands", { summary: "Move base components", expectedRevision, commands: [{
+        commandId: "move-components", type: "geometry.transform_components", objectId: "box", kind, ids,
+        componentView: "base", space: "local", transform: { position: [0, 0, 0.1] },
+      }] }, { callId: "propose-components" })],
+      modelResponder((call) => {
+        const proposalId = JSON.stringify(call.request.input).match(/prp_[0-9a-f-]{36}/g)?.at(-1);
+        if (!proposalId) throw new Error("Missing component proposal");
+        return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-components" })];
+      }),
+      [assistantMessage("The base components have moved.")],
+    ),
+    enqueueMeasurement: () => server.model.enqueue(
+      [functionCall("editor__measure", { request: { kind: "distance", from: [0, 0, 0], to: [3, 4, 0] } }, { callId: "measure" })],
+      modelResponder((call) => {
+        const text = JSON.stringify(call.request.input);
+        if (!text.includes("metersPerSceneUnit") || !text.includes("length")) throw new Error("Measurement response did not reach the model");
+        return [assistantMessage("Measured and verified.")];
+      }),
+    ),
     modelSelections,
     port: Number(new URL(server.baseUrl).port),
     token: server.token(userId),

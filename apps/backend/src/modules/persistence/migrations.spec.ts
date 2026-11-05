@@ -52,6 +52,14 @@ function appliedVersions(service: DatabaseService): number[] {
 }
 
 describe("schema migrations", () => {
+  it("adds measurement storage to a database at version 13", () => {
+    const service = newDatabaseService();
+    service.open(databaseAt(13));
+    expect(columnsOf(service, "projects")).toContain("measurements_json");
+    expect(columnsOf(service, "projects")).toContain("measurements_version");
+    expect(appliedVersions(service)).toContain(14);
+    service.close();
+  });
   it("lists each version once, in order", () => {
     const versions = MIGRATIONS.map((migration) => migration.version);
     expect(versions).toEqual(versions.map((_, index) => index + 1));

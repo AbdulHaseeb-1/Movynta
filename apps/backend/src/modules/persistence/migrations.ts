@@ -223,4 +223,11 @@ export const MIGRATIONS: readonly Migration[] = [
     statements: [],
     run: (db) => addColumnIfMissing(db, "editor_proposals", "delivery_pending", "INTEGER NOT NULL DEFAULT 0"),
   },
+  {
+    version: 14, name: "project_measurements", statements: [],
+    run: (db) => {
+      addColumnIfMissing(db, "projects", "measurements_json", "TEXT NOT NULL DEFAULT '{\"units\":null,\"annotations\":[]}'");
+      addColumnIfMissing(db, "projects", "measurements_version", "INTEGER NOT NULL DEFAULT 0");
+    },
+  },
 ];

@@ -79,8 +79,9 @@ function findOperand(slots: readonly SceneMesh[], modifier: BooleanModifier, tar
 
 function skinnedBoolean(mesh: Mesh, modifiers: readonly MeshModifierSpec[]): void {
   if (!(mesh instanceof SkinnedMesh)) return;
-  const blocked = modifiers.find((modifier) => modifier.enabled && (modifier.kind === "extrusion" || modifier.kind === "boolean"));
+  const blocked = modifiers.find((modifier) => modifier.enabled && (modifier.kind === "extrusion" || modifier.kind === "boolean" || modifier.kind === "array" || modifier.kind === "mirror"));
   if (!blocked) return;
+  if (blocked.kind === "array" || blocked.kind === "mirror") throw new Error("Array/mirror modifiers on skinned meshes are not supported; duplicate the hierarchy instead");
   throw new Error(blocked.kind === "boolean" ? "Boolean modifiers on skinned meshes are not supported" : "Live extrusion on skinned meshes is not supported");
 }
 

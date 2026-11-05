@@ -61,9 +61,11 @@ interface CachedTopology {
   signature: string;
 }
 const savedTopology = new WeakMap<BufferGeometry, CachedTopology>();
-export function copyTopology(source: BufferGeometry, target: BufferGeometry): void {
+export function copyTopology(source: BufferGeometry, target: BufferGeometry, materialOverride?: number): void {
   const cached = currentTopology(source);
-  if (cached) rememberTopology(target, cached);
+  if (cached) rememberTopology(target, materialOverride === undefined ? cached : {
+    ...cached, channels: { ...channels(cached), materials: cached.faces.map(() => materialOverride) },
+  });
 }
 function positionVersion(attribute: BufferAttribute | InterleavedBufferAttribute): number {
   return attribute instanceof InterleavedBufferAttribute ? attribute.data.version : attribute.version;

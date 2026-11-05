@@ -24,6 +24,7 @@ export class EditorSimulator {
   supportsSceneGraph = true;
   /** Whether it advertises collections. Set false to stand in for an editor that predates them. */
   supportsCollections = true;
+  supportsRepetition = true;
   private readonly collectionModel = new CollectionModel();
   private readonly waiters: (() => void)[] = [];
   private revision = 0;
@@ -168,6 +169,22 @@ export class EditorSimulator {
 
   private apply(command: EditorCommand): void {
     switch (command.type) {
+      case "scene.duplicate_hierarchy": {
+        const originals = this.objects.slice(), source = originals.find((object) => object.id === command.sourceId);
+        if (!source) throw new Error("Missing duplicate source");
+        command.copies.forEach((copy, index) => {
+          const mapping = new Map([[command.sourceId, copy.objectId], ...copy.descendants.map((entry) => [entry.sourceId, entry.objectId] as [string, string])]);
+          for (const [from, id] of mapping) {
+            const original = originals.find((object) => object.id === from); if (!original) throw new Error("Missing descendant");
+            const translated = (axis: number) => (original.transform.position[axis] ?? 0) + (from === command.sourceId ? (command.offset[axis] ?? 0) * (index + 1) : 0);
+            this.objects.push({ ...original, id, name: from === command.sourceId ? copy.name ?? original.name : original.name,
+              parentId: original.parentId === null ? null : mapping.get(original.parentId) ?? original.parentId,
+              transform: { ...original.transform, position: [translated(0), translated(1), translated(2)] } });
+            this.collectionModel.assign(id, this.collectionModel.collectionOf(from));
+          }
+        });
+        break;
+      }
       case "scene.create_object":
       case "geometry.create_mesh":
       case "geometry.create_primitive": {
@@ -218,10 +235,20 @@ export class EditorSimulator {
       case "geometry.bevel":
       case "geometry.subdivide":
       case "geometry.set_modifiers":
+      case "geometry.merge_vertices":
+      case "geometry.dissolve_edges":
+      case "geometry.slide_edges":
+      case "geometry.loop_cut":
+      case "material.assign":
+      case "material.set_properties":
+      case "material.add_slot":
+      case "material.replace_slot":
+      case "geometry.transform_components":
       case "geometry.transform_faces":
       case "geometry.extrude":
       case "geometry.fill_hole":
       case "geometry.subdivide_faces":
+      case "geometry.inset_faces":
       case "scene.set_visibility":
         break;
       case "scene.rename_object": {
@@ -247,6 +274,7 @@ export class EditorSimulator {
       collections: this.collectionModel.entries(),
       ...(this.supportsSceneGraph ? { supportsSceneGraph: true } : {}),
       ...(this.supportsCollections ? { supportsCollections: true } : {}),
+      ...(this.supportsRepetition ? { supportsRepetition: true } : {}),
     };
   }
 

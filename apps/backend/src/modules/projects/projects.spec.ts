@@ -52,6 +52,18 @@ function insertRun(projectId: string, input: string, status = "completed", user 
 }
 
 describe("project names", () => {
+  it("saves calibrated units and annotations, checks versions and ownership, and copies them", async () => {
+    const project = await create();
+    const path = `/projects/${project.id}/measurements`;
+    const value = { units: { display: "cm", metersPerSceneUnit: 1 }, annotations: [{ id: "gap", name: "Gap", points: [[0, 0, 0], [1, 0, 0]] }] };
+    expect((await request(path)).status).toBe(200);
+    expect((await request(path, "PATCH", { expectedVersion: 0, value })).status).toBe(200);
+    expect((await request(path, "PATCH", { expectedVersion: 0, value })).status).toBe(409);
+    expect((await request(path, "GET", undefined, "other-user")).status).toBe(404);
+    const duplicated = await request(`/projects/${project.id}/duplicate`, "POST");
+    const copy = await duplicated.json() as ProjectView;
+    expect(await (await request(`/projects/${copy.id}/measurements`)).json()).toMatchObject({ value });
+  });
   it("tidies whitespace and control characters, and limits the length", () => {
     expect(normalizeProjectName("  Robot \n\t  head  ")).toBe("Robot head");
     expect(normalizeProjectName("   ")).toBe("");

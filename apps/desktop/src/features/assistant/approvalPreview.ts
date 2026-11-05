@@ -9,6 +9,17 @@ const commandSchema = z.looseObject({
   primitive: z.string().optional(),
   size: z.number().optional(),
   width: z.number().optional(),
+  thickness: z.number().optional(),
+  depth: z.number().optional(),
+  edge: z.string().optional(),
+  cuts: z.number().optional(),
+  factor: z.number().optional(),
+  mode: z.string().optional(),
+  slot: z.number().optional(),
+  sourceId: z.string().optional(),
+  copies: z.array(z.unknown()).optional(),
+  outset: z.boolean().optional(),
+  individual: z.boolean().optional(),
   levels: z.number().optional(),
   segments: z.number().optional(),
   method: z.string().optional(),
@@ -63,6 +74,16 @@ type Command = z.infer<typeof commandSchema>;
 function describeCommand(command: Command): string {
   const target = command.objectId ?? "object";
   switch (command.type) {
+    case "scene.duplicate_hierarchy":
+      return `Create ${command.copies?.length ?? 1} hierarchy copies of ${command.sourceId ?? "object"} with independent geometry and material instances`;
+    case "material.set_properties":
+      return `Edit material slot ${command.slot ?? 0} on ${target}`;
+    case "material.add_slot":
+      return `Create material slot ${command.slot ?? "?"} on ${target}`;
+    case "material.replace_slot":
+      return `Replace material slot ${command.slot ?? 0} on ${target}`;
+    case "material.assign":
+      return `Assign material slot ${command.slot ?? 0} to ${command.ids ? command.ids.length + " base faces" : "all faces"} of ${target}`;
     case "scene.create_object":
       return `Create “${command.name ?? target}”`;
     case "scene.create_collection":
@@ -106,6 +127,7 @@ function describeCommand(command: Command): string {
       ].filter(Boolean);
       return `Extrude ${command.kind ?? "components"} of ${target}${command.ids ? ` (${command.ids.length} components)` : ""}${details.length ? ` (${details.join(", ")})` : ""}`;
     }
+    case "geometry.transform_components":
     case "geometry.transform_faces": {
       const transform = command.transform;
       const details = [
@@ -113,10 +135,20 @@ function describeCommand(command: Command): string {
         transform?.rotation ? `rotate [${transform.rotation.join(", ")}] radians` : "",
         transform?.scale ? `scale [${transform.scale.join(", ")}]` : "",
       ].filter(Boolean);
-      return `Transform faces of ${target}${command.ids ? ` (${command.ids.length})` : ""}${details.length ? ` · ${command.space ?? "local"} · ${details.join(", ")}` : ""}`;
+      return `Transform ${command.type === "geometry.transform_components" ? command.kind === "edge" ? "edges" : "vertices" : "faces"} of ${target}${command.ids ? ` (${command.ids.length})` : ""}${details.length ? ` · ${command.space ?? "local"} · ${details.join(", ")}` : ""}`;
     }
+    case "geometry.merge_vertices":
+      return `Merge ${command.ids?.length ?? 0} vertices of ${target} (${command.mode ?? "center"})`;
+    case "geometry.dissolve_edges":
+      return `Dissolve ${command.ids?.length ?? 0} coplanar edges of ${target}`;
+    case "geometry.slide_edges":
+      return `Slide ${command.ids?.length ?? 0} edges of ${target} along chosen rails (${command.factor ?? "?"})`;
+    case "geometry.loop_cut":
+      return `Add ${command.cuts ?? 1} loop cuts on ${target} from edge ${command.edge ?? "?"}`;
     case "geometry.subdivide_faces":
       return `Subdivide the selected faces of ${target}`;
+    case "geometry.inset_faces":
+      return `${command.outset ? "Outset" : "Inset"} faces of ${target} · thickness ${command.thickness ?? "?"} · depth ${command.depth ?? 0}${command.individual ? " · individual faces" : ""}`;
     case "geometry.fill_hole":
       return `Fill the selected boundary loop on ${target}`;
     case "geometry.create_primitive":

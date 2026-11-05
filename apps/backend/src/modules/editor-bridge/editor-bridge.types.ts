@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
+import type { MeasurementRequest, MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
 import type { EditorCommand } from "../../shared/types/editor-command.types.js";
 import type { EditorContext } from "../../shared/types/editor-context.types.js";
 import type { EDITOR_INBOUND_EVENTS, commandResultSchema } from "./editor-protocol.js";
@@ -55,7 +55,7 @@ export interface EditorConnectionScope {
 export interface EditorBridge {
   /** Throws unless `clientId` is a live editor connection for this user and project. */
   assertConnection(userId: string, projectId: string, clientId: string): EditorConnectionScope;
-  getContext(clientId: string, inspection?: MeshInspectionRequest): Promise<EditorContext>;
+  getContext(clientId: string, inspection?: MeshInspectionRequest, measurement?: MeasurementRequest): Promise<EditorContext>;
   proposeCommands(clientId: string, proposal: CommandProposalView): Promise<void>;
   executeCommands(clientId: string, request: CommandExecutionRequest): Promise<CommandExecutionResult>;
   /** Asks the editor to draw the scene from the requested points of view. Nothing in the scene changes. */
@@ -133,7 +133,7 @@ export type ViewRequestData = ViewCaptureOptions & {
 export type EditorOutboundMessage =
   | { readonly event: "auth.ok"; readonly data: { readonly clientId: string; readonly projectId: string; readonly recoveryRequired?: boolean } }
   | { readonly event: "error"; readonly data: { readonly code: string; readonly message: string } }
-  | { readonly event: "context.request"; readonly data: { readonly requestId: string; readonly inspection?: MeshInspectionRequest | undefined } }
+  | { readonly event: "context.request"; readonly data: { readonly requestId: string; readonly inspection?: MeshInspectionRequest | undefined; readonly measurement?: MeasurementRequest | undefined } }
   | { readonly event: "proposal.created"; readonly data: { readonly proposal: CommandProposalView } }
   | { readonly event: "commands.execute"; readonly data: CommandsExecuteData }
   | { readonly event: "view.request"; readonly data: ViewRequestData };

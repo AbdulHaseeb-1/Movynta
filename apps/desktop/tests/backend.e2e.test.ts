@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { BoxGeometry, Group, Mesh, Scene } from "three";
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Scene } from "three";
 import { z } from "zod";
 import { startDesktopFixture } from "../../backend/.test-output/testing/desktop-fixture.js";
 import { EditorScene } from "../src/features/assistant/EditorScene";
@@ -28,6 +28,164 @@ afterAll(async () => {
   vi.unstubAllGlobals();
 });
 describe("real desktop/backend protocol", () => {
+  it("duplicates a hierarchy, indexes its descendants, and persists undo/redo", async () => {
+    const project = await backendRequest("/projects", z.object({ id: z.string() }), "POST", {});
+    const editor = new EditorScene(new Scene(), project.id), abort = new AbortController(), connection = await connectEditor(editor, abort.signal);
+    try {
+      await saveManualCommands(editor, [
+        { commandId: "root", type: "geometry.create_primitive", objectId: "root", primitive: "box", size: 2, name: "Assembly" },
+        { commandId: "child", type: "geometry.create_primitive", objectId: "child", parentId: "root", primitive: "box", size: 1, transform: { position: [0, 2, 0] } },
+      ]);
+      fixture.enqueueDuplication(editor.currentRevision);
+      const run = await backendRequest("/agent-runs", acceptedSchema, "POST", { projectId: project.id, editorClientId: connection.clientId, message: "Duplicate the assembly beside the original" });
+      await streamRun(run.eventsUrl, abort.signal, () => {}); expect((await getRun(run.runId)).status).toBe("completed");
+      expect(editor.getObject("child-copy")?.parent).toBe(editor.getObject("copy")); expect(editor.getObject("copy")?.position.x).toBe(3);
+      await saveManualCommands(editor, [{ commandId: "rename", type: "scene.rename_object", objectId: "child-copy", name: "Copied child" }]);
+      await changeSceneHistory(editor, "undo");
+      await changeSceneHistory(editor, "undo"); expect(editor.getObject("copy")).toBeUndefined(); expect(editor.getObject("child-copy")).toBeUndefined();
+      await changeSceneHistory(editor, "redo"); expect(editor.getObject("child-copy")?.parent).toBe(editor.getObject("copy"));
+    } finally { connection.close(); abort.abort(); }
+  }, 60000);
+  it.each(["array", "mirror"] as const)("saves live %s repetition and editable base/stack changes", async (kind) => {
+    const project = await backendRequest("/projects", z.object({ id: z.string() }), "POST", {});
+    const editor = new EditorScene(new Scene(), project.id), abort = new AbortController(), connection = await connectEditor(editor, abort.signal);
+    try {
+      await saveManualCommands(editor, [{ commandId: "box", type: "geometry.create_primitive", objectId: "box", primitive: "box", size: 2 }]);
+      fixture.enqueueRepetition(editor.currentRevision, kind);
+      const run = await backendRequest("/agent-runs", acceptedSchema, "POST", { projectId: project.id, editorClientId: connection.clientId, message: "Add live repetition to the box" });
+      await streamRun(run.eventsUrl, abort.signal, () => {}); expect((await getRun(run.runId)).status).toBe("completed");
+      const inspect = (view: "base" | "evaluated") => editor.context({ objectId: "box", meshPath: [], view, offset: 0, limit: 100 }).meshInspection;
+      expect(inspect("base")?.modifiers?.[0]?.kind).toBe(kind);
+      const before = inspect("evaluated")?.localBounds;
+      if (kind === "array") await saveManualCommands(editor, [{ commandId: "count", type: "geometry.set_modifiers", objectId: "box", modifiers: [{ id: "array", kind: "array", enabled: true, count: 4, offset: [3, 0, 0] }] }]);
+      else {
+        const face = inspect("base")?.faces.find((face) => face.vertices.every((id) => (inspect("base")?.vertices.find((v) => v.index === id)?.position[0] ?? 0) > 0));
+        if (!face) throw new Error("Missing positive face");
+        await saveManualCommands(editor, [{ commandId: "base", type: "geometry.transform_faces", objectId: "box", ids: [String(face.index)], componentView: "base", transform: { position: [0.2, 0, 0] } }]);
+      }
+      const after = inspect("evaluated")?.localBounds; expect(after).not.toEqual(before);
+      if (kind === "mirror") { expect(after?.max[0]).toBeCloseTo(1.2); expect(after?.min[0]).toBeCloseTo(-1.2); }
+      await changeSceneHistory(editor, "undo"); expect(inspect("evaluated")?.localBounds).toEqual(before);
+      await changeSceneHistory(editor, "redo"); expect(inspect("evaluated")?.localBounds).toEqual(after);
+    } finally { connection.close(); abort.abort(); }
+  }, 60000);
+  it("inspects and edits materials, assigns base faces, and saves undo/redo", async () => {
+    const project = await backendRequest("/projects", z.object({ id: z.string() }), "POST", {});
+    const editor = new EditorScene(new Scene(), project.id), abort = new AbortController();
+    const connection = await connectEditor(editor, abort.signal);
+    try {
+      await saveManualCommands(editor, [{ commandId: "box", type: "geometry.create_primitive", objectId: "box", primitive: "box", size: 2 }]);
+      const inspect = () => editor.context({ objectId: "box", meshPath: [], offset: 0, limit: 25, materialsOnly: true }).meshInspection;
+      const fingerprint = () => {
+        const object = editor.getObject("box"); if (!(object instanceof Mesh)) throw new Error("Missing box");
+        return JSON.stringify({ slots: inspect()?.materials, assignments: readTopology(object.geometry).channels?.materials });
+      };
+      const apply = async (edit: Record<string, unknown>) => {
+        fixture.enqueueMaterialEdit(editor.currentRevision, edit);
+        const run = await backendRequest("/agent-runs", acceptedSchema, "POST", { projectId: project.id, editorClientId: connection.clientId, message: "Update the box material" });
+        const approvals: string[] = [];
+        await streamRun(run.eventsUrl, abort.signal, (event) => { if (event.type === "approval.required") approvals.push(event.type); });
+        expect((await getRun(run.runId)).status).toBe("completed"); expect(approvals).toHaveLength(0);
+      };
+      await apply({ type: "material.set_properties", slot: 0, properties: { color: "#d98855", roughness: 0.25, metalness: 0.8 } });
+      expect(inspect()?.materials?.[0]).toMatchObject({ color: "#d98855", metalness: 0.8 });
+      await apply({ type: "material.add_slot", slot: 1, properties: { color: "#1144ff", name: "Blue" } });
+      const before = fingerprint();
+      await apply({ type: "material.assign", slot: 1, ids: ["0"] });
+      const after = fingerprint(); expect(after).not.toBe(before);
+      await changeSceneHistory(editor, "undo"); expect(fingerprint()).toBe(before);
+      await changeSceneHistory(editor, "redo"); expect(fingerprint()).toBe(after);
+      await apply({ type: "material.replace_slot", slot: 1, properties: { color: "#22cc88", roughness: 0.5 } });
+      const object = editor.getObject("box");
+      expect(object instanceof Mesh && Array.isArray(object.material) && object.material[1] instanceof MeshStandardMaterial).toBe(true);
+      expect(inspect()?.materials?.[1]?.color).toBe("#22cc88");
+    } finally { connection.close(); abort.abort(); }
+  }, 60000);
+  it.each(["merge", "dissolve", "slide", "loop"] as const)("saves an automatic %s edit and replays undo/redo", async (operation) => {
+    const project = await backendRequest("/projects", z.object({ id: z.string() }), "POST", {});
+    const editor = new EditorScene(new Scene(), project.id), abort = new AbortController();
+    const connection = await connectEditor(editor, abort.signal);
+    try {
+      const sheet = operation === "dissolve" || operation === "slide";
+      await saveManualCommands(editor, [{ commandId: "mesh", type: "geometry.create_primitive", objectId: "mesh", primitive: sheet ? "plane" : "box", size: 2 }]);
+      if (sheet) await saveManualCommands(editor, [{ commandId: "split", type: "geometry.subdivide_faces", objectId: "mesh", ids: ["0"] }]);
+      const cage = () => {
+        const object = editor.getObject("mesh"); if (!(object instanceof Mesh)) throw new Error("Missing mesh"); return readTopology(object.geometry);
+      };
+      const fingerprint = () => JSON.stringify({ positions: cage().positions.map((p) => p.toArray()), faces: cage().faces });
+      const mesh = cage(), graph = topology(mesh);
+      const seed = graph.edges.keys().next().value;
+      if (!seed) throw new Error("Missing seed edge");
+      let edit: Record<string, unknown>;
+      if (operation === "merge") edit = { type: "geometry.merge_vertices", ids: seed.split("_"), mode: "center" };
+      else if (operation === "loop") edit = { type: "geometry.loop_cut", edge: seed, cuts: 2 };
+      else if (operation === "dissolve") edit = { type: "geometry.dissolve_edges", ids: [...graph.edges].filter(([, half]) => half.length === 2).map(([id]) => id) };
+      else {
+        const edge = [...graph.edges].find(([, half]) => half.length === 2)?.[0];
+        if (!edge) throw new Error("Missing slide edge");
+        const selected = edge.split("_");
+        const rails = selected.map((vertex) => {
+          const neighbor = (graph.vertexEdges[Number(vertex)] ?? []).flatMap((id) => id.split("_")).find((id) => !selected.includes(id));
+          if (!neighbor) throw new Error("Missing rail"); return { vertex, toward: neighbor };
+        });
+        edit = { type: "geometry.slide_edges", ids: [edge], rails, factor: 0.2 };
+      }
+      const before = fingerprint();
+      fixture.enqueueTopologyEdit(editor.currentRevision, edit);
+      const run = await backendRequest("/agent-runs", acceptedSchema, "POST", { projectId: project.id, editorClientId: connection.clientId, message: "Edit the selected mesh topology" });
+      const approvals: string[] = [];
+      await streamRun(run.eventsUrl, abort.signal, (event) => { if (event.type === "approval.required") approvals.push(event.type); });
+      expect((await getRun(run.runId)).status).toBe("completed");
+      expect(approvals).toHaveLength(0);
+      const after = fingerprint(); expect(after).not.toBe(before);
+      await changeSceneHistory(editor, "undo"); expect(fingerprint()).toBe(before);
+      await changeSceneHistory(editor, "redo"); expect(fingerprint()).toBe(after);
+    } finally { connection.close(); abort.abort(); }
+  }, 30000);
+  it.each(["vertex", "edge"] as const)("automatically applies %s transforms and persists undo/redo", async (kind) => {
+    const project = await backendRequest("/projects", z.object({ id: z.string() }), "POST", {});
+    const editor = new EditorScene(new Scene(), project.id), abort = new AbortController();
+    const connection = await connectEditor(editor, abort.signal);
+    try {
+      await saveManualCommands(editor, [{ commandId: "box", type: "geometry.create_primitive", objectId: "box", primitive: "box", size: 1 }]);
+      const cage = () => {
+        const object = editor.getObject("box");
+        if (!(object instanceof Mesh)) throw new Error("Missing box");
+        return readTopology(object.geometry);
+      };
+      const firstEdge = topology(cage()).edges.keys().next().value;
+      if (!firstEdge) throw new Error("Missing edge");
+      const ids = kind === "vertex" ? ["0"] : [firstEdge];
+      const vertex = Number(ids[0]?.split("_")[0]);
+      const before = cage().positions[vertex]?.z;
+      if (before === undefined) throw new Error("Missing vertex");
+      fixture.enqueueComponentTransform(editor.currentRevision, kind, ids);
+      const run = await backendRequest("/agent-runs", acceptedSchema, "POST", { projectId: project.id, editorClientId: connection.clientId, message: "Move these mesh components slightly along local Z" });
+      const approvals: string[] = [];
+      await streamRun(run.eventsUrl, abort.signal, (event) => { if (event.type === "approval.required") approvals.push(event.type); });
+      expect((await getRun(run.runId)).status).toBe("completed");
+      expect(approvals).toHaveLength(0);
+      expect(cage().positions[vertex]?.z).toBeCloseTo(before + 0.1);
+      await changeSceneHistory(editor, "undo");
+      expect(cage().positions[vertex]?.z).toBeCloseTo(before);
+      await changeSceneHistory(editor, "redo");
+      expect(cage().positions[vertex]?.z).toBeCloseTo(before + 0.1);
+    } finally { connection.close(); abort.abort(); }
+  }, 30000);
+  it("returns calibrated measurements through the model tool and editor WebSocket", async () => {
+    const project = await backendRequest("/projects", z.object({ id: z.string() }), "POST", {});
+    await backendRequest(`/projects/${project.id}/measurements`, z.unknown(), "PATCH", {
+      expectedVersion: 0, value: { units: { display: "cm", metersPerSceneUnit: 1 }, annotations: [] },
+    });
+    fixture.enqueueMeasurement();
+    const editor = new EditorScene(new Scene(), project.id), abort = new AbortController();
+    const connection = await connectEditor(editor, abort.signal);
+    try {
+      const run = await backendRequest("/agent-runs", acceptedSchema, "POST", { projectId: project.id, editorClientId: connection.clientId, message: "Measure the distance between the two points" });
+      await streamRun(run.eventsUrl, abort.signal, () => {});
+      expect((await getRun(run.runId)).status).toBe("completed");
+    } finally { connection.close(); abort.abort(); }
+  }, 30000);
   it("recovers a durably saved edit after commit delivery is lost and the editor reconnects", async () => {
     const project = await backendRequest("/projects", z.object({ id: z.string() }), "POST", {});
     fixture.enqueueCreation(); fixture.loseNextCommit();
@@ -56,7 +214,7 @@ describe("real desktop/backend protocol", () => {
       await changeSceneHistory(editor, "redo"); expect(editor.getObject("cube")).toBeDefined();
     } finally { connection.close(); abort.abort(); }
   }, 30000);
-  it("inspects an imported mesh and applies approved bevel and subdivision", async () => {
+  it("inspects an imported mesh and automatically applies bevel and subdivision", async () => {
     fixture.enqueueMeshModifiers();
     const editor = new EditorScene(new Scene(), "desktop-modifiers");
     const root = new Group(); const mesh = new Mesh(new BoxGeometry()); root.add(mesh); editor.importObject("model", root);
@@ -64,15 +222,11 @@ describe("real desktop/backend protocol", () => {
     const abort = new AbortController(); const connection = await connectEditor(editor, abort.signal);
     try {
       const run = await backendRequest("/agent-runs", acceptedSchema, "POST", { projectId: editor.projectId, editorClientId: connection.clientId, message: "Bevel and subdivide my imported cube" });
-      let requested: (id: string) => void = () => {};
-      const approval = new Promise<string>((resolve) => { requested = resolve; });
-      const streaming = streamRun(run.eventsUrl, abort.signal, (event) => {
-        if (event.type === "approval.required" && typeof event.payload["approvalId"] === "string") requested(event.payload["approvalId"]);
+      const approvals: string[] = [];
+      await streamRun(run.eventsUrl, abort.signal, (event) => {
+        if (event.type === "approval.required") approvals.push(event.type);
       });
-      const approvalId = await Promise.race([approval, streaming.then(() => { throw new Error("Run ended without modifier approval"); })]);
-      expect(mesh.geometry).toBe(original);
-      await backendRequest(`/agent-runs/${run.runId}/approvals/${approvalId}`, z.unknown(), "POST", { decision: "approve" });
-      await streaming;
+      expect(approvals).toHaveLength(0);
       expect((await getRun(run.runId)).status).toBe("completed");
       const displayed = editor.getObject("model")?.children[0];
       expect(displayed).toBeInstanceOf(Mesh);
@@ -80,7 +234,7 @@ describe("real desktop/backend protocol", () => {
       expect(editor.context({ objectId: "model", meshPath: [0], offset: 0, limit: 1 }).meshInspection?.stats?.faces).toBe(96);
     } finally { connection.close(); abort.abort(); }
   }, 30000);
-  it("applies an approved rounded Boolean batch and persists a manual cutter face move", async () => {
+  it("automatically applies a rounded Boolean batch and persists a manual cutter face move", async () => {
     const project = await backendRequest("/projects", z.object({ id: z.string() }), "POST", {});
     const editor = new EditorScene(new Scene(), project.id);
     const abort = new AbortController();
@@ -93,15 +247,11 @@ describe("real desktop/backend protocol", () => {
       ]);
       fixture.enqueueRoundedCut();
       const run = await backendRequest("/agent-runs", acceptedSchema, "POST", { projectId: project.id, editorClientId: connection.clientId, message: "Cut and round the target" });
-      let resolveApproval: (id: string) => void = () => {};
-      const approval = new Promise<string>((resolve) => { resolveApproval = resolve; });
-      const streaming = streamRun(run.eventsUrl, abort.signal, (event) => {
-        if (event.type === "approval.required" && typeof event.payload["approvalId"] === "string") resolveApproval(event.payload["approvalId"]);
+      const approvals: string[] = [];
+      await streamRun(run.eventsUrl, abort.signal, (event) => {
+        if (event.type === "approval.required") approvals.push(event.type);
       });
-      const approvalId = await Promise.race([approval, streaming.then(() => { throw new Error("Run ended without Boolean approval"); })]);
-      expect(editor.context({ objectId: "target", meshPath: [], offset: 0, limit: 1 }).meshInspection?.modifiers).toHaveLength(0);
-      await backendRequest(`/agent-runs/${run.runId}/approvals/${approvalId}`, z.unknown(), "POST", { decision: "approve" });
-      await streaming;
+      expect(approvals).toHaveLength(0);
       expect((await getRun(run.runId)).status).toBe("completed");
       expect(editor.context({ objectId: "target", meshPath: [], offset: 0, limit: 1 }).meshInspection?.modifiers?.map(({ kind }) => kind)).toEqual(["boolean", "bevel"]);
       const mesh = (id: string) => {

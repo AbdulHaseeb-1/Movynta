@@ -4,6 +4,7 @@ import { cageKey, copyTopology, readTopology } from "./meshTopology";
 import { modifyGeometry, type MeshModifier } from "./meshModifiers";
 import { extrudeAlongRegionNormal, extrudeRegion, writeExtrudedGeometry } from "./meshExtrude";
 import { applyBoolean } from "./meshBoolean";
+import { repeatGeometry } from "./repetitionModifiers";
 
 /** The operand solid, already in its own local space, plus the matrix that places it in the world. */
 export interface BooleanOperandView {
@@ -23,7 +24,7 @@ const stacks = new WeakMap<Mesh, ModifierStackState>();
 export function modifierStack(mesh: Mesh): ModifierStackState | undefined { return stacks.get(mesh); }
 function cloneGeometry(source: BufferGeometry): BufferGeometry { const copy = source.clone(); copyTopology(source, copy); return copy; }
 
-function operation(modifier: Exclude<MeshModifierSpec, { kind: "extrusion" | "boolean" }>): MeshModifier {
+function operation(modifier: Exclude<MeshModifierSpec, { kind: "extrusion" | "boolean" | "array" | "mirror" }>): MeshModifier {
   return modifier.kind === "bevel"
     ? { type: "geometry.bevel", width: modifier.width, segments: modifier.segments, ...(modifier.profile === undefined ? {} : { profile: modifier.profile }), ...(modifier.angle === undefined ? {} : { angle: modifier.angle }) }
     : { type: "geometry.subdivide", levels: modifier.levels, ...(modifier.method === undefined ? {} : { method: modifier.method }) };
@@ -60,6 +61,8 @@ export function evaluateBase(base: BufferGeometry, modifiers: readonly MeshModif
           throw new Error("Boolean cut material is outside the target's material slots");
         }
         next = applyBoolean(geometry, source.geometry, modifier.operation, relative, modifier.cutMaterialIndex, context.materialSlots);
+      } else if (modifier.kind === "array" || modifier.kind === "mirror") {
+        next = repeatGeometry(geometry, modifier, startsAtBase);
       } else {
         next = modifyGeometry(geometry, operation(modifier), startsAtBase);
       }
@@ -75,8 +78,9 @@ export function evaluateBase(base: BufferGeometry, modifiers: readonly MeshModif
 }
 
 export function evaluateStack(mesh: Mesh, modifiers: MeshModifierSpec[], previous = stacks.get(mesh), context?: ModifierEvalContext): ModifierStackState {
-  const blocked = modifiers.find((modifier) => modifier.enabled && (modifier.kind === "extrusion" || modifier.kind === "boolean"));
+  const blocked = modifiers.find((modifier) => modifier.enabled && (modifier.kind === "extrusion" || modifier.kind === "boolean" || modifier.kind === "array" || modifier.kind === "mirror"));
   if (mesh instanceof SkinnedMesh && blocked) {
+    if (blocked.kind === "array" || blocked.kind === "mirror") throw new Error("Array/mirror modifiers on skinned meshes are not supported; duplicate the hierarchy instead");
     throw new Error(blocked.kind === "boolean" ? "Boolean modifiers on skinned meshes are not supported" : "Live extrusion on skinned meshes is not supported");
   }
   const base = previous?.base ?? cloneGeometry(mesh.geometry);

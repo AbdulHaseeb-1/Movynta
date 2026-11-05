@@ -2,13 +2,15 @@ import type { EditorScene } from "@/features/assistant";
 import { saveManualCommands } from "@/features/objectEditing/saveManualCommands";
 import type { ExtrudeKind } from "@/features/meshGeometry/meshExtrude";
 import type { FaceTransform } from "@/features/meshGeometry/meshFaceTransform";
+import type { InsetOptions } from "@/features/meshGeometry/meshInset";
 import { queueComponentSelection } from "./componentRestore";
 
 /** The change a component edit makes to the base cage of one mesh part. */
 export type CageEdit =
   | { type: "geometry.extrude"; kind: ExtrudeKind; ids: string[]; offset?: [number, number, number]; normalDistance?: number; normalMode?: "vertex" | "individual"; closeOpenSurface?: true; capScale?: number; twistDegrees?: number; capRotationDegrees?: number[] }
   | { type: "geometry.transform_faces"; ids: string[]; space: "world"; transform: FaceTransform }
-  | { type: "geometry.subdivide_faces"; ids: string[] };
+  | { type: "geometry.subdivide_faces"; ids: string[] }
+  | ({ type: "geometry.inset_faces"; ids: string[] } & InsetOptions);
 
 /** One previewed or chosen component edit. `selection` is what stays selected once the edit has applied. */
 export interface CageEditSave {

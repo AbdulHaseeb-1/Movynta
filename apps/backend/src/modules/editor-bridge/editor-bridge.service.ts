@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
+import type { MeasurementRequest, MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
 import type { AppConfig } from "../../config/config.types.js";
@@ -57,7 +57,7 @@ export class EditorBridgeService implements EditorBridge {
     return { clientId, userId, projectId };
   }
 
-  getContext(clientId: string, inspection?: MeshInspectionRequest): Promise<EditorContext> {
+  getContext(clientId: string, inspection?: MeshInspectionRequest, measurement?: MeasurementRequest): Promise<EditorContext> {
     return new Promise<EditorContext>((resolve, reject) => {
       this.sendRequest(
         clientId,
@@ -68,7 +68,7 @@ export class EditorBridgeService implements EditorBridge {
           resolve,
           reject,
         }),
-        (requestId) => ({ event: "context.request", data: { requestId, inspection } }),
+        (requestId) => ({ event: "context.request", data: { requestId, inspection, measurement } }),
       );
     });
   }

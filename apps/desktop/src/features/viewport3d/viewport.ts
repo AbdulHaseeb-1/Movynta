@@ -54,11 +54,11 @@ export interface Viewport {
 
 const DEFAULT_MAX_PIXEL_RATIO = 2;
 const CAMERA_FOV = 45;
-const CAMERA_NEAR = 0.1;
-const CAMERA_FAR = 1000;
+const CAMERA_NEAR = 0.01;
+const CAMERA_FAR = 5000;
 const CAMERA_START = new Vector3(5, 4, 7);
-const ORBIT_MIN_DISTANCE = 2;
-const ORBIT_MAX_DISTANCE = 60;
+const ORBIT_MIN_DISTANCE = 0.05;
+const ORBIT_MAX_DISTANCE = 500;
 const ORBIT_DAMPING = 0.08;
 const EASE_SECONDS = 0.35;
 const ASSISTANT_PANEL_SHIFT_FRACTION = 0.12;

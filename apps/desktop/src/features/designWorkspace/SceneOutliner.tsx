@@ -14,6 +14,7 @@ import {
   flattenTree,
   outlineCommands,
   revealed,
+  ROOT_ROW_ID,
   rowTarget,
   scrollToRow,
   visibleRange,
@@ -204,14 +205,20 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   }
 
   function makeCollection() {
-    if (locked) return;
+    if (locked || !scene) return;
     const inside = chosenRow === null ? null : rowTarget(chosenRow);
     const parent = inside?.kind === "collection" ? inside.id : null;
     const id = `col_${crypto.randomUUID()}`;
     startRenaming.current = collectionRowId(id);
+    scene.select(null);
     setChosenRow(collectionRowId(id));
     // Its parent opens, so the new line is there to be named.
-    if (parent !== null) setCollapsed((current) => (current.has(collectionRowId(parent)) ? without(current, collectionRowId(parent)) : current));
+    setCollapsed((current) => {
+      const next = new Set(current);
+      next.delete(ROOT_ROW_ID);
+      if (parent !== null) next.delete(collectionRowId(parent));
+      return next;
+    });
     run([outlineCommands.makeCollection(id, "Collection", parent)]);
   }
 
@@ -265,7 +272,7 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
       case "ArrowUp": go(index - 1); break;
       case "ArrowRight":
         if (row.hasChildren && row.collapsed) toggleCollapsed(row.id);
-        else go(index + 1);
+        else if (row.hasChildren) go(index + 1);
         break;
       case "ArrowLeft":
         if (row.hasChildren && !row.collapsed) toggleCollapsed(row.id);
@@ -392,7 +399,6 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      tabIndex={-1}
                       className="size-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0 [&_svg]:size-3.5"
                       aria-label={`Delete collection ${row.name || row.id}`}
                       title="Delete this empty collection"
@@ -410,10 +416,9 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      tabIndex={-1}
                       className={cn("size-6 shrink-0 [&_svg]:size-3.5", hiddenAbove && "opacity-40")}
                       aria-label={`${row.visible ? "Hide" : "Show"} ${row.name || row.id}`}
-                      title={hiddenAbove ? "Hidden because something it is listed under is hidden" : row.visible ? "Hide" : "Show"}
+                      title={hiddenAbove ? "Hidden by a parent object or collection" : row.visible ? "Hide" : "Show"}
                       disabled={locked}
                       onClick={(event) => {
                         event.stopPropagation();

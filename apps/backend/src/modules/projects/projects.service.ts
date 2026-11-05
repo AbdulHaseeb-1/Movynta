@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
-import { HAND_EDIT_COMMAND_TYPES } from "@movynta/editor-protocol";
+import { HAND_EDIT_COMMAND_TYPES, saveMeasurementsSchema } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../common/errors/app-error.js";
 import { isOneOf } from "../../shared/guards/enum.guard.js";
 import { editorCommandListSchema } from "../../shared/schemas/editor-command.schema.js";
@@ -78,6 +78,21 @@ export class ProjectsService {
     return this.view(userId, projectId);
   }
 
+  measurements(userId: string, projectId: string) {
+    this.owned(userId, projectId);
+    return this.repository.measurements(projectId);
+  }
+
+  saveMeasurements(userId: string, projectId: string, input: unknown) {
+    this.owned(userId, projectId);
+    const parsed = saveMeasurementsSchema.safeParse(input);
+    if (!parsed.success) throw new ValidationFailedError("Invalid measurement units or annotations");
+    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before changing project measurements");
+    if (!this.repository.saveMeasurements(projectId, parsed.data.expectedVersion, parsed.data.value))
+      throw new ConflictError("Project measurements changed. Reload the project before saving again.");
+    return this.repository.measurements(projectId);
+  }
+
   update(userId: string, projectId: string, patch: ProjectPatch): ProjectView {
     const project = this.owned(userId, projectId);
     const now = new Date().toISOString();
@@ -98,6 +113,7 @@ export class ProjectsService {
     const copyName = source.name ? `${source.name} copy`.slice(0, PROJECT_NAME_MAX_LENGTH) : "";
     const copy = this.create(userId, source.category, copyName);
     this.scenes.copy(source.id, copy.id);
+    this.repository.saveMeasurements(copy.id, 0, this.repository.measurements(source.id).value);
     return copy;
   }
 

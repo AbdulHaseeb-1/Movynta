@@ -1,4 +1,4 @@
-import { BoxSelect, Grid2x2, Move } from "lucide-react";
+import { BoxSelect, Grid2x2, Move, SquareDashed } from "lucide-react";
 import { useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { EditorScene } from "@/features/assistant";
@@ -111,6 +111,16 @@ export function ComponentToolbar({ scene, saves, start }: ComponentToolbarProps)
               <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("solid")}>Extrude planar sheet as solid</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4"
+                aria-label="Inset selected faces" disabled={!selected || componentKind !== "face"}
+                onClick={() => startTool("inset")}>
+                <SquareDashed />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Inset selected faces · I</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

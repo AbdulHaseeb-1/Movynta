@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { editorCommandListSchema } from "@movynta/editor-protocol";
 import { ConflictError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import { ApprovalPolicy } from "../../approvals/approval.policy.js";
 import { AgentRunRepository } from "../../agent-runs/agent-run.repository.js";
@@ -140,20 +141,20 @@ describe("command proposals", () => {
     expect((await service.apply(run, proposal.id)).status).toBe("applied");
     expect(bridge.executions.map((item) => item.idempotencyKey)).toEqual([proposal.id, proposal.id]);
   });
-  it("requires approval and refuses to rebase mesh operations even without expectedRevision", async () => {
+  it("automatically permits but refuses to rebase mesh operations even without expectedRevision", async () => {
     const { bridge, service, run } = setup();
     bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
     const proposal = await service.propose(run, { summary: "Subdivide mesh", commands: [{ commandId: "s", type: "geometry.subdivide", objectId: "mesh", meshPath: [], levels: 1 }] });
-    expect(proposal.requiresApproval).toBe(true); expect(proposal.strictRevision).toBe(true);
+    expect(proposal.requiresApproval).toBe(false); expect(proposal.strictRevision).toBe(true);
     bridge.scene = { ...bridge.scene, revision: 5 };
     expect((await service.apply(run, proposal.id)).status).toBe("failed");
     expect(bridge.executions).toHaveLength(1);
   });
-  it("requires approval and refuses to rebase face subdivision, like the other base-cage edits", async () => {
+  it("automatically permits but refuses to rebase face subdivision, like the other base-cage edits", async () => {
     const { bridge, service, run } = setup();
     bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
     const proposal = await service.propose(run, { summary: "Subdivide two faces", commands: [{ commandId: "f", type: "geometry.subdivide_faces", objectId: "mesh", meshPath: [], ids: ["0", "4"] }] });
-    expect(proposal.requiresApproval).toBe(true); expect(proposal.strictRevision).toBe(true);
+    expect(proposal.requiresApproval).toBe(false); expect(proposal.strictRevision).toBe(true);
     bridge.scene = { ...bridge.scene, revision: 5 };
     expect((await service.apply(run, proposal.id)).status).toBe("failed");
     expect(bridge.executions).toHaveLength(1);
@@ -175,8 +176,54 @@ describe("command proposals", () => {
     await expect(service.propose(run, input)).rejects.toThrow("require expectedRevision");
     await expect(service.propose(run, { ...input, expectedRevision: 3 })).rejects.toThrow(ConflictError);
     await expect(service.propose(run, { ...input, expectedRevision: 4 })).resolves.toMatchObject({
-      strictRevision: true, requiresApproval: true,
+      strictRevision: true, requiresApproval: false,
     });
+  });
+  it("requires a current revision for hierarchy copies and never rebases their source", async () => {
+    const { bridge, service, run } = setup(); bridge.scene = { ...bridge.scene, supportsRepetition: true, objects: [sceneObject("mesh")] };
+    const commands = editorCommandListSchema.parse([{ commandId: "copy", type: "scene.duplicate_hierarchy", sourceId: "mesh", copies: [{ objectId: "copy", descendants: [] }], offset: [2, 0, 0] }]);
+    await expect(service.propose(run, { summary: "Copy", commands })).rejects.toThrow("require expectedRevision");
+    const proposal = await service.propose(run, { summary: "Copy", commands, expectedRevision: 4 });
+    expect(proposal).toMatchObject({ strictRevision: true, requiresApproval: false }); bridge.scene = { ...bridge.scene, revision: 5 };
+    expect((await service.apply(run, proposal.id)).status).toBe("failed");
+  });
+  it.each([
+    { type: "material.set_properties", slot: 0, properties: { color: "#ff0000" } },
+    { type: "material.add_slot", slot: 1 }, { type: "material.replace_slot", slot: 0 }, { type: "material.assign", slot: 0, ids: ["0"] },
+  ])("requires a current revision for $type and applies automatically", async (edit) => {
+    const { bridge, service, run } = setup(); bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
+    const commands = editorCommandListSchema.parse([{ ...edit, commandId: "material", objectId: "mesh" }]);
+    await expect(service.propose(run, { summary: "Material edit", commands })).rejects.toThrow("require expectedRevision");
+    const proposal = await service.propose(run, { summary: "Material edit", commands, expectedRevision: 4 });
+    expect(proposal).toMatchObject({ strictRevision: true, requiresApproval: false });
+    bridge.scene = { ...bridge.scene, revision: 5 };
+    expect((await service.apply(run, proposal.id)).status).toBe("failed");
+  });
+  it.each([
+    { type: "geometry.merge_vertices", ids: ["0", "1"] },
+    { type: "geometry.dissolve_edges", ids: ["0_1"] },
+    { type: "geometry.loop_cut", edge: "0_1" },
+    { type: "geometry.slide_edges", ids: ["0_1"], rails: [{ vertex: "0", toward: "2" }, { vertex: "1", toward: "3" }], factor: 0.25 },
+  ])("requires a base inspection revision for $type and applies automatically", async (edit) => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
+    const command = editorCommandListSchema.parse([{ ...edit, commandId: "edit", objectId: "mesh" }]);
+    await expect(service.propose(run, { summary: "Edit mesh", commands: command })).rejects.toThrow("require expectedRevision");
+    const proposal = await service.propose(run, { summary: "Edit mesh", commands: command, expectedRevision: 4 });
+    expect(proposal).toMatchObject({ requiresApproval: false, strictRevision: true });
+    bridge.scene = { ...bridge.scene, revision: 5 };
+    expect((await service.apply(run, proposal.id)).status).toBe("failed");
+  });
+  it("requires an inspection revision for vertex/edge transforms and never rebases them", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
+    const command: EditorCommand = { commandId: "move", type: "geometry.transform_components", objectId: "mesh", meshPath: [],
+      kind: "edge", ids: ["0_1"], componentView: "base", space: "world", transform: { position: [0, 0.1, 0] } };
+    await expect(service.propose(run, { summary: "Move edge", commands: [command] })).rejects.toThrow("require expectedRevision");
+    const proposal = await service.propose(run, { summary: "Move edge", commands: [command], expectedRevision: 4 });
+    expect(proposal).toMatchObject({ strictRevision: true, requiresApproval: false });
+    bridge.scene = { ...bridge.scene, revision: 5 };
+    expect((await service.apply(run, proposal.id)).status).toBe("failed");
   });
 
   it("persists strict revisions and refuses to rebase calculated layouts", async () => {
@@ -207,14 +254,14 @@ describe("command proposals", () => {
     ).rejects.toThrow(ValidationFailedError);
   });
 
-  it("marks destructive proposals as requiring approval", async () => {
+  it("automatically permits destructive proposals", async () => {
     const { bridge, service, run } = setup();
     bridge.scene = { ...bridge.scene, objects: [{ id: "old", name: "old", type: "mesh", parentId: null, transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } }] };
     const proposal = await service.propose(run, {
       summary: "Remove old",
       commands: [{ commandId: "d", type: "scene.delete_object", objectId: "old" }],
     });
-    expect(proposal.requiresApproval).toBe(true);
+    expect(proposal.requiresApproval).toBe(false);
   });
 
   it("executes an approved proposal exactly once and returns the stored result on repeat calls", async () => {
@@ -355,7 +402,7 @@ describe("command proposals", () => {
       }));
 
     expect((await service.propose(run, { summary: "Rename", commands: renames(25) })).requiresApproval).toBe(false);
-    expect((await service.propose(run, { summary: "Rename many", commands: renames(101) })).requiresApproval).toBe(true);
+    expect((await service.propose(run, { summary: "Rename many", commands: renames(101) })).requiresApproval).toBe(false);
   });
 });
 

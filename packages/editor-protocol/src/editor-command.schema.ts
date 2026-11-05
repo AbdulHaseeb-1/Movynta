@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { materialPropertiesSchema } from "./material.schema.js";
 import { MAX_MESH_INPUT_TRIANGLES, meshPathSchema } from "./mesh.schema.js";
 import { bevelProfileSchema, booleanOperandFields, extrusionShapeFields, modifierListSchema, subdivisionMethodSchema, validExtrusionShape } from "./modifier.schema.js";
 
-/** Upper bound for commands in one proposal. Larger batches always require approval. */
+/** Upper bound for commands in one proposal. */
 export const MAX_COMMANDS_PER_PROPOSAL = 200;
 
 export const identifierSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, "Identifiers use letters, digits, '_' or '-'");
@@ -21,6 +22,12 @@ export const transformSchema = z
 const commandBase = { commandId: identifierSchema };
 const nameSchema = z.string().min(1).max(80);
 const dimension = z.number().finite().positive().max(100);
+const vertexId = z.string().regex(/^(0|[1-9]\d{0,9})$/);
+const edgeId = z.string().regex(/^(0|[1-9]\d{0,9})_(0|[1-9]\d{0,9})$/)
+  .refine((id) => Number(id.split("_")[0]) < Number(id.split("_")[1]), "Use canonical smaller_larger edge IDs");
+const baseEdit = { ...commandBase, objectId: identifierSchema, meshPath: meshPathSchema.default([]), componentView: z.literal("base").default("base") };
+const uniqueVertices = z.array(vertexId).min(2).max(4096).refine((ids) => new Set(ids).size === ids.length, "Vertex IDs must be unique");
+const uniqueEdges = z.array(edgeId).min(1).max(4096).refine((ids) => new Set(ids).size === ids.length, "Edge IDs must be unique");
 const primitiveOptions = z.object({
   width: dimension.optional(), height: dimension.optional(), depth: dimension.optional(),
   radius: dimension.optional(), radiusTop: z.number().finite().min(0).max(100).optional(),
@@ -46,6 +53,51 @@ const primitiveOptionKeys: Record<string, readonly string[]> = {
  * these operations; it never sends code or free-form instructions to the editor.
  */
 export const editorCommandSchema = z.discriminatedUnion("type", [
+  z.object({ ...commandBase, type: z.literal("scene.duplicate_hierarchy"), sourceId: identifierSchema,
+    copies: z.array(z.object({ objectId: identifierSchema, name: nameSchema.optional(),
+      descendants: z.array(z.object({ sourceId: identifierSchema, objectId: identifierSchema }).strict()).max(1999),
+    }).strict()).min(1).max(63),
+    offset: vector3.refine((values) => values.every((value) => Math.abs(value) <= 100000)),
+    space: z.enum(["parent", "world"]).default("parent"),
+  }).strict().refine((command) => {
+    const ids = command.copies.flatMap((copy) => [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]);
+    return ids.length <= 2000 && new Set(ids).size === ids.length && command.copies.every((copy) => new Set(copy.descendants.map((entry) => entry.sourceId)).size === copy.descendants.length);
+  }, "Use unique new IDs and one mapping per descendant, with at most 2000 new objects"),
+  z.object({ ...baseEdit, type: z.literal("material.assign"), slot: z.number().int().min(0).max(255),
+    ids: z.array(vertexId).min(1).max(4096).refine((ids) => new Set(ids).size === ids.length, "Face IDs must be unique").optional(),
+  }).strict(),
+  z.object({ ...commandBase, type: z.literal("material.set_properties"), objectId: identifierSchema, meshPath: meshPathSchema.default([]),
+    slot: z.number().int().min(0).max(255), properties: materialPropertiesSchema.refine((value) => Object.keys(value).length > 0, "Specify material properties"),
+  }).strict(),
+  z.object({ ...commandBase, type: z.literal("material.add_slot"), objectId: identifierSchema, meshPath: meshPathSchema.default([]),
+    slot: z.number().int().min(0).max(255), properties: materialPropertiesSchema.default({}),
+  }).strict(),
+  z.object({ ...commandBase, type: z.literal("material.replace_slot"), objectId: identifierSchema, meshPath: meshPathSchema.default([]),
+    slot: z.number().int().min(0).max(255), properties: materialPropertiesSchema.default({}),
+  }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.merge_vertices"), ids: uniqueVertices, mode: z.enum(["center", "first", "last"]).default("center") }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.dissolve_edges"), ids: uniqueEdges }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.slide_edges"), ids: uniqueEdges,
+    rails: z.array(z.object({ vertex: vertexId, toward: vertexId }).strict()).min(2).max(8192)
+      .refine((rails) => new Set(rails.map((rail) => rail.vertex)).size === rails.length, "Rail vertices must be unique"),
+    factor: z.number().finite().gt(0).lt(1),
+  }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.loop_cut"), edge: edgeId, cuts: z.number().int().min(1).max(16).default(1),
+    factor: z.number().finite().gt(0).lt(1).default(0.5),
+  }).strict().refine((command) => command.cuts === 1 || command.factor === 0.5, "Multiple cuts use even spacing"),
+  z.object({
+    ...commandBase, type: z.literal("geometry.transform_components"), objectId: identifierSchema,
+    meshPath: meshPathSchema.default([]), kind: z.enum(["vertex", "edge"]),
+    ids: z.array(z.string().regex(/^(0|[1-9]\d{0,9})(_(0|[1-9]\d{0,9}))?$/)).min(1).max(4096)
+      .refine((ids) => new Set(ids).size === ids.length, "Component IDs must be unique"),
+    componentView: z.literal("base").default("base"),
+    space: z.enum(["local", "world"]).default("local"),
+    pivot: vector3.optional(),
+    transform: transformSchema.refine(({ position, rotation, scale }) => Boolean(position || rotation || scale) &&
+      (scale === undefined || scale.every((value) => value >= 0.001 && value <= 100)),
+    "Specify a translation, rotation or positive scale in the range 0.001–100"),
+  }).strict().refine((command) => command.ids.every((id) => command.kind === "vertex" ? !id.includes("_") :
+    id.includes("_") && Number(id.split("_")[0]) < Number(id.split("_")[1])), "Use vertex IDs or canonical edge IDs matching kind"),
   z.object({ ...commandBase, type: z.literal("geometry.bevel"), objectId: identifierSchema,
     meshPath: meshPathSchema.default([]), width: z.number().finite().positive().max(100),
     segments: z.number().int().min(1).max(8).optional(),
@@ -111,6 +163,25 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
     componentView: z.literal("base").optional(),
     ids: z.array(z.string().regex(/^\d{1,10}_\d{1,10}$/)).min(3).max(256),
   }).strict(),
+  z.object({
+    ...commandBase,
+    type: z.literal("geometry.inset_faces"),
+    objectId: identifierSchema,
+    meshPath: meshPathSchema.default([]),
+    ids: z.array(z.string().regex(/^\d{1,10}$/)).min(1).max(4096),
+    thickness: z.number().finite().nonnegative(),
+    depth: z.number().finite().optional(),
+    boundary: z.boolean().optional(),
+    offsetEven: z.boolean().optional(),
+    offsetRelative: z.boolean().optional(),
+    edgeRail: z.boolean().optional(),
+    outset: z.boolean().optional(),
+    individual: z.boolean().optional(),
+    selectOuter: z.boolean().optional(),
+    interpolate: z.boolean().optional(),
+  }).strict()
+    .refine((command) => command.thickness > 0 || Boolean(command.depth), "Inset needs a nonzero thickness or depth")
+    .refine((command) => !command.individual || !command.outset, "Outset is available in region mode"),
   z.object({
     ...commandBase,
     type: z.literal("geometry.subdivide_faces"),

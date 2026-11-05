@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { meshInspectionRequestSchema } from "@movynta/editor-protocol";
+import { measurementRequestSchema, meshInspectionRequestSchema, saveMeasurementsSchema } from "@movynta/editor-protocol";
 import { editorCommandListSchema, MAX_COMMANDS_PER_PROPOSAL } from "../../shared/schemas/editor-command.schema.js";
 import type { EditorContext } from "../../shared/types/editor-context.types.js";
 import { editorContextSchema } from "../../shared/schemas/editor-context.schema.js";
@@ -27,6 +27,57 @@ const sceneWith = (ids: string[]): EditorContext => ({
 });
 
 describe("editor command schema", () => {
+  it("validates hierarchy IDs and bounded live repetition modifiers", () => {
+    const duplication = { commandId: "copy", type: "scene.duplicate_hierarchy", sourceId: "root", copies: [{ objectId: "copy", descendants: [] }], offset: [1, 0, 0] };
+    expect(editorCommandListSchema.safeParse([duplication]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...duplication, copies: [{ objectId: "copy", descendants: [{ sourceId: "child", objectId: "copy" }] }] }]).success).toBe(false);
+    const stack = { commandId: "stack", type: "geometry.set_modifiers", objectId: "box" };
+    expect(editorCommandListSchema.safeParse([{ ...stack, modifiers: [{ id: "array", kind: "array", count: 4, offset: [2, 0, 0] }, { id: "mirror", kind: "mirror", axis: "x" }] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...stack, modifiers: [{ id: "array", kind: "array", count: 4, offset: [0, 0, 0] }] }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...stack, modifiers: [{ id: "array", kind: "array", count: 65, offset: [2, 0, 0] }] }]).success).toBe(false);
+  });
+  it("validates material slots, properties and base-face assignments", () => {
+    const base = { commandId: "paint", objectId: "box" };
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "material.set_properties", slot: 0, properties: { color: "#c08040", roughness: 0.4, metalness: 0.8 } }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "material.add_slot", slot: 1 }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "material.replace_slot", slot: 0 }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "material.assign", slot: 1, ids: ["0"] }]).success).toBe(true);
+    for (const fields of [
+      { type: "material.set_properties", slot: 0, properties: {} },
+      { type: "material.set_properties", slot: 0, properties: { color: "red" } },
+      { type: "material.set_properties", slot: 0, properties: { opacity: 1.1 } },
+      { type: "material.set_properties", slot: 0, properties: { roughness: -1 } },
+      { type: "material.add_slot", slot: 256 }, { type: "material.assign", slot: 0, ids: ["0", "0"] },
+      { type: "material.assign", slot: 0, componentView: "evaluated" },
+    ]) expect(editorCommandListSchema.safeParse([{ ...base, ...fields }]).success).toBe(false);
+  });
+  it("validates merge, dissolve, slide and loop-cut inputs", () => {
+    const base = { commandId: "edit", objectId: "box" };
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.merge_vertices", ids: ["0", "1"] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.dissolve_edges", ids: ["0_1"] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.slide_edges", ids: ["0_1"], rails: [{ vertex: "0", toward: "2" }, { vertex: "1", toward: "3" }], factor: 0.5 }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.loop_cut", edge: "0_1", cuts: 3 }]).success).toBe(true);
+    for (const fields of [
+      { type: "geometry.merge_vertices", ids: ["0"] }, { type: "geometry.merge_vertices", ids: ["0", "0"] },
+      { type: "geometry.dissolve_edges", ids: ["1_0"] }, { type: "geometry.loop_cut", edge: "0_1", cuts: 0 },
+      { type: "geometry.loop_cut", edge: "0_1", cuts: 2, factor: 0.25 }, { type: "geometry.loop_cut", edge: "0_1", factor: 1 },
+    ]) expect(editorCommandListSchema.safeParse([{ ...base, ...fields }]).success).toBe(false);
+  });
+  it("validates unique base vertex and canonical edge transforms", () => {
+    const command = { commandId: "v", type: "geometry.transform_components", objectId: "box", kind: "vertex", ids: ["0"], transform: { position: [1, 0, 0] } };
+    expect(editorCommandListSchema.parse([command])[0]).toMatchObject({ componentView: "base", space: "local" });
+    expect(editorCommandListSchema.safeParse([{ ...command, kind: "edge", ids: ["0_1"], pivot: [0, 0, 0], space: "world" }]).success).toBe(true);
+    for (const fields of [{ ids: ["0_1"] }, { ids: ["01"] }, { ids: ["0", "0"] }, { kind: "edge", ids: ["1_0"] },
+      { kind: "edge", ids: ["0_0"] }, { componentView: "evaluated" }, { transform: {} }, { transform: { scale: [-1, 1, 1] } }]) {
+      expect(editorCommandListSchema.safeParse([{ ...command, ...fields }]).success).toBe(false);
+    }
+  });
+  it("validates measurements, revision-bound component references and calibrated metadata", () => {
+    expect(measurementRequestSchema.safeParse({ kind: "distance", from: [0, 0, 0], to: [1, 0, 0] }).success).toBe(true);
+    expect(measurementRequestSchema.safeParse({ kind: "distance", from: { objectId: "box", vertex: 0 }, to: [1, 0, 0] }).success).toBe(false);
+    expect(measurementRequestSchema.safeParse({ kind: "clearance", first: { objectId: "a" }, second: { objectId: "b" }, method: "surface" }).success).toBe(true);
+    expect(saveMeasurementsSchema.safeParse({ expectedVersion: 0, value: { units: { display: "cm", metersPerSceneUnit: 0 }, annotations: [] } }).success).toBe(false);
+  });
   it("validates shape-specific dimensions and face queries", () => {
     const primitive = { commandId: "p", type: "geometry.create_primitive", objectId: "shape", size: 2 };
     expect(editorCommandListSchema.safeParse([{ ...primitive, primitive: "cylinder", options: { radiusTop: 0, radiusBottom: 1, height: 4, radialSegments: 32 } }]).success).toBe(true);
@@ -106,6 +157,10 @@ describe("editor command schema", () => {
     expect(editorCommandListSchema.safeParse([{ commandId: "e", type: "geometry.extrude", objectId: "a", kind: "face", ids: [], offset: [0, 1, 0] }]).success).toBe(false);
     expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: ["0", "12"] }]).success).toBe(true);
     expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: [] }]).success).toBe(false);
+    const inset = { commandId: "i", type: "geometry.inset_faces", objectId: "a", ids: ["0"], thickness: 0.1 };
+    expect(editorCommandListSchema.safeParse([inset]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...inset, thickness: 0 }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...inset, outset: true, individual: true }]).success).toBe(false);
     const focus = { ...emptyScene, designFocus: { mode: "edit", componentKind: "face", componentSelection: { objectId: "a", meshPath: [0], kind: "face", ids: ["0", "3_4"], modifiersEnabled: false } } };
     expect(editorContextSchema.safeParse(focus).success).toBe(true);
     const selection = focus.designFocus.componentSelection;

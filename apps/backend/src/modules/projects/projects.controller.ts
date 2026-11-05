@@ -55,6 +55,16 @@ export class ProjectsController {
     return this.projects.duplicate(user.id, projectId);
   }
 
+  @Get(":projectId/measurements")
+  measurements(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string) {
+    return this.projects.measurements(user.id, projectId);
+  }
+
+  @Patch(":projectId/measurements")
+  saveMeasurements(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string, @Body() input: unknown) {
+    return this.projects.saveMeasurements(user.id, projectId, input);
+  }
+
   @Delete(":projectId")
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string): void {

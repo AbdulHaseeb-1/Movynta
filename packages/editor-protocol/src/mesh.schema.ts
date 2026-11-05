@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { meshPathSchema } from "./mesh-path.js";
 import { modifierListSchema } from "./modifier.schema.js";
+import { materialSlotSchema } from "./material.schema.js";
 
 export const MAX_MESH_INPUT_TRIANGLES = 20_000;
 export const MAX_MESH_OUTPUT_TRIANGLES = 100_000;
@@ -13,6 +14,7 @@ export const meshInspectionRequestSchema = z.object({
   offset: z.number().int().nonnegative().max(100_000).default(0),
   limit: z.number().int().min(1).max(100).default(25),
   includeSamples: z.boolean().optional(),
+  materialsOnly: z.boolean().optional(),
   faceQuery: z.object({
     normal: point.optional(),
     minDot: z.number().finite().min(-1).max(1).optional(),
@@ -25,6 +27,7 @@ export const meshInspectionRequestSchema = z.object({
     .refine((query) => !query.normal || query.normal.some((value) => Math.abs(value) > 1e-9), "Normal must be nonzero")
     .refine((query) => !query.centerMin || !query.centerMax || query.centerMin.every((value, axis) => value <= (query.centerMax?.[axis] ?? value)), "Center bounds must be ordered").optional(),
 }).strict();
+export const materialInspectionRequestSchema = meshInspectionRequestSchema.pick({ objectId: true, meshPath: true, offset: true, limit: true });
 export const meshInspectionSchema = z.object({
   objectId: z.string(),
   meshPath: meshPathSchema,
@@ -33,6 +36,8 @@ export const meshInspectionSchema = z.object({
   message: z.string().max(500).optional(),
   parts: z.array(z.object({ path: meshPathSchema, name: z.string().max(120) })).max(100),
   partsTruncated: z.boolean(),
+  materials: z.array(materialSlotSchema).max(100).optional(),
+  materialSlotCount: z.number().int().nonnegative().optional(),
   stats: z.object({
     renderVertices: z.number().int().nonnegative(),
     vertices: z.number().int().nonnegative(),

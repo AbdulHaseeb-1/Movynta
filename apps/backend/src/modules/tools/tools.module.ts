@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { ProjectsModule } from "../projects/projects.module.js";
+import { ProjectsService } from "../projects/projects.service.js";
 import { EDITOR_BRIDGE } from "../editor-bridge/editor-bridge.tokens.js";
 import type { EditorBridge } from "../editor-bridge/editor-bridge.types.js";
 import { EditorBridgeModule } from "../editor-bridge/editor-bridge.module.js";
@@ -16,13 +18,13 @@ import { createValidationTools } from "./validation/validation.tools.js";
 import { createViewportTools } from "./viewport/index.js";
 
 @Module({
-  imports: [EditorBridgeModule, SkillsModule],
+  imports: [EditorBridgeModule, SkillsModule, ProjectsModule],
   providers: [
     {
       provide: TOOL_DEFINITIONS,
-      inject: [EDITOR_BRIDGE, CommandProposalService, SkillsRegistry],
-      useFactory: (bridge: EditorBridge, proposals: CommandProposalService, skills: SkillsRegistry): ToolDefinition[] => {
-        const editorTools = createEditorTools({ bridge, proposals });
+      inject: [EDITOR_BRIDGE, CommandProposalService, SkillsRegistry, ProjectsService],
+      useFactory: (bridge: EditorBridge, proposals: CommandProposalService, skills: SkillsRegistry, projects: ProjectsService): ToolDefinition[] => {
+        const editorTools = createEditorTools({ bridge, proposals, getUnits: (userId, projectId) => projects.measurements(userId, projectId).value.units });
         const validationTools = createValidationTools({ bridge });
         const skillTools = createSkillTools({ skills });
         const proceduralTools = createProceduralTools({ bridge, proposals });

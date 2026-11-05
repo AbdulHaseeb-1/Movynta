@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LoaderCircle, SlidersHorizontal, Wrench } from "lucide-react";
+import { LoaderCircle, Ruler, SlidersHorizontal, Wrench } from "lucide-react";
+import { MeasurementPanel } from "@/features/measurements";
 import { Link, useNavigate, useParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -73,6 +74,8 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const designMode = useAppSelector((state) => state.designWorkspace.mode);
   const [prompt, setPrompt] = useState("");
   const [modifierBusy, setModifierBusy] = useState(false);
+  const [measurementOpen, setMeasurementOpen] = useState(false);
+  const [measurementPicking, setMeasurementPicking] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const panelOpen = useAppSelector((state) => state.designWorkspace.panels.assistant);
   const setPanelOpen = useCallback((open: boolean) => dispatch(setWorkspacePanelOpen({ id: "assistant", open })), [dispatch]);
@@ -111,12 +114,12 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const editing = useObjectEditing({
     viewport,
     scene: editorScene,
-    disabled: run.busy || modifierBusy || opening !== "ready" || designMode === "edit",
+    disabled: run.busy || modifierBusy || opening !== "ready" || designMode === "edit" || measurementPicking,
     saves,
   });
-  const extrude = useExtrude(viewport, editorScene, run.busy || modifierBusy || opening !== "ready", saves);
+  const extrude = useExtrude(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking, saves);
   useDesignFocus(editorScene);
-  useComponentSelection(viewport, editorScene, run.busy || modifierBusy || opening !== "ready");
+  useComponentSelection(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking);
 
   const importer = useModelImport({
     saves,
@@ -283,7 +286,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
           </section>
         )}
       </CoordinateViewport>
-      {submitted && designMode === "object" && (
+      {((submitted && designMode === "object") || (designMode === "edit" && extrude.hint !== "")) && (
         // The tools sit at the bottom of the free part of the view: clear of the chat on the left and of
         // the object's values on the right, and centered under the work.
         <div
@@ -292,16 +295,17 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
             panelOpen ? "left-[340px]" : "left-4",
           )}
         >
-          {extrude.hint || editing.transformHint ? <output className="pointer-events-none rounded-full bg-popover px-3 py-2 text-xs text-popover-foreground shadow-xl">{extrude.hint || editing.transformHint}</output> : <ToolHint hasSelection={editing.selected !== null} />}
-          <ViewportToolbar
-            viewport={viewport}
-            hasSelection={editing.selected !== null}
-            disabled={run.busy || modifierBusy}
-            onDelete={editing.requestDelete}
-            orientation="horizontal"
-            className="animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none"
-          >
-          </ViewportToolbar>
+          {extrude.hint || editing.transformHint ? <output aria-live="off" className="pointer-events-none max-w-3xl rounded-lg bg-popover px-3 py-2 text-center text-xs text-popover-foreground shadow-xl">{extrude.hint || editing.transformHint}</output> : <ToolHint hasSelection={editing.selected !== null} />}
+          {designMode === "object" && (
+            <ViewportToolbar
+              viewport={viewport}
+              hasSelection={editing.selected !== null}
+              disabled={run.busy || modifierBusy}
+              onDelete={editing.requestDelete}
+              orientation="horizontal"
+              className="animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none"
+            />
+          )}
         </div>
       )}
       {submitted && (
@@ -326,6 +330,10 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
           disabled={run.busy || modifierBusy || opening !== "ready"}
           className="pointer-events-auto w-full shrink-0"
         />
+        <Button variant="ghost" size="icon" className={cn("pointer-events-auto size-8 rounded-xl border border-border bg-card/95 text-muted-foreground shadow-xl", measurementOpen && "bg-accent text-foreground")} title={measurementOpen ? "Close measurements" : "Open measurements"} aria-label={measurementOpen ? "Close measurements" : "Open measurements"} aria-expanded={measurementOpen} aria-controls="measurement-panel" onClick={() => setMeasurementOpen((open) => !open)}><Ruler className="size-4" /></Button>
+        {editorScene && viewport && <div id="measurement-panel" inert={!measurementOpen} className={cn("pointer-events-auto w-full shrink-0", !measurementOpen && "hidden")}>
+          <MeasurementPanel key={project?.id ?? "unsaved"} scene={editorScene} viewport={viewport} projectId={project?.id} disabled={!measurementOpen || run.busy || modifierBusy || opening !== "ready"} onPickingChange={setMeasurementPicking} />
+        </div>}
         <DesignWorkspacePanel scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} />
         <WorkspacePanel panelId="modifiers" label="modifiers" icon={Wrench} forceOpen={modifierBusy}>
           {editing.selected ? <ModifierPanel scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} /> : <p className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">Select an object to view its modifiers.</p>}

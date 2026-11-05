@@ -4,6 +4,8 @@ export * from "./editor-context.schema.js";
 export * from "./hand-edits.js";
 export * from "./mesh-path.js";
 export * from "./mesh.schema.js";
+export * from "./measurement.schema.js";
+export * from "./material.schema.js";
 export * from "./modifier.schema.js";
 export * from "./scene-graph.js";
 export * from "./placement-tracker.js";

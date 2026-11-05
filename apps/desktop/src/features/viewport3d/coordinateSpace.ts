@@ -17,6 +17,7 @@ const HIGHLIGHT_COLOR = 0xa3a3a3;
 const HIGHLIGHT_OPACITY = 0.35;
 const FADE_NEAR = 8;
 const FADE_FAR = 60;
+const CROSS_SIZE = 10000;
 
 // Lines fade out with distance from the camera, so the grid dissolves into the page instead of ending at an edge.
 const fadeVertexShader = /* glsl */ `
@@ -97,12 +98,34 @@ export function addCoordinateSpace(scene: Scene): Group {
   );
   grid.add(
     new LineSegments(
-      createCrossGeometry(GRID_SIZE),
+      createCrossGeometry(CROSS_SIZE),
       createFadeMaterial(HIGHLIGHT_COLOR, HIGHLIGHT_OPACITY),
     ),
   );
   scene.add(grid);
   return grid;
+}
+
+/**
+ * Keep the grid on world-unit multiples as the view moves. At distant zoom levels the same fixed
+ * geometry represents larger intervals, so the grid stays useful without adding thousands of lines.
+ */
+export function updateCoordinateSpace(grid: Group, target: Vector3, distance: number): void {
+  const lines = grid.children[0];
+  if (!(lines instanceof LineSegments) || !(lines.material instanceof ShaderMaterial)) return;
+  const scale = Math.max(1, 10 ** Math.floor(Math.log10(Math.max(distance, 1) / 50)));
+  lines.scale.set(scale, 1, scale);
+  lines.position.set(Math.round(target.x / scale) * scale, 0, Math.round(target.z / scale) * scale);
+  const fadeNear = Math.max(FADE_NEAR, distance * 0.8);
+  const fadeFar = Math.max(FADE_FAR, distance * 3);
+  for (const child of grid.children) {
+    if (!(child instanceof LineSegments) || !(child.material instanceof ShaderMaterial)) continue;
+    const material = child.material;
+    const near = material.uniforms["uFadeNear"];
+    const far = material.uniforms["uFadeFar"];
+    if (near) near.value = fadeNear;
+    if (far) far.value = fadeFar;
+  }
 }
 
 const projected = new Vector3();

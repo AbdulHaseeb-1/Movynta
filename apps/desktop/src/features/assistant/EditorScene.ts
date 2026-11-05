@@ -16,13 +16,23 @@ import {
 import { CollectionModel, editorCommandListSchema, isWithinBranch, resolveMeshPath, resolveSiblingName, SiblingNames, stableMeshPath, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
+import { measureScene } from "./measureScene";
+import type { MeasurementAnnotation, MeasurementRequest, MeasurementUnits } from "@movynta/editor-protocol";
 import { Scene as ThreeScene } from "three";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
+import { duplicateHierarchy, hierarchyBytes } from "../objectEditing/duplicateHierarchy";
 import { extrudeAlongRegionNormal, extrudeRegion, writeExtrudedGeometry, type ExtrudeResult } from "../meshGeometry/meshExtrude";
 import { subdivideFaces } from "../meshGeometry/meshSubdivideFaces";
+import { insetFaces } from "../meshGeometry/meshInset";
 import { fillHole } from "../meshGeometry/meshFillHole";
 import { createPrimitive } from "../meshGeometry/createPrimitive";
 import { createPolygonMesh } from "../meshGeometry/createPolygonMesh";
+import { mergeVertices } from "../meshGeometry/meshMerge";
+import { dissolveEdges } from "../meshGeometry/meshDissolve";
+import { slideEdges } from "../meshGeometry/meshSlide";
+import { loopCut } from "../meshGeometry/meshLoopCut";
+import { applyMaterialEdit, assignMaterial, isMaterialEdit, materialSlots } from "../materials";
+import { transformComponents } from "../meshGeometry/meshComponentTransform";
 import { transformFaces } from "../meshGeometry/meshFaceTransform";
 import { cageKey, copyTopology, readTopology, retainsFaces, type PolygonMesh } from "../meshGeometry/meshTopology";
 import { assignLocalMatrix, settleShear } from "../objectEditing/shearFit";
@@ -39,17 +49,31 @@ export type DesignFocus = z.infer<typeof designFocusSchema>;
 type Command = z.infer<typeof editorCommandListSchema>[number];
 type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" | "geometry.boolean" }>;
 /** Commands that rewrite the base cage of one mesh part. They share a batch and the same rules about modifiers. */
-type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.subdivide_faces" | "geometry.fill_hole" | "geometry.transform_faces" }>;
+type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.inset_faces" | "geometry.subdivide_faces" | "geometry.fill_hole" | "material.assign" | "geometry.merge_vertices" | "geometry.dissolve_edges" | "geometry.slide_edges" | "geometry.loop_cut" | "geometry.transform_components" | "geometry.transform_faces" }>;
 function isGeometryCommand(command: Command): command is GeometryCommand {
   return command.type === "geometry.bevel" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || command.type === "geometry.boolean";
 }
 function isCageEditCommand(command: Command): command is CageEditCommand {
-  return command.type === "geometry.extrude" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || command.type === "geometry.transform_faces";
+  return command.type === "material.assign" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || command.type === "geometry.transform_faces" || command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "geometry.transform_components";
 }
 /** Rewrites the base cage for one command: extrude moves a region, subdivide-faces splits only the selected faces. */
-function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh): ExtrudeResult {
+function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, source: BufferGeometry): ExtrudeResult {
+  if (command.type === "material.assign") {
+    if (!materialSlots(mesh)[command.slot]) throw new Error("Material slot does not exist; inspect materials first");
+    return assignMaterial(cage, command.ids, command.slot);
+  }
+  if (command.type === "geometry.merge_vertices") return mergeVertices(cage, command.ids, command.mode);
+  if (command.type === "geometry.dissolve_edges") return dissolveEdges(cage, command.ids, source);
+  if (command.type === "geometry.slide_edges") return slideEdges(cage, command.ids, command.rails, command.factor);
+  if (command.type === "geometry.loop_cut") return loopCut(cage, command.edge, command.cuts, command.factor);
   if (command.type === "geometry.subdivide_faces") return subdivideFaces(cage, command.ids);
+  if (command.type === "geometry.inset_faces") return insetFaces(cage, command.ids, command);
   if (command.type === "geometry.fill_hole") return fillHole(cage, command.ids);
+  if (command.type === "geometry.transform_components") {
+    mesh.updateWorldMatrix(true, false);
+    return transformComponents(cage, command.kind, command.ids, command.transform,
+      command.space === "world" ? mesh.matrixWorld : undefined, command.pivot);
+  }
   if (command.type === "geometry.transform_faces") {
     mesh.updateWorldMatrix(true, false);
     return transformFaces(cage, command.ids, command.transform, command.space === "world" ? mesh.matrixWorld : undefined);
@@ -182,6 +206,18 @@ function triangleCount(geometry: BufferGeometry): number {
 
 /** Applies only the closed editor protocol. Batches are staged and committed atomically. */
 export class EditorScene {
+  private measurementUnits: MeasurementUnits = null;
+  private measurementAnnotations: MeasurementAnnotation[] = [];
+  setMeasurementUnits(units: MeasurementUnits, annotations: MeasurementAnnotation[] = []) {
+    this.measurementUnits = units;
+    this.measurementAnnotations = annotations;
+  }
+
+  measure(request: MeasurementRequest) {
+    this.beginChange();
+    this.scene.updateMatrixWorld(true);
+    return measureScene(request, (id) => this.objects.get(id), this.revision);
+  }
   private objects = new Map<string, Object3D>();
   private readonly applied = new Set<string>();
   private revision = 0;
@@ -659,7 +695,8 @@ export class EditorScene {
     return this.collectionModel.entries();
   }
 
-  context(inspection?: MeshInspectionRequest) {
+  context(inspection?: MeshInspectionRequest, measurement?: MeasurementRequest) {
+    const measured = measurement ? this.measure(measurement) : undefined;
     this.scene.updateMatrixWorld(true);
     // Inspection names components on the committed cage, which is what the next edit will change.
     if (inspection) this.beginChange();
@@ -693,6 +730,10 @@ export class EditorScene {
       supportsPreparedCommands: true,
       supportsSceneGraph: true,
       supportsCollections: true,
+      supportsRepetition: true,
+      measurementUnits: this.measurementUnits,
+      measurementAnnotations: this.measurementAnnotations,
+      ...(measured ? { measurement: measured } : {}),
       designFocus: this.designFocusSnapshot(),
       ...(inspection ? { meshInspection: inspectMesh(this.objects.get(inspection.objectId), inspection) } : {}),
     };
@@ -878,6 +919,8 @@ export class EditorScene {
         })),
       };
     }
+    if (commands.some((command) => command.type === "scene.duplicate_hierarchy")) return this.applyDuplication(proposalId, commands, results);
+    if (commands.some(isMaterialEdit)) return this.applyMaterialBatch(proposalId, commands, results);
     if (commands.some(isGeometryCommand)) return this.applyGeometryBatch(proposalId, commands, results);
     if (commands.some(isCageEditCommand)) return this.applyCageEditBatch(proposalId, commands, results);
     // Moving, turning, resizing and deleting are the common edits, and need no copy of the scene to be safe.
@@ -972,6 +1015,7 @@ export class EditorScene {
       )
         this.dispose(object);
     }
+    const hadCollections = this.collectionModel.size > 0;
     this.objects = staged;
     this.collectionModel = model;
     for (const [id, object] of staged) this.ids.set(object, id);
@@ -981,12 +1025,83 @@ export class EditorScene {
         this.scene.add(object);
     // Reparent may have left an exact matrix that position, rotation and scale cannot store.
     settleShear(staged.values());
-    this.refreshVisibility();
+    this.refreshVisibility(hadCollections);
     this.revision += 1;
     this.applied.add(proposalId);
     this.pruneSelection();
     this.notify();
     return { status: "applied", revision: this.revision, results };
+  }
+
+  /** Duplicate a complete registered hierarchy in a resource-independent candidate. */
+  private applyDuplication(proposalId: string, commands: Command[], results: AppliedResult[]) {
+    let candidate: EditorScene | undefined;
+    try {
+      const command = commands[0];
+      if (commands.length !== 1 || command?.type !== "scene.duplicate_hierarchy") throw new Error("Duplicate one hierarchy per proposal");
+      const source = this.objects.get(command.sourceId);
+      if (!source) throw new Error("Source object does not exist");
+      if (hierarchyBytes(this.scene) + hierarchyBytes(source) * command.copies.length > 128 * 1024 * 1024) throw new Error("Copies exceed the 128 MiB geometry budget");
+      const ids = command.copies.flatMap((copy) => [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]);
+      if (this.objects.size + ids.length > 2000 || ids.some((id) => this.objects.has(id))) throw new Error("Use fresh object IDs and stay within 2000 scene objects");
+      candidate = this.fork();
+      const original = candidate.objects.get(command.sourceId);
+      if (!original) throw new Error("Source disappeared");
+      original.updateWorldMatrix(true, false);
+      const delta = new Vector3().fromArray(command.offset);
+      if (command.space === "world" && original.parent) {
+        if (Math.abs(original.parent.matrixWorld.determinant()) < 1e-12) throw new Error("Cannot convert a world offset through a singular parent");
+        const inverse = original.parent.matrixWorld.clone().invert();
+        delta.applyMatrix4(inverse).sub(new Vector3().setFromMatrixPosition(inverse));
+      }
+      for (let index = 0; index < command.copies.length; index++) {
+        const spec = command.copies[index]; if (!spec) continue;
+        const copy = duplicateHierarchy(original, candidate.objects, command.sourceId, spec);
+        (original.parent ?? candidate.scene).add(copy.root);
+        for (const [id, object] of copy.objects) { candidate.objects.set(id, object); candidate.ids.set(object, id); }
+        const resolved = resolveSiblingName(spec.name ?? (original.name.trim() ? original.name : command.sourceId), candidate.siblingNames(candidate.objects, copy.root.parent, copy.root));
+        if (!resolved.ok) throw new Error(resolved.message);
+        copy.root.name = resolved.name;
+        const offset = delta.clone().multiplyScalar(index + 1);
+        copy.root.position.add(offset);
+        if (copy.root.matrixAutoUpdate) copy.root.updateMatrix();
+        else { copy.root.matrix.elements[12] = (copy.root.matrix.elements[12] ?? 0) + offset.x; copy.root.matrix.elements[13] = (copy.root.matrix.elements[13] ?? 0) + offset.y; copy.root.matrix.elements[14] = (copy.root.matrix.elements[14] ?? 0) + offset.z; copy.root.matrixWorldNeedsUpdate = true; }
+        const collectionSources = new Map([[spec.objectId, command.sourceId], ...spec.descendants.map((entry) => [entry.objectId, entry.sourceId] as [string, string])]);
+        for (const [id, from] of collectionSources) {
+          const refused = candidate.collectionModel.assign(id, candidate.collectionModel.collectionOf(from));
+          if (refused) throw new Error(refused);
+        }
+      }
+      candidate.refreshVisibility(); candidate.refreshStagedBooleans(candidate.objects);
+      candidate.applied.add(proposalId); this.replaceFrom(candidate);
+      return { status: "applied", revision: this.revision, results };
+    } catch (error) {
+      candidate?.reset(); const message = error instanceof Error ? error.message : "Duplication failed";
+      return { status: "failed", revision: this.revision, message, results: results.map((result) => ({ ...result, status: "failed" as const, message })) };
+    }
+  }
+
+  /** Material edits use the same resource-independent candidate as proposal previews. */
+  private applyMaterialBatch(proposalId: string, commands: Command[], results: AppliedResult[]) {
+    let candidate: EditorScene | undefined;
+    let current: Command | undefined;
+    try {
+      if (commands.length > 20 || !commands.every(isMaterialEdit)) throw new Error("Use a separate batch of at most 20 material property/slot edits");
+      candidate = this.fork();
+      for (const command of commands) {
+        current = command;
+        applyMaterialEdit(meshAtPath(candidate.objects.get(command.objectId), command.meshPath), command);
+      }
+      candidate.applied.add(proposalId);
+      this.replaceFrom(candidate);
+      return { status: "applied", revision: this.revision, results };
+    } catch (error) {
+      candidate?.reset();
+      const reason = error instanceof Error ? error.message : "Material edit failed";
+      return { status: "failed", revision: this.revision, message: reason,
+        results: commands.map((command) => ({ commandId: command.commandId, status: "failed" as const,
+          message: command === current ? reason : "Not applied: the batch was rolled back" })) };
+    }
   }
 
   /** Rewrites the base cage, then evaluates the same modifier list. A failure leaves the live mesh untouched. */
@@ -1015,12 +1130,14 @@ export class EditorScene {
         const live = modifierStack(mesh);
         const previous = staged.get(mesh);
         const modifiers = previous?.modifiers ?? live?.modifiers ?? [];
+        const topologyChange = command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut";
+        if (topologyChange && (commands.length !== 1 || modifiers.some((modifier) => modifier.enabled))) throw new Error("Use one topology edit per proposal and disable modifiers first");
         const liveExtrusion = modifiers.find((modifier) => modifier.kind === "extrusion");
-        if (liveExtrusion && command.type !== "geometry.fill_hole" &&
-          ((command.type !== "geometry.extrude" && command.type !== "geometry.transform_faces") || (liveExtrusion.componentKind ?? "face") !== "face")) {
+        if (liveExtrusion && command.type !== "geometry.fill_hole" && command.type !== "material.assign" &&
+          ((command.type !== "geometry.extrude" && command.type !== "geometry.transform_faces" && command.type !== "geometry.transform_components" && command.type !== "geometry.slide_edges") || (liveExtrusion.componentKind ?? "face") !== "face")) {
           throw new Error("Remove the live extrusion before rewriting its base cage");
         }
-        const usesBaseIds = command.type !== "geometry.subdivide_faces" && command.componentView === "base";
+        const usesBaseIds = "componentView" in command && command.componentView === "base";
         if (!usesBaseIds && modifiers.some((modifier) => modifier.enabled)) {
           throw new Error("Disable modifiers before editing components, or use explicit base IDs where supported");
         }
@@ -1029,8 +1146,8 @@ export class EditorScene {
         if (liveExtrusion && liveExtrusion.baseKey !== cageKey(cage)) {
           throw new Error("The live extrusion's base cage changed. Inspect the base and choose its components again.");
         }
-        const extruded = cageEdit(command, cage, mesh);
-        if (liveExtrusion && (command.type === "geometry.extrude" || command.type === "geometry.transform_faces") && !retainsFaces(cage, extruded.mesh, liveExtrusion.ids)) {
+        const extruded = cageEdit(command, cage, mesh, source);
+        if (liveExtrusion && (command.type === "geometry.extrude" || command.type === "geometry.transform_faces" || command.type === "geometry.transform_components" || command.type === "geometry.slide_edges") && !retainsFaces(cage, extruded.mesh, liveExtrusion.ids)) {
           throw new Error("This edit changes a face used by the live extrusion. Adjust or remove that modifier first.");
         }
         const base = writeExtrudedGeometry(source, extruded);
@@ -1295,6 +1412,8 @@ export class EditorScene {
     model: CollectionModel = this.collectionModel,
   ): string | undefined {
     if (isGeometryCommand(command)) throw new Error("Geometry commands require a separate geometry batch");
+    if (isMaterialEdit(command)) throw new Error("Material commands require a separate material batch");
+    if (command.type === "scene.duplicate_hierarchy") throw new Error("Duplicate hierarchies in a separate proposal");
     if (isCageEditCommand(command)) throw new Error("Component edit commands require their own batch");
     if (isCollectionCommand(command)) return this.applyCollectionCommand(objects, model, command);
     const existing = objects.get(command.objectId);
@@ -1370,6 +1489,9 @@ export class EditorScene {
     if (existing) {
       // Replacing a shape keeps the object's name, place and position in the hierarchy.
       object.name = existing.name;
+      object.visible = existing.visible;
+      const own = storedOwnVisible(existing);
+      if (typeof own === "boolean") object.userData[OWN_VISIBLE] = own;
       object.position.copy(existing.position);
       object.quaternion.copy(existing.quaternion);
       object.scale.copy(existing.scale);
@@ -1469,8 +1591,9 @@ export class EditorScene {
         message: `The batch was rolled back: command ${current?.commandId ?? "?"} failed. ${reason}`,
       };
     }
+    const hadCollections = this.collectionModel.size > 0;
     this.collectionModel = model;
-    this.refreshVisibility();
+    this.refreshVisibility(hadCollections);
     this.revision += 1;
     this.applied.add(proposalId);
     this.notify();
@@ -1478,11 +1601,11 @@ export class EditorScene {
   }
 
   /**
-   * Sets what three.js draws from each object's own flag and its collections. Nothing to do while there are no
-   * collections, since then the one flag three.js has is the object's own.
+   * Sets what three.js draws from each object's own flag and its collections. After deleting the last collection,
+   * restore the objects it hid before taking the fast path for scenes without collections.
    */
-  private refreshVisibility(): void {
-    if (this.collectionModel.size === 0) return;
+  private refreshVisibility(hadCollections = false): void {
+    if (this.collectionModel.size === 0 && !hadCollections) return;
     const shown = new Map<string | null, boolean>();
     for (const [id, object] of this.objects) {
       const collection = this.collectionModel.collectionOf(id);

@@ -20,4 +20,5 @@ export const HAND_EDIT_COMMAND_TYPES: ReadonlySet<string> = new Set([
   "geometry.extrude",
   "geometry.transform_faces",
   "geometry.subdivide_faces",
+  "geometry.inset_faces",
 ]);
