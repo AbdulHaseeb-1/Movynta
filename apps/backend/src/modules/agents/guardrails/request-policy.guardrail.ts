@@ -6,15 +6,37 @@ export const MAX_REQUEST_CHARACTERS = 4000;
 const CODE_EXECUTION_PATTERN =
   /\b(run|execute|eval)\b[\s\S]{0,40}\b(python|shell|bash|powershell|cmd)\b|\bos\.system\b|\bsubprocess\b|\bchild_process\b/i;
 
-/** Text of the request, used for policy checks. Only user-visible message text is inspected. */
-function requestText(input: string | readonly AgentInputItem[]): string {
-  if (typeof input === "string") return input;
-  return input
-    .map((item) => {
-      if (typeof item !== "object" || item === null || !("content" in item)) return "";
-      return typeof item.content === "string" ? item.content : "";
-    })
+export type RequestVerdict =
+  | { readonly tripwireTriggered: true; readonly reason: "request_too_long" | "code_execution_requested" }
+  | { readonly tripwireTriggered: false; readonly reason: "allowed" };
+
+function textOf(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part: unknown) => (typeof part === "object" && part !== null && "text" in part && typeof part.text === "string" ? part.text : ""))
     .join("\n");
+}
+
+/**
+ * The message the user has just sent. A session replays its earlier messages into every run's input, so only the
+ * last user message is judged; judging the whole history would block any conversation once it grew past the limit.
+ */
+function latestRequestText(input: string | readonly AgentInputItem[]): string {
+  if (typeof input === "string") return input;
+  for (let index = input.length - 1; index >= 0; index -= 1) {
+    const item = input[index];
+    if (item !== undefined && "role" in item && item.role === "user" && "content" in item) return textOf(item.content);
+  }
+  return "";
+}
+
+/** Judges the request the user has just made: its length and whether it asks for code execution. */
+export function inspectRequest(input: string | readonly AgentInputItem[]): RequestVerdict {
+  const text = latestRequestText(input);
+  if (text.length > MAX_REQUEST_CHARACTERS) return { tripwireTriggered: true, reason: "request_too_long" };
+  if (CODE_EXECUTION_PATTERN.test(text)) return { tripwireTriggered: true, reason: "code_execution_requested" };
+  return { tripwireTriggered: false, reason: "allowed" };
 }
 
 /**
@@ -25,13 +47,7 @@ function requestText(input: string | readonly AgentInputItem[]): string {
 export const requestPolicyGuardrail: InputGuardrail = {
   name: "request-policy",
   execute: ({ input }) => {
-    const text = requestText(input);
-    if (text.length > MAX_REQUEST_CHARACTERS) {
-      return Promise.resolve({ outputInfo: { reason: "request_too_long" }, tripwireTriggered: true });
-    }
-    if (CODE_EXECUTION_PATTERN.test(text)) {
-      return Promise.resolve({ outputInfo: { reason: "code_execution_requested" }, tripwireTriggered: true });
-    }
-    return Promise.resolve({ outputInfo: { reason: "allowed" }, tripwireTriggered: false });
+    const verdict = inspectRequest(input);
+    return Promise.resolve({ outputInfo: { reason: verdict.reason }, tripwireTriggered: verdict.tripwireTriggered });
   },
 };
