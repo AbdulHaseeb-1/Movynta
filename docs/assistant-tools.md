@@ -4,6 +4,8 @@ This file lists every tool the modeling assistant can call, the editor commands 
 
 It is the reference for the assistant's capabilities. Keep it in step with the code: [AGENTS.md](../AGENTS.md) ("Assistant tools") says when to update it.
 
+For one page per tool, with its request, its result and a worked example grouped by tool type, see [tools/README.md](tools/README.md). The examples are shown as demos in [tools/demos/index.html](tools/demos/index.html).
+
 ## Tool inventory
 
 The modeling coordinator agent (`apps/backend/src/modules/agents/definitions/modeling-coordinator.agent.ts`) receives every tool in the registry, so each tool below is available to it on every run. Model-facing names replace the dot with two underscores (`editor.get_context` is sent as `editor__get_context`).

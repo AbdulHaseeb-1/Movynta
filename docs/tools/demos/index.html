@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assistant tool demos</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --text: #16181d; --muted: #5b6270; --line: #dfe3ea;
+  --brand: #4f46e5; --brand-soft: #e0e7ff; --ok: #15803d; --warn: #b45309; --err: #b91c1c; --info: #1d4ed8; --code: #f1f3f7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1115; --card: #171a21; --text: #e7e9ee; --muted: #9aa3b2; --line: #2a2f3a;
+    --brand: #818cf8; --brand-soft: #262c4d; --ok: #4ade80; --warn: #fbbf24; --err: #f87171; --info: #93c5fd; --code: #1d212b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1115; --card: #171a21; --text: #e7e9ee; --muted: #9aa3b2; --line: #2a2f3a;
+  --brand: #818cf8; --brand-soft: #262c4d; --ok: #4ade80; --warn: #fbbf24; --err: #f87171; --info: #93c5fd; --code: #1d212b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background-color: var(--bg); }
+main, header, nav { max-width: 1120px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+header { padding-top: 28px; }
+h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
+h2 { font-size: 18px; margin: 28px 0 4px; }
+h3 { font-size: 15px; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 6px; }
+p { margin: 6px 0; }
+.lede { color: var(--muted); max-width: 760px; }
+code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+nav.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 20px; border-bottom: 1px solid var(--line); padding-bottom: 0; }
+nav.tabs button { appearance: none; border: 1px solid transparent; border-bottom: none; background: none; color: var(--muted); font: inherit; font-weight: 600; padding: 10px 14px; border-radius: 8px 8px 0 0; cursor: pointer; }
+nav.tabs button[aria-selected="true"] { color: var(--brand); background: var(--card); border-color: var(--line); box-shadow: 0 1px 0 var(--card) inset; position: relative; top: 1px; }
+nav.tabs button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+nav.tabs .count { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.tabpanel[hidden] { display: none; }
+.hint { color: var(--muted); margin: 14px 0 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 14px 0; }
+.card > p.desc { color: var(--muted); margin: 8px 0 14px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 16px; align-items: start; }
+@media (max-width: 820px) { .split { grid-template-columns: 1fr; } }
+.visual { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; overflow: hidden; }
+.visual svg { width: 100%; height: auto; display: block; }
+.visual svg text { font: 11px system-ui, sans-serif; fill: var(--text); }
+.visual svg .muted { fill: var(--muted); }
+.code-col { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.code-col > div { min-width: 0; }
+pre { background: var(--code); border-radius: 8px; padding: 10px 12px; margin: 0; overflow: auto; max-height: 340px; white-space: pre; color: var(--text); }
+pre.src { max-height: 220px; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--card); margin-right: 4px; white-space: nowrap; }
+.pill.read { color: var(--info); } .pill.plan { color: var(--warn); } .pill.propose { color: var(--brand); } .pill.apply { color: var(--err); } .pill.skill { color: var(--ok); }
+.pill.verified { color: var(--ok); border-color: var(--ok); }
+.pill.live { color: var(--warn); border-color: var(--warn); }
+.pill.mesh { color: var(--info); } .pill.empty { color: var(--muted); }
+.pill.sel { color: var(--brand); border-color: var(--brand); }
+.pill.flag { color: var(--ok); }
+.sev-error .pill, .pill.error { color: var(--err); border-color: var(--err); }
+.sev-warning .pill, .pill.warning { color: var(--warn); border-color: var(--warn); }
+.sev-info .pill, .pill.info { color: var(--info); border-color: var(--info); }
+.tree { list-style: none; margin: 0; padding: 0; }
+.tree li { padding: 6px 4px; border-bottom: 1px dashed var(--line); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tree li small { color: var(--muted); margin-left: auto; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+.bar-row { display: grid; grid-template-columns: 70px 1fr 36px; gap: 8px; align-items: center; margin: 6px 0; }
+.bar { background: var(--line); border-radius: 6px; height: 12px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--brand); border-radius: 6px; }
+.stat { font-size: 22px; font-weight: 700; }
+.swatch { display: flex; gap: 12px; align-items: center; }
+.swatch .chip { width: 56px; height: 56px; border-radius: 10px; border: 1px solid var(--line); }
+.meter { display: grid; grid-template-columns: 90px 1fr 40px; gap: 8px; align-items: center; margin: 4px 0; font-size: 12px; }
+.meter .track { background: var(--line); border-radius: 6px; height: 8px; overflow: hidden; }
+.meter .track i { display: block; height: 100%; background: var(--brand); }
+.frames { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.frame { margin: 0; }
+.frame svg { border: 1px solid var(--line); border-radius: 6px; }
+.frame svg text { font-size: 22px; }
+.frame svg .sky { fill: var(--card); }
+.frame svg .axis { stroke: var(--line); stroke-dasharray: 4 4; }
+.frame svg .box { fill: color-mix(in srgb, var(--brand) 18%, transparent); stroke: var(--brand); stroke-width: 2; }
+.frame figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.issues { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.issues li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.issues .msg { font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chips .chip { border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 12px; background: var(--card); }
+.chips .chip.warning { border-color: var(--warn); color: var(--warn); }
+.chips .chip.info { border-color: var(--info); color: var(--info); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.steps .n { width: 28px; height: 28px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); font-weight: 700; display: grid; place-items: center; font-size: 12px; }
+.steps .t { font-weight: 600; }
+.steps .d { color: var(--muted); font-size: 13px; }
+.pipeline { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.pipeline li { flex: 1 1 140px; border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--muted); background: var(--card); }
+.pipeline li.done { border-style: solid; border-color: var(--ok); color: var(--text); }
+.pipeline li.now { border-style: solid; border-color: var(--brand); color: var(--text); }
+.pipeline li b { display: block; color: inherit; font-size: 13px; }
+.cmd-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.cmd-list li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.note { color: var(--muted); font-size: 13px; margin-top: 12px; }
+.legend { color: var(--muted); font-size: 12px; margin-top: 10px; }
+.summary-line { color: var(--muted); font-size: 13px; margin-top: 10px; }
+footer { color: var(--muted); font-size: 12px; max-width: 1120px; margin: 24px auto 40px; padding: 0 16px; }
+@media (max-width: 520px) { h1 { font-size: 22px; } .badges { margin-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Assistant tool demos</h1>
+  <p class="lede">Each card shows one tool: the request the assistant sends, the result it gets back, and a picture drawn from that result. Every example uses one sample scene: a figure with two arms, a crate and an empty group, at revision 12. The reference for each tool is in <code>docs/tools/</code>.</p>
+  <p class="summary-line" id="summary"></p>
+</header>
+<nav class="tabs" role="tablist" aria-label="Tool types" id="tabs"></nav>
+<main id="panels"></main>
+<footer>
+  <p><b>Checked by tests</b> means the backend suite (<code>apps/backend/src/modules/tools/tool-docs.spec.ts</code>) runs the real tool code on this sample and compares the output with the result shown here.
+  <b>Live editor</b> means the output is made by the connected desktop editor (mesh geometry, material data, rendered pictures, measurements and applied history), so the example shows the shape of the result only.</p>
+</footer>
+
+<script id="demo-data" type="application/json">
+{
+  "scene": {
+    "projectId": "demo-project",
+    "revision": 12,
+    "activeSceneName": "Main",
+    "selectedObjectIds": ["crate"],
+    "supportsSceneGraph": true,
+    "supportsRepetition": true,
+    "supportsPreparedCommands": true,
+    "designFocus": { "mode": "object", "componentKind": null, "componentSelection": null },
+    "objects": [
+      { "id": "figure", "name": "Figure", "type": "empty", "parentId": null, "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [-1.05, 0.25, -0.3], "max": [1.05, 1.8, 0.3] } },
+      { "id": "torso", "name": "Torso", "type": "mesh", "parentId": "figure", "transform": { "position": [0, 1, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [-0.5, 0.25, -0.3], "max": [0.5, 1.75, 0.3] } },
+      { "id": "arm_left", "name": "Arm", "type": "mesh", "parentId": "figure", "transform": { "position": [-0.9, 1.2, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [-1.05, 0.6, -0.15], "max": [-0.75, 1.8, 0.15] } },
+      { "id": "arm_right", "name": "Arm", "type": "mesh", "parentId": "figure", "transform": { "position": [0.9, 1.2, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [0.75, 0.6, -0.15], "max": [1.05, 1.8, 0.15] } },
+      { "id": "crate", "name": "Crate", "type": "mesh", "parentId": null, "transform": { "position": [3, 0.5, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": { "min": [2.5, 0, -0.5], "max": [3.5, 1, 0.5] } },
+      { "id": "props", "name": "Props", "type": "empty", "parentId": null, "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] }, "visible": true, "worldBounds": null }
+    ]
+  },
+  "demos": [
+    {
+      "tool": "editor.get_context", "type": "read", "group": "Inspect", "verify": "code", "doc": "editor.get_context.md",
+      "summary": "Reads the whole scene: every object with its parent, transform and world bounds, the selection, and the editor's capabilities.",
+      "request": {},
+      "response": "$scene",
+      "note": "The result is the editor snapshot. Its revision is the number that expectedRevision and sourceRevision refer to later."
+    },
+    {
+      "tool": "editor.get_scene_summary", "type": "read", "group": "Inspect", "verify": "code", "doc": "editor.get_scene_summary.md",
+      "summary": "A short count of the scene: how many objects of each type, and what is selected.",
+      "request": {},
+      "response": { "revision": 12, "activeSceneName": "Main", "objectCount": 6, "countsByType": { "empty": 2, "mesh": 4 }, "selectedObjectIds": ["crate"] },
+      "note": "Use it for a quick orientation. Use editor.get_context when positions or parents matter."
+    },
+    {
+      "tool": "editor.inspect_mesh", "type": "read", "group": "Inspect", "verify": "live", "doc": "editor.inspect_mesh.md",
+      "summary": "Reads the topology of one mesh: vertices, edges and faces, with the faces that match a direction query.",
+      "request": { "objectId": "crate", "view": "evaluated", "limit": 25, "faceQuery": { "normal": [0, 1, 0], "minDot": 0.95, "limit": 100 } },
+      "response": {
+        "revision": 12,
+        "message": null,
+        "inspection": {
+          "objectId": "crate", "meshPath": [], "view": "evaluated", "status": "ok", "parts": [], "partsTruncated": false,
+          "stats": { "renderVertices": 24, "vertices": 8, "edges": 12, "faces": 6, "triangles": 12, "boundaryEdges": 0, "nonManifoldEdges": 0, "inconsistentEdges": 0, "attributes": ["normal", "position", "uv"], "materialGroups": 1, "materialSlots": 1 },
+          "offset": 0, "baseTriangles": 12, "skinned": false,
+          "localBounds": { "min": [-0.5, -0.5, -0.5], "max": [0.5, 0.5, 0.5] },
+          "matrixWorld": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 3, 0.5, 0, 1],
+          "faceMatches": { "ids": ["5"], "total": 1, "offset": 0, "hasMore": false },
+          "edges": [
+            { "vertices": [0, 1], "faces": [0, 4] }, { "vertices": [0, 3], "faces": [0, 2] }, { "vertices": [1, 2], "faces": [0, 3] },
+            { "vertices": [2, 3], "faces": [0, 5] }, { "vertices": [0, 4], "faces": [2, 4] }, { "vertices": [3, 7], "faces": [2, 5] },
+            { "vertices": [1, 5], "faces": [3, 4] }, { "vertices": [2, 6], "faces": [3, 5] }, { "vertices": [4, 5], "faces": [1, 4] },
+            { "vertices": [5, 6], "faces": [1, 3] }, { "vertices": [4, 7], "faces": [1, 2] }, { "vertices": [6, 7], "faces": [1, 5] }
+          ],
+          "vertices": [
+            { "index": 0, "position": [-0.5, -0.5, -0.5] }, { "index": 1, "position": [0.5, -0.5, -0.5] },
+            { "index": 2, "position": [0.5, 0.5, -0.5] }, { "index": 3, "position": [-0.5, 0.5, -0.5] },
+            { "index": 4, "position": [-0.5, -0.5, 0.5] }, { "index": 5, "position": [0.5, -0.5, 0.5] },
+            { "index": 6, "position": [0.5, 0.5, 0.5] }, { "index": 7, "position": [-0.5, 0.5, 0.5] }
+          ],
+          "faces": [
+            { "index": 0, "vertices": [0, 3, 2, 1] }, { "index": 1, "vertices": [4, 5, 6, 7] }, { "index": 2, "vertices": [0, 4, 7, 3] },
+            { "index": 3, "vertices": [1, 2, 6, 5] }, { "index": 4, "vertices": [0, 1, 5, 4] }, { "index": 5, "vertices": [3, 7, 6, 2] }
+          ]
+        }
+      },
+      "note": "faceMatches lists face ids, not positions. Use them only with the same view and revision."
+    },
+    {
+      "tool": "editor.inspect_materials", "type": "read", "group": "Inspect", "verify": "live", "doc": "editor.inspect_materials.md",
+      "summary": "Reads the material slots of one object without reading its topology.",
+      "request": { "objectId": "crate", "meshPath": [], "offset": 0, "limit": 25 },
+      "response": {
+        "revision": 12, "status": "ok", "materialSlotCount": 1, "parts": [], "message": null,
+        "materials": [
+          { "slot": 0, "name": "Crate wood", "type": "MeshStandardMaterial", "editable": true, "color": "#B08A5A", "roughness": 0.8, "metalness": 0, "opacity": 1, "transparent": false, "depthWrite": true, "emissive": "#000000", "emissiveIntensity": 0, "side": "front", "textures": ["map"] }
+        ]
+      },
+      "note": "Standard and Physical materials are editable. Other shader types are reported with editable: false."
+    },
+    {
+      "tool": "viewport.capture", "type": "read", "group": "Inspect", "verify": "live", "doc": "viewport.capture.md",
+      "summary": "Draws the scene from one or more views and reports where each object sits in every picture.",
+      "request": { "views": [{ "label": "Front", "preset": "front" }, { "label": "Top", "preset": "top" }], "focus": ["figure", "torso", "arm_left", "arm_right"], "mode": "solid", "width": 512, "height": 384 },
+      "response": {
+        "status": "ok",
+        "coordinates": "Y is up. A front view looks along -Z (it sees the +Z side), a right view looks along -X, a left view looks along +X, a back view looks along +Z.",
+        "scene": { "objectCount": 6, "bounds": { "min": [-1.05, 0, -0.5], "max": [3.5, 1.8, 0.5] } },
+        "focus": [
+          { "id": "figure", "name": "Figure", "bounds": { "min": [-1.05, 0.25, -0.3], "max": [1.05, 1.8, 0.3] }, "size": [2.1, 1.55, 0.6], "center": [0, 1.025, 0] },
+          { "id": "torso", "name": "Torso", "bounds": { "min": [-0.5, 0.25, -0.3], "max": [0.5, 1.75, 0.3] }, "size": [1, 1.5, 0.6], "center": [0, 1, 0] },
+          { "id": "arm_left", "name": "Arm", "bounds": { "min": [-1.05, 0.6, -0.15], "max": [-0.75, 1.8, 0.15] }, "size": [0.3, 1.2, 0.3], "center": [-0.9, 1.2, 0] },
+          { "id": "arm_right", "name": "Arm", "bounds": { "min": [0.75, 0.6, -0.15], "max": [1.05, 1.8, 0.15] }, "size": [0.3, 1.2, 0.3], "center": [0.9, 1.2, 0] }
+        ],
+        "missingIds": [],
+        "views": [
+          {
+            "image": 1, "label": "Front", "width": 512, "height": 384,
+            "camera": { "projection": "orthographic", "position": [0, 1.025, 10], "target": [0, 1.025, 0], "fov": null, "orthographicHeight": 2.9 },
+            "objects": [
+              { "id": "figure", "name": "Figure", "screenBounds": { "x": 117, "y": 89, "width": 278, "height": 205 }, "inFrame": true },
+              { "id": "torso", "name": "Torso", "screenBounds": { "x": 190, "y": 96, "width": 132, "height": 199 }, "inFrame": true },
+              { "id": "arm_left", "name": "Arm", "screenBounds": { "x": 117, "y": 89, "width": 40, "height": 159 }, "inFrame": true },
+              { "id": "arm_right", "name": "Arm", "screenBounds": { "x": 355, "y": 89, "width": 40, "height": 159 }, "inFrame": true }
+            ]
+          },
+          {
+            "image": 2, "label": "Top", "width": 512, "height": 384,
+            "camera": { "projection": "orthographic", "position": [0, 10, 0.01], "target": [0, 1.025, 0], "fov": null, "orthographicHeight": 2.9 },
+            "objects": [
+              { "id": "figure", "name": "Figure", "screenBounds": { "x": 117, "y": 152, "width": 278, "height": 80 }, "inFrame": true },
+              { "id": "torso", "name": "Torso", "screenBounds": { "x": 190, "y": 152, "width": 132, "height": 80 }, "inFrame": true },
+              { "id": "arm_left", "name": "Arm", "screenBounds": { "x": 117, "y": 172, "width": 40, "height": 40 }, "inFrame": true },
+              { "id": "arm_right", "name": "Arm", "screenBounds": { "x": 355, "y": 172, "width": 40, "height": 40 }, "inFrame": true }
+            ]
+          }
+        ],
+        "note": "The images follow in the order of views. screenBounds is each object's projected bounding box in pixels, not a visibility test."
+      },
+      "note": "The images themselves are sent to the model and shown in the chat. This demo shows the measurements that come with them."
+    },
+    {
+      "tool": "validation.check_scene", "type": "read", "group": "Inspect", "verify": "code", "doc": "validation.check_scene.md",
+      "summary": "Checks the scene for errors (ids, parents, scale), warnings (shared names, uneven group scale) and information (empty groups).",
+      "request": {},
+      "response": {
+        "ok": true,
+        "objectCount": 6,
+        "issues": [
+          { "severity": "warning", "objectId": "arm_right", "message": "Shares the name \"Arm\" with another object under the same parent; rename one so each can be told apart" },
+          { "severity": "info", "objectId": "props", "message": "Group has no children" }
+        ]
+      },
+      "note": "Only errors make ok false. This scene has a warning and an information item, so it passes."
+    },
+    {
+      "tool": "editor.measure", "type": "read", "group": "Calculate", "verify": "live", "doc": "editor.measure.md",
+      "summary": "Measures evaluated geometry: distances, angles, dimensions, edges and clearances between objects.",
+      "request": { "request": { "kind": "clearance", "first": { "objectId": "torso" }, "second": { "objectId": "crate" }, "method": "bounds" } },
+      "response": {
+        "revision": 12, "units": null,
+        "result": {
+          "status": "ok",
+          "data": {
+            "kind": "clearance", "method": "bounds", "distance": 2,
+            "firstBounds": { "min": [-0.5, 0.25, -0.3], "max": [0.5, 1.75, 0.3] },
+            "secondBounds": { "min": [2.5, 0, -0.5], "max": [3.5, 1, 0.5] },
+            "axisGap": [2, 0, 0],
+            "secondParentWorldInverse": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+          }
+        }
+      },
+      "note": "units is null because this project has no calibration, so lengths are in scene units. Bounds clearance is axis gaps, not a collision test."
+    },
+    {
+      "tool": "editor.plan_placement", "type": "read", "group": "Calculate", "verify": "code", "doc": "editor.plan_placement.md",
+      "summary": "Works out the move that aligns, spaces or snaps objects. It returns scene.move_object commands and changes nothing.",
+      "request": { "request": { "kind": "align", "objectIds": ["crate"], "referenceId": "torso", "axes": ["y"], "sourceAnchor": "min", "referenceAnchor": "min" } },
+      "response": {
+        "sourceRevision": 12,
+        "commands": [{ "commandId": "placement_0", "type": "scene.move_object", "objectId": "crate", "delta": [0, 0.25, 0] }],
+        "status": "planned",
+        "nextAction": "Propose commands with expectedRevision: sourceRevision, then apply. Re-measure the result."
+      },
+      "note": "The crate's bottom (y 0) moves to the torso's bottom (y 0.25). The delta is in the parent's axes, here the scene root."
+    },
+    {
+      "tool": "editor.plan_duplicates", "type": "read", "group": "Calculate", "verify": "code", "doc": "editor.plan_duplicates.md",
+      "summary": "Plans independent copies of an object and everything under it, with fresh ids and an offset per copy.",
+      "request": { "sourceId": "figure", "copies": 2, "offset": [2.5, 0, 0], "space": "world", "name": "Figure copy" },
+      "response": {
+        "sourceRevision": 12,
+        "commands": [
+          {
+            "commandId": "duplicate", "type": "scene.duplicate_hierarchy", "sourceId": "figure", "offset": [2.5, 0, 0], "space": "world",
+            "copies": [
+              {
+                "objectId": "obj_9a1e6c2f-3b7d-4e5a-8c9f-1d2e3f4a5b60", "name": "Figure copy",
+                "descendants": [
+                  { "sourceId": "torso", "objectId": "obj_0f7c4d2a-6e1b-4a9d-b3c8-5e2f1a7d9c10" },
+                  { "sourceId": "arm_left", "objectId": "obj_2b8e5a13-9d4f-4c6e-a1b7-7f3e0c2d8a21" },
+                  { "sourceId": "arm_right", "objectId": "obj_c4d19e7f-1a2b-4f3c-8d5e-6a9b0c1e2f32" }
+                ]
+              },
+              {
+                "objectId": "obj_e83a6b05-4c2d-4e1f-9b7a-3d8c5f6e0a43", "name": "Figure copy",
+                "descendants": [
+                  { "sourceId": "torso", "objectId": "obj_15f0c9d2-7b8e-4a6f-8c3d-2e9a1b4f7c54" },
+                  { "sourceId": "arm_left", "objectId": "obj_a6d2e8b4-0c5f-4d7a-9e1b-8f3c2a6d5e65" },
+                  { "sourceId": "arm_right", "objectId": "obj_7c9b3f1e-2d6a-4b8e-a0f4-1c5d9e7b3a76" }
+                ]
+              }
+            ]
+          }
+        ],
+        "nextAction": "Propose these commands with expectedRevision: sourceRevision, then apply and inspect the copies."
+      },
+      "note": "Ids are fresh on every call, so the ids shown here are examples. The copies keep the source's parent and collection."
+    },
+    {
+      "tool": "modeling.generate_commands", "type": "read", "group": "Calculate", "verify": "code", "doc": "modeling.generate_commands.md",
+      "summary": "Runs a short JavaScript program in an isolated sandbox and returns the commands it calculates. Nothing is applied.",
+      "request": {
+        "source": "const posts = [];\nfor (let i = 0; i < 5; i += 1) {\n  posts.push({\n    commandId: \"post_\" + i,\n    type: \"geometry.create_primitive\",\n    objectId: \"post_\" + i,\n    primitive: \"box\",\n    size: 1,\n    name: \"Post\",\n    transform: { position: [i * 1.5, 0.5, -3] },\n  });\n}\nreturn posts;"
+      },
+      "response": {
+        "status": "generated",
+        "sourceRevision": 12,
+        "commands": [
+          { "commandId": "post_0", "type": "geometry.create_primitive", "objectId": "post_0", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [0, 0.5, -3] } },
+          { "commandId": "post_1", "type": "geometry.create_primitive", "objectId": "post_1", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [1.5, 0.5, -3] } },
+          { "commandId": "post_2", "type": "geometry.create_primitive", "objectId": "post_2", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [3, 0.5, -3] } },
+          { "commandId": "post_3", "type": "geometry.create_primitive", "objectId": "post_3", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [4.5, 0.5, -3] } },
+          { "commandId": "post_4", "type": "geometry.create_primitive", "objectId": "post_4", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [6, 0.5, -3] } }
+        ]
+      },
+      "note": "The program has 250 ms and 16 MiB. It cannot reach files, the network or the editor; its output is checked against the scene before it is returned."
+    },
+    {
+      "tool": "modeling.generate_model_plan", "type": "plan", "group": "", "verify": "code", "doc": "modeling.generate_model_plan.md",
+      "summary": "Writes down the goal and the ordered steps. Each step names a tool. No scene change happens here.",
+      "request": {
+        "goal": "Add a row of posts beside the figure and check the result",
+        "dimension": "3d",
+        "steps": [
+          { "id": "read-scene", "title": "Read the scene", "toolName": "editor.get_context", "description": "Confirm the figure and crate ids and the current revision.", "requiresApproval": false },
+          { "id": "make-posts", "title": "Generate five posts", "toolName": "modeling.propose_generated", "description": "Run a bounded program that places five boxes in a row.", "requiresApproval": false },
+          { "id": "review", "title": "Review from the front", "toolName": "viewport.capture", "description": "Capture a front view to check spacing and height.", "requiresApproval": false },
+          { "id": "apply", "title": "Apply and check", "toolName": "editor.apply_proposal", "description": "Apply the stored proposal, then run the scene check.", "requiresApproval": false }
+        ]
+      },
+      "response": { "status": "recorded", "planNumber": 1, "stepCount": 4 },
+      "note": "A plan step whose toolName is not a registered tool is rejected, with the list of tools that are available."
+    },
+    {
+      "tool": "editor.propose_commands", "type": "propose", "group": "", "verify": "code", "doc": "editor.propose_commands.md",
+      "summary": "Stores a batch of scene commands for review. Nothing changes until editor.apply_proposal runs.",
+      "request": {
+        "summary": "Raise the crate 2 units and rename it",
+        "expectedRevision": 12,
+        "commands": [
+          { "commandId": "raise", "type": "scene.move_object", "objectId": "crate", "delta": [0, 2, 0] },
+          { "commandId": "rename", "type": "scene.rename_object", "objectId": "crate", "name": "Supply crate" }
+        ]
+      },
+      "response": {
+        "proposalId": "prp_7e2b9c4d1a6f4b08", "status": "proposed", "requiresApproval": false, "commandCount": 2, "baseRevision": 12,
+        "supersedes": null, "planStep": null,
+        "nextAction": "Call editor.apply_proposal with this proposalId to apply automatically."
+      },
+      "note": "expectedRevision makes the proposal strict: if the scene changes before it is applied, it fails and must be proposed again."
+    },
+    {
+      "tool": "modeling.propose_generated", "type": "propose", "group": "", "verify": "code", "doc": "modeling.propose_generated.md",
+      "summary": "Runs the same sandbox program as modeling.generate_commands, then stores the result as a proposal without echoing the commands back.",
+      "request": {
+        "summary": "Five posts in a row",
+        "source": "const posts = [];\nfor (let i = 0; i < 5; i += 1) {\n  posts.push({\n    commandId: \"post_\" + i,\n    type: \"geometry.create_primitive\",\n    objectId: \"post_\" + i,\n    primitive: \"box\",\n    size: 1,\n    name: \"Post\",\n    transform: { position: [i * 1.5, 0.5, -3] },\n  });\n}\nreturn posts;"
+      },
+      "response": {
+        "proposalId": "prp_3a9d0c5e2b7f4a61", "status": "proposed", "summary": "Five posts in a row", "requiresApproval": false, "commandCount": 5, "baseRevision": 12
+      },
+      "note": "Use it when the command list would be long. Review the result with viewport.capture using the proposalId, then apply it."
+    },
+    {
+      "tool": "editor.apply_proposal", "type": "apply", "group": "", "verify": "live", "doc": "editor.apply_proposal.md",
+      "summary": "Applies a stored proposal to the editor. The commands become part of the project history.",
+      "request": { "proposalId": "prp_7e2b9c4d1a6f4b08" },
+      "response": {
+        "proposalId": "prp_7e2b9c4d1a6f4b08", "status": "applied", "revision": 13, "message": null, "rebased": false,
+        "results": [
+          { "commandId": "raise", "status": "applied", "message": null },
+          { "commandId": "rename", "status": "applied", "message": null, "name": "Supply crate" }
+        ]
+      },
+      "note": "If the scene changed since the proposal, a non-strict proposal is re-checked and may report rebased: true. A strict one fails instead."
+    },
+    {
+      "tool": "skills.load_skill", "type": "skill", "group": "", "verify": "code", "doc": "skills.load_skill.md",
+      "summary": "Loads the full workflow of a skill that was selected for this request, so only relevant instructions enter the prompt.",
+      "request": { "skillId": "mesh-editing" },
+      "response": {
+        "status": "loaded", "skillId": "mesh-editing", "version": "1.7.0",
+        "instructions": "# Mesh editing workflow\n\n1. Call `editor.get_context` and confirm every target object exists.\n2. Describe the change in plain language, then build the smallest set of commands that achieves it.\n… (the rest of the workflow is in skills/mesh-editing/SKILL.md)",
+        "toolNames": ["editor.get_context", "editor.inspect_mesh", "editor.inspect_materials", "editor.measure", "editor.plan_placement", "editor.plan_duplicates", "viewport.capture", "modeling.generate_commands", "modeling.propose_generated", "editor.propose_commands", "editor.apply_proposal", "validation.check_scene"],
+        "validation": ["Each target object id exists in the latest editor context.", "Transforms use finite numbers, and scale values are positive.", "Replacing geometry is an explicit destructive command and applies automatically through a proposal."],
+        "errorHandling": ["If a target object is missing, stop and ask the user which object to change.", "If the user rejects a destructive proposal, do not retry it. Propose a non-destructive alternative instead.", "Report revision conflicts, read the current context, and recalculate before proposing corrected commands."]
+      },
+      "note": "A skill that was not selected for the request returns status not_selected, and nothing is loaded."
+    }
+  ]
+}
+</script>
+
+<script>
+const data = JSON.parse(document.getElementById("demo-data").textContent);
+const scene = data.scene;
+const byId = Object.fromEntries(scene.objects.map((object) => [object.id, object]));
+const demos = data.demos.map((demo) => ({ ...demo, response: demo.response === "$scene" ? scene : demo.response }));
+
+const TYPES = [
+  { id: "read", label: "Read", hint: "These tools look at the scene or calculate a result. None of them changes the scene." },
+  { id: "plan", label: "Plan", hint: "Records intent. It changes nothing and is checked against the tools that exist." },
+  { id: "propose", label: "Propose", hint: "Stores a batch of changes for review. The scene is still unchanged." },
+  { id: "apply", label: "Apply", hint: "Changes the scene by applying a stored proposal." },
+  { id: "skill", label: "Skill", hint: "Loads the workflow for a skill selected for this request." },
+];
+
+const esc = (value) => String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+const num = (value) => (Number.isFinite(value) ? String(Number(value.toFixed(3))) : String(value));
+const vec = (value) => `[${value.map(num).join(", ")}]`;
+const json = (value) => esc(JSON.stringify(value, null, 2));
+const depthOf = (object) => { let depth = 0; let parent = object.parentId; while (parent) { depth += 1; parent = byId[parent]?.parentId ?? null; } return depth; };
+
+const visuals = {
+  "editor.get_context": () => {
+    const rows = scene.objects.map((object) => {
+      const bounds = object.worldBounds ? `${vec(object.worldBounds.min)} to ${vec(object.worldBounds.max)}` : "no geometry";
+      const selected = scene.selectedObjectIds.includes(object.id) ? '<span class="pill sel">selected</span>' : "";
+      return `<li style="padding-left:${depthOf(object) * 22 + 4}px"><span class="pill ${object.type}">${object.type}</span><b>${esc(object.name)}</b><code>${esc(object.id)}</code>${selected}<small>${esc(bounds)}</small></li>`;
+    }).join("");
+    const flags = ["supportsSceneGraph", "supportsRepetition", "supportsPreparedCommands"].map((key) => `<span class="pill flag">${key}</span>`).join("");
+    return `<h4>Scene tree at revision ${scene.revision}</h4><ul class="tree">${rows}</ul><p class="legend">Capabilities the editor reports:</p><p>${flags}</p>`;
+  },
+
+  "editor.get_scene_summary": (demo) => {
+    const counts = demo.response.countsByType;
+    const max = Math.max(...Object.values(counts));
+    const bars = Object.entries(counts).map(([type, count]) => `<div class="bar-row"><span>${esc(type)}</span><div class="bar"><i style="width:${(count / max) * 100}%"></i></div><b>${count}</b></div>`).join("");
+    const selected = demo.response.selectedObjectIds.map((id) => `<code>${esc(id)}</code>`).join(" ");
+    return `<div class="stat">${demo.response.objectCount} objects</div>${bars}<p class="legend">Selected: ${selected} · revision ${demo.response.revision}</p>`;
+  },
+
+  "editor.inspect_mesh": (demo) => {
+    const inspection = demo.response.inspection;
+    const position = Object.fromEntries(inspection.vertices.map((vertex) => [vertex.index, vertex.position]));
+    const matched = new Set(inspection.faceMatches?.ids ?? []);
+    const scale = 62, cos = Math.cos(Math.PI / 6);
+    const project = ([x, y, z]) => [150 + (x - z) * cos * scale, 150 + (x + z) * 0.5 * scale - y * scale];
+    const centroidKey = (face) => face.vertices.reduce((sum, index) => sum + position[index].reduce((a, b) => a + b, 0), 0);
+    const faces = [...inspection.faces].sort((a, b) => centroidKey(a) - centroidKey(b)).map((face) => {
+      const points = face.vertices.map((index) => project(position[index]).map((n) => n.toFixed(1)).join(",")).join(" ");
+      return `<polygon points="${points}" class="${matched.has(String(face.index)) ? "hit" : "soft"}"/>`;
+    }).join("");
+    const labels = inspection.vertices.map((vertex) => {
+      const [x, y] = project(vertex.position);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="var(--text)"/><text x="${(x + 5).toFixed(1)}" y="${(y - 4).toFixed(1)}">v${vertex.index}</text>`;
+    }).join("");
+    return `<svg viewBox="0 0 300 250" role="img" aria-label="Cube faces; the top face is matched by the query">
+      <style>.soft{fill:var(--brand-soft);stroke:var(--muted);stroke-width:1}.hit{fill:var(--brand);fill-opacity:.85;stroke:var(--text);stroke-width:1.5}</style>
+      ${faces}${labels}
+      <text x="8" y="242" class="muted">Isometric. Matched: face ${[...matched].join(", ")} (+Y, minDot 0.95)</text></svg>`;
+  },
+
+  "editor.inspect_materials": (demo) => {
+    const material = demo.response.materials[0];
+    const meter = (label, value) => `<div class="meter"><span>${label}</span><div class="track"><i style="width:${value * 100}%"></i></div><b>${num(value)}</b></div>`;
+    return `<div class="swatch"><div class="chip" style="background:${esc(material.color)}"></div><div><b>${esc(material.name)}</b><br><span class="legend">slot ${material.slot} · ${esc(material.type)} · ${material.editable ? "editable" : "read only"}</span></div></div>
+      <div style="margin-top:12px">${meter("roughness", material.roughness)}${meter("metalness", material.metalness)}${meter("opacity", material.opacity)}</div>
+      <p class="legend">Texture channels: ${material.textures.map((t) => `<code>${esc(t)}</code>`).join(" ")}</p>`;
+  },
+
+  "viewport.capture": (demo) => {
+    const frames = demo.response.views.map((view) => {
+      const boxes = view.objects.map((object) => {
+        const box = object.screenBounds;
+        if (!box) return "";
+        const labelY = object.name === "Arm" ? box.y + box.height - 6 : box.y + 22;
+        return `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" class="box"/><text x="${box.x + 6}" y="${labelY}">${esc(object.name)}</text>`;
+      }).join("");
+      return `<figure class="frame"><svg viewBox="0 0 ${view.width} ${view.height}" role="img" aria-label="${esc(view.label)} view">
+        <rect width="${view.width}" height="${view.height}" class="sky"/>
+        <line x1="0" y1="${view.height / 2}" x2="${view.width}" y2="${view.height / 2}" class="axis"/>
+        <line x1="${view.width / 2}" y1="0" x2="${view.width / 2}" y2="${view.height}" class="axis"/>${boxes}</svg>
+        <figcaption>${esc(view.label)} · ${esc(view.camera.projection)} · ${view.width}×${view.height}</figcaption></figure>`;
+    }).join("");
+    return `<div class="frames">${frames}</div><p class="legend">Boxes show screenBounds, the projected bounding box of each focused object. They are not a visibility test.</p>`;
+  },
+
+  "validation.check_scene": (demo) => {
+    const issues = demo.response.issues;
+    const flagged = new Map(issues.filter((issue) => issue.objectId).map((issue) => [issue.objectId, issue.severity]));
+    const list = issues.map((issue) => `<li class="sev-${issue.severity}"><span class="pill ${issue.severity}">${issue.severity}</span><div><div class="msg">${esc(issue.message)}</div>${issue.objectId ? `<code>${esc(issue.objectId)}</code>` : ""}</div></li>`).join("");
+    const chips = scene.objects.map((object) => `<span class="chip ${flagged.get(object.id) ?? ""}">${esc(object.name)} <span class="legend">${esc(object.id)}</span></span>`).join("");
+    return `<p><span class="pill ${demo.response.ok ? "flag" : "error"}">${demo.response.ok ? "ok: no errors" : "not ok"}</span> <span class="legend">${demo.response.objectCount} objects checked</span></p>
+      <ul class="issues">${list}</ul><h4 style="margin-top:14px">Objects, with flagged ones coloured</h4><div class="chips">${chips}</div>`;
+  },
+
+  "editor.measure": (demo) => {
+    const data = demo.response.result.data;
+    const X = (x) => 20 + (x + 1.2) * 90;
+    const Y = (z) => 100 + z * 120;
+    const box = (bounds, label) => `<rect x="${X(bounds.min[0]).toFixed(1)}" y="${Y(bounds.min[2]).toFixed(1)}" width="${((bounds.max[0] - bounds.min[0]) * 90).toFixed(1)}" height="${((bounds.max[2] - bounds.min[2]) * 120).toFixed(1)}" class="box"/><text x="${(X(bounds.min[0]) + 6).toFixed(1)}" y="${(Y(bounds.min[2]) + 16).toFixed(1)}">${label}</text>`;
+    const x1 = X(data.firstBounds.max[0]), x2 = X(data.secondBounds.min[0]);
+    return `<svg viewBox="0 0 480 200" role="img" aria-label="Top view of two boxes with the clearance between them">
+      <style>.box{fill:color-mix(in srgb,var(--brand) 18%,transparent);stroke:var(--brand);stroke-width:2}</style>
+      ${box(data.firstBounds, "Torso")}${box(data.secondBounds, "Crate")}
+      <line x1="${x1}" y1="100" x2="${x2}" y2="100" stroke="var(--warn)" stroke-width="2"/>
+      <line x1="${x1}" y1="90" x2="${x1}" y2="110" stroke="var(--warn)" stroke-width="2"/><line x1="${x2}" y1="90" x2="${x2}" y2="110" stroke="var(--warn)" stroke-width="2"/>
+      <text x="${((x1 + x2) / 2 - 58).toFixed(1)}" y="88" style="fill:var(--warn);font-weight:600">gap ${num(data.axisGap[0])} (${num(data.distance)} units)</text>
+      <text x="8" y="192" class="muted">Top view: x across, z toward the bottom</text></svg>`;
+  },
+
+  "editor.plan_placement": (demo) => {
+    const command = demo.response.commands[0];
+    const object = byId[command.objectId];
+    const reference = byId[demo.request.request.referenceId];
+    const X = (x) => 40 + (x + 1) * 70;
+    const Y = (y) => 220 - y * 100;
+    const rect = (min, max, attrs) => `<rect x="${X(min[0]).toFixed(1)}" y="${Y(max[1]).toFixed(1)}" width="${((max[0] - min[0]) * 70).toFixed(1)}" height="${((max[1] - min[1]) * 100).toFixed(1)}" ${attrs}/>`;
+    const planned = { min: object.worldBounds.min.map((v, i) => v + command.delta[i]), max: object.worldBounds.max.map((v, i) => v + command.delta[i]) };
+    const level = reference.worldBounds.min[1];
+    return `<svg viewBox="0 0 480 250" role="img" aria-label="Side view: the crate moves up so its bottom matches the torso bottom">
+      <style>.ghost{fill:none;stroke:var(--muted);stroke-dasharray:5 4;stroke-width:1.5}.part{fill:color-mix(in srgb,var(--muted) 20%,transparent);stroke:var(--muted)}.move{fill:var(--brand-soft);stroke:var(--brand);stroke-width:2}</style>
+      <line x1="30" y1="220" x2="460" y2="220" stroke="var(--line)" stroke-width="2"/>
+      ${rect(reference.worldBounds.min, reference.worldBounds.max, 'class="part"')}
+      ${rect(object.worldBounds.min, object.worldBounds.max, 'class="ghost"')}
+      ${rect(planned.min, planned.max, 'class="move"')}
+      <line x1="30" y1="${Y(level).toFixed(1)}" x2="460" y2="${Y(level).toFixed(1)}" stroke="var(--warn)" stroke-dasharray="6 4"/>
+      <text x="${X(2.5) - 4}" y="${Y(planned.max[1]) - 6}">Crate (planned)</text>
+      <text x="${X(-0.5)}" y="${Y(reference.worldBounds.max[1]) - 6}">Torso</text>
+      <text x="${X(2.5)}" y="${Y(0) + 16}" class="muted">Crate (now, dashed)</text>
+      <text x="30" y="${Y(level) + 14}" style="fill:var(--warn)">bottoms aligned at y ${num(level)}</text>
+      <text x="8" y="242" class="muted">Side view: x across, y up. Delta ${vec(command.delta)}</text></svg>`;
+  },
+
+  "editor.plan_duplicates": (demo) => {
+    const command = demo.response.commands[0];
+    const source = byId[command.sourceId].worldBounds;
+    const X = (x) => 20 + (x + 1.5) * 60;
+    const Y = (z) => 100 + z * 110;
+    const frame = (dx, label, attrs) => {
+      const x0 = X(source.min[0] + dx), x1 = X(source.max[0] + dx);
+      const y0 = Y(source.min[2]), y1 = Y(source.max[2]);
+      return `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${(x1 - x0).toFixed(1)}" height="${(y1 - y0).toFixed(1)}" ${attrs}/><text x="${(x0 + 6).toFixed(1)}" y="${(y0 + 16).toFixed(1)}">${label}</text>`;
+    };
+    const copies = command.copies.map((copy, index) => frame(command.offset[0] * (index + 1), `copy ${index + 1}`, 'class="copy"')).join("");
+    return `<svg viewBox="0 0 480 200" role="img" aria-label="The figure and two copies spaced along x">
+      <style>.src{fill:color-mix(in srgb,var(--brand) 18%,transparent);stroke:var(--brand);stroke-width:2}.copy{fill:none;stroke:var(--brand);stroke-width:2;stroke-dasharray:6 4}</style>
+      ${frame(0, "Figure", 'class="src"')}
+      ${copies}
+      <text x="8" y="192" class="muted">Top view. Each copy moves by ${vec(command.offset)} × its number (world space)</text></svg>`;
+  },
+
+  "modeling.generate_commands": (demo) => {
+    const boxes = demo.response.commands.map((command) => {
+      const [x, , z] = command.transform.position;
+      const X = 20 + (x + 0.5) * 60, Y = 65 + (z + 3) * 40;
+      return `<rect x="${(X - command.size * 30).toFixed(1)}" y="${(Y - command.size * 20).toFixed(1)}" width="${command.size * 60}" height="${command.size * 40}" class="box"/><text x="${(X - 18).toFixed(1)}" y="${(Y + 4).toFixed(1)}">${esc(command.name)}</text>`;
+    }).join("");
+    return `<svg viewBox="0 0 480 130" role="img" aria-label="Five boxes drawn in a row from the calculated commands">
+      <style>.box{fill:color-mix(in srgb,var(--brand) 18%,transparent);stroke:var(--brand);stroke-width:2}</style>${boxes}
+      <text x="8" y="122" class="muted">Top view of the five create_primitive commands. Each box is 1 unit wide.</text></svg>`;
+  },
+
+  "modeling.generate_model_plan": (demo) => {
+    const steps = demo.request.steps.map((step, index) => `<li><span class="n">${index + 1}</span><div><div class="t">${esc(step.title)} <span class="pill">${esc(step.toolName)}</span></div><div class="d">${esc(step.description)}</div></div></li>`).join("");
+    return `<p><b>${esc(demo.request.goal)}</b> <span class="pill">${esc(demo.request.dimension)}</span></p><ol class="steps">${steps}</ol>`;
+  },
+
+  "editor.propose_commands": (demo) => {
+    const commands = demo.request.commands.map((command) => {
+      const detail = command.delta ? `by ${vec(command.delta)}` : `to "${esc(command.name)}"`;
+      return `<li><span class="pill">${esc(command.type)}</span><code>${esc(command.objectId)}</code> ${detail}</li>`;
+    }).join("");
+    return `<ul class="cmd-list">${commands}</ul>
+      <ol class="pipeline"><li class="done"><b>Proposed</b>${esc(demo.response.status)} at revision ${demo.request.expectedRevision}</li><li class="now"><b>Apply next</b>editor.apply_proposal</li><li><b>Applied</b>saved in history</li></ol>
+      <p class="legend">Proposal <code>${esc(demo.response.proposalId)}</code> · ${demo.response.commandCount} commands · no approval prompt</p>`;
+  },
+
+  "modeling.propose_generated": (demo) => `<ol class="pipeline"><li class="done"><b>Sandbox run</b>${demo.response.commandCount} commands, never echoed back</li><li class="done"><b>Checked</b>at revision ${demo.response.baseRevision}</li><li class="now"><b>Stored</b><code>${esc(demo.response.proposalId)}</code></li><li><b>Apply next</b>editor.apply_proposal</li></ol>
+      <p class="legend">Summary: ${esc(demo.response.summary)}</p>`,
+
+  "editor.apply_proposal": (demo) => {
+    const results = demo.response.results.map((result) => `<li><span class="pill ${result.status === "applied" ? "flag" : "error"}">${esc(result.status)}</span><code>${esc(result.commandId)}</code>${result.name ? ` → <b>${esc(result.name)}</b>` : ""}</li>`).join("");
+    return `<ol class="pipeline"><li class="done"><b>proposed</b></li><li class="done"><b>applying</b></li><li class="now"><b>applied</b> revision ${demo.response.revision}</li></ol>
+      <h4 style="margin-top:14px">Command results</h4><ul class="cmd-list">${results}</ul>
+      <p class="legend">rebased: ${demo.response.rebased}</p>`;
+  },
+
+  "skills.load_skill": (demo) => {
+    const response = demo.response;
+    const tools = response.toolNames.map((name) => `<span class="chip">${esc(name)}</span>`).join("");
+    const validation = response.validation.map((item) => `<li>${esc(item)}</li>`).join("");
+    const errors = response.errorHandling.map((item) => `<li>${esc(item)}</li>`).join("");
+    return `<p><span class="pill flag">${esc(response.status)}</span> <b>${esc(response.skillId)}</b> <span class="legend">version ${esc(response.version)}</span></p>
+      <h4 style="margin-top:12px">Tools the workflow names</h4><div class="chips">${tools}</div>
+      <h4 style="margin-top:12px">Validation</h4><ul class="legend" style="color:var(--text)">${validation}</ul>
+      <h4 style="margin-top:12px">Error handling</h4><ul class="legend" style="color:var(--text)">${errors}</ul>`;
+  },
+};
+
+function card(demo) {
+  const verified = demo.verify === "code";
+  const { source, ...otherRequest } = demo.request ?? {};
+  const requestHtml = [
+    source !== undefined ? `<div><h4>Program</h4><pre class="src">${esc(source)}</pre></div>` : "",
+    source === undefined || Object.keys(otherRequest).length > 0 ? `<div><h4>${source === undefined ? "Request" : "Other request fields"}</h4><pre>${json(source === undefined ? demo.request : otherRequest)}</pre></div>` : "",
+  ].join("");
+  const draw = visuals[demo.tool] ? visuals[demo.tool](demo) : "";
+  return `<article class="card" id="${esc(demo.tool.replace(/\./g, "-"))}">
+    <header><h3><code>${esc(demo.tool)}</code>
+      <span class="badges"><span class="pill ${demo.type}">${esc(demo.type)}</span><span class="pill ${verified ? "verified" : "live"}">${verified ? "Checked by tests" : "Live editor"}</span></span></h3></header>
+    <p class="desc">${esc(demo.summary)}</p>
+    <div class="split">
+      <div class="visual">${draw}</div>
+      <div class="code-col">${requestHtml}<div><h4>Result</h4><pre>${json(demo.response)}</pre></div></div>
+    </div>
+    <p class="note">${esc(demo.note)} <a href="../${esc(demo.doc)}">Read the ${esc(demo.tool)} reference</a></p>
+  </article>`;
+}
+
+function panel(type) {
+  const items = demos.filter((demo) => demo.type === type.id);
+  const groups = [...new Set(items.map((demo) => demo.group))];
+  const body = groups.map((group) => {
+    const heading = group ? `<h2>${esc(group === "Inspect" ? "Inspect the scene" : "Calculate without changing")}</h2>` : "";
+    return heading + items.filter((demo) => demo.group === group).map(card).join("");
+  }).join("");
+  return `<section class="tabpanel" id="panel-${type.id}" role="tabpanel" aria-labelledby="tab-${type.id}" hidden>
+    <p class="hint">${esc(type.hint)}</p>${body}</section>`;
+}
+
+const tabs = document.getElementById("tabs");
+const panels = document.getElementById("panels");
+panels.innerHTML = TYPES.map(panel).join("");
+tabs.innerHTML = TYPES.map((type) => {
+  const count = demos.filter((demo) => demo.type === type.id).length;
+  return `<button role="tab" id="tab-${type.id}" aria-controls="panel-${type.id}" aria-selected="false" data-type="${type.id}">${type.label}<span class="count">${count}</span></button>`;
+}).join("");
+
+const verifiedCount = demos.filter((demo) => demo.verify === "code").length;
+document.getElementById("summary").textContent = `${demos.length} tools · ${verifiedCount} checked by tests · ${demos.length - verifiedCount} show the live editor's own output`;
+
+function show(typeId) {
+  const id = TYPES.some((type) => type.id === typeId) ? typeId : "read";
+  for (const type of TYPES) {
+    const selected = type.id === id;
+    document.getElementById(`tab-${type.id}`).setAttribute("aria-selected", String(selected));
+    document.getElementById(`tab-${type.id}`).tabIndex = selected ? 0 : -1;
+    document.getElementById(`panel-${type.id}`).hidden = !selected;
+  }
+}
+
+tabs.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-type]");
+  if (!button) return;
+  const typeId = button.dataset.type;
+  if (location.hash !== `#${typeId}`) history.replaceState(null, "", `#${typeId}`);
+  show(typeId);
+});
+tabs.addEventListener("keydown", (event) => {
+  const order = TYPES.map((type) => type.id);
+  const current = order.indexOf(document.querySelector('[aria-selected="true"]')?.dataset.type ?? "read");
+  const next = event.key === "ArrowRight" ? (current + 1) % order.length : event.key === "ArrowLeft" ? (current - 1 + order.length) % order.length : null;
+  if (next === null) return;
+  event.preventDefault();
+  document.getElementById(`tab-${order[next]}`).focus();
+  history.replaceState(null, "", `#${order[next]}`);
+  show(order[next]);
+});
+window.addEventListener("hashchange", () => show(location.hash.slice(1)));
+show(location.hash.slice(1));
+</script>
+</body>
+</html>
