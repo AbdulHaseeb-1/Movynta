@@ -18,6 +18,7 @@ import {
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { framePose } from "./framing";
+import { viewPosition, type ViewPreset } from "./viewPresets";
 import { createOutlineRenderer } from "./outline";
 
 export type FrameListener = (deltaSeconds: number) => void;
@@ -45,6 +46,8 @@ export interface Viewport {
   zoomBy: (factor: number) => void;
   // Eases the camera back to its starting view.
   resetView: () => void;
+  // Looks at the same target from a preset direction (front, top, ...), at the same distance.
+  setView: (preset: ViewPreset) => void;
   // Eases the camera to look at the middle of this box from the current direction, far enough to show it whole.
   frameBox: (box: Box3) => void;
   // Shifts the view right while the assistant panel is open, then restores its previous center.
@@ -260,6 +263,13 @@ export function createViewport(
     const target = assistantPanelOffset?.clone() ?? new Vector3();
     easeTo(CAMERA_START.clone().add(target), target);
   };
+  const setView = (preset: ViewPreset) => {
+    if (!fullNavigation) return;
+    stopEase?.();
+    const distance = Math.max(camera.position.distanceTo(controls.target), ORBIT_MIN_DISTANCE);
+    camera.position.copy(viewPosition(controls.target, preset.direction, distance));
+    controls.update();
+  };
   const frameBox = (box: Box3) => {
     if (!fullNavigation || box.isEmpty()) return;
     const pose = framePose(box, { position: camera.position, target: controls.target }, camera.fov, camera.aspect, {
@@ -358,6 +368,7 @@ export function createViewport(
     zoomBy,
     resetView,
     frameBox,
+    setView,
     setAssistantPanelOpen,
     addFrameListener,
     setOutlinedObjects: outline.setObjects,

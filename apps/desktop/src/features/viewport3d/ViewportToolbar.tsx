@@ -10,11 +10,18 @@ import {
   ScanSearch,
   Trash2,
   Undo2,
+  Video,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -24,6 +31,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Viewport } from "./viewport";
+import { presetForKey, VIEW_PRESETS } from "./viewPresets";
 import { setViewportTool, type ViewportTool } from "./viewportSlice";
 
 const ZOOM_STEP = 1.35;
@@ -134,6 +142,14 @@ export function ViewportToolbar({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
+      const typing = target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+      // Numpad 1, 3 and 7 look from the front, right and top; with Ctrl, from the back, left and bottom.
+      const preset = event.defaultPrevented || event.repeat || typing || event.altKey || event.metaKey ? undefined : presetForKey(event.code, event.ctrlKey);
+      if (preset) {
+        event.preventDefault();
+        viewport?.setView(preset);
+        return;
+      }
       if (
         event.defaultPrevented ||
         event.repeat ||
@@ -266,6 +282,33 @@ export function ViewportToolbar({
             <ScanSearch className="size-[15px]" />
           </ToolButton>
         )}
+        <DropdownMenu modal={false}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" className="size-7 rounded-full text-muted-foreground hover:text-foreground" aria-label="View from">
+                  <Video className="size-[15px]" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side={tooltipSide}>
+              View from
+              <span className="ml-2 opacity-60">Numpad 1 · 3 · 7, with Ctrl for the other side</span>
+            </TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent side={horizontal ? "top" : "left"} sideOffset={8} className="z-[60] w-44 p-1.5">
+            {VIEW_PRESETS.map((preset) => (
+              <DropdownMenuItem key={preset.id} onSelect={() => viewport?.setView(preset)}>
+                {preset.label}
+                {preset.code && (
+                  <span className="ml-auto text-[10px] opacity-60">
+                    {preset.withCtrl ? "Ctrl+" : ""}Num {preset.code.slice(-1)}
+                  </span>
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <ToolButton tooltipSide={tooltipSide} label="Reset view" hint="0" shortcut="0" onClick={() => viewport?.resetView()}>
           <Maximize className="size-[15px]" />
         </ToolButton>

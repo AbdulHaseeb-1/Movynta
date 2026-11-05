@@ -24,6 +24,7 @@ const groups: readonly ControlGroup[] = [
       { action: "Pan", keys: "H / Space + drag", detail: "Choose the Hand tool with H, or hold Space and drag temporarily." },
       { action: "Zoom", keys: "Scroll / = / + / −", detail: "Scroll or use =, + and − to move the camera closer or farther away." },
       { action: "Reset view", keys: "0", detail: "Return the camera to its starting view." },
+      { action: "Front / right / top view", keys: "Numpad 1 / 3 / 7", detail: "Look at the same point from the front, right or top. Hold Ctrl for the back, left or bottom. The View from menu in the toolbar also offers an isometric view." },
       { action: "Frame selected / all", keys: ". / Home", detail: "Move the camera to show the selected objects, or everything when nothing is selected. Home always frames the whole scene." },
       { action: "Measurements", keys: "Ruler button · Esc / right-click to cancel", detail: "Choose Distance or Angle and pick viewport points with a live preview. Snap controls select Surface, Vertex or Grid; hold Shift for a triangle vertex or Alt for the unit ground grid. Inspect selected dimensions in World/Local axes, read an Edit-mode edge, or measure gaps between two objects. Save named annotations and use the eye to hide them. Scene scale controls calibration. If loading fails or another session changes measurements, reload and review the latest settings before saving again." },
     ],
