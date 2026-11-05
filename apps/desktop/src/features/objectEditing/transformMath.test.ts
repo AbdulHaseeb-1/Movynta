@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
 import { composeTrs, decomposeTrs, hasCollapsedAxis, invertAffine, isExactTrs, multiplyMat4, type Mat4, type Trs, type Vec3 } from "@movynta/editor-protocol";
 import { assignLocalMatrix } from "./shearFit";
+import { fieldCommitValue, rotationSign } from "./transformMath";
+import { PerspectiveCamera } from "three";
 
 /** A small seeded generator, so a failing case can be reproduced. */
 function random(seed: number): () => number {
@@ -131,5 +133,49 @@ describe("isExactTrs agrees with the editor's own shear test", () => {
     expect(isExactTrs(flat)).toBe(false);
     expect(editorShears(flat)).toBe(true);
     expect(hasCollapsedAxis(composeTrs({ position: [0, 0, 0], rotation: [0.4, 0.2, 0.1], scale: [1, 0.01, 1] }))).toBe(false);
+  });
+});
+
+describe("rotationSign", () => {
+  const cameraAt = (z: number) => {
+    const camera = new PerspectiveCamera(40, 1, 0.1, 100);
+    camera.position.set(0, 0, z);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    return camera;
+  };
+  const screen = (point: Vector3, camera: PerspectiveCamera) => point.clone().project(camera);
+
+  it.each([5, -5])("turns the object the way a clockwise pointer drag goes on screen, with the camera at z=%d", (z) => {
+    const camera = cameraAt(z);
+    const axis = new Vector3(0, 0, 1);
+    // A point to the right of the pivot on screen, then a pointer dragged clockwise (right to below).
+    const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    const start = { x: 1, y: 0 };
+    const current = { x: 0, y: 1 }; // screen y grows downward
+    const angle = -Math.atan2(start.x * current.y - start.y * current.x, start.x * current.x + start.y * current.y) * rotationSign(axis, camera);
+    const turned = right.clone().applyAxisAngle(axis, angle);
+    expect(screen(turned, camera).y).toBeLessThan(screen(right, camera).y - 0.1); // NDC y falls as the point goes down
+  });
+
+  it("is 1 for an axis toward the viewer and -1 for one pointing away", () => {
+    expect(rotationSign(new Vector3(0, 0, 1), cameraAt(5))).toBe(1);
+    expect(rotationSign(new Vector3(0, 0, 1), cameraAt(-5))).toBe(-1);
+  });
+});
+
+describe("fieldCommitValue", () => {
+  it("leaves a value with more decimals alone when the displayed text was not edited", () => {
+    expect(fieldCommitValue("30", 30.000000057)).toBeUndefined();
+    expect(fieldCommitValue("1.235", 1.23456)).toBeUndefined();
+  });
+  it("saves an edit, and ignores one that was cancelled or is not a number", () => {
+    expect(fieldCommitValue("99", 30)).toBe(99);
+    expect(fieldCommitValue("99", 30, { cancelled: true })).toBeUndefined();
+    expect(fieldCommitValue("abc", 30)).toBeUndefined();
+  });
+  it("keeps the result at or above a minimum", () => {
+    expect(fieldCommitValue("-2", 1, { min: 0.001 })).toBe(0.001);
+    expect(fieldCommitValue("0", 1, { min: 0.001 })).toBe(0.001);
   });
 });

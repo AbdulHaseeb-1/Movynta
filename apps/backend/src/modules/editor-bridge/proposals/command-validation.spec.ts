@@ -387,3 +387,19 @@ describe("validateAgainstContext with part names in boolean operands", () => {
     expect(validateAgainstContext([boolean(["Arm"], [2])], scene)).toEqual([]);
   });
 });
+
+describe("validateAgainstContext with zero or negative scale", () => {
+  const scene = sceneWith({ id: "a", parentId: null });
+  const withScale = (scale: number[]): EditorCommand => ({ commandId: "s", type: "scene.transform_object", objectId: "a", transform: { scale } });
+
+  it("refuses a transform that collapses or mirrors an object", () => {
+    expect(validateAgainstContext([withScale([0, 1, 1])], scene)[0]?.message).toContain("scale must be positive");
+    expect(validateAgainstContext([withScale([1, -1, 1])], scene)[0]?.message).toContain("scale must be positive");
+    expect(validateAgainstContext([withScale([2, 1, 0.5])], scene)).toEqual([]);
+  });
+
+  it("refuses a new object created with a non-positive scale", () => {
+    const created: EditorCommand = { commandId: "c", type: "scene.create_object", objectId: "n", name: "n", transform: { scale: [0, 0, 0] } };
+    expect(validateAgainstContext([created], emptyScene)[0]?.message).toContain("scale must be positive");
+  });
+});

@@ -3,7 +3,7 @@ import type { EditorScene, ObjectTransform } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
 import { GroupTransform, medianPosition, topLevel } from "./groupTransform";
 import type { GizmoView, ObjectChange } from "./ObjectGizmo";
-import { sameTransform } from "./transformMath";
+import { rotationSign, sameTransform } from "./transformMath";
 
 type Operation = "move" | "rotate" | "scale";
 type Axis = "x" | "y" | "z";
@@ -144,7 +144,7 @@ export class KeyboardTransform {
                   startVector.y * currentVector.x,
                 startVector.dot(currentVector),
               );
-        this.pivot.quaternion.setFromAxisAngle(direction, numeric === null ? -angle : numeric * Math.PI / 180);
+        this.pivot.quaternion.setFromAxisAngle(direction, numeric === null ? -angle * (axis ? rotationSign(axis, viewport.camera) : 1) : numeric * Math.PI / 180);
       } else {
         const factor = numeric ?? (
           startVector.length() < 8

@@ -35,6 +35,7 @@ import { faceTransformSelection, transformFaces, type FaceTransform } from "@/fe
 import { ExtrudeFacePreview } from "@/features/meshGeometry/extrudeFacePreview";
 import { FaceTransformPreview } from "@/features/meshGeometry/faceTransformPreview";
 import { ExtrudePreviewOverlay } from "./ExtrudePreviewOverlay";
+import { rotationSign } from "./transformMath";
 
 type Axis = "x" | "y" | "z";
 type ExtrudeMode = "move" | "scale" | "rotate";
@@ -209,7 +210,7 @@ function faceGestureTransform(
   }
   const direction = axis ?? camera.getWorldDirection(new Vector3()).negate();
   const angle = from.length() < 8 || to.length() < 8
-    ? delta * Math.PI / 360 : -Math.atan2(from.cross(to), from.dot(to));
+    ? delta * Math.PI / 360 : -Math.atan2(from.cross(to), from.dot(to)) * (axis ? rotationSign(axis, camera) : 1);
   if (Math.abs(angle) < 1e-8) return null;
   const euler = new Euler().setFromQuaternion(new Quaternion().setFromAxisAngle(direction, angle));
   return { rotation: [euler.x, euler.y, euler.z] };
