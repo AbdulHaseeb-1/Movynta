@@ -1,35 +1,85 @@
 # `editor.propose_commands`
 
-Stores a batch of scene commands for review. The batch is checked against the scene, given an id, and kept waiting. Nothing changes until `editor.apply_proposal` is called with that id.
+> Stores a batch of scene commands for review. The batch is checked against the scene and kept waiting. Nothing changes until editor.apply_proposal runs.
 
 | | |
 | --- | --- |
 | Provider name | `editor__propose_commands` |
-| Permission | `propose` (never needs approval). It stores; it does not apply. |
-| Needs the editor | Yes, to check the batch against the current scene |
+| Type | Propose (permission `propose`) |
+| Approval | Never |
+| Needs the editor | Yes |
+| Example | Checked by the backend test on the sample scene |
 | Defined in | `apps/backend/src/modules/tools/editor/editor.tools.ts` |
-| Command schema | `editorCommandListSchema` in `packages/editor-protocol/src/editor-command.schema.ts` |
-| Demo | [Propose tab](demos/index.html#propose) |
+| In the app | Documentation → Assistant tools → Propose |
 
 ## When the assistant uses it
 
-For every change to the scene. The assistant reads the scene, calculates or writes the commands, proposes them, and then applies the proposal. A proposal is also how the assistant changes a waiting proposal: it sends a new batch with `supersedes`.
+- For every change to the scene: read, calculate, propose, apply.
+- To replace a waiting proposal when the request changes, by sending supersedes.
 
 ## Input
 
-| Field | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `summary` | string, 1–300 characters | yes | What the batch does, in words the user will read. |
-| `commands` | 1–200 commands | yes | Run in order. A later command may use an object an earlier one created. |
-| `expectedRevision` | integer ≥ 0 | no | The revision the batch was written for. It makes the proposal *strict*. |
-| `supersedes` | identifier | no | A waiting proposal from this run that this one replaces. |
-| `stepId` | identifier | no | A step of the latest plan that this batch carries out. |
+| Name | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `summary` | string 1–300 | Yes | – | What the batch does, in words the user will read. |
+| `commands` | 1–200 commands | Yes | – | Run in order. A later command may use an object an earlier one created. |
+| `expectedRevision` | integer ≥ 0 | No | – | The revision the batch was written for. Makes the proposal strict. |
+| `supersedes` | identifier | No | – | A waiting proposal from this run that this one replaces. |
+| `stepId` | identifier | No | – | A step of the latest plan that this batch carries out. |
 
-Commands are listed in the [assistant tools inventory](../assistant-tools.md#editor-commands). The common ones are `scene.move_object` (move by a delta), `scene.transform_object` (set a position, rotation or scale), `scene.rename_object`, `scene.set_visibility`, `scene.set_parent`, `scene.delete_object`, `geometry.create_primitive` and `geometry.create_mesh`.
+## Common commands
+
+| Item | Meaning |
+| --- | --- |
+| `scene.move_object` | Move by a delta. Keeps a move the user made after the read. |
+| `scene.transform_object` | Set a position, rotation or scale. Overwrites moves made in between. |
+| `scene.rename_object, scene.set_visibility` | Change a name or visibility without recreating the object. |
+| `scene.set_parent` | Move under another object, or to the top level (null). Refused when the move cannot be exact. |
+| `scene.delete_object` | Remove an object. Its children must be removed first. |
+| `geometry.create_primitive, geometry.create_mesh` | Create a shape or a polygon mesh, optionally under a parent. |
+| `geometry.set_modifiers, geometry.boolean` | Live modifier stacks and Boolean cuts. Strict and automatic. |
+| `material.set_properties, material.assign` | Edit a slot, or assign faces to a slot. Strict; needs inspected revision. |
 
 ## Result
 
-On success:
+| Field | Meaning |
+| --- | --- |
+| `proposalId` | The id to pass to editor.apply_proposal or viewport.capture. |
+| `status` | proposed, or rejected for a bad stepId. Later: superseded, applied, failed. |
+| `requiresApproval` | Always false for assistant proposals. |
+| `commandCount, baseRevision` | How many commands, and the revision they were checked on. |
+| `nextAction` | The next call to make. |
+
+## Example
+
+Request:
+
+```json
+{
+  "summary": "Raise the crate 2 units and rename it",
+  "expectedRevision": 12,
+  "commands": [
+    {
+      "commandId": "raise",
+      "type": "scene.move_object",
+      "objectId": "crate",
+      "delta": [
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "commandId": "rename",
+      "type": "scene.rename_object",
+      "objectId": "crate",
+      "name": "Supply crate"
+    }
+  ]
+}
+```
+
+Result:
 
 ```json
 {
@@ -44,67 +94,39 @@ On success:
 }
 ```
 
-- `status` is `proposed`. It can also be `superseded` later, or `applied`, `failed` or `rejected` once acted on.
-- `requiresApproval` is always `false` for assistant proposals.
-- With a `stepId` that is not in the latest plan, the result is `{ "status": "rejected", "reason": "...", "availableStepIds": [...] }` and nothing is stored.
-
-If a command does not fit the scene, the call fails with the list of problems, each with its `commandId` and how to fix it. The model corrects the batch and proposes again.
-
-## Example
-
-Request:
-
-```json
-{
-  "summary": "Raise the crate 2 units and rename it",
-  "expectedRevision": 12,
-  "commands": [
-    { "commandId": "raise", "type": "scene.move_object", "objectId": "crate", "delta": [0, 2, 0] },
-    { "commandId": "rename", "type": "scene.rename_object", "objectId": "crate", "name": "Supply crate" }
-  ]
-}
-```
-
-Result: the JSON above, with `commandCount: 2`.
-
-## Visual example
-
-```text
-PROPOSAL prp_7e2b9c4d1a6f4b08   revision 12   2 commands   no approval prompt
-
-  1  raise   scene.move_object    crate   by [0, 2, 0]
-  2  rename  scene.rename_object  crate   to "Supply crate"
-
-  [ proposed ] ──► [ applying ] ──► [ applied ]
-       ▲ you are here          next: editor.apply_proposal
-```
-
 ## How it fits
 
 ```mermaid
-stateDiagram-v2
-  [*] --> proposed: propose_commands
-  proposed --> applying: apply_proposal
-  proposed --> superseded: a newer proposal supersedes it
-  applying --> applied: editor ran the batch
-  applying --> failed: editor refused or the scene no longer fits
-  applied --> [*]
-  failed --> [*]
-  superseded --> [*]
+flowchart LR
+  S0["Assistant writes the commands"]
+  S1["The backend checks them against the scene"]
+  S2["The proposal is stored and waits"]
+  S3["editor.apply_proposal applies it"]
+  S0 --> S1
+  S1 --> S2
+  S2 --> S3
 ```
 
-A `proposed` batch is stored in the backend with the revision it was written for, and only then is the editor told about it.
+## Tips
 
-## Limits and errors
+- Set expectedRevision whenever the batch depends on what was read. A strict proposal fails instead of being rebased.
+- Use scene.move_object for "move by". scene.transform_object sets absolute values, so it would overwrite a move the user made meanwhile.
+
+## Limits
 
 - At most 200 commands per proposal.
-- Command validation runs now and again on apply. A command that refers to an object that does not exist is an error, with its `commandId`.
-- `expectedRevision` makes the proposal strict. If the scene changes before it is applied, it fails and must be regenerated. Without it, the batch is re-checked on the new scene and may be applied with `rebased: true`.
-- Batches with geometry edits, material edits or hierarchy copies are always strict.
-- Collections, scene-graph features and some modifier operations need an editor that supports them. The check says so when they are missing.
+- Batches with geometry, material or hierarchy-copy commands are always strict.
+- Collections and scene-graph features need an editor that supports them.
+
+## Errors you may see
+
+| Message | Cause |
+| --- | --- |
+| `stepId does not match a step of the latest plan. Record a plan first, or leave stepId out.` | The result is rejected and lists availableStepIds. Nothing is stored. |
+| `Proposal conflicts with the current scene` | A command does not fit the scene. The error lists each commandId and what to fix. |
 
 ## Related
 
-- [`editor.apply_proposal`](editor.apply_proposal.md), which applies the proposal.
-- [`modeling.propose_generated`](modeling.propose_generated.md) makes a proposal from a program, without echoing the commands.
-- [`viewport.capture`](viewport.capture.md) with `proposalId` to see the proposal before applying it.
+- [`editor.apply_proposal`](editor.apply_proposal.md)
+- [`modeling.propose_generated`](modeling.propose_generated.md)
+- [`viewport.capture`](viewport.capture.md)

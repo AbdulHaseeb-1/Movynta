@@ -1,51 +1,46 @@
 # `modeling.generate_model_plan`
 
-Records a structured plan for the task: the goal, the dimension being modelled, and an ordered list of steps. Each step names the tool that carries it out. Recording a plan changes nothing in the scene.
+> Writes down the goal and the ordered steps, and the tool each step will use. Recording a plan changes nothing in the scene.
 
 | | |
 | --- | --- |
 | Provider name | `modeling__generate_model_plan` |
-| Permission | `plan` (never needs approval). Records intent only. |
+| Type | Plan (permission `plan`) |
+| Approval | Never |
 | Needs the editor | No |
+| Example | Checked by the backend test on the sample scene |
 | Defined in | `apps/backend/src/modules/tools/modeling/modeling.tools.ts` |
-| Schema | `modelingPlanSchema` in `apps/backend/src/shared/schemas/modeling-plan.schema.ts` |
-| Demo | [Plan tab](demos/index.html#plan) |
+| In the app | Documentation → Assistant tools → Plan |
 
 ## When the assistant uses it
 
-At the start of a multi-step change, before any proposal. A plan lets the user see what will happen, and it lets later proposals say which step they carry out (`stepId` on `editor.propose_commands`).
+- At the start of a multi-step change, before any proposal.
+- So the user can see what will happen, and so proposals can name the step they carry out with stepId.
 
 ## Input
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `goal` | string, 1–500 characters | What the user wants. |
-| `dimension` | `2d`, `2.5d` or `3d` | The kind of model. |
-| `steps` | 1–30 steps | Ordered. Each step below. |
+| Name | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `goal` | string 1–500 | Yes | – | What the user wants. |
+| `dimension` | 2d \| 2.5d \| 3d | Yes | – | The kind of model. |
+| `steps` | array of 1–30 steps | Yes | – | Ordered. Each step is described below. |
 
-Each step:
+## Step fields
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `id` | `[a-z0-9-]`, 1–40 characters | Unique within the plan. Proposals refer to it. |
-| `title` | string, 1–120 characters | Short name for the user. |
-| `toolName` | string | A tool the assistant can call. |
-| `description` | string, up to 500 characters | What the step does. |
-| `requiresApproval` | boolean, default `false` | Recorded for the user. Assistant proposals apply automatically. |
+| Item | Meaning |
+| --- | --- |
+| `id` | [a-z0-9-], 1–40 characters, unique in the plan. |
+| `title` | Short name, up to 120 characters. |
+| `toolName` | A tool the assistant can call. Unknown names are rejected. |
+| `description` | What the step does, up to 500 characters. |
+| `requiresApproval` | Recorded for the user, default false. Assistant proposals still apply automatically. |
 
 ## Result
 
-On success:
-
-```json
-{ "status": "recorded", "planNumber": 1, "stepCount": 4 }
-```
-
-If a step names a tool that does not exist, nothing is recorded:
-
-```json
-{ "status": "rejected", "reason": "Plan references unknown tools. ...", "unknownTools": ["..."], "availableTools": ["..."] }
-```
+| Field | Meaning |
+| --- | --- |
+| `status: recorded` | planNumber and stepCount. |
+| `status: rejected` | reason, unknownTools and availableTools. |
 
 ## Example
 
@@ -56,10 +51,34 @@ Request:
   "goal": "Add a row of posts beside the figure and check the result",
   "dimension": "3d",
   "steps": [
-    { "id": "read-scene", "title": "Read the scene", "toolName": "editor.get_context", "description": "Confirm the figure and crate ids and the current revision.", "requiresApproval": false },
-    { "id": "make-posts", "title": "Generate five posts", "toolName": "modeling.propose_generated", "description": "Run a bounded program that places five boxes in a row.", "requiresApproval": false },
-    { "id": "review", "title": "Review from the front", "toolName": "viewport.capture", "description": "Capture a front view to check spacing and height.", "requiresApproval": false },
-    { "id": "apply", "title": "Apply and check", "toolName": "editor.apply_proposal", "description": "Apply the stored proposal, then run the scene check.", "requiresApproval": false }
+    {
+      "id": "read-scene",
+      "title": "Read the scene",
+      "toolName": "editor.get_context",
+      "description": "Confirm the figure and crate ids and the current revision.",
+      "requiresApproval": false
+    },
+    {
+      "id": "make-posts",
+      "title": "Generate five posts",
+      "toolName": "modeling.propose_generated",
+      "description": "Run a bounded program that places five boxes in a row.",
+      "requiresApproval": false
+    },
+    {
+      "id": "review",
+      "title": "Review from the front",
+      "toolName": "viewport.capture",
+      "description": "Capture a front view to check spacing and height.",
+      "requiresApproval": false
+    },
+    {
+      "id": "apply",
+      "title": "Apply and check",
+      "toolName": "editor.apply_proposal",
+      "description": "Apply the stored proposal, then run the scene check.",
+      "requiresApproval": false
+    }
   ]
 }
 ```
@@ -67,44 +86,43 @@ Request:
 Result:
 
 ```json
-{ "status": "recorded", "planNumber": 1, "stepCount": 4 }
-```
-
-## Visual example
-
-```text
-Goal: Add a row of posts beside the figure and check the result   [3d]
-
- (1) Read the scene             editor.get_context
-  |   Confirm the figure and crate ids and the current revision.
- (2) Generate five posts        modeling.propose_generated
-  |   Run a bounded program that places five boxes in a row.
- (3) Review from the front      viewport.capture
-  |   Capture a front view to check spacing and height.
- (4) Apply and check            editor.apply_proposal
-      Apply the stored proposal, then run the scene check.
+{
+  "status": "recorded",
+  "planNumber": 1,
+  "stepCount": 4
+}
 ```
 
 ## How it fits
 
 ```mermaid
-flowchart TD
-  P[generate_model_plan] --> V{Every toolName known?}
-  V -->|no| R[rejected, list of available tools]
-  V -->|yes| S[Stored as the latest plan]
-  S --> X[Steps run through their tools]
-  X --> Q[editor.propose_commands with stepId]
+flowchart LR
+  S0["The assistant writes the goal and steps"]
+  S1["Each toolName is checked against the registered tools"]
+  S2["The plan becomes the latest plan"]
+  S3["Proposals may reference a step with stepId"]
+  S0 --> S1
+  S1 --> S2
+  S2 --> S3
 ```
 
-Only the latest plan counts. A newer plan replaces the current one, and `stepId` on a proposal is checked against the latest plan.
+## Tips
 
-## Limits and errors
+- Keep steps small: each should map to one tool call.
+- A newer plan replaces the current one, and stepId is checked against the latest plan only.
 
-- A plan with no steps, more than 30 steps, or a step id that is not `[a-z0-9-]` is rejected by the schema.
-- A `stepId` that is not in the latest plan makes `editor.propose_commands` return `rejected` with the step ids that are available. Nothing is stored.
-- The plan is not persisted with the project. It lasts for the run.
+## Limits
+
+- A plan lasts for the run. It is not saved with the project.
+- Up to 30 steps.
+
+## Errors you may see
+
+| Message | Cause |
+| --- | --- |
+| `Plan references unknown tools. Each step's toolName must be one of the available tools.` | A step names a tool that is not registered. The result lists unknownTools and availableTools. |
 
 ## Related
 
-- [`editor.propose_commands`](editor.propose_commands.md), which can name a plan step.
-- [`skills.load_skill`](skills.load_skill.md), which supplies the workflow a plan usually follows.
+- [`editor.propose_commands`](editor.propose_commands.md)
+- [`skills.load_skill`](skills.load_skill.md)

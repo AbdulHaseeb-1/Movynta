@@ -1,59 +1,51 @@
 # `viewport.capture`
 
-Lets the assistant look at the scene. The editor draws it from one to six points of view and returns the pictures, plus where each object sits in each picture and how the camera was placed. It can also draw an unapplied proposal before the user relies on it.
+> Lets the assistant look at the scene. The editor draws it from one to six views and returns the pictures, with where each object sits in each one.
 
 | | |
 | --- | --- |
 | Provider name | `viewport__capture` |
-| Permission | `read` (never needs approval). Nothing in the scene changes. |
-| Needs the editor | Yes. The editor draws offscreen and sends back JPEG images. |
+| Type | Read (permission `read`) |
+| Approval | Never |
+| Needs the editor | Yes |
+| Example | Live editor output; the test checks its shape |
 | Defined in | `apps/backend/src/modules/tools/viewport/viewport.tools.ts` |
-| Schema | `viewCaptureRequestSchema` in `packages/editor-protocol/src/view-capture.schema.ts` |
-| Demo | [Read tab](demos/index.html#read) |
+| In the app | Documentation → Assistant tools → Read |
 
 ## When the assistant uses it
 
-To check shapes, proportions, placement and surface problems that a list of numbers cannot show: after an edit, before a proposal is applied (with `proposalId`), and when the user asks what something looks like.
+- To check shapes, proportions, placement and surface problems that numbers cannot show.
+- Before applying a proposal, by passing its proposalId.
 
 ## Input
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `views` | 1–6 views | Each view has one way to place the camera (below), an optional `label`, `projection` (`perspective` or `orthographic`) and `zoom` (0.25–20). |
-| `proposalId` | identifier | Draw this pending proposal from the current run as an isolated copy. Omit it to draw the live scene. |
-| `focus` | up to 50 ids | Objects to frame, and whose exact bounds are reported. Without it the view frames the whole scene. |
-| `highlight` | up to 50 ids | Objects to box in orange in the picture. |
-| `isolate` | boolean | Draw only the focused objects. |
-| `mode` | `solid`, `wireframe` or `normals` | `wireframe` shows mesh structure; `normals` shows surface direction, so flipped or faceted faces stand out. |
-| `labels`, `guides` | boolean, default `true` | Write object ids on the picture; draw a floor grid and axes (X red, Y green, Z blue). |
-| `width`, `height` | integers 128–1024 | Image size in pixels. Default 768 × 576. |
+| Name | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `views` | 1–6 views | Yes | – | Each view places the camera by preset, orbit or exact camera, with optional label, projection and zoom. |
+| `proposalId` | identifier | No | – | Draw this pending proposal from the run as an isolated copy. |
+| `focus, highlight` | up to 50 ids each | No | – | Objects to frame and report bounds for; objects to box in orange. |
+| `isolate` | boolean | No | – | Draw only the focused objects. |
+| `mode` | solid \| wireframe \| normals | No | `solid` | normals shows flipped or faceted faces. |
+| `labels, guides` | boolean | No | `true` | Object ids on the picture; a floor grid and axes. |
+| `width, height` | integers 128–1024 | No | `768 × 576` | Image size in pixels. |
 
-A view places its camera in one of three ways, in this order of priority:
+## Camera placement, in order of priority
 
-1. `camera`: exact `position`, `target` and optional `fov` (10–120), in world space.
-2. `orbit`: `azimuthDegrees` and `elevationDegrees` around the framed objects. Azimuth 0 looks at the front from +Z; 90 from +X; 180 from behind. Elevation 0 is level; 90 is straight down.
-3. `preset`: `front`, `back`, `left`, `right`, `top`, `bottom`, `isometric` (default), or `current` for the user's own camera.
-
-Y is up. The six axis presets are orthographic unless `projection` says otherwise, so proportions can be judged from them.
+| Item | Meaning |
+| --- | --- |
+| `camera` | Exact position, target and optional fov, in world space. |
+| `orbit` | azimuthDegrees and elevationDegrees around the framed objects. Azimuth 0 looks at the front from +Z. |
+| `preset` | front, back, left, right, top, bottom, isometric (default), or current for the user's own camera. |
 
 ## Result
 
-The model receives a text part first, then one picture per view, in order.
-
-```text
-{
-  status: "ok",
-  coordinates: "Y is up. ...",
-  scene: { objectCount, bounds },
-  focus: [ { id, name, bounds, size, center } ],
-  missingIds: [],
-  views: [ { image, label, width, height, camera, objects: [ { id, name, screenBounds, inFrame } ] } ],
-  note: "...",
-  proposalId?         // when a proposal was drawn
-}
-```
-
-`screenBounds` is the object's bounding box projected into the picture, in pixels from the top-left. It says where an object is, not whether it is visible.
+| Field | Meaning |
+| --- | --- |
+| `status, coordinates, note` | The result status, the axis conventions, and how to read the measurements. |
+| `scene` | Object count and the bounds of everything. |
+| `focus` | For each focused object: bounds, size and center. |
+| `views[]` | label, size, camera used, and each listed object's screenBounds and inFrame. |
+| `proposalId` | Present when a proposal was drawn. |
 
 ## Example
 
@@ -61,30 +53,289 @@ Request:
 
 ```json
 {
-  "views": [{ "label": "Front", "preset": "front" }, { "label": "Top", "preset": "top" }],
-  "focus": ["figure", "torso", "arm_left", "arm_right"],
+  "views": [
+    {
+      "label": "Front",
+      "preset": "front"
+    },
+    {
+      "label": "Top",
+      "preset": "top"
+    }
+  ],
+  "focus": [
+    "figure",
+    "torso",
+    "arm_left",
+    "arm_right"
+  ],
   "mode": "solid",
   "width": 512,
   "height": 384
 }
 ```
 
-Result (shortened; the demo page shows both views in full):
+Result:
 
 ```json
 {
   "status": "ok",
-  "scene": { "objectCount": 6, "bounds": { "min": [-1.05, 0, -0.5], "max": [3.5, 1.8, 0.5] } },
+  "coordinates": "Y is up. A front view looks along -Z (it sees the +Z side), a right view looks along -X, a left view looks along +X, a back view looks along +Z.",
+  "scene": {
+    "objectCount": 6,
+    "bounds": {
+      "min": [
+        -1.05,
+        0,
+        -0.5
+      ],
+      "max": [
+        3.5,
+        1.8,
+        0.5
+      ]
+    }
+  },
   "focus": [
-    { "id": "torso", "name": "Torso", "bounds": { "min": [-0.5, 0.25, -0.3], "max": [0.5, 1.75, 0.3] }, "size": [1, 1.5, 0.6], "center": [0, 1, 0] }
+    {
+      "id": "figure",
+      "name": "Figure",
+      "bounds": {
+        "min": [
+          -1.05,
+          0.25,
+          -0.3
+        ],
+        "max": [
+          1.05,
+          1.8,
+          0.3
+        ]
+      },
+      "size": [
+        2.1,
+        1.55,
+        0.6
+      ],
+      "center": [
+        0,
+        1.025,
+        0
+      ]
+    },
+    {
+      "id": "torso",
+      "name": "Torso",
+      "bounds": {
+        "min": [
+          -0.5,
+          0.25,
+          -0.3
+        ],
+        "max": [
+          0.5,
+          1.75,
+          0.3
+        ]
+      },
+      "size": [
+        1,
+        1.5,
+        0.6
+      ],
+      "center": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "id": "arm_left",
+      "name": "Arm",
+      "bounds": {
+        "min": [
+          -1.05,
+          0.6,
+          -0.15
+        ],
+        "max": [
+          -0.75,
+          1.8,
+          0.15
+        ]
+      },
+      "size": [
+        0.3,
+        1.2,
+        0.3
+      ],
+      "center": [
+        -0.9,
+        1.2,
+        0
+      ]
+    },
+    {
+      "id": "arm_right",
+      "name": "Arm",
+      "bounds": {
+        "min": [
+          0.75,
+          0.6,
+          -0.15
+        ],
+        "max": [
+          1.05,
+          1.8,
+          0.15
+        ]
+      },
+      "size": [
+        0.3,
+        1.2,
+        0.3
+      ],
+      "center": [
+        0.9,
+        1.2,
+        0
+      ]
+    }
   ],
   "missingIds": [],
   "views": [
     {
-      "image": 1, "label": "Front", "width": 512, "height": 384,
-      "camera": { "projection": "orthographic", "position": [0, 1.025, 10], "target": [0, 1.025, 0], "fov": null, "orthographicHeight": 2.9 },
+      "image": 1,
+      "label": "Front",
+      "width": 512,
+      "height": 384,
+      "camera": {
+        "projection": "orthographic",
+        "position": [
+          0,
+          1.025,
+          10
+        ],
+        "target": [
+          0,
+          1.025,
+          0
+        ],
+        "fov": null,
+        "orthographicHeight": 2.9
+      },
       "objects": [
-        { "id": "torso", "name": "Torso", "screenBounds": { "x": 190, "y": 96, "width": 132, "height": 199 }, "inFrame": true }
+        {
+          "id": "figure",
+          "name": "Figure",
+          "screenBounds": {
+            "x": 117,
+            "y": 89,
+            "width": 278,
+            "height": 205
+          },
+          "inFrame": true
+        },
+        {
+          "id": "torso",
+          "name": "Torso",
+          "screenBounds": {
+            "x": 190,
+            "y": 96,
+            "width": 132,
+            "height": 199
+          },
+          "inFrame": true
+        },
+        {
+          "id": "arm_left",
+          "name": "Arm",
+          "screenBounds": {
+            "x": 117,
+            "y": 89,
+            "width": 40,
+            "height": 159
+          },
+          "inFrame": true
+        },
+        {
+          "id": "arm_right",
+          "name": "Arm",
+          "screenBounds": {
+            "x": 355,
+            "y": 89,
+            "width": 40,
+            "height": 159
+          },
+          "inFrame": true
+        }
+      ]
+    },
+    {
+      "image": 2,
+      "label": "Top",
+      "width": 512,
+      "height": 384,
+      "camera": {
+        "projection": "orthographic",
+        "position": [
+          0,
+          10,
+          0.01
+        ],
+        "target": [
+          0,
+          1.025,
+          0
+        ],
+        "fov": null,
+        "orthographicHeight": 2.9
+      },
+      "objects": [
+        {
+          "id": "figure",
+          "name": "Figure",
+          "screenBounds": {
+            "x": 117,
+            "y": 152,
+            "width": 278,
+            "height": 80
+          },
+          "inFrame": true
+        },
+        {
+          "id": "torso",
+          "name": "Torso",
+          "screenBounds": {
+            "x": 190,
+            "y": 152,
+            "width": 132,
+            "height": 80
+          },
+          "inFrame": true
+        },
+        {
+          "id": "arm_left",
+          "name": "Arm",
+          "screenBounds": {
+            "x": 117,
+            "y": 172,
+            "width": 40,
+            "height": 40
+          },
+          "inFrame": true
+        },
+        {
+          "id": "arm_right",
+          "name": "Arm",
+          "screenBounds": {
+            "x": 355,
+            "y": 172,
+            "width": 40,
+            "height": 40
+          },
+          "inFrame": true
+        }
       ]
     }
   ],
@@ -92,47 +343,31 @@ Result (shortened; the demo page shows both views in full):
 }
 ```
 
-## Visual example
-
-Two views of the figure, each with the projected boxes that the result reports:
-
-```text
-Front (orthographic, 512 x 384)            Top (orthographic, 512 x 384)
-+--------------------------------+         +--------------------------------+
-|        +-----------+           |         |   +----------------------+     |
-|  [Arm] |  Torso    |  [Arm]    |         |   |  Figure (y 152, h 80) |     |
-|  x117  |  x190     |  x355     |         |   +----------------------+     |
-|        |           |           |         |   [Arm] [Torso]  [Arm]        |
-|        +-----------+           |         |                              |
-+--------------------------------+         +--------------------------------+
-```
-
 ## How it fits
 
 ```mermaid
-sequenceDiagram
-  participant M as Model
-  participant V as viewport.capture
-  participant E as Editor
-  M->>V: views, focus, mode
-  V->>E: view.request (captureId, optional proposal)
-  E-->>V: view.response (JPEG per view, measurements)
-  V-->>M: text measurements, then the pictures
-  Note over M: Says what it concluded in its reply
+flowchart LR
+  S0["Assistant chooses views and what to focus on"]
+  S1["Editor draws offscreen and returns a JPEG per view with measurements"]
+  S2["Model reads the measurements, then the pictures, and states its conclusion in its reply"]
+  S0 --> S1
+  S1 --> S2
 ```
 
-The pictures are not kept in the stored conversation; the text next to them is. The assistant is told to state its conclusion in its reply.
+## Tips
 
-## Limits and errors
+- Start with overview views, then focus and zoom into anything suspicious.
+- Pass proposalId to check a stored proposal before it is applied.
 
-- Up to 6 views per call; each picture stays under about 1.5 MB as JPEG (the editor lowers the quality, then asks for a smaller size).
-- The call times out after `EDITOR_REQUEST_TIMEOUT_MS` (15 seconds by default).
-- A `proposalId` must be a proposal from this run that is still `proposed`, or the call fails with a conflict.
-- Models behind an OpenAI-compatible Chat Completions endpoint cannot receive images in a tool result. For them the editor draws nothing and the tool returns measurements only, with a note saying so.
-- The pictures reach the user's chat only while the editor window that drew them is open (the last 12 captures are kept there).
+## Limits
+
+- Up to six views per call; each JPEG stays under about 1.5 MB.
+- The call times out after EDITOR_REQUEST_TIMEOUT_MS (15 seconds by default).
+- Models behind an OpenAI-compatible Chat Completions endpoint get measurements only, with a note saying so.
+- The editor window keeps the last 12 captures. Pictures are not kept in the saved conversation.
 
 ## Related
 
-- [`editor.propose_commands`](editor.propose_commands.md) and [`editor.apply_proposal`](editor.apply_proposal.md): capture a proposal before applying it.
-- [`modeling.propose_generated`](modeling.propose_generated.md) produces a proposal worth reviewing this way.
-- [`validation.check_scene`](validation.check_scene.md) for checks that need no picture.
+- [`editor.propose_commands`](editor.propose_commands.md)
+- [`modeling.propose_generated`](modeling.propose_generated.md)
+- [`validation.check_scene`](validation.check_scene.md)

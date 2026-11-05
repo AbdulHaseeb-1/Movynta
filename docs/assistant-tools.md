@@ -4,7 +4,7 @@ This file lists every tool the modeling assistant can call, the editor commands 
 
 It is the reference for the assistant's capabilities. Keep it in step with the code: [AGENTS.md](../AGENTS.md) ("Assistant tools") says when to update it.
 
-For one page per tool, with its request, its result and a worked example grouped by tool type, see [tools/README.md](tools/README.md). The examples are shown as demos in [tools/demos/index.html](tools/demos/index.html).
+For one page per tool, with its request, its result and a worked example, see [tools/README.md](tools/README.md). The same reference, with a visual for each tool, is in the app under **Documentation → Assistant tools**..
 
 ## Tool inventory
 

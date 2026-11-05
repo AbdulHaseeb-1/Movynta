@@ -24,17 +24,18 @@ import { createViewportTools } from "./viewport/viewport.tools.js";
 import type { ToolDefinition } from "./tool.types.js";
 
 /*
- * Keeps docs/tools/demos/index.html honest. The demo page holds one example request and result per tool.
+ * Keeps the assistant tool reference honest. The reference (shown in the app's Documentation page, and generated into
+ * docs/tools) holds one example request and result per tool.
  * Tools marked "code" are run here with the same sample scene and their results are compared with the example.
  * Tools marked "live" need the desktop editor, so only their request and the shape of their result are checked.
  * Jest runs from apps/backend, so the repository root is two levels up.
  */
 const repoRoot = resolve(process.cwd(), "..", "..");
-const demoPath = resolve(repoRoot, "docs/tools/demos/index.html");
+const dataPath = resolve(repoRoot, "apps/desktop/src/features/documentation/assistantTools/assistantTools.json");
 const docsDir = resolve(repoRoot, "docs/tools");
 
 interface DemoEntry {
-  readonly tool: string;
+  readonly name: string;
   readonly type: string;
   readonly verify: "code" | "live";
   readonly doc: string;
@@ -44,14 +45,11 @@ interface DemoEntry {
 
 interface DemoData {
   readonly scene: unknown;
-  readonly demos: readonly DemoEntry[];
+  readonly tools: readonly DemoEntry[];
 }
 
 function loadDemoData(): DemoData {
-  const html = readFileSync(demoPath, "utf8");
-  const match = /<script id="demo-data" type="application\/json">([\s\S]*?)<\/script>/.exec(html);
-  if (!match) throw new Error("docs/tools/demos/index.html has no demo-data block");
-  return JSON.parse(match[1] ?? "") as DemoData;
+  return JSON.parse(readFileSync(dataPath, "utf8")) as DemoData;
 }
 
 /** The demo page writes "$scene" where the result is the whole scene. */
@@ -149,7 +147,7 @@ function parseAndRegisterSkill(): SkillsRegistry {
 
 const data = loadDemoData();
 const scene = editorContextSchema.parse(data.scene);
-const demos = data.demos;
+const demos = data.tools;
 
 describe("tool documentation examples", () => {
   const state = { nextId: "", revision: scene.revision };
@@ -157,33 +155,34 @@ describe("tool documentation examples", () => {
   const byName = new Map<string, ToolDefinition>(tools.map((tool) => [tool.name, tool]));
 
   it("has one example for every registered tool, and no others", () => {
-    expect(demos.map((demo) => demo.tool).sort()).toEqual(tools.map((tool) => tool.name).sort());
+    expect(demos.map((demo) => demo.name).sort()).toEqual(tools.map((tool) => tool.name).sort());
   });
 
-  it("has a reference document for every tool", () => {
+  it("has a reference document for every tool, and an index", () => {
+    expect(existsSync(resolve(docsDir, "README.md"))).toBe(true);
     for (const demo of demos) {
-      expect(demo.doc).toBe(`${demo.tool}.md`);
+      expect(demo.doc).toBe(`${demo.name}.md`);
       expect(existsSync(resolve(docsDir, demo.doc))).toBe(true);
     }
   });
 
   for (const demo of demos) {
-    it(`${demo.tool}: the example request is accepted by the tool's schema`, () => {
-      const definition = byName.get(demo.tool);
+    it(`${demo.name}: the example request is accepted by the tool's schema`, () => {
+      const definition = byName.get(demo.name);
       expect(definition).toBeDefined();
       expect(definition?.parameters.safeParse(demo.request).success).toBe(true);
     });
 
     if (demo.verify === "code") {
-      it(`${demo.tool}: the example result is what the code returns`, async () => {
-        const definition = byName.get(demo.tool);
-        if (!definition) throw new Error(`No tool ${demo.tool}`);
+      it(`${demo.name}: the example result is what the code returns`, async () => {
+        const definition = byName.get(demo.name);
+        if (!definition) throw new Error(`No tool ${demo.name}`);
         state.nextId = typeof (demo.response as { proposalId?: unknown }).proposalId === "string"
           ? (demo.response as { proposalId: string }).proposalId
           : "";
         const result = await definition.execute(demo.request, runContext(scene));
-        const actual = demo.tool === "skills.load_skill" ? pickSkillFields(result) : result;
-        const expected = demo.tool === "skills.load_skill" ? pickSkillFields(expectedResult(demo, data.scene)) : expectedResult(demo, data.scene);
+        const actual = demo.name === "skills.load_skill" ? pickSkillFields(result) : result;
+        const expected = demo.name === "skills.load_skill" ? pickSkillFields(expectedResult(demo, data.scene)) : expectedResult(demo, data.scene);
         expect(normalize(asJson(actual))).toEqual(normalize(asJson(expected)));
       });
     }
@@ -195,17 +194,17 @@ describe("tool documentation examples", () => {
   });
 
   it("the example proposal could be applied to the example scene", () => {
-    const propose = demos.find((demo) => demo.tool === "editor.propose_commands");
+    const propose = demos.find((demo) => demo.name === "editor.propose_commands");
     const request = propose?.request as { commands: unknown };
     expect(validateAgainstContext(editorCommandListSchema.parse(request.commands), scene)).toEqual([]);
   });
 
   it("the example mesh inspection, measurement and material match the protocol schemas", () => {
-    const inspect = demos.find((demo) => demo.tool === "editor.inspect_mesh")?.response as { inspection: unknown };
+    const inspect = demos.find((demo) => demo.name === "editor.inspect_mesh")?.response as { inspection: unknown };
     expect(meshInspectionSchema.safeParse(inspect.inspection).success).toBe(true);
-    const measure = demos.find((demo) => demo.tool === "editor.measure")?.response as { result: unknown };
+    const measure = demos.find((demo) => demo.name === "editor.measure")?.response as { result: unknown };
     expect(measurementResultSchema.safeParse(measure.result).success).toBe(true);
-    const materials = demos.find((demo) => demo.tool === "editor.inspect_materials")?.response as { materials: unknown[] };
+    const materials = demos.find((demo) => demo.name === "editor.inspect_materials")?.response as { materials: unknown[] };
     for (const material of materials.materials) expect(materialSlotSchema.safeParse(material).success).toBe(true);
   });
 });

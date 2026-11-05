@@ -1,27 +1,56 @@
 # `editor.apply_proposal`
 
-Applies a stored proposal to the editor. This is the only assistant tool that changes the scene. The commands run in order, become part of the project history (so they can be undone), and the result reports each command's outcome and any name the editor gave an object.
+> Applies a stored proposal to the editor. It is the only assistant tool that changes the scene. The commands join the project history, so the user can undo them.
 
 | | |
 | --- | --- |
 | Provider name | `editor__apply_proposal` |
-| Permission | `apply` |
+| Type | Apply (permission `apply`) |
 | Approval | Never. Assistant proposals apply automatically. |
 | Needs the editor | Yes |
+| Example | Live editor output; the test checks its shape |
 | Defined in | `apps/backend/src/modules/tools/editor/editor.tools.ts` |
-| Demo | [Apply tab](demos/index.html#apply) |
+| In the app | Documentation → Assistant tools → Apply |
 
 ## When the assistant uses it
 
-Immediately after a successful `editor.propose_commands` or `modeling.propose_generated` (their results say so with `nextAction`), unless the user asked for a review first. It is the step after [`viewport.capture`](viewport.capture.md) has shown the proposal to be right.
+- Right after a successful propose call, whose nextAction says so.
+- After viewport.capture has shown the proposal to be right.
 
 ## Input
 
-| Field | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `proposalId` | identifier | yes | The id returned by the propose call. |
+| Name | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `proposalId` | identifier | Yes | – | The id returned by the propose call. |
+
+## Outcomes
+
+| Item | Meaning |
+| --- | --- |
+| `status: applied` | The batch ran. revision is the scene revision afterwards. |
+| `status: failed` | The scene was not changed. The message says why. |
+| `rebased: true` | The scene had changed, and a non-strict batch was checked again and ran on the new scene. |
+| `results[].name` | The name an object received. A name already used by a sibling gets a number, so read this value. |
 
 ## Result
+
+| Field | Meaning |
+| --- | --- |
+| `proposalId, status, revision` | Which proposal, whether it applied, and the revision afterwards. |
+| `results[]` | One entry per command: commandId, status, message and name when relevant. |
+| `message, rebased` | Why it failed, if it did, and whether the batch was rebased. |
+
+## Example
+
+Request:
+
+```json
+{
+  "proposalId": "prp_7e2b9c4d1a6f4b08"
+}
+```
+
+Result:
 
 ```json
 {
@@ -31,64 +60,54 @@ Immediately after a successful `editor.propose_commands` or `modeling.propose_ge
   "message": null,
   "rebased": false,
   "results": [
-    { "commandId": "raise", "status": "applied", "message": null },
-    { "commandId": "rename", "status": "applied", "message": null, "name": "Supply crate" }
+    {
+      "commandId": "raise",
+      "status": "applied",
+      "message": null
+    },
+    {
+      "commandId": "rename",
+      "status": "applied",
+      "message": null,
+      "name": "Supply crate"
+    }
   ]
 }
-```
-
-- `status`: `applied` or `failed`.
-- `revision`: the scene revision after the change.
-- `rebased`: `true` when the scene had changed and a non-strict batch was checked again and ran on the new scene.
-- `results[].name`: the name an object received when a command created, renamed or re-parented it. A name already used by a sibling gets a number, so read this rather than assuming the name you asked for.
-
-## Example
-
-Request:
-
-```json
-{ "proposalId": "prp_7e2b9c4d1a6f4b08" }
-```
-
-Result: the JSON above. The crate is now at `[3, 2.5, 0]` and named `Supply crate`, at revision 13.
-
-## Visual example
-
-```text
-prp_7e2b9c4d1a6f4b08    proposed ──► applying ──► applied (revision 12 → 13)
-
-  raise   applied
-  rename  applied   → "Supply crate"
-
-  History: one undo step reverts both commands.
 ```
 
 ## How it fits
 
 ```mermaid
-flowchart TD
-  A[apply_proposal id] --> O{Owned by this run,<br/>still proposed?}
-  O -->|no| E1[error: not found or not waiting]
-  O -->|yes| R{Scene revision = proposal's?}
-  R -->|yes| X[Editor runs the batch]
-  R -->|no, non-strict| RB[Re-check on the new scene]
-  R -->|no, strict| F[failed: regenerate and propose again]
-  RB -->|every command fits| X
-  RB -->|a command does not fit| F
-  X --> H[Saved in project history]
+flowchart LR
+  S0["Ownership and the proposed status are checked"]
+  S1["The revision is compared with the proposal's"]
+  S2["The editor runs the batch in an isolated copy"]
+  S3["The result is saved to history, then shown in the scene"]
+  S0 --> S1
+  S1 --> S2
+  S2 --> S3
 ```
 
-The apply is prepared in a separate copy first, saved with the project, and only then shown in the scene. A failed batch leaves the scene unchanged.
+## Tips
 
-## Limits and errors
+- Read results[].name rather than assuming the name you asked for.
+- Undo is the user's. The assistant cannot undo its own change.
 
-- An unknown or foreign proposal id fails the ownership and lookup checks. It never opens an approval prompt.
-- A strict proposal (one written with `expectedRevision`, or with geometry, material or hierarchy commands) fails when the scene changed. The model should read the scene, calculate again, and propose.
-- A non-strict proposal may be applied after a rebase. Its absolute values win: a transform sets the position, even over a move the user made in between. Relative moves (`scene.move_object`) keep the user's move.
+## Limits
+
+- There is no approval prompt for assistant proposals.
+- A failed batch leaves the scene unchanged.
 - A batch is capped at 200 commands.
-- Undo and redo are the user's; the assistant cannot undo its own change.
+
+## Errors you may see
+
+| Message | Cause |
+| --- | --- |
+| `Scene changed; regenerate and propose again` | A strict proposal (with expectedRevision, or geometry, material or copy commands) saw a changed scene. |
+| `Scene changed since these commands were calculated. Regenerate and propose again.` | A command no longer fits the scene after a rebase. |
 
 ## Related
 
-- [`editor.propose_commands`](editor.propose_commands.md) and [`modeling.propose_generated`](modeling.propose_generated.md), which create the proposal.
-- [`validation.check_scene`](validation.check_scene.md) and [`editor.measure`](editor.measure.md), to check the result afterwards.
+- [`editor.propose_commands`](editor.propose_commands.md)
+- [`modeling.propose_generated`](modeling.propose_generated.md)
+- [`validation.check_scene`](validation.check_scene.md)
