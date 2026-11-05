@@ -140,6 +140,31 @@ describe("bevel shortcut", () => {
     f.key("b", true); f.key("1"); f.key("Escape");
     expect(f.mesh.geometry).toBe(original); expect(f.bevels).not.toHaveBeenCalled(); f.gesture.dispose();
   });
+  it("scrolls to 32 bevel segments and respects the limit", () => {
+    const f = fixture(true, "edge"); f.key("b", true);
+    for (let i = 0; i < 35; i += 1) {
+      const wheel = new Event("wheel", { cancelable: true }); Object.assign(wheel, { deltaY: -1 }); window.dispatchEvent(wheel);
+    }
+    for (const key of ["0", ".", "2"]) f.key(key);
+    f.key("Enter");
+    expect(f.bevels.mock.calls[0]?.[0]).toMatchObject({ segments: 32 });
+    f.gesture.dispose();
+  });
+  it("refuses an out-of-range width instead of confirming a different value", () => {
+    const f = fixture(true, "edge");
+    f.key("b", true); for (const key of ["1", "0", "1"]) f.key(key);
+    expect(f.status).toHaveBeenLastCalledWith(expect.stringContaining("Width must be at most 100"));
+    f.key("Enter"); expect(f.bevels).not.toHaveBeenCalled();
+    f.key("Escape"); f.gesture.dispose();
+  });
+  it("allows pointer adjustment after entering a width", () => {
+    const f = fixture(true, "edge");
+    f.move(400, 400); f.key("b", true); for (const key of ["0", ".", "2"]) f.key(key);
+    f.move(410, 400); f.key("Enter");
+    expect(f.bevels).toHaveBeenCalledOnce();
+    expect(f.bevels.mock.calls[0]?.[0].width).toBeGreaterThan(0.2);
+    f.gesture.dispose();
+  });
 });
 
 describe("inset shortcut", () => {

@@ -1,5 +1,5 @@
 import { Vector2, Vector3 } from "three";
-import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
+import { MAX_MESH_OUTPUT_TRIANGLES, MAX_SELECTED_BEVEL_SEGMENTS } from "@movynta/editor-protocol";
 import { assertManifold, channels, edgeKey, faceNormal, point, topology, type PolygonMesh, type SurfaceChannels, type Topology } from "./meshTopology";
 import { blend, mean, type Weights } from "./meshWeights";
 import type { BevelProfile } from "./meshModifiers";
@@ -21,27 +21,31 @@ function inside(p: Vector2, polygon: readonly Vector2[]): boolean {
   return result;
 }
 
-interface BevelInput { graph: Topology; data: SurfaceChannels; normals: Vector3[] }
+interface BevelInput { graph: Topology; data: SurfaceChannels; normals: Vector3[]; positions: Weights[]; corners: Weights[][] }
 
 function prepareInput(mesh: PolygonMesh): BevelInput {
   const graph = topology(mesh); assertManifold(mesh, graph);
-  return { graph, data: channels(mesh), normals: mesh.faces.map((face) => faceNormal(mesh, face)) };
+  const data = channels(mesh);
+  return { graph, data, normals: mesh.faces.map((face) => faceNormal(mesh, face)),
+    positions: data.positions.map((weights) => blend([[weights, 1]])),
+    corners: data.corners.map((face) => face.map((weights) => blend([[weights, 1]]))) };
 }
 
 /** Reuse immutable input topology and attribute channels across previews of the same cage. */
 export function prepareBevelPreview(mesh: PolygonMesh, selectedEdges: readonly string[]): (width: number, segments: number) => PolygonMesh {
   const input = prepareInput(mesh);
   const ids = [...selectedEdges];
-  return (width, segments) => bevelSurfaceWithInput(mesh, width, segments, "circular", 0, ids, input);
+  return (width, segments) => bevelSurfaceWithInput(mesh, width, segments, "circular", 0, ids, input, true);
 }
 
 /** Face offsets, edge strips and local vertex patches. Open boundaries remain open. */
-export function bevelSurface(mesh: PolygonMesh, width: number, segments: number, profile: BevelProfile = "round", angle = 0, selectedEdges?: readonly string[]): PolygonMesh {
-  return bevelSurfaceWithInput(mesh, width, segments, profile, angle, selectedEdges, prepareInput(mesh));
+export function bevelSurface(mesh: PolygonMesh, width: number, segments: number, profile: BevelProfile = "round", angle = 0, selectedEdges?: readonly string[], trimEndFaces = false): PolygonMesh {
+  return bevelSurfaceWithInput(mesh, width, segments, profile, angle, selectedEdges, prepareInput(mesh), trimEndFaces);
 }
 
-function bevelSurfaceWithInput(mesh: PolygonMesh, width: number, segments: number, profile: BevelProfile, angle: number, selectedEdges: readonly string[] | undefined, input: BevelInput): PolygonMesh {
-  if (!Number.isFinite(width) || width <= 0 || !Number.isInteger(segments) || segments < 1 || segments > 8) throw new Error("Bevel needs positive width and 1–8 segments");
+function bevelSurfaceWithInput(mesh: PolygonMesh, width: number, segments: number, profile: BevelProfile, angle: number, selectedEdges: readonly string[] | undefined, input: BevelInput, trimEndFaces: boolean): PolygonMesh {
+  const maxSegments = selectedEdges === undefined ? 8 : MAX_SELECTED_BEVEL_SEGMENTS;
+  if (!Number.isFinite(width) || width <= 0 || !Number.isInteger(segments) || segments < 1 || segments > maxSegments) throw new Error(`Bevel needs positive width and 1–${maxSegments} segments`);
   if (profile !== "chamfer" && profile !== "round" && profile !== "circular") throw new Error("Unsupported bevel profile");
   if (!Number.isFinite(angle) || angle < 0 || angle > 180) throw new Error("Bevel angle must be between 0 and 180 degrees");
   const { graph, data, normals } = input;
@@ -65,6 +69,11 @@ function bevelSurfaceWithInput(mesh: PolygonMesh, width: number, segments: numbe
   }
   if (selected && active.size !== selected.size) throw new Error("Bevel does not support coplanar edges");
   if (active.size === 0) return mesh;
+  const activeDegree = new Map<number, number>();
+  if (trimEndFaces) for (const key of active) {
+    const edge = graph.edges.get(key)?.[0];
+    if (edge) for (const vertex of [edge.from, edge.to]) activeDegree.set(vertex, (activeDegree.get(vertex) ?? 0) + 1);
+  }
   if (active.size * segments * 4 + mesh.faces.reduce((sum, face) => sum + face.length, 0) * 2 > MAX_MESH_OUTPUT_TRIANGLES) throw new Error("Bevel would exceed the geometry limit");
   const positions: Vector3[] = []; const positionWeights: Weights[] = []; const origins: number[] = [];
   const faces: number[][] = []; const corners: Weights[][] = []; const materials: number[] = [];
@@ -80,25 +89,36 @@ function bevelSurfaceWithInput(mesh: PolygonMesh, width: number, segments: numbe
   };
   mesh.faces.forEach((face, faceId) => {
     const normal = normals[faceId]; if (!normal || normal.lengthSq() === 0) throw new Error("Bevel requires nondegenerate faces");
-    const axis = point(mesh, face[1]).clone().sub(point(mesh, face[0])).normalize();
-    const second = normal.clone().cross(axis).normalize(); const origin = point(mesh, face[0]);
-    const project = (p: Vector3): Vector2 => { const v = p.clone().sub(origin); return new Vector2(v.dot(axis), v.dot(second)); };
-    const polygon = face.map((id) => project(point(mesh, id)));
+    let projection: { project: (p: Vector3) => Vector2; polygon: Vector2[] } | undefined;
     const inset: number[] = []; const samples: Weights[] = [];
     face.forEach((vertex, i) => {
       const previous = face[(i + face.length - 1) % face.length]; const next = face[(i + 1) % face.length];
       if (previous === undefined || next === undefined) throw new Error("Invalid face");
-      const p = point(mesh, vertex); const incoming = p.clone().sub(point(mesh, previous)).normalize();
+      const p = point(mesh, vertex);
+      const wa = active.has(edgeKey(previous, vertex)) ? width : 0; const wb = active.has(edgeKey(vertex, next)) ? width : 0;
+      if (wa === 0 && wb === 0) {
+        const weights = input.positions[vertex]; const sample = input.corners[faceId]?.[i];
+        if (!weights || !sample) throw new Error("Missing mesh attributes");
+        const id = addPoint(p.clone(), weights, vertex); inset.push(id); samples.push(sample);
+        surfaceSamples.set(id, sample); lookup.set(`${faceId}_${vertex}`, id); sampleLookup.set(`${faceId}_${vertex}`, sample);
+        return;
+      }
+      const incoming = p.clone().sub(point(mesh, previous)).normalize();
       const outgoing = point(mesh, next).clone().sub(p).normalize();
       const a = normal.clone().cross(incoming); const b = normal.clone().cross(outgoing); const dot = a.dot(b);
-      const wa = active.has(edgeKey(previous, vertex)) ? width : 0; const wb = active.has(edgeKey(vertex, next)) ? width : 0;
       const determinant = 1 - dot * dot;
       const moved = p.clone();
       if (determinant < 1e-10) {
         if (Math.abs(wa - wb) > 1e-8) throw new Error("Bevel cannot stop partway along a straight edge; select the full straight run");
         moved.add(a.multiplyScalar(wa));
       } else moved.add(a.multiplyScalar((wa - dot * wb) / determinant)).add(b.multiplyScalar((wb - dot * wa) / determinant));
-      if (!inside(project(moved), polygon)) throw new Error("Bevel width overlaps a face; reduce width");
+      if (!projection) {
+        const axis = point(mesh, face[1]).clone().sub(point(mesh, face[0])).normalize();
+        const second = normal.clone().cross(axis).normalize(); const origin = point(mesh, face[0]);
+        const project = (value: Vector3): Vector2 => { const v = value.clone().sub(origin); return new Vector2(v.dot(axis), v.dot(second)); };
+        projection = { project, polygon: face.map((id) => project(point(mesh, id))) };
+      }
+      if (!inside(projection.project(moved), projection.polygon)) throw new Error("Bevel width overlaps a face; reduce width");
       let other = (i + 2) % face.length; let area = 0;
       face.forEach((id, corner) => {
         const value = point(mesh, next).clone().sub(p).cross(point(mesh, id).clone().sub(p)).lengthSq();
@@ -215,6 +235,41 @@ function bevelSurfaceWithInput(mesh: PolygonMesh, width: number, segments: numbe
     const loop: number[] = []; let current: number | undefined = start;
     while (current !== undefined && boundaries.has(current)) { loop.push(current); const next: number | undefined = boundaries.get(current); boundaries.delete(current); current = next; }
     if (current === start && loop.length >= 3 && loop.every((id) => origins[id] === origins[start])) {
+      // An edge ending on a planar face used to add a cap over the existing
+      // face. Replace that face's sharp corner with the profile instead of overlapping it.
+      let trimmed = false;
+      if (trimEndFaces && activeDegree.get(origins[start] ?? -1) === 1) {
+        const original = point(mesh, origins[start]);
+        for (let faceId = 0; faceId < mesh.faces.length && !trimmed; faceId += 1) {
+          const face = mapped[faceId]; const samples = corners[faceId]; const normal = normals[faceId];
+          if (!face || !samples || !normal) continue;
+          const corner = face.findIndex((id) => positions[id]?.distanceToSquared(original) === 0 && loop.includes(id));
+          if (corner < 0 || loop.some((id) => Math.abs((positions[id]?.clone().sub(original).dot(normal) ?? Infinity)) > 1e-7)) continue;
+          const before = face[(corner + face.length - 1) % face.length]; const after = face[(corner + 1) % face.length];
+          const vertex = face[corner];
+          if (before === undefined || after === undefined || vertex === undefined) continue;
+          const vertexAt = loop.indexOf(vertex); const beforeAt = loop.indexOf(before); const afterAt = loop.indexOf(after);
+          if (vertexAt < 0 || beforeAt < 0 || afterAt < 0 || ![1, loop.length - 1].includes((beforeAt - vertexAt + loop.length) % loop.length) || ![1, loop.length - 1].includes((afterAt - vertexAt + loop.length) % loop.length)) continue;
+          const direction = (beforeAt + 1) % loop.length === vertexAt ? -1 : 1;
+          const arc: number[] = []; let at = beforeAt;
+          while (at !== afterAt && arc.length <= loop.length) { arc.push(loop[at] ?? -1); at = (at + direction + loop.length) % loop.length; }
+          arc.push(after);
+          if (arc.includes(vertex) || arc.some((id) => id < 0)) continue;
+          const rotatedFace = [...face.slice((corner + face.length - 1) % face.length), ...face.slice(0, (corner + face.length - 1) % face.length)];
+          const rotatedSamples = [...samples.slice((corner + face.length - 1) % face.length), ...samples.slice(0, (corner + face.length - 1) % face.length)];
+          const sa = rotatedSamples[0]; const sv = rotatedSamples[1]; const sb = rotatedSamples[2];
+          const pa = positions[before]; const pb = positions[after];
+          if (!sa || !sv || !sb || !pa || !pb) continue;
+          const arcSamples = arc.slice(1, -1).map((id) => {
+            const [u, v] = coefficients(original, pa, pb, point(result, id));
+            return blend([[sv, 1 - u - v], [sa, u], [sb, v]]);
+          });
+          mapped[faceId] = [before, ...arc.slice(1, -1), after, ...rotatedFace.slice(3)];
+          corners[faceId] = [sa, ...arcSamples, sb, ...rotatedSamples.slice(3)];
+          trimmed = true;
+        }
+      }
+      if (trimmed) continue;
       const samples = loop.map((id) => surfaceSamples.get(id) ?? positionWeights[id] ?? new Map());
       const material = boundaryMaterials.get(start) ?? 0;
       if (loop.length === 3) { addFace(loop, samples, material); result.faces.push(loop); }

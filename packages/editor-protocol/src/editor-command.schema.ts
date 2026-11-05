@@ -5,6 +5,8 @@ import { bevelProfileSchema, booleanOperandFields, extrusionShapeFields, modifie
 
 /** Upper bound for commands in one proposal. */
 export const MAX_COMMANDS_PER_PROPOSAL = 200;
+/** Segment limit for interactive and assistant-selected edge bevels. */
+export const MAX_SELECTED_BEVEL_SEGMENTS = 32;
 
 export const identifierSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, "Identifiers use letters, digits, '_' or '-'");
 // A fixed-length array rather than z.tuple: tuples become `items: [...]` in JSON Schema, which model
@@ -108,8 +110,9 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
     meshPath: meshPathSchema.default([]),
     ids: z.array(z.string().regex(/^\d{1,10}_\d{1,10}$/)).min(1).max(4096),
     width: z.number().finite().positive().max(100),
-    segments: z.number().int().min(1).max(8),
+    segments: z.number().int().min(1).max(MAX_SELECTED_BEVEL_SEGMENTS),
     profile: bevelProfileSchema,
+    trimEndFaces: z.boolean().optional(),
   }).strict().refine(({ ids }) => new Set(ids).size === ids.length && ids.every((id) => {
     const [a, b] = id.split("_"); return Number(a) < Number(b);
   }), "Use distinct canonical edge IDs"),

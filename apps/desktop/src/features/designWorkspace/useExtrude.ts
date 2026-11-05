@@ -60,7 +60,7 @@ export function useExtrude(
         dispatch(setComponentError(""));
         saves.run(async () => { try { await saveCageEdit(scene, {
           ...commit,
-          edit: { type: "geometry.bevel_edges", ids: commit.ids, width: commit.width, segments: commit.segments, profile: "circular" },
+          edit: { type: "geometry.bevel_edges", ids: commit.ids, width: commit.width, segments: commit.segments, profile: "circular", trimEndFaces: true },
         }, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
       },
       true,

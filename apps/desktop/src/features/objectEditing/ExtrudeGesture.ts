@@ -10,6 +10,7 @@ import {
   type Material,
   type Mesh,
 } from "three";
+import { MAX_SELECTED_BEVEL_SEGMENTS } from "@movynta/editor-protocol";
 import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
 import { meshAtPath, modifierStack } from "@/features/meshGeometry";
@@ -380,7 +381,9 @@ export class ExtrudeGesture {
     const updateBevel = (session: Session) => {
       const bevel = session.bevel;
       if (!bevel) return;
-      session.blocked = bevel.numeric !== "" && !Number.isFinite(Number(bevel.numeric)) ? "Finish entering a number" : null;
+      const entered = Number(bevel.numeric);
+      session.blocked = bevel.numeric !== "" && !Number.isFinite(entered) ? "Finish entering a number"
+        : bevel.numeric !== "" && entered > 100 ? "Width must be at most 100" : null;
       if (!session.blocked && bevel.width === 0) { restore(); session.selection = null; }
       else if (!session.blocked) {
         try {
@@ -683,7 +686,7 @@ export class ExtrudeGesture {
           if (/^\d*(\.\d*)?$/.test(value) && value.length <= 16) {
             session.bevel.numeric = value;
             if (value === "") session.bevel.width = 0;
-            else if (Number.isFinite(Number(value))) session.bevel.width = Math.min(100, Number(value));
+            else if (Number.isFinite(Number(value)) && Number(value) <= 100) session.bevel.width = Number(value);
           }
           updateBevel(session); return;
         }
@@ -775,12 +778,14 @@ export class ExtrudeGesture {
         return;
       }
       if (session.bevel) {
-        if (previous && session.bevel.numeric === "") {
+        if (previous) {
           const rect = dom.getBoundingClientRect();
           if (!rect.width || !rect.height) return;
           const delta = this.pointer.clone().sub(previous);
           const worldPixel = grabWorldDelta(viewport.camera, rect, session.origin, new Vector2(), new Vector2(1, 0), null);
           const amount = (delta.x - delta.y) * toLocalOffset(session.mesh, worldPixel).length() * (event.shiftKey ? 0.1 : 1);
+          if (amount === 0) return;
+          session.bevel.numeric = "";
           session.bevel.width = Math.min(100, Math.max(0, session.bevel.width + amount));
           pendingMove = true;
         }
@@ -827,7 +832,7 @@ export class ExtrudeGesture {
       if (!session?.bevel) return;
       if (typeof Element !== "undefined" && event.target instanceof Element && event.target !== dom) return;
       event.preventDefault(); event.stopImmediatePropagation(); flush();
-      session.bevel.segments = Math.max(1, Math.min(8, session.bevel.segments + (event.deltaY < 0 ? 1 : -1)));
+      session.bevel.segments = Math.max(1, Math.min(MAX_SELECTED_BEVEL_SEGMENTS, session.bevel.segments + (event.deltaY < 0 ? 1 : -1)));
       updateBevel(session);
     };
     window.addEventListener("keydown", keydown, true);

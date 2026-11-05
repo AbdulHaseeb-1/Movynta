@@ -59,7 +59,7 @@ function isCageEditCommand(command: Command): command is CageEditCommand {
 }
 /** Rewrites the base cage for one command: extrude moves a region, subdivide-faces splits only the selected faces. */
 function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, source: BufferGeometry): ExtrudeResult {
-  if (command.type === "geometry.bevel_edges") return { mesh: bevelSurface(cage, command.width, command.segments, command.profile, 0, command.ids), selection: [], walls: [] };
+  if (command.type === "geometry.bevel_edges") return { mesh: bevelSurface(cage, command.width, command.segments, command.profile, 0, command.ids, command.trimEndFaces === true), selection: [], walls: [] };
   if (command.type === "material.assign") {
     if (!materialSlots(mesh)[command.slot]) throw new Error("Material slot does not exist; inspect materials first");
     return assignMaterial(cage, command.ids, command.slot);

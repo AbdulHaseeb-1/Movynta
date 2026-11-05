@@ -44,8 +44,10 @@ describe("selected edge bevel", () => {
     const disconnected = creases.find((id) => id.split("_").every((vertex) => !vertices.includes(vertex)));
     if (!connected || !disconnected) throw new Error("Missing crease pair");
     for (const other of [connected, disconnected]) {
-      const result = bevelSurface(mesh, 0.1, 3, "circular", 0, [first, other]);
-      expect(() => assertManifold(result, topology(result), true)).not.toThrow();
+      for (const trim of [false, true]) {
+        const result = bevelSurface(mesh, 0.1, 3, "circular", 0, [first, other], trim);
+        expect(() => assertManifold(result, topology(result), true)).not.toThrow();
+      }
     }
   });
 
@@ -79,13 +81,37 @@ describe("selected edge bevel", () => {
     for (let i = 0; i < samples; i += 1) bevelSurface(mesh, 0.001, 3, "circular", 0, [edge]);
     const directMeanMs = (performance.now() - start) / samples;
     const preview = prepareBevelPreview(mesh, [edge]);
-    const expected = bevelSurface(mesh, 0.001, 3, "circular", 0, [edge]);
+    const expected = bevelSurface(mesh, 0.001, 3, "circular", 0, [edge], true);
     expect(preview(0.001, 3)).toEqual(expected);
-    expect(preview(0.002, 4)).toEqual(bevelSurface(mesh, 0.002, 4, "circular", 0, [edge]));
+    expect(preview(0.002, 4)).toEqual(bevelSurface(mesh, 0.002, 4, "circular", 0, [edge], true));
     const previewStart = performance.now();
     for (let i = 0; i < samples; i += 1) preview(0.001, 3);
+    const previewMeanMs = (performance.now() - previewStart) / samples;
+    const smoothStart = performance.now();
+    for (let i = 0; i < samples; i += 1) preview(0.001, 32);
     // eslint-disable-next-line no-console -- Records selected-edge preview geometry timing.
-    console.info(JSON.stringify({ faces: mesh.faces.length, vertices: mesh.positions.length, samples, directMeanMs, previewMeanMs: (performance.now() - previewStart) / samples }));
+    console.info(JSON.stringify({ faces: mesh.faces.length, vertices: mesh.positions.length, samples, directMeanMs, previewMeanMs, smoothPreviewMeanMs: (performance.now() - smoothStart) / samples }));
+  });
+
+  it("trims the planar end faces instead of overlaying them with bevel caps", () => {
+    const mesh = readTopology(new BoxGeometry(2, 2, 2));
+    const edge = [...topology(mesh).edges].find(([, sides]) => {
+      const a = sides[0] && mesh.faces[sides[0].face]; const b = sides[1] && mesh.faces[sides[1].face];
+      return a && b && faceNormal(mesh, a).dot(faceNormal(mesh, b)) < 0.5;
+    });
+    if (!edge) throw new Error("Missing cube edge");
+    for (const segments of [1, 3, 8, 32]) {
+      const result = bevelSurface(mesh, 0.2, segments, "circular", 0, [edge[0]], true);
+      expect(() => assertManifold(result, topology(result), true)).not.toThrow();
+      for (const vertex of edge[0].split("_").map(Number)) {
+        const original = mesh.positions[vertex];
+        if (!original) throw new Error("Missing endpoint");
+        expect(result.positions.some((point) => point.distanceToSquared(original) < 1e-20)).toBe(false);
+      }
+      expect(result.faces).toHaveLength(mesh.faces.length + segments);
+    }
+    // Legacy histories intentionally retain their original topology.
+    expect(bevelSurface(mesh, 0.2, 3, "circular", 0, [edge[0]]).faces.length).toBeGreaterThan(mesh.faces.length + 3);
   });
 
   it("replays a selected-edge bevel from saved commands", async () => {
@@ -95,7 +121,7 @@ describe("selected edge bevel", () => {
     const inspection = scene.context({ objectId: "box", meshPath: [], offset: 0, limit: 100 }).meshInspection;
     const edge = inspection?.edges?.find((item) => item.faces.length === 2);
     if (!edge) throw new Error("Missing cube edge");
-    const bevel = { commandId: "bevel", type: "geometry.bevel_edges", objectId: "box", ids: [edge.vertices.slice().sort((a, b) => a - b).join("_")], width: 0.1, segments: 3, profile: "circular" };
+    const bevel = { commandId: "bevel", type: "geometry.bevel_edges", objectId: "box", ids: [edge.vertices.slice().sort((a, b) => a - b).join("_")], width: 0.1, segments: 32, profile: "circular", trimEndFaces: true };
     expect(scene.execute("bevel", 1, [bevel]).status).toBe("applied");
     const replay = new EditorScene(new Scene(), "project");
     await replay.restore([{ kind: "commands", proposalId: "create", commands: [create] }, { kind: "commands", proposalId: "bevel", commands: [bevel] }], () => Promise.reject(new Error("Unexpected import")));

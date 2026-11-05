@@ -153,7 +153,7 @@ export class ProjectScenesService {
         .prepare("SELECT COALESCE(SUM(size), 0) AS used FROM project_assets WHERE project_id = ?")
         .get(projectId);
       if ((used ? integerColumn(used, "used") : 0) + asset.content.byteLength > MAX_PROJECT_ASSET_BYTES) {
-        throw new ConflictError("This project has reached its limit for imported models. Delete some or start a new project.");
+        throw new ConflictError("This project has reached its limit for imported models, including models needed by undo history. Undo an import and make a new edit, or start a new project.");
       }
       const taken = db
         .prepare("SELECT 1 AS found FROM project_assets WHERE project_id = ? AND object_id = ? AND history_state = 0")
@@ -232,6 +232,9 @@ export class ProjectScenesService {
     for (const table of ["project_scene_batches", "project_assets"]) {
       db.prepare(`UPDATE ${table} SET history_state = 2 WHERE project_id = ? AND history_state = 1`).run(projectId);
     }
+    // Abandoned imports can no longer be replayed or redone. Reclaim their blobs in the
+    // same transaction as the new edit, so a failed edit still preserves redo history.
+    db.prepare("DELETE FROM project_assets WHERE project_id = ? AND history_state = 2").run(projectId);
     db.prepare("UPDATE projects SET scene_version = scene_version + 1 WHERE id = ?").run(projectId);
   }
 

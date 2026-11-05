@@ -176,8 +176,11 @@ describe("editor command schema", () => {
   it("validates selected-edge bevel parameters and canonical IDs", () => {
     const bevel = { commandId: "b", type: "geometry.bevel_edges", objectId: "a", ids: ["0_1"], width: 0.1, segments: 3, profile: "circular" };
     expect(editorCommandListSchema.safeParse([bevel]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...bevel, trimEndFaces: true }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...bevel, trimEndFaces: "yes" }]).success).toBe(false);
     for (const ids of [["1_0"], ["0_1", "0_1"], []]) expect(editorCommandListSchema.safeParse([{ ...bevel, ids }]).success).toBe(false);
-    expect(editorCommandListSchema.safeParse([{ ...bevel, segments: 9 }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...bevel, segments: 32 }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...bevel, segments: 33 }]).success).toBe(false);
   });
   it("accepts a valid mixed batch", () => {
     const parsed = editorCommandListSchema.safeParse([

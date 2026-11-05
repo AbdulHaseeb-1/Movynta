@@ -14,7 +14,7 @@ export type CageEdit =
   | { type: "geometry.extrude"; kind: ExtrudeKind; ids: string[]; offset?: [number, number, number]; normalDistance?: number; normalMode?: "vertex" | "individual"; closeOpenSurface?: true; capScale?: number; twistDegrees?: number; capRotationDegrees?: number[] }
   | { type: "geometry.transform_faces"; ids: string[]; space: "world"; transform: FaceTransform }
   | { type: "geometry.subdivide_faces"; ids: string[] }
-  | { type: "geometry.bevel_edges"; ids: string[]; width: number; segments: number; profile: "chamfer" | "round" | "circular" }
+  | { type: "geometry.bevel_edges"; ids: string[]; width: number; segments: number; profile: "chamfer" | "round" | "circular"; trimEndFaces?: boolean }
   | ({ type: "geometry.inset_faces"; ids: string[] } & InsetOptions);
 
 /** One previewed or chosen component edit. `selection` is what stays selected once the edit has applied. */

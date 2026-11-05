@@ -1,4 +1,5 @@
 /* eslint-disable jsx-a11y/prefer-tag-over-role -- The visible label is a keyboard-accessible scrub control alongside the editable input. */
+import { useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useNumberScrub } from "./useNumberScrub";
@@ -27,6 +28,7 @@ export function ScrubNumberInput({
   disabled,
   onChange,
 }: ScrubNumberInputProps) {
+  const focusValue = useRef<number | null>(null);
   const scrub = useNumberScrub({
     value,
     min,
@@ -80,10 +82,14 @@ export function ScrubNumberInput({
         value={Number.isFinite(value) ? value : ""}
         disabled={disabled}
         className="h-6 min-w-0 flex-1 px-1.5 text-xs"
+        onFocus={() => { focusValue.current = value; }}
+        onBlur={() => { focusValue.current = null; }}
         onChange={(event) => onChange(event.target.valueAsNumber)}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             scrub.cancel();
+            if (focusValue.current !== null) onChange(focusValue.current);
+            event.currentTarget.blur();
             event.stopPropagation();
           }
         }}

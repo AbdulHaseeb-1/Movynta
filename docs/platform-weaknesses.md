@@ -10,7 +10,7 @@ This list records current limitations and should change as the platform changes.
 
 ## Other current gaps
 
-- Surface editing now supports 1–8 bevel segments on manifold concave/open meshes, editable modifier stacks, textures, multiple materials, skinning and morph targets. Remaining limits are overlapping bevel widths, unsupported non-manifold/degenerate topology, bounded refinement, and no automatic UV unwrap for newly generated bevel faces. Modifier editing is available to the assistant and through the manual Modifiers panel for the active mesh part, with saved undo/redo.
+- Surface editing supports 1–8 bevel modifier segments and 1–32 selected-edge bevel segments on supported manifold meshes, editable modifier stacks, textures, multiple materials, skinning and morph targets. Remaining limits are overlapping bevel widths, unsupported non-manifold/degenerate topology, bounded refinement, and no automatic UV unwrap for newly generated bevel faces. Modifier editing is available to the assistant and through the manual Modifiers panel for the active mesh part, with saved undo/redo.
 - General mesh creation, materials, rigging, animation and a complete export workflow remain limited or unavailable.
 - Automated provider tests use mocked inference; actual model behavior and provider schema compatibility still need live evaluation.
 - The backend runs separately from the desktop; credentials and authentication depend on Windows DPAPI. Active runs do not resume after restart.

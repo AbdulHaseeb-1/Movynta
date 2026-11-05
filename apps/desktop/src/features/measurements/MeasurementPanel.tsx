@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, Circle, CornerDownRight, Eye, EyeOff, FolderOpen, Grid2x2, LocateFixed, Ruler, Settings2, Trash2, TriangleRight, X } from "lucide-react";
 import { lengthUnits, metersPerUnit, savedMeasurementsSchema, type MeasurementAnnotation, type MeasurementRequest, type MeasurementResult, type ProjectMeasurements } from "@movynta/editor-protocol";
 import type { EditorScene } from "@/features/assistant";
@@ -6,7 +6,7 @@ import type { Viewport } from "@/features/viewport3d";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { backendRequest, errorMessage } from "@/lib/backend";
+import { BackendResponseError, backendRequest, errorMessage } from "@/lib/backend";
 import { MeasurementOverlay } from "./MeasurementOverlay";
 import { measureScene } from "@/features/assistant/measureScene";
 import { useAppSelector } from "@/app/hooks";
@@ -27,6 +27,9 @@ export function MeasurementPanel({ scene, viewport, projectId, disabled, onPicki
   const [saved, setSaved] = useState<{ version: number; value: ProjectMeasurements } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [reloadAvailable, setReloadAvailable] = useState(false);
+  const loadController = useRef<AbortController | null>(null);
   const [selection, setSelection] = useState<readonly string[]>([]);
   const [space, setSpace] = useState<"world" | "local">("world");
   const [tool, setTool] = useState<"distance" | "angle" | null>(null);
@@ -60,25 +63,39 @@ export function MeasurementPanel({ scene, viewport, projectId, disabled, onPicki
     sync();
     return scene.onChange(sync);
   }, [scene, space, disabled]);
-  useEffect(() => {
-    let live = true;
-    scene.setMeasurementUnits(null);
-    if (projectId) {
-      void backendRequest(`/projects/${projectId}/measurements`, savedMeasurementsSchema).then((loaded) => {
-        if (!live) return;
-        setSaved(loaded);
-        scene.setMeasurementUnits(loaded.value.units, loaded.value.annotations);
-        setCalibration(String(loaded.value.units?.metersPerSceneUnit ?? 1));
-      }).catch((failure: unknown) => { if (live) setError(errorMessage(failure)); });
+  const loadMeasurements = useCallback(async () => {
+    if (!projectId) return;
+    loadController.current?.abort();
+    const controller = new AbortController();
+    loadController.current = controller;
+    setLoading(true);
+    setReloadAvailable(false);
+    setError("");
+    try {
+      const loaded = await backendRequest(`/projects/${projectId}/measurements`, savedMeasurementsSchema, "GET", undefined, AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]));
+      if (controller.signal.aborted) return;
+      setSaved(loaded);
+      scene.setMeasurementUnits(loaded.value.units, loaded.value.annotations);
+      setCalibration(String(loaded.value.units?.metersPerSceneUnit ?? 1));
+    } catch (failure) {
+      if (!controller.signal.aborted) { setError(errorMessage(failure)); setReloadAvailable(true); }
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
     }
-    return () => { live = false; };
   }, [projectId, scene]);
+  useEffect(() => {
+    scene.setMeasurementUnits(null);
+    // Loading is tied to the active project and must also run when that project first appears.
+    // eslint-disable-next-line react/set-state-in-effect
+    void loadMeasurements();
+    return () => { loadController.current?.abort(); };
+  }, [scene, loadMeasurements]);
   const units = saved?.value.units ?? null;
   const length = useCallback((value: number) => units
     ? `${numberText(value * units.metersPerSceneUnit / metersPerUnit[units.display])} ${units.display}`
     : `${numberText(value)} units`, [units]);
   async function save(value: ProjectMeasurements, clearDraft = false) {
-    if (!projectId || !saved || busy || disabled) return;
+    if (!projectId || !saved || busy || loading || reloadAvailable || disabled) return;
     setBusy(true); setError("");
     try {
       const next = await backendRequest(`/projects/${projectId}/measurements`, savedMeasurementsSchema, "PATCH", { expectedVersion: saved.version, value });
@@ -86,7 +103,10 @@ export function MeasurementPanel({ scene, viewport, projectId, disabled, onPicki
       scene.setMeasurementUnits(next.value.units, next.value.annotations);
       setCalibration(String(next.value.units?.metersPerSceneUnit ?? 1));
       if (clearDraft) setDraft(null);
-    } catch (failure) { setError(errorMessage(failure)); }
+    } catch (failure) {
+      setError(errorMessage(failure));
+      if (failure instanceof BackendResponseError && failure.status === 409) setReloadAvailable(true);
+    }
     finally { setBusy(false); }
   }
   useEffect(() => {
@@ -183,7 +203,7 @@ export function MeasurementPanel({ scene, viewport, projectId, disabled, onPicki
     );
     return () => overlay.dispose();
   }, [viewport, tool, disabled, points, hover, annotationValue]);
-  const locked = disabled || busy || !saved;
+  const locked = disabled || busy || loading || reloadAvailable || !saved;
   function start(next: "distance" | "angle") {
     scene.measure({ kind: "distance", from: [0, 0, 0], to: [0, 0, 0] });
     setTool((current) => current === next ? null : next);
@@ -307,7 +327,7 @@ export function MeasurementPanel({ scene, viewport, projectId, disabled, onPicki
                 <span className="shrink-0 font-mono text-[11px] tabular-nums">{annotationValue(annotation)}</span>
                 <Button size="icon-sm" className="size-5 shrink-0 text-muted-foreground opacity-40 group-hover:opacity-100 focus-visible:opacity-100" variant="ghost" disabled={locked} aria-label={"Delete " + annotation.name} onClick={() => { if (saved) void save({ ...saved.value, annotations: saved.value.annotations.filter((item) => item.id !== annotation.id) }); }}><Trash2 className="size-3" /></Button>
               </div>
-            )) : <div className="flex items-start gap-2 rounded-lg border border-dashed border-border px-2.5 py-3 text-muted-foreground"><FolderOpen className="mt-0.5 size-3.5 shrink-0" /><p className="text-[11px] leading-4">{saved ? "Save a distance or angle to keep it in this project." : projectId ? "Loading project measurements…" : "Open a project to keep measurements."}</p></div>}
+            )) : <div className="flex items-start gap-2 rounded-lg border border-dashed border-border px-2.5 py-3 text-muted-foreground"><FolderOpen className="mt-0.5 size-3.5 shrink-0" /><p className="text-[11px] leading-4">{saved ? "Save a distance or angle to keep it in this project." : reloadAvailable ? "Measurements could not be loaded." : projectId ? "Loading project measurements…" : "Open a project to keep measurements."}</p></div>}
             {Boolean(saved?.value.annotations.length) && <p className="mt-2 px-1 text-[10px] text-muted-foreground">Annotations mark fixed points in the scene.</p>}
           </div>
         </CollapsibleContent>
@@ -332,6 +352,7 @@ export function MeasurementPanel({ scene, viewport, projectId, disabled, onPicki
       </Collapsible>
       {busy && <output className="block border-t border-border px-3 py-2 text-[10px] text-muted-foreground">Saving measurement settings…</output>}
       {error && <p role="alert" className="border-t border-border px-3 py-2 text-[11px] leading-4 text-destructive">{error}</p>}
+      {reloadAvailable && <div className="px-3 pb-2"><Button size="sm" variant="outline" disabled={loading || busy} onClick={() => void loadMeasurements()}>Reload measurements</Button><p className="mt-1 text-[10px] text-muted-foreground">Review the latest settings before saving again. A new measurement draft will be kept.</p></div>}
     </section>
   );
 }
