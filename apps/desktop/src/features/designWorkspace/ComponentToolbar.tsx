@@ -1,4 +1,4 @@
-import { BoxSelect, Grid2x2, Move, SquareDashed } from "lucide-react";
+import { BoxSelect, Grid2x2, Move, SquareDashed, Blend } from "lucide-react";
 import { useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { EditorScene } from "@/features/assistant";
@@ -15,14 +15,16 @@ import { errorMessage, type SerialQueue } from "@/lib";
 import { setComponentError, setComponentKind } from "./workspaceSlice";
 import { MeshSelectionIcon } from "./MeshSelectionIcon";
 import { subdivideSelectedFaces } from "./subdivideSelection";
+import { MeshCleanupMenu } from "./MeshCleanupMenu";
 
 interface ComponentToolbarProps {
   scene: EditorScene | null;
   saves: SerialQueue;
   start: (tool: FaceTool) => void;
+  disabled: boolean;
 }
 
-export function ComponentToolbar({ scene, saves, start }: ComponentToolbarProps) {
+export function ComponentToolbar({ scene, saves, start, disabled }: ComponentToolbarProps) {
   const dispatch = useAppDispatch();
   const [extrudeTooltip, setExtrudeTooltip] = useState(false);
   const suppressExtrudeTooltip = useRef(false);
@@ -45,6 +47,7 @@ export function ComponentToolbar({ scene, saves, start }: ComponentToolbarProps)
     <div className="relative">
       <TooltipProvider>
         <fieldset
+          disabled={disabled}
           aria-label="Mesh selection"
           className="flex h-8 items-center gap-0.5 rounded-md border border-border bg-card p-0.5 shadow-xl"
         >
@@ -123,6 +126,16 @@ export function ComponentToolbar({ scene, saves, start }: ComponentToolbarProps)
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
+              <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4"
+                aria-label="Bevel selected edges" disabled={!selected || componentKind !== "edge"}
+                onClick={() => startTool("bevel")}>
+                <Blend />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Bevel selected edges · Ctrl+B</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button
                 size="icon-sm"
                 variant="ghost"
@@ -138,6 +151,8 @@ export function ComponentToolbar({ scene, saves, start }: ComponentToolbarProps)
               {canSubdivide ? "Subdivide selected faces" : "Select faces to subdivide"}
             </TooltipContent>
           </Tooltip>
+          <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
+          <MeshCleanupMenu scene={scene} saves={saves} disabled={disabled} />
         </fieldset>
       </TooltipProvider>
       {componentError && (

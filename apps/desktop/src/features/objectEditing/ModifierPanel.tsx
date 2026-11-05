@@ -61,12 +61,6 @@ const BEVEL_PROFILES = [
   { value: "round", label: "Round" },
   { value: "chamfer", label: "Chamfer" },
 ] as const;
-const BEVEL_ANGLES = [
-  { value: "0", label: "All creases" },
-  { value: "15", label: "Mild 15°" },
-  { value: "30", label: "Sharp 30°" },
-  { value: "60", label: "Hard 60°" },
-] as const;
 const BOOLEAN_OPERATIONS = [
   { value: "difference", label: "Difference" },
   { value: "union", label: "Union" },
@@ -91,11 +85,6 @@ function modifierName(kind: MeshModifierSpec["kind"]): string {
   if (kind === "array") return "Array";
   if (kind === "mirror") return "Mirror / symmetry";
   return "Subdivision";
-}
-function angleChoices(angle: number): { value: string; label: string }[] {
-  const value = String(angle);
-  if (BEVEL_ANGLES.some((choice) => choice.value === value)) return [...BEVEL_ANGLES];
-  return [...BEVEL_ANGLES, { value, label: `${angle}°` }];
 }
 function BooleanFields(props: {
   entry: Extract<MeshModifierSpec, { kind: "boolean" }>;
@@ -285,6 +274,7 @@ function ModifierEditor({
   const stored = modifierStack(part.mesh)?.modifiers ?? [];
   const dirty = JSON.stringify(stored) !== JSON.stringify(draft);
   function update(index: number, next: MeshModifierSpec) {
+    setError("");
     setDraft((entries) =>
       entries.map((entry, at) => (at === index ? next : entry)),
     );
@@ -414,7 +404,8 @@ function ModifierEditor({
             </SelectContent>
           </Select>
         )}
-        {draft.length === 0 && <p className="py-1 text-[11px] text-muted-foreground">No modifiers on this mesh.</p>}
+        {draft.length === 0 ? <p className="py-1 text-[11px] text-muted-foreground">No modifiers on this mesh.</p> :
+          <p className="mb-1 text-[10px] text-muted-foreground">Modifiers are evaluated from top to bottom.</p>}
         <div className="space-y-1">
           {draft.map((entry, index) => (
             <div key={entry.id} className={cn("rounded-md border border-border/70 bg-muted/40 px-1.5 py-1", !entry.enabled && "opacity-60")}>
@@ -431,7 +422,12 @@ function ModifierEditor({
               </div>
               {entry.kind === "bevel" ? (
                 <div className="mt-1 space-y-1">
+                  <div className="flex gap-1">
+                    <ScrubNumberInput caption="Width" className="min-w-0 flex-1" id={`${entry.id}-width`} label={`Bevel ${index + 1} width`} min={0.001} max={100} step={0.01} value={entry.width} disabled={locked} onChange={(value) => update(index, { ...entry, width: value })} />
+                    <ScrubNumberInput caption="Segments" className="min-w-0 flex-1" id={`${entry.id}-segments`} label={`Bevel ${index + 1} segments`} min={1} max={8} step={1} value={entry.segments} disabled={locked} onChange={(value) => update(index, { ...entry, segments: value })} />
+                  </div>
                   <div className="grid grid-cols-2 gap-1">
+                    <div className="grid gap-0.5 text-[10px] text-muted-foreground"><span>Profile</span>
                     <Select
                       disabled={locked}
                       value={entry.profile ?? "round"}
@@ -445,25 +441,12 @@ function ModifierEditor({
                         {BEVEL_PROFILES.map((profile) => <SelectItem key={profile.value} value={profile.value}>{profile.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Select
-                      disabled={locked}
-                      value={String(entry.angle ?? 0)}
-                      onValueChange={(value) => {
-                        const angle = Number(value);
-                        if (!Number.isFinite(angle) || angle === (entry.angle ?? 0)) return;
-                        update(index, { ...entry, angle });
-                      }}
-                    >
-                      <SelectTrigger aria-label={`Bevel ${index + 1} angle`} className="h-6 px-1.5 text-[11px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {angleChoices(entry.angle ?? 0).map((choice) => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    </div>
+                    <div className="grid gap-0.5 text-[10px] text-muted-foreground"><span>Angle limit</span>
+                      <ScrubNumberInput caption="°" id={`${entry.id}-angle`} label={`Bevel ${index + 1} angle in degrees`} min={0} max={180} step={1} value={entry.angle ?? 0} disabled={locked} onChange={(value) => update(index, { ...entry, angle: value })} />
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <ScrubNumberInput caption="Width" className="min-w-0 flex-1" id={`${entry.id}-width`} label={`Bevel ${index + 1} width`} min={0.001} max={100} step={0.01} value={entry.width} disabled={locked} onChange={(value) => update(index, { ...entry, width: value })} />
-                    <ScrubNumberInput caption="Segments" className="min-w-0 flex-1" id={`${entry.id}-segments`} label={`Bevel ${index + 1} segments`} min={1} max={8} step={1} value={entry.segments} disabled={locked} onChange={(value) => update(index, { ...entry, segments: value })} />
-                  </div>
+                  <p className="text-[10px] leading-4 text-muted-foreground">Width is mesh-local. 0° includes all creases; higher angles exclude shallower edges. Coplanar edges are skipped.</p>
                 </div>
               ) : entry.kind === "boolean" ? (
                 <BooleanFields entry={entry} index={index} locked={locked} operands={operands} materialSlots={materialSlots}
@@ -515,7 +498,7 @@ function ModifierEditor({
         {error && <p role="alert" className="mt-1.5 text-[11px] leading-4">{error}</p>}
         <footer className="mt-1.5 flex items-center gap-1">
           <span className="flex-1 text-[10px] text-muted-foreground">{busy ? "Saving…" : dirty ? "Unapplied changes" : "Saved"}</span>
-          <IconAction label="Reset unapplied changes" disabled={locked || !dirty} onClick={() => setDraft(stored.map((entry) => ({ ...entry })))}><RotateCcw /></IconAction>
+          <IconAction label="Reset unapplied changes" disabled={locked || !dirty} onClick={() => { setError(""); setDraft(stored.map((entry) => ({ ...entry }))); }}><RotateCcw /></IconAction>
           <Button type="button" size="sm" variant="secondary" className="h-6 gap-1 px-2 text-[11px]" aria-label="Apply and save modifiers" disabled={locked || !dirty} onClick={apply}><Check className="size-3" /> Apply</Button>
         </footer>
       </section>

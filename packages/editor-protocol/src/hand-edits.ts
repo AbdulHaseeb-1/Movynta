@@ -5,6 +5,7 @@
  */
 export const HAND_EDIT_COMMAND_TYPES: ReadonlySet<string> = new Set([
   "scene.transform_object",
+  "scene.duplicate_hierarchy",
   "scene.set_visibility",
   "scene.rename_object",
   "scene.set_parent",
@@ -21,4 +22,8 @@ export const HAND_EDIT_COMMAND_TYPES: ReadonlySet<string> = new Set([
   "geometry.transform_faces",
   "geometry.subdivide_faces",
   "geometry.inset_faces",
+  "geometry.bevel_edges",
+  "geometry.merge_vertices",
+  "geometry.dissolve_edges",
+  "geometry.fill_hole",
 ]);

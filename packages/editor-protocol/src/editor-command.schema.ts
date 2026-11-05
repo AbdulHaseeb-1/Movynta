@@ -104,6 +104,15 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
     profile: bevelProfileSchema.optional(),
     angle: z.number().finite().min(0).max(180).optional(),
   }).strict(),
+  z.object({ ...commandBase, type: z.literal("geometry.bevel_edges"), objectId: identifierSchema,
+    meshPath: meshPathSchema.default([]),
+    ids: z.array(z.string().regex(/^\d{1,10}_\d{1,10}$/)).min(1).max(4096),
+    width: z.number().finite().positive().max(100),
+    segments: z.number().int().min(1).max(8),
+    profile: bevelProfileSchema,
+  }).strict().refine(({ ids }) => new Set(ids).size === ids.length && ids.every((id) => {
+    const [a, b] = id.split("_"); return Number(a) < Number(b);
+  }), "Use distinct canonical edge IDs"),
   z.object({ ...commandBase, type: z.literal("geometry.set_modifiers"), objectId: identifierSchema,
     meshPath: meshPathSchema.default([]), modifiers: modifierListSchema,
   }).strict(),

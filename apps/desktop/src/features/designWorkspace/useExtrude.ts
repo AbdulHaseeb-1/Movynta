@@ -56,6 +56,13 @@ export function useExtrude(
           edit: { type: "geometry.inset_faces", ids: commit.ids, ...commit.options },
         }), (failure) => dispatch(setComponentError(errorMessage(failure))));
       },
+      (commit) => {
+        dispatch(setComponentError(""));
+        saves.run(() => saveCageEdit(scene, {
+          ...commit,
+          edit: { type: "geometry.bevel_edges", ids: commit.ids, width: commit.width, segments: commit.segments, profile: "circular" },
+        }), (failure) => dispatch(setComponentError(errorMessage(failure))));
+      },
     );
     gestureRef.current = gesture;
     return () => {

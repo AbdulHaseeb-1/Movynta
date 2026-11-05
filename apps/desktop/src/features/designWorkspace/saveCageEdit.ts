@@ -7,9 +7,13 @@ import { queueComponentSelection } from "./componentRestore";
 
 /** The change a component edit makes to the base cage of one mesh part. */
 export type CageEdit =
+  | { type: "geometry.merge_vertices"; ids: string[]; mode: "center" | "first" | "last" }
+  | { type: "geometry.dissolve_edges"; ids: string[] }
+  | { type: "geometry.fill_hole"; ids: string[] }
   | { type: "geometry.extrude"; kind: ExtrudeKind; ids: string[]; offset?: [number, number, number]; normalDistance?: number; normalMode?: "vertex" | "individual"; closeOpenSurface?: true; capScale?: number; twistDegrees?: number; capRotationDegrees?: number[] }
   | { type: "geometry.transform_faces"; ids: string[]; space: "world"; transform: FaceTransform }
   | { type: "geometry.subdivide_faces"; ids: string[] }
+  | { type: "geometry.bevel_edges"; ids: string[]; width: number; segments: number; profile: "chamfer" | "round" | "circular" }
   | ({ type: "geometry.inset_faces"; ids: string[] } & InsetOptions);
 
 /** One previewed or chosen component edit. `selection` is what stays selected once the edit has applied. */

@@ -1,6 +1,6 @@
 import { Vector2, Vector3 } from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
-import { assertManifold, channels, edgeKey, faceNormal, point, topology, type PolygonMesh } from "./meshTopology";
+import { assertManifold, channels, edgeKey, faceNormal, point, topology, type PolygonMesh, type SurfaceChannels, type Topology } from "./meshTopology";
 import { blend, mean, type Weights } from "./meshWeights";
 import type { BevelProfile } from "./meshModifiers";
 
@@ -21,16 +21,41 @@ function inside(p: Vector2, polygon: readonly Vector2[]): boolean {
   return result;
 }
 
+interface BevelInput { graph: Topology; data: SurfaceChannels; normals: Vector3[] }
+
+function prepareInput(mesh: PolygonMesh): BevelInput {
+  const graph = topology(mesh); assertManifold(mesh, graph);
+  return { graph, data: channels(mesh), normals: mesh.faces.map((face) => faceNormal(mesh, face)) };
+}
+
+/** Reuse immutable input topology and attribute channels across previews of the same cage. */
+export function prepareBevelPreview(mesh: PolygonMesh, selectedEdges: readonly string[]): (width: number, segments: number) => PolygonMesh {
+  const input = prepareInput(mesh);
+  const ids = [...selectedEdges];
+  return (width, segments) => bevelSurfaceWithInput(mesh, width, segments, "circular", 0, ids, input);
+}
+
 /** Face offsets, edge strips and local vertex patches. Open boundaries remain open. */
-export function bevelSurface(mesh: PolygonMesh, width: number, segments: number, profile: BevelProfile = "round", angle = 0): PolygonMesh {
+export function bevelSurface(mesh: PolygonMesh, width: number, segments: number, profile: BevelProfile = "round", angle = 0, selectedEdges?: readonly string[]): PolygonMesh {
+  return bevelSurfaceWithInput(mesh, width, segments, profile, angle, selectedEdges, prepareInput(mesh));
+}
+
+function bevelSurfaceWithInput(mesh: PolygonMesh, width: number, segments: number, profile: BevelProfile, angle: number, selectedEdges: readonly string[] | undefined, input: BevelInput): PolygonMesh {
   if (!Number.isFinite(width) || width <= 0 || !Number.isInteger(segments) || segments < 1 || segments > 8) throw new Error("Bevel needs positive width and 1–8 segments");
   if (profile !== "chamfer" && profile !== "round" && profile !== "circular") throw new Error("Unsupported bevel profile");
   if (!Number.isFinite(angle) || angle < 0 || angle > 180) throw new Error("Bevel angle must be between 0 and 180 degrees");
-  const graph = topology(mesh); assertManifold(mesh, graph);
-  const data = channels(mesh); const normals = mesh.faces.map((face) => faceNormal(mesh, face));
+  const { graph, data, normals } = input;
+  const selected = selectedEdges === undefined ? undefined : new Set(selectedEdges);
+  if (selected && (selected.size === 0 || selected.size !== selectedEdges?.length)) throw new Error("Select distinct edges to bevel");
+  if (selected) for (const id of selected) {
+    const incident = graph.edges.get(id);
+    if (!incident) throw new Error(`Bevel edge ${id} does not exist`);
+    if (incident.length !== 2) throw new Error("Bevel does not support boundary edges");
+  }
   const limit = angle * Math.PI / 180;
   const active = new Set<string>();
   for (const [key, incident] of graph.edges) {
+    if (selected && !selected.has(key)) continue;
     const [a, b] = incident; if (!a || !b) continue;
     const na = normals[a.face]; const nb = normals[b.face];
     if (!na || !nb) continue;
@@ -38,6 +63,7 @@ export function bevelSurface(mesh: PolygonMesh, width: number, segments: number,
     // A coplanar seam or tessellation diagonal has no corner to round.
     if (turn > 1e-6 && turn + 1e-8 >= limit) active.add(key);
   }
+  if (selected && active.size !== selected.size) throw new Error("Bevel does not support coplanar edges");
   if (active.size === 0) return mesh;
   if (active.size * segments * 4 + mesh.faces.reduce((sum, face) => sum + face.length, 0) * 2 > MAX_MESH_OUTPUT_TRIANGLES) throw new Error("Bevel would exceed the geometry limit");
   const positions: Vector3[] = []; const positionWeights: Weights[] = []; const origins: number[] = [];
@@ -69,7 +95,7 @@ export function bevelSurface(mesh: PolygonMesh, width: number, segments: number,
       const determinant = 1 - dot * dot;
       const moved = p.clone();
       if (determinant < 1e-10) {
-        if (Math.abs(wa - wb) > 1e-8) throw new Error("Bevel encountered an unsupported collinear edge junction");
+        if (Math.abs(wa - wb) > 1e-8) throw new Error("Bevel cannot stop partway along a straight edge; select the full straight run");
         moved.add(a.multiplyScalar(wa));
       } else moved.add(a.multiplyScalar((wa - dot * wb) / determinant)).add(b.multiplyScalar((wb - dot * wa) / determinant));
       if (!inside(project(moved), polygon)) throw new Error("Bevel width overlaps a face; reduce width");

@@ -24,6 +24,7 @@ import {
   type ExtrudeKind,
 } from "@/features/meshGeometry/meshExtrude";
 import { insetFaces, type InsetOptions } from "@/features/meshGeometry/meshInset";
+import { prepareBevelPreview } from "@/features/meshGeometry/meshBevel";
 import {
   readTopology,
   faceNormal,
@@ -36,7 +37,7 @@ import { ExtrudePreviewOverlay } from "./ExtrudePreviewOverlay";
 
 type Axis = "x" | "y" | "z";
 type ExtrudeMode = "move" | "scale" | "rotate";
-export type FaceTool = ExtrudeMode | "extrude" | "normals" | "individual" | "solid" | "inset";
+export type FaceTool = ExtrudeMode | "extrude" | "normals" | "individual" | "solid" | "inset" | "bevel";
 interface CapShape { capScale?: number; twistDegrees?: number; capRotationDegrees?: number[] }
 const AXIS = {
   x: new Vector3(1, 0, 0),
@@ -80,6 +81,7 @@ export type FaceTransformCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | 
 export type InsetCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & {
   options: InsetOptions;
 };
+export type BevelCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & { width: number; segments: number };
 interface InsetSession {
   options: InsetOptions;
   depthMode: boolean;
@@ -123,6 +125,7 @@ interface Session {
   faceSelection: ReturnType<typeof faceTransformSelection> | null;
   transform: FaceTransform | null;
   inset: InsetSession | null;
+  bevel: { width: number; segments: number; numeric: string; preview: ReturnType<typeof prepareBevelPreview> } | null;
   shape: CapShape;
   shapeBase: CapShape;
   moveBase: Vector3;
@@ -281,6 +284,7 @@ export class ExtrudeGesture {
     status: (text: string) => void,
     onTransform?: (commit: FaceTransformCommit) => void,
     onInset?: (commit: InsetCommit) => void,
+    onBevel?: (commit: BevelCommit) => void,
   ) {
     const dom = viewport.renderer.domElement;
     let pendingMove = false;
@@ -321,6 +325,10 @@ export class ExtrudeGesture {
         objectId: session.objectId, meshPath: session.meshPath, ids: session.ids,
         selection, revision: session.revision, options: session.inset.options,
       } : null;
+      const bevelCommit = valid && session.bevel && selection && session.bevel.width > 0 ? {
+        objectId: session.objectId, meshPath: session.meshPath, ids: session.ids,
+        selection, revision: session.revision, width: session.bevel.width, segments: session.bevel.segments,
+      } : null;
       const commit =
         valid && offset && selection && offset.lengthSq() > 1e-12
           ? {
@@ -345,6 +353,20 @@ export class ExtrudeGesture {
       if (commit) onCommit(commit);
       if (faceCommit) onTransform?.(faceCommit);
       if (insetCommit) onInset?.(insetCommit);
+      if (bevelCommit) onBevel?.(bevelCommit);
+    };
+    const updateBevel = (session: Session) => {
+      const bevel = session.bevel;
+      if (!bevel) return;
+      session.blocked = bevel.numeric !== "" && !Number.isFinite(Number(bevel.numeric)) ? "Finish entering a number" : null;
+      if (!session.blocked && bevel.width === 0) { restore(); session.selection = null; }
+      else if (!session.blocked) {
+        try {
+          const mesh = bevel.preview(bevel.width, bevel.segments);
+          showPreview(session, { mesh, selection: [], walls: [] });
+        } catch (error) { session.blocked = error instanceof Error ? error.message : "Bevel preview failed"; }
+      }
+      status(`Bevel · Width ${bevel.numeric || bevel.width.toPrecision(4)} · Segments ${bevel.segments} · Move or type · Wheel segments · Enter confirm · Esc cancel${session.blocked ? ` · ${session.blocked}` : ""}`);
     };
     const updateInset = (session: Session, inset: InsetSession) => {
       session.blocked = inset.numeric !== "" && !Number.isFinite(Number(inset.numeric))
@@ -367,6 +389,7 @@ export class ExtrudeGesture {
     };
     const update = () => {
       const session = this.session;
+      if (session?.bevel) { updateBevel(session); return; }
       if (session?.inset) {
         updateInset(session, session.inset);
         return;
@@ -520,11 +543,15 @@ export class ExtrudeGesture {
       pendingMove = false;
       update();
     };
-    const live = (session: Session) =>
-      enabled() && editing() && editor.selection === session.objectId &&
-      editor.currentRevision === session.revision &&
-      (session.mesh.geometry === session.original ||
-        session.mesh.geometry === session.preview);
+    const live = (session: Session) => {
+      const current = session.bevel ? target() : null;
+      const selectionMatches = !session.bevel || (current?.objectId === session.objectId && current.kind === "edge" &&
+        current.meshPath.length === session.meshPath.length && current.meshPath.every((part, index) => part === session.meshPath[index]) &&
+        current.ids.length === session.ids.length && current.ids.every((id, index) => id === session.ids[index]));
+      return selectionMatches && enabled() && editing() && editor.selection === session.objectId &&
+        editor.currentRevision === session.revision &&
+        (session.mesh.geometry === session.original || session.mesh.geometry === session.preview);
+    };
     this.start = (tool) => {
       if (!enabled() || !editing() || this.session) return;
       const selected = target();
@@ -533,7 +560,7 @@ export class ExtrudeGesture {
         !selected ||
         selected.ids.length === 0 ||
         editor.selection !== selected.objectId ||
-        (tool !== "extrude" && selected.kind !== "face")
+        (tool === "bevel" ? selected.kind !== "edge" : tool !== "extrude" && selected.kind !== "face")
       )
         return;
       try {
@@ -557,10 +584,11 @@ export class ExtrudeGesture {
           options: { thickness: 0, depth: 0, boundary: true, offsetEven: true, interpolate: true },
           depthMode: false, numeric: "",
         } : null;
+        const bevel = tool === "bevel" ? { width: 0, segments: 3, numeric: "", preview: prepareBevelPreview(cage, selected.ids) } : null;
         if (inset) parseFaces(cage, selected.ids);
-        else if (!faceSelection) checkExtrudeSelection(cage, selected.kind, selected.ids);
+        else if (!faceSelection && !bevel) checkExtrudeSelection(cage, selected.kind, selected.ids);
         let normal: Vector3 | null = null;
-        if (!inset && !transforming && selected.kind === "face") {
+        if (!inset && !bevel && !transforming && selected.kind === "face") {
           try {
             normal = regionNormal(cage, selected.ids);
           } catch (error) {
@@ -587,6 +615,7 @@ export class ExtrudeGesture {
           faceSelection,
           transform: null,
           inset,
+          bevel,
           shape: {},
           shapeBase: {},
           moveBase: new Vector3(),
@@ -606,7 +635,8 @@ export class ExtrudeGesture {
         };
         active = true;
         viewport.controls.enabled = false;
-        status(inset ? insetHint(inset) : hint(this.session));
+        if (bevel) updateBevel(this.session);
+        else status(inset ? insetHint(inset) : hint(this.session));
       } catch (error) {
         onError(error);
       }
@@ -614,7 +644,7 @@ export class ExtrudeGesture {
     const keydown = (event: KeyboardEvent) => {
       if (
         isTyping(event.target) ||
-        (event.ctrlKey && !(this.session?.inset && (event.key === "Enter" || event.key === "Escape"))) ||
+        (event.ctrlKey && !(event.key.toLowerCase() === "b" && !this.session) && !(this.session?.inset && (event.key === "Enter" || event.key === "Escape"))) ||
         event.metaKey ||
         event.altKey ||
         event.repeat
@@ -623,6 +653,17 @@ export class ExtrudeGesture {
       const key = event.key.toLowerCase();
       const session = this.session;
       if (session) {
+        if (session.bevel && key !== "escape" && key !== "enter") {
+          if (!/^[0-9.]$/.test(key) && key !== "backspace") return;
+          event.preventDefault(); event.stopImmediatePropagation(); flush();
+          const value = key === "backspace" ? session.bevel.numeric.slice(0, -1) : session.bevel.numeric + key;
+          if (/^\d*(\.\d*)?$/.test(value) && value.length <= 16) {
+            session.bevel.numeric = value;
+            if (value === "") session.bevel.width = 0;
+            else if (Number.isFinite(Number(value))) session.bevel.width = Math.min(100, Number(value));
+          }
+          updateBevel(session); return;
+        }
         const inset = session.inset;
         if (inset && key !== "escape" && key !== "enter") {
           const toggle = insetToggle(key);
@@ -695,8 +736,8 @@ export class ExtrudeGesture {
         }
         return;
       }
-      const tool = key === "e" ? "extrude" : key === "i" ? "inset" : key === "g" ? "move" : key === "r" ? "rotate" : key === "s" ? "scale" : null;
-      if (!tool || !enabled() || !editing() || (tool !== "extrude" && target()?.kind !== "face")) return;
+      const tool = event.ctrlKey && key === "b" ? "bevel" : key === "e" ? "extrude" : key === "i" ? "inset" : key === "g" ? "move" : key === "r" ? "rotate" : key === "s" ? "scale" : null;
+      if (!tool || !enabled() || !editing() || (tool === "bevel" ? target()?.kind !== "edge" : tool !== "extrude" && target()?.kind !== "face")) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       this.start(tool);
@@ -708,6 +749,18 @@ export class ExtrudeGesture {
       if (!session) return;
       if (!live(session)) {
         end(false);
+        return;
+      }
+      if (session.bevel) {
+        if (previous && session.bevel.numeric === "") {
+          const rect = dom.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const delta = this.pointer.clone().sub(previous);
+          const worldPixel = grabWorldDelta(viewport.camera, rect, session.origin, new Vector2(), new Vector2(1, 0), null);
+          const amount = (delta.x - delta.y) * toLocalOffset(session.mesh, worldPixel).length() * (event.shiftKey ? 0.1 : 1);
+          session.bevel.width = Math.min(100, Math.max(0, session.bevel.width + amount));
+          pendingMove = true;
+        }
         return;
       }
       if (session.inset) {
@@ -745,11 +798,19 @@ export class ExtrudeGesture {
       blockContextMenu = false;
     };
     const blur = () => end(false);
+    const wheel = (event: WheelEvent) => {
+      const session = this.session;
+      if (!session?.bevel) return;
+      event.preventDefault(); event.stopImmediatePropagation(); flush();
+      session.bevel.segments = Math.max(1, Math.min(8, session.bevel.segments + (event.deltaY < 0 ? 1 : -1)));
+      updateBevel(session);
+    };
     window.addEventListener("keydown", keydown, true);
     window.addEventListener("pointermove", move, true);
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("contextmenu", contextmenu, true);
     window.addEventListener("blur", blur);
+    window.addEventListener("wheel", wheel, { capture: true, passive: false });
     const unsubscribe = editor.onChange(() => {
       if (this.session && !live(this.session))
         end(false);
@@ -768,6 +829,7 @@ export class ExtrudeGesture {
       () => window.removeEventListener("pointerdown", down, true),
       () => window.removeEventListener("contextmenu", contextmenu, true),
       () => window.removeEventListener("blur", blur),
+      () => window.removeEventListener("wheel", wheel, true),
       unsubscribe,
       unsubscribeBefore,
       stopFrame,

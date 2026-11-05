@@ -347,6 +347,36 @@ async function recordEdit(projectId: string, commands: unknown, user = "project-
 }
 
 describe("edits made by the user", () => {
+  it("records a manual hierarchy duplicate and rejects foreign or reused object IDs", async () => {
+    const project = await create(); const scenes = server.app.get(ProjectScenesService);
+    scenes.append(project.id, "base", [box("base", "original")]);
+    const command = { commandId: "copy", type: "scene.duplicate_hierarchy", sourceId: "original", copies: [{ objectId: "copy", descendants: [] }], offset: [0, 0, 0] };
+    expect((await recordEdit(project.id, [command], "intruder")).status).toBe(404);
+    expect((await recordEdit(project.id, [{ ...command, sourceId: "missing" }])).status).toBe(422);
+    expect((await recordEdit(project.id, [command])).status).toBe(201);
+    expect((await recordEdit(project.id, [command])).status).toBe(422);
+    const undo = scenes.previewHistory(project.id, "undo"); scenes.commitHistory(project.id, "undo", undo.version, "duplicateUndo");
+    const redo = scenes.previewHistory(project.id, "redo"); scenes.commitHistory(project.id, "redo", redo.version, "duplicateRedo");
+    expect(scenes.list(project.id)).toHaveLength(2);
+  });
+  it("records manual mesh cleanup with ownership checks and undo/redo", async () => {
+    const project = await create(); const scenes = server.app.get(ProjectScenesService);
+    scenes.append(project.id, "base", [box("base", "mesh")]);
+    const commands = [
+      { commandId: "merge", type: "geometry.merge_vertices", objectId: "mesh", ids: ["0", "1"], mode: "center" },
+      { commandId: "dissolve", type: "geometry.dissolve_edges", objectId: "mesh", ids: ["0_1"] },
+      { commandId: "fill", type: "geometry.fill_hole", objectId: "mesh", ids: ["0_1", "1_2", "0_2"] },
+    ];
+    for (const command of commands) {
+      expect((await recordEdit(project.id, [command])).status).toBe(201);
+      expect((await recordEdit(project.id, [{ ...command, objectId: "missing" }])).status).toBe(422);
+      expect((await recordEdit(project.id, [command], "intruder")).status).toBe(404);
+    }
+    const undo = scenes.previewHistory(project.id, "undo"); scenes.commitHistory(project.id, "undo", undo.version, "cleanupUndo");
+    expect(scenes.list(project.id)).toHaveLength(3);
+    const redo = scenes.previewHistory(project.id, "redo"); scenes.commitHistory(project.id, "redo", redo.version, "cleanupRedo");
+    expect(scenes.list(project.id)).toHaveLength(4);
+  });
   it("adds primitives and transforms in one saved undoable action", async () => {
     const project = await create();
     for (const primitive of ["box", "sphere", "cylinder", "cone", "torus", "plane"]) {

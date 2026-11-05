@@ -53,11 +53,11 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
   if (materialEdits.length && (materialEdits.length !== commands.length || commands.length > 20)) {
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use a separate batch of at most 20 material property/slot commands; assign faces in a following proposal" }];
   }
-  if (commands.length !== 1 && commands.some((command) => command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut")) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use one topology-changing merge, dissolve or loop cut per proposal; inspect the resulting IDs before the next edit" }];
+  if (commands.length !== 1 && commands.some((command) => command.type === "geometry.bevel_edges" || command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut")) {
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use one topology-changing bevel, merge, dissolve or loop cut per proposal; inspect the resulting IDs before the next edit" }];
   }
   const modifiers = commands.filter((command) => command.type === "geometry.bevel" || command.type === "geometry.boolean" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers"));
-  const cageEdits = commands.filter((command) => command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole");
+  const cageEdits = commands.filter((command) => command.type === "geometry.bevel_edges" || command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole");
   if (modifiers.length > 0 && (modifiers.length !== commands.length || commands.length > 20)) {
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Geometry batches accept only bevel/subdivision and Boolean modifier commands, at most 20; create/transform in separate proposals" }];
   }
@@ -205,6 +205,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       case "geometry.fill_hole":
       case "geometry.subdivide_faces":
       case "geometry.inset_faces":
+      case "geometry.bevel_edges":
       case "scene.rename_object":
       case "scene.set_visibility":
         if (!parents.has(command.objectId)) missing(command.commandId, command.objectId);

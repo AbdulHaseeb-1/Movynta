@@ -249,6 +249,7 @@ export class EditorSimulator {
       case "geometry.fill_hole":
       case "geometry.subdivide_faces":
       case "geometry.inset_faces":
+      case "geometry.bevel_edges":
       case "scene.set_visibility":
         break;
       case "scene.rename_object": {

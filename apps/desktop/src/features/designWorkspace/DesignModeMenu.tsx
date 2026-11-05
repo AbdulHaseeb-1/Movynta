@@ -1,5 +1,5 @@
 import { Box, ChevronDown, MousePointer2, PencilRuler } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { setDesignMode } from "./workspaceSlice";
+import { extrudeIsActive } from "@/features/objectEditing/ExtrudeGesture";
 
 export function DesignModeMenu() {
   const dispatch = useAppDispatch();
@@ -24,6 +25,18 @@ export function DesignModeMenu() {
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const suppressTooltip = useRef(false);
   const menuIsOpen = useRef(false);
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || menuOpen || extrudeIsActive() || (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName) || target.closest('[role="dialog"], [role="menu"]')))) return;
+      const key = event.key.toLowerCase();
+      if ((mode === "object" && key === "e") || (mode === "edit" && key === "o")) {
+        event.preventDefault(); dispatch(setDesignMode(mode === "object" ? "edit" : "object"));
+      }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, [dispatch, mode, menuOpen]);
   return (
     <TooltipProvider>
       <DropdownMenu
@@ -82,7 +95,7 @@ export function DesignModeMenu() {
               className="min-h-9 flex-row items-center justify-start px-3 pr-8 text-muted-foreground data-[state=checked]:bg-secondary data-[state=checked]:text-foreground focus:bg-accent focus:text-foreground"
             >
               <span className="inline-flex items-center gap-2 leading-none">
-                <MousePointer2 className="size-4" /> Object
+                <MousePointer2 className="size-4" /> Object · O
               </span>
             </DropdownMenuRadioItem>
             <DropdownMenuRadioItem
@@ -90,7 +103,7 @@ export function DesignModeMenu() {
               className="min-h-9 flex-row items-center justify-start px-3 pr-8 text-muted-foreground data-[state=checked]:bg-secondary data-[state=checked]:text-foreground focus:bg-accent focus:text-foreground"
             >
               <span className="inline-flex items-center gap-2 leading-none">
-                <PencilRuler className="size-4" /> Edit{" "}
+                <PencilRuler className="size-4" /> Edit · E{" "}
               </span>
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>

@@ -149,6 +149,8 @@ function describeCommand(command: Command): string {
       return `Subdivide the selected faces of ${target}`;
     case "geometry.inset_faces":
       return `${command.outset ? "Outset" : "Inset"} faces of ${target} · thickness ${command.thickness ?? "?"} · depth ${command.depth ?? 0}${command.individual ? " · individual faces" : ""}`;
+    case "geometry.bevel_edges":
+      return `Bevel ${command.ids?.length ?? 0} edges of ${target} · width ${command.width ?? "?"} · ${command.segments ?? 1} segments`;
     case "geometry.fill_hole":
       return `Fill the selected boundary loop on ${target}`;
     case "geometry.create_primitive":

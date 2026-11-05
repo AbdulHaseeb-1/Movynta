@@ -197,6 +197,7 @@ export class ProjectsService {
       projectId,
       parsed.data.flatMap((command) => {
         const keys: string[] = [];
+        if (command.type === "scene.duplicate_hierarchy") keys.push(command.sourceId, ...command.copies.flatMap((copy) => [copy.objectId, ...copy.descendants.flatMap((entry) => [entry.sourceId, entry.objectId])]));
         if ("objectId" in command) keys.push(command.objectId);
         if ("parentId" in command && typeof command.parentId === "string") keys.push(command.parentId);
         for (const id of [("collectionId" in command ? command.collectionId : undefined), ("parentCollectionId" in command ? command.parentCollectionId : undefined)]) {
@@ -222,6 +223,17 @@ export class ProjectsService {
       }
       if (!USER_EDIT_TYPES.has(command.type)) {
         throw new ValidationFailedError("Only new primitives, transforms, renaming, re-parenting, collections, visibility, modifier stacks, extrusion and deletion can be recorded here");
+      }
+      if (command.type === "scene.duplicate_hierarchy") {
+        if (!known.has(command.sourceId)) throw new ValidationFailedError("Source object is not in this project");
+        for (const copy of command.copies) {
+          for (const entry of copy.descendants) if (!known.has(entry.sourceId)) throw new ValidationFailedError("A source descendant is not in this project");
+          for (const id of [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]) {
+            if (known.has(id)) throw new ValidationFailedError("Copy IDs must be new");
+            known.add(id);
+          }
+        }
+        continue;
       }
       if (command.type === "scene.create_collection") {
         if (known.has(collectionKey(command.collectionId))) throw new ValidationFailedError(`Collection "${command.collectionId}" is already in this project; use a new id`);

@@ -173,6 +173,12 @@ describe("editor command schema", () => {
     expect(editorContextSchema.safeParse({ ...focus, designFocus: { mode: "edit", componentKind: "face", componentSelection: { objectId: "a", meshPath: [], kind: "face", ids: ["0"] } } }).success).toBe(false);
     expect(editorCommandListSchema.safeParse([{ commandId: "f", type: "geometry.subdivide_faces", objectId: "a", ids: ["0_1"] }]).success).toBe(false);
   });
+  it("validates selected-edge bevel parameters and canonical IDs", () => {
+    const bevel = { commandId: "b", type: "geometry.bevel_edges", objectId: "a", ids: ["0_1"], width: 0.1, segments: 3, profile: "circular" };
+    expect(editorCommandListSchema.safeParse([bevel]).success).toBe(true);
+    for (const ids of [["1_0"], ["0_1", "0_1"], []]) expect(editorCommandListSchema.safeParse([{ ...bevel, ids }]).success).toBe(false);
+    expect(editorCommandListSchema.safeParse([{ ...bevel, segments: 9 }]).success).toBe(false);
+  });
   it("accepts a valid mixed batch", () => {
     const parsed = editorCommandListSchema.safeParse([
       { commandId: "c1", type: "scene.create_object", objectId: "torso", name: "Torso" },

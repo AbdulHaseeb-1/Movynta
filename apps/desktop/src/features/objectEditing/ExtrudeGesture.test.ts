@@ -10,7 +10,7 @@ import {
 import type { Viewport } from "@/features/viewport3d";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { assertManifold, faceNormal, readTopology, topology } from "@/features/meshGeometry/meshTopology";
-import { ExtrudeGesture, type ExtrudeCommit, type FaceTransformCommit, type InsetCommit } from "./ExtrudeGesture";
+import { ExtrudeGesture, type ExtrudeCommit, type FaceTransformCommit, type InsetCommit, type BevelCommit } from "./ExtrudeGesture";
 
 beforeEach(() => {
   vi.stubGlobal("window", new EventTarget());
@@ -18,13 +18,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function fixture(editing = true) {
+function fixture(editing = true, kind: "face" | "edge" = "face") {
   const scene = new EditorScene(new Scene(), "project");
   const mesh = new Mesh(new BoxGeometry(2, 2, 2));
   scene.importObject("box", mesh);
   scene.select("box");
   const cage = readTopology(mesh.geometry);
   const face = cage.faces.findIndex((item) => faceNormal(cage, item).y > 0.9);
+  const edge = [...topology(cage).edges].find(([, sides]) => {
+    const a = sides[0] && cage.faces[sides[0].face]; const b = sides[1] && cage.faces[sides[1].face];
+    return a && b && faceNormal(cage, a).dot(faceNormal(cage, b)) < 0.5;
+  })?.[0] ?? "";
   const camera = new PerspectiveCamera(45, 1, 0.1, 100);
   camera.position.set(0, 0, 10);
   camera.updateMatrixWorld();
@@ -56,6 +60,7 @@ function fixture(editing = true) {
   const commits = vi.fn<(commit: ExtrudeCommit) => void>();
   const transforms = vi.fn<(commit: FaceTransformCommit) => void>();
   const insets = vi.fn<(commit: InsetCommit) => void>();
+  const bevels = vi.fn<(commit: BevelCommit) => void>();
   const errors = vi.fn();
   const status = vi.fn();
   const gesture = new ExtrudeGesture(
@@ -66,20 +71,21 @@ function fixture(editing = true) {
     () => ({
       objectId: "box",
       meshPath: [],
-      kind: "face",
-      ids: [String(face)],
+      kind,
+      ids: [kind === "face" ? String(face) : edge],
     }),
     commits,
     errors,
     status,
     transforms,
     insets,
+    bevels,
   );
-  const key = (value: string) => {
+  const key = (value: string, ctrlKey = false) => {
     const event = new Event("keydown", { cancelable: true });
     Object.assign(event, {
       key: value,
-      ctrlKey: false,
+      ctrlKey,
       metaKey: false,
       altKey: false,
       repeat: false,
@@ -99,6 +105,7 @@ function fixture(editing = true) {
     commits,
     transforms,
     insets,
+    bevels,
     errors,
     status,
     gesture,
@@ -106,6 +113,31 @@ function fixture(editing = true) {
     move,
   };
 }
+
+describe("bevel shortcut", () => {
+  it("clears the bevel preview when its typed width is erased", () => {
+    const f = fixture(true, "edge"); const original = f.mesh.geometry;
+    f.key("b", true); f.key("1"); expect(f.mesh.geometry).not.toBe(original);
+    f.key("Backspace"); expect(f.mesh.geometry).toBe(original);
+    f.key("Enter"); expect(f.bevels).not.toHaveBeenCalled(); f.gesture.dispose();
+  });
+  it("previews numeric width, changes segments, and commits once", () => {
+    const f = fixture(true, "edge"); const original = f.mesh.geometry;
+    f.key("b", true);
+    for (const key of ["0", ".", "2"]) f.key(key);
+    expect(f.mesh.geometry).not.toBe(original);
+    const wheel = new Event("wheel", { cancelable: true }); Object.assign(wheel, { deltaY: -1 }); window.dispatchEvent(wheel);
+    f.key("Enter");
+    expect(f.bevels).toHaveBeenCalledOnce();
+    expect(f.bevels.mock.calls[0]?.[0]).toMatchObject({ width: 0.2, segments: 4 });
+    expect(f.mesh.geometry).toBe(original); f.gesture.dispose();
+  });
+  it("cancels the preview without committing", () => {
+    const f = fixture(true, "edge"); const original = f.mesh.geometry;
+    f.key("b", true); f.key("1"); f.key("Escape");
+    expect(f.mesh.geometry).toBe(original); expect(f.bevels).not.toHaveBeenCalled(); f.gesture.dispose();
+  });
+});
 
 describe("inset shortcut", () => {
   it("previews numeric thickness and depth and commits the selected border", () => {

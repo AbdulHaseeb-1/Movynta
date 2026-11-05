@@ -50,6 +50,7 @@ import {
 import { errorMessage } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
+import { ObjectActions } from "@/features/objectEditing/ObjectActions";
 import { AddShapeMenu, ComponentToolbar, useComponentSelection, useDesignFocus, useExtrude, DesignModeMenu, DesignWorkspacePanel, setDesignMode, setPanelOpen as setWorkspacePanelOpen } from "@/features/designWorkspace";
 
 /** A saved project, fetched in full before the workspace shows it. */
@@ -304,7 +305,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
               onDelete={editing.requestDelete}
               orientation="horizontal"
               className="animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none"
-            />
+            ><ObjectActions scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} /></ViewportToolbar>
           )}
         </div>
       )}
@@ -320,7 +321,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <ProjectBar project={project} onAction={actions.perform} onRename={renameProject} />
         <DesignModeMenu />
-        {designMode === "edit" && <ComponentToolbar scene={editorScene} saves={saves} start={extrude.start} />}
+        {designMode === "edit" && <ComponentToolbar scene={editorScene} saves={saves} start={extrude.start} disabled={run.busy || modifierBusy || opening !== "ready"} />}
         <AddShapeMenu scene={editorScene} ensureProject={ensureProject} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} onAdded={() => setSubmitted(true)} />
       </div>
       {/* Panel launchers stay compact until opened. */}

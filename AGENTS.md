@@ -30,6 +30,7 @@
 - Colors come from the fixed palette in `apps/desktop/src/styles/index.css` (documented at the top of that file). Use theme tokens such as `bg-card`, `text-muted-foreground`, `bg-brand`, and Button/Badge variants; do not add raw hex colors.
 - Define routes in `src/app/router.tsx`. Move between pages with `useNavigate` or `<Link>`, not with local page state.
 - Manage shared client state with Redux Toolkit slices created with `createSlice`. Access the store through `useAppSelector` and `useAppDispatch` from `src/app/hooks.ts`.
+- Keep the in-app tool guide in `apps/desktop/src/features/documentation/toolGuide.ts` current. In the same change that adds, removes, renames, or changes a user-facing tool, modifier, shortcut, workflow, or supported limitation, update its description, usage steps, and relevant notes in that guide. Check the Controls settings and `docs/assistant-tools.md` too when their content is affected.
 
 ### Code organization and design
 
