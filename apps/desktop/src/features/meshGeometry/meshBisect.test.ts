@@ -49,6 +49,16 @@ describe("bisect", () => {
     expect(() => bisectMesh(mesh, geometry, plane("y", 0.5))).toThrow("does not cut");
   });
 
+  it("says so when the plane runs along existing edges instead of claiming it misses the mesh", () => {
+    // A sphere has a ring of vertices on its equator: a plane there crosses no face.
+    const geometry = new SphereGeometry(1, 16, 12), mesh = readTopology(geometry);
+    expect(() => bisectMesh(mesh, geometry, plane("y", 0))).toThrow("already runs along existing edges");
+    // A position between two rings does cut.
+    expect(bisectMesh(mesh, geometry, plane("y", 0.1)).split).toBeGreaterThan(0);
+    // Outside the mesh is still reported as a miss, with the distances.
+    expect(() => bisectMesh(mesh, geometry, plane("y", 3))).toThrow("does not cut the mesh");
+  });
+
   it("uses vertices on the plane instead of creating slivers", () => {
     const geometry = new BoxGeometry(1, 1, 1), mesh = readTopology(geometry);
     // x + y = 0 passes through two opposite vertical edges: the top and bottom split along their diagonals.

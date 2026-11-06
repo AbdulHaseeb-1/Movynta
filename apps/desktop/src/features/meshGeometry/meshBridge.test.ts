@@ -84,8 +84,8 @@ describe("bridge edge loops", () => {
     expect(() => bridgeEdgeLoops(mesh, ["0_47"])).toThrow(/does not exist|canonical/);
     const inner = [...topology(mesh).edges].find(([, incident]) => incident.length === 2)?.[0] ?? "0_1";
     expect(() => bridgeEdgeLoops(mesh, [...lower, ...upper, inner])).toThrow("open boundary");
-    const uneven = readTopology(twoTubes(8, {}, 6));
-    expect(() => bridgeEdgeLoops(uneven, [...rim(uneven, 1), ...rim(uneven, 2)])).toThrow("8 and 6");
+    const tooShort = readTopology(twoTubes(8, {}, 8));
+    expect(() => bridgeEdgeLoops(tooShort, [...rim(tooShort, 1), ...rim(tooShort, 2).slice(0, 2)])).toThrow(/closed loop|exactly two/);
   });
 
   it("refuses loops that existing faces already join, and says so", () => {
@@ -94,17 +94,51 @@ describe("bridge edge loops", () => {
     expect(() => bridgeEdgeLoops(mesh, [...rim(mesh, 0), ...rim(mesh, 1)])).toThrow("already joined by existing faces");
   });
 
+  it.each([[8, 6], [6, 8], [12, 3], [3, 12], [7, 5], [5, 5]])("bridges a loop of %i edges to a loop of %i with quads and spread-out triangles", (lowSides, highSides) => {
+    const low = tube([{ y: 0 }, { y: 1 }], lowSides), high = tube([{ y: 2 }, { y: 3 }], highSides, 1, low.vertices.length);
+    const mesh = readTopology(createPolygonMesh([...low.vertices, ...high.vertices], [...low.faces, ...high.faces]));
+    const result = bridgeEdgeLoops(mesh, [...rim(mesh, 1), ...rim(mesh, 2)]);
+    const longer = Math.max(lowSides, highSides), shorter = Math.min(lowSides, highSides);
+    expect(result.longEdges).toBe(longer);
+    expect(result.shortEdges).toBe(shorter);
+    expect(result.bridgeFaces).toBe(longer);
+    expect(result.quads).toBe(shorter);
+    expect(result.triangles).toBe(longer - shorter);
+    expect(() => checkManifold(result.mesh)).not.toThrow();
+    // Only the two far ends stay open, and nothing was added or moved.
+    expect([...topology(result.mesh).edges.values()].filter((incident) => incident.length === 1)).toHaveLength(lowSides + highSides);
+    expect(result.mesh.positions).toBe(mesh.positions);
+    const added = result.mesh.faces.slice(mesh.faces.length);
+    expect(added.filter((face) => face.length === 3)).toHaveLength(longer - shorter);
+    for (const face of added) expect(faceAreaNormal(result.mesh, face).length()).toBeGreaterThan(1e-9);
+    // The band faces the same way as the tubes it joins.
+    const radial = (face: number[]) => face.reduce((sum, v) => sum.add(result.mesh.positions[v]?.clone().setY(0) ?? new Vector3()), new Vector3());
+    const outward = (face: number[]) => Math.sign(faceAreaNormal(result.mesh, face).dot(radial(face)));
+    const tubeSign = outward(result.mesh.faces[0] ?? []);
+    for (const face of added) expect(outward(face)).toBe(tubeSign);
+  });
+
+  it("does not put two triangles side by side when the counts differ by less than half", () => {
+    const low = tube([{ y: 0 }, { y: 1 }], 12), high = tube([{ y: 2 }, { y: 3 }], 9, 1, low.vertices.length);
+    const mesh = readTopology(createPolygonMesh([...low.vertices, ...high.vertices], [...low.faces, ...high.faces]));
+    const added = bridgeEdgeLoops(mesh, [...rim(mesh, 1), ...rim(mesh, 2)]).mesh.faces.slice(mesh.faces.length);
+    // Faces are made in ring order, so neighbours in the list (and the first and last) are neighbours in the ring.
+    added.forEach((face, i) => { if (face.length === 3) expect(added[(i + 1) % added.length]?.length).toBe(4); });
+  });
+
   it("always makes a manifold tube from rings of any size, turn and starting vertex", () => {
     let state = 99;
     const next = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; };
-    for (let round = 0; round < 150; round += 1) {
-      const sides = 3 + Math.floor(next() * 10), turn = next() * 2 / sides, start = Math.floor(next() * sides);
-      const low = tube([{ y: 0 }, { y: 1 }], sides, 0.5 + next());
-      const high = tube([{ y: 2 + next(), turn, start }, { y: 3 + next(), turn, start }], sides, 0.5 + next(), low.vertices.length);
+    for (let round = 0; round < 250; round += 1) {
+      const lowSides = 3 + Math.floor(next() * 10), highSides = next() < 0.3 ? lowSides : 3 + Math.floor(next() * 10);
+      const turn = next() * 2 / highSides, start = Math.floor(next() * highSides), yHigh = 2 + Math.floor(next() * 4) / 2;
+      const low = tube([{ y: 0 }, { y: 1 }], lowSides, 0.5 + next());
+      const high = tube([{ y: yHigh, turn, start }, { y: yHigh + 1, turn, start }], highSides, 0.5 + next(), low.vertices.length);
       const mesh = readTopology(createPolygonMesh([...low.vertices, ...high.vertices], [...low.faces, ...high.faces]));
-      const result = bridgeEdgeLoops(mesh, [...rim(mesh, 1), ...[...topology(mesh).edges].filter(([, incident]) => incident.length === 1 && incident.every((half) => (mesh.positions[half.from]?.y ?? 0) >= 2 && (mesh.positions[half.from]?.y ?? 0) < 3 && (mesh.positions[half.to]?.y ?? 0) === (mesh.positions[half.from]?.y ?? -1) && half.from >= low.vertices.length && half.from < low.vertices.length + sides)).map(([id]) => id)]);
+      const result = bridgeEdgeLoops(mesh, [...rim(mesh, 1), ...rim(mesh, yHigh)]);
       expect(() => checkManifold(result.mesh)).not.toThrow();
-      expect([...topology(result.mesh).edges.values()].filter((incident) => incident.length === 1)).toHaveLength(2 * sides);
+      expect([...topology(result.mesh).edges.values()].filter((incident) => incident.length === 1)).toHaveLength(lowSides + highSides);
+      expect(result.triangles).toBe(Math.abs(lowSides - highSides));
       for (const face of result.mesh.faces.slice(mesh.faces.length)) expect(faceAreaNormal(result.mesh, face).length()).toBeGreaterThan(1e-9);
     }
   });

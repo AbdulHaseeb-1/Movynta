@@ -3,19 +3,21 @@ import { channels, point, type PolygonMesh } from "./meshTopology";
 import { topologyResult } from "./meshTopologyEdit";
 import type { Weights } from "./meshWeights";
 
-export interface BridgeResult extends ExtrudeResult { bridgeFaces: number; edgesPerLoop: number }
+export interface BridgeResult extends ExtrudeResult { bridgeFaces: number; quads: number; triangles: number; longEdges: number; shortEdges: number }
 /** One boundary edge as its face winds it: the face, and the corner the edge starts at. */
 interface Rim { from: number; to: number; face: number; corner: number }
 
 const EDGE = /^(0|[1-9]\d{0,9})_(0|[1-9]\d{0,9})$/;
 
 /**
- * Join two closed boundary loops with a ring of quads (Blender's Bridge Edge Loops). No vertex is added or moved and
- * every existing ID stays; the new faces are last. Each quad runs against the two boundary edges it joins, so the
- * result is wound consistently. The loops are paired at the rotation that makes the connecting edges shortest in
- * total; `twist` turns that pairing by whole edges when the automatic one is not the one wanted. Both loops must
- * have the same number of edges, and no vertex may belong to both. New corners take the texture coordinates and
- * material of the face beside the boundary edge, so a bridge is not unwrapped.
+ * Join two closed boundary loops with a ring of faces (Blender's Bridge Edge Loops). No vertex is added or moved and
+ * every existing ID stays; the new faces are last. Each face runs against the boundary edge it joins, so the result
+ * is wound consistently. With equal edge counts every face is a quad. With unequal counts the shorter loop's vertices
+ * are spread evenly along the longer one: a quad where both loops advance, a triangle where only the longer advances,
+ * so the extra edges become triangles spread around the ring instead of one fan. The loops are paired at the rotation
+ * that makes the connecting edges shortest in total; `twist` turns the shorter loop by whole edges when that pairing
+ * is not the one wanted. No vertex may belong to both loops. New corners take the texture coordinates and material
+ * of the face beside the boundary edge, so a bridge is not unwrapped.
  */
 export function bridgeEdgeLoops(mesh: PolygonMesh, ids: readonly string[], twist = 0): BridgeResult {
   if (!Number.isInteger(twist) || Math.abs(twist) > 256) throw new Error("Twist must be a whole number of edges between -256 and 256");
@@ -57,24 +59,32 @@ export function bridgeEdgeLoops(mesh: PolygonMesh, ids: readonly string[], twist
   }
   const [first, second] = loops;
   if (loops.length !== 2 || !first || !second) throw new Error(`Choose the edges of exactly two boundary loops; these form ${loops.length}`);
-  if (first.length !== second.length) throw new Error(`The loops have ${first.length} and ${second.length} edges; bridging needs the same number of edges on both`);
-  if (first.length < 3) throw new Error("A loop needs at least three edges");
-  const n = first.length;
-  const apart = (a: number, b: number) => point(mesh, a).distanceToSquared(point(mesh, b));
-  // Pair vertex a_i with b_(k - i): the second loop runs the opposite way round, which is what makes the quads consistent.
-  let best = 0, bestCost = Infinity;
-  for (let k = 0; k < n; k += 1) {
+  // Equal loops keep the order they were found in; otherwise the longer one leads and the shorter one is spread along it.
+  const [long, short] = first.length >= second.length ? [first, second] : [second, first];
+  const n = long.length, m = short.length;
+  if (m < 3) throw new Error("A loop needs at least three edges");
+  const loopVertices = new Set([...first, ...second].map((rim) => rim.from));
+  if (loopVertices.size !== n + m) throw new Error("The two loops share a vertex, so there is nothing to bridge between them");
+  // Long vertex i (counting from `start`) is paired with short vertex (turn - P(i)): the short loop runs the opposite
+  // way round, which is what makes the faces consistent. P spreads m steps over n, so it advances 0 or 1 at a time.
+  const spread = (i: number) => Math.floor((i * m) / n);
+  const squared = new Float64Array(n * m);
+  for (let a = 0; a < n; a += 1) for (let b = 0; b < m; b += 1) squared[a * m + b] = point(mesh, long[a]?.from ?? 0).distanceToSquared(point(mesh, short[b]?.from ?? 0));
+  const shortIndex = (turn: number, step: number) => (((turn - step) % m) + m) % m;
+  let bestStart = 0, bestTurn = 0, bestCost = Infinity;
+  // Equal loops are the same pairing seen from either side, so only the turn is searched.
+  for (let start = 0; start < (n === m ? 1 : n); start += 1) for (let turn = 0; turn < m; turn += 1) {
     let cost = 0;
-    for (let i = 0; i < n; i += 1) cost += apart(first[i]?.from ?? 0, second[(((k - i) % n) + n) % n]?.from ?? 0);
-    if (cost < bestCost - 1e-12) { best = k; bestCost = cost; }
+    for (let i = 0; i < n; i += 1) cost += squared[((start + i) % n) * m + shortIndex(turn, spread(i))] ?? 0;
+    if (cost < bestCost - 1e-12) { bestStart = start; bestTurn = turn; bestCost = cost; }
   }
-  const k = (((best + twist) % n) + n) % n;
-  const loopVertices = new Set([...first, ...second].flatMap((rim) => [rim.from]));
-  if (loopVertices.size !== 2 * n) throw new Error("The two loops share a vertex, so there is nothing to bridge between them");
+  const turn = (((bestTurn + twist) % m) + m) % m, start = bestStart;
+  const longAt = (i: number) => long[(start + i) % n];
+  const shortAt = (step: number) => short[shortIndex(turn, step)];
   // Loops that existing faces already join would get a second wall over the first.
   const connectors = new Map<number, string>();
   for (let i = 0; i < n; i += 1) {
-    const a = first[i]?.from ?? 0, b = second[(((k - i) % n) + n) % n]?.from ?? 0;
+    const a = longAt(i)?.from ?? 0, b = shortAt(spread(i))?.from ?? 0;
     connectors.set(a < b ? a * count + b : b * count + a, `${Math.min(a, b)}_${Math.max(a, b)}`);
   }
   for (const face of mesh.faces) face.forEach((from, corner) => {
@@ -88,14 +98,28 @@ export function bridgeEdgeLoops(mesh: PolygonMesh, ids: readonly string[], twist
     if (!sample) throw new Error("Missing corner attributes");
     return sample;
   };
+  let triangles = 0;
   for (let i = 0; i < n; i += 1) {
-    const a = first[i], b = second[(((k - i - 1) % n) + n) % n];
-    if (!a || !b) throw new Error("Missing loop edge");
-    // a runs a.from -> a.to, b runs b.from -> b.to; the quad goes against both: a.to, a.from, b.to, b.from.
-    faces.push([a.to, a.from, b.to, b.from]);
-    corners.push([sampleAt(a, true), sampleAt(a, false), sampleAt(b, true), sampleAt(b, false)]);
+    const a = longAt(i);
+    if (!a) throw new Error("Missing loop edge");
+    const from = spread(i), to = spread(i + 1);
+    // The short edge from step `to` back to step `from` runs from shortAt(to) to shortAt(from) as its face winds it.
+    if (to === from) {
+      // Only the long loop advances: a triangle fanning from one short vertex.
+      const hub = shortAt(from);
+      if (!hub) throw new Error("Missing loop edge");
+      faces.push([a.to, a.from, hub.from]);
+      corners.push([sampleAt(a, true), sampleAt(a, false), sampleAt(hub, false)]);
+      triangles += 1;
+    } else {
+      const b = shortAt(to);
+      if (!b) throw new Error("Missing loop edge");
+      // a runs a.from -> a.to, b runs b.from -> b.to; the quad goes against both: a.to, a.from, b.to, b.from.
+      faces.push([a.to, a.from, b.to, b.from]);
+      corners.push([sampleAt(a, true), sampleAt(a, false), sampleAt(b, true), sampleAt(b, false)]);
+    }
     materials.push(data.materials[a.face] ?? 0);
   }
   const result: PolygonMesh = { positions: mesh.positions, faces, channels: { positions: data.positions, corners, materials } };
-  return { ...topologyResult(mesh, result, []), bridgeFaces: n, edgesPerLoop: n };
+  return { ...topologyResult(mesh, result, []), bridgeFaces: n, quads: n - triangles, triangles, longEdges: n, shortEdges: m };
 }

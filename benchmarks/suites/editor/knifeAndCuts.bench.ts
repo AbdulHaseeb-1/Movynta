@@ -22,13 +22,14 @@
 import { it } from "vitest";
 import { SphereGeometry, Vector3, type BufferGeometry } from "three";
 import { createPolygonMesh } from "@/features/meshGeometry/createPolygonMesh";
+import { bridgeEdgeLoops } from "@/features/meshGeometry/meshBridge";
 import { bisectMesh } from "@/features/meshGeometry/meshBisect";
 import { deleteComponents } from "@/features/meshGeometry/meshDelete";
 import { flipNormals } from "@/features/meshGeometry/meshFlip";
 import { shadeGeometry } from "@/features/meshGeometry/meshShading";
 import { knifeChord } from "@/features/meshGeometry/meshKnifeChord";
 import { KnifeSession } from "@/features/meshGeometry/meshKnifeSession";
-import { readTopology, type PolygonMesh } from "@/features/meshGeometry/meshTopology";
+import { readTopology, topology, type PolygonMesh } from "@/features/meshGeometry/meshTopology";
 import { validateTopologyEdit } from "@/features/meshGeometry/meshTopologyEdit";
 import { measureCases, type BenchCase } from "../../lib/harness";
 import { finishWithGrowth } from "../../lib/report";
@@ -119,5 +120,31 @@ it("measures deleting, flipping, shading and validating a whole cage", async () 
     { key: "faces", declared: 1, label: "validate", where: (result) => result.name.startsWith("validate") },
     { key: "faces", declared: 1, label: "shade flat", where: (result) => result.name.startsWith("shade flat") },
     { key: "faces", declared: 1, label: "shade by angle", where: (result) => result.name.startsWith("shade smooth") },
+  ]);
+});
+
+/** Two open tubes with different side counts, one above the other, and the edges of the two rims that face each other. */
+function twoTubes(lowSides: number, highSides: number) {
+  const ring = (sides: number, y: number) => Array.from({ length: sides }, (_, i) => [Math.cos((i / sides) * 2 * Math.PI), y, Math.sin((i / sides) * 2 * Math.PI)]);
+  const band = (sides: number, at: number) => Array.from({ length: sides }, (_, i) => [at + i, at + ((i + 1) % sides), at + sides + ((i + 1) % sides), at + sides + i]);
+  const source = createPolygonMesh([...ring(lowSides, 0), ...ring(lowSides, 1), ...ring(highSides, 2), ...ring(highSides, 3)], [...band(lowSides, 0), ...band(highSides, 2 * lowSides)]);
+  const mesh = readTopology(source);
+  const at = (y: number) => [...topology(mesh).edges].filter(([, incident]) => incident.length === 1 && incident.every((half) => Math.abs((mesh.positions[half.from]?.y ?? Number.NaN) - y) < 1e-9)).map(([id]) => id);
+  return { source, mesh, edges: [...at(1), ...at(2)] };
+}
+
+it("measures bridging two openings, up to the 256-edge loop limit", async () => {
+  const sweep = (name: string, pairs: readonly (readonly [number, number])[]): BenchCase[] => pairs.map(([low, high]) => {
+    const { mesh, edges } = twoTubes(low, high);
+    return { name, params: { edges: edges.length }, run: () => consume(bridgeEdgeLoops(mesh, edges).mesh.faces.length) };
+  });
+  const results = await measureCases([
+    ...sweep("bridge two equal loops", [[16, 16], [32, 32], [64, 64], [128, 128], [256, 256]]),
+    ...sweep("bridge two unequal loops", [[16, 12], [32, 24], [64, 48], [128, 100], [256, 200]]),
+  ]);
+  // Equal loops are paired by trying each turn of one against the other; unequal loops also try each start of the longer.
+  finishWithGrowth("editor/knifeAndCuts.bridge", results, [
+    { key: "edges", declared: 2, tolerance: 0.5, label: "equal loops", where: (result) => result.name.includes("equal loops") && !result.name.includes("unequal") },
+    { key: "edges", declared: 3, tolerance: 0.5, label: "unequal loops", where: (result) => result.name.includes("unequal") },
   ]);
 });

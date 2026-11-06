@@ -134,6 +134,10 @@ export function bisectMesh(mesh: PolygonMesh, source: BufferGeometry, plane: Bis
       materials.push(material); origin.push(index);
     }
   });
+  if (split === 0 && keep === "both" && low < -snap && high > snap) {
+    // The mesh has vertices on both sides, so the plane does pass through it: it just runs along existing edges.
+    throw new Error("The plane already runs along existing edges and every face lies on one side of it, so there is nothing new to cut; choose a position between two edge loops to add edges");
+  }
   if (split === 0 && keep === "both") {
     throw new Error(`The plane does not cut the mesh: its vertices are ${format(low)} to ${format(high)} units from the plane (mesh-local, positive on the normal side), so the plane has to pass between them`);
   }
