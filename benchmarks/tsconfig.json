@@ -33,6 +33,8 @@
     "emitDecoratorMetadata": true
   },
   "include": [
+    "quality",
+    "vitest.quality.config.ts",
     "config",
     "lib",
     "fixtures",
