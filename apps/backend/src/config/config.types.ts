@@ -29,6 +29,12 @@ export interface AppConfig {
     /** How many times a run asks the model to carry on before it accepts the reply as final. */
     readonly continuationLimit: number;
     readonly maxTurns: number;
+    /** Which runs are reviewed by a separate agent once their work is done. */
+    readonly reviewMode: "off" | "quality" | "builds";
+    /** Most independent reviews of one run. */
+    readonly reviewLimit: number;
+    /** Most model turns one review may take. */
+    readonly reviewMaxTurns: number;
   };
   readonly editor: { readonly requestTimeoutMs: number };
   readonly skills: { readonly directory: string };

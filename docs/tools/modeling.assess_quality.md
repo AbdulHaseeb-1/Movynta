@@ -1,6 +1,6 @@
 # `modeling.assess_quality`
 
-> Records the assistant’s task-specific self-review of a changed scene; it does not change geometry or guarantee visual quality.
+> Records the independent reviewer's verdict on the finished work. Only the reviewer has this tool; the assistant that builds cannot grade itself.
 
 | | |
 | --- | --- |
@@ -14,8 +14,8 @@
 
 ## When the assistant uses it
 
-- After applying changes for an explicit 3D realism, detail or refinement request.
-- After capturing at least two distinct live solid views, or when explaining why review cannot proceed.
+- Called by the quality reviewer, once, as its last step, after it has looked at the finished scene.
+- Never by the assistant that built the result. It receives the findings as work to do.
 
 ## Input
 
@@ -23,15 +23,15 @@
 | --- | --- | --- | --- | --- |
 | `outcome` | ready \| needs_refinement \| blocked | Yes | – | Whether the assistant sees no major defects, identifies work to do, or is blocked. |
 | `summary` | string 1–600 | Yes | – | Specific assessment or blocker. |
-| `findings` | array of up to 8 findings | Yes | – | Each has aspect, observation, and severity (major or minor). |
+| `findings` | array of up to 8 findings | Yes | – | Each has aspect, observation, severity (major or minor) and optionally fix: what to change, up to 240 characters. |
 
 ## Evidence
 
 | Item | Meaning |
 | --- | --- |
-| `ready / needs_refinement` | Require two distinct live solid views with images at the latest scene revision; ready rejects major findings and requires observations about at least two distinct aspects. |
+| `ready` | ready needs pictures of two distinct live solid views the reviewer took at the current scene, observations on at least two distinct aspects, no major finding, and a measured, passing brief. |
 | `blocked` | Explains an actual limitation with at least one finding and may be recorded without visual evidence. |
-| `needs_refinement` | Requires a finding and another applied edit before the same revision can be marked ready. |
+| `needs_refinement` | Needs at least one major finding. When pictures are possible the reviewer must have looked first; without pictures the findings may rest on measurements. Only minor findings mean ready, not a request for work. |
 
 ## Result
 
@@ -74,10 +74,10 @@ Result:
 
 ```mermaid
 flowchart LR
-  S0["Apply the scene change"]
-  S1["Capture distinct live views"]
-  S2["Record findings"]
-  S3["Refine and review again if needed"]
+  S0["The builder finishes its work"]
+  S1["The reviewer captures distinct live views"]
+  S2["The reviewer records its verdict"]
+  S3["The builder fixes major findings; the result is reviewed again"]
   S0 --> S1
   S1 --> S2
   S2 --> S3
@@ -85,12 +85,12 @@ flowchart LR
 
 ## Tips
 
-- Prioritize visible task-specific issues and explain what is still missing.
-- A blocked assessment permits an honest stop when images or needed capabilities are unavailable.
+- Findings should say what is wrong, how serious it is, and what to change, so the builder can act on them.
+- A review that cannot judge records blocked and says what could not be checked; a reviewer that gives no verdict is recorded as blocked, never as approval.
 
 ## Limits
 
-- The assessment is the model’s fallible self-review, not an independent quality guarantee.
+- The verdict is a fallible judgment, but one made by an agent that did not build the result and starts with fresh context.
 - Candidate previews and measurement-only captures do not count as live visual evidence.
 - A scene revision change invalidates earlier visual evidence.
 
@@ -98,7 +98,7 @@ flowchart LR
 
 | Message | Cause |
 | --- | --- |
-| `Capture at least two distinct live solid views with images after the latest change, or record a concrete blocker.` | There is insufficient fresh image evidence. |
+| `A ready verdict needs pictures of at least two distinct live solid views taken after the latest change. If pictures are unavailable, record blocked and say the result was not visually verified.` | ready was recorded without enough fresh image evidence. |
 
 ## Related
 

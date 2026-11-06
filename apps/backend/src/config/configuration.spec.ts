@@ -15,6 +15,13 @@ describe("loadAppConfig", () => {
     expect(loadAppConfig(validEnv).agents.enabled).toBe(false);
   });
 
+  it("reviews only requests that ask for quality by default, and reads the review settings", () => {
+    expect(loadAppConfig(validEnv).agents).toMatchObject({ reviewMode: "quality", reviewLimit: 2, reviewMaxTurns: 40 });
+    expect(loadAppConfig({ ...validEnv, AGENT_REVIEW_MODE: "builds", AGENT_REVIEW_LIMIT: "3", AGENT_REVIEW_MAX_TURNS: "10" }).agents).toMatchObject({ reviewMode: "builds", reviewLimit: 3, reviewMaxTurns: 10 });
+    expect(loadAppConfig({ ...validEnv, AGENT_REVIEW_MODE: "off" }).agents.reviewMode).toBe("off");
+    expect(() => loadAppConfig({ ...validEnv, AGENT_REVIEW_MODE: "sometimes" })).toThrow(/AGENT_REVIEW_MODE/);
+  });
+
   it("maps file database urls to paths and accepts :memory:", () => {
     expect(loadAppConfig({ ...validEnv, DATABASE_URL: "file:./data/x.sqlite" }).database.path).toBe("./data/x.sqlite");
     expect(loadAppConfig({ ...validEnv, DATABASE_URL: ":memory:" }).database.path).toBe(":memory:");

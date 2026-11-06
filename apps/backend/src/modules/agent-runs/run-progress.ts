@@ -14,8 +14,28 @@ const proposalRecordSchema = z.object({
   stepId: z.string().optional(),
 });
 
+/** One thing the independent reviewer found wrong or right, with what to change. */
+const reviewFindingSchema = z.object({
+  aspect: z.string().max(80),
+  observation: z.string().max(300),
+  severity: z.enum(["major", "minor"]),
+  fix: z.string().max(240).optional(),
+});
+export type ReviewFinding = z.infer<typeof reviewFindingSchema>;
+
+/** Which runs are reviewed by a separate agent: none, those that ask for quality, or every build. */
+export const REVIEW_MODES = ["off", "quality", "builds"] as const;
+export type ReviewMode = (typeof REVIEW_MODES)[number];
+
 const qualityReviewSchema = z.object({
+  /** True when the finished work must be reviewed by the independent reviewer. */
   required: z.boolean().default(false),
+  /** True after a picture request failed and until one succeeds: the viewport cannot draw, so nothing can be seen. */
+  viewportUnavailable: z.boolean().default(false),
+  /** How many independent reviews this run has had. */
+  reviews: z.number().int().nonnegative().default(0),
+  /** What the latest review found, kept to send the builder back to work. */
+  findings: z.array(reviewFindingSchema).max(8).default([]),
   changes: z.number().int().nonnegative().default(0),
   captureRevision: z.number().int().nonnegative().nullable().default(null),
   viewpoints: z.array(z.string()).max(12).default([]),
@@ -41,12 +61,16 @@ const briefStateSchema = z.object({
   }).nullable().default(null),
 });
 
-/** Quality gates are for explicit realism/refinement requests, not ordinary small edits or questions. */
-export function requiresQualityReview(input: string, dimension: string | undefined): boolean {
-  if (dimension !== "3d") return false;
+/**
+ * Whether the finished work is reviewed by a separate agent. By default that is for explicit realism and refinement
+ * requests, not ordinary small edits or questions; "builds" reviews every 3D request that is not a simple transform.
+ */
+export function requiresQualityReview(input: string, dimension: string | undefined, mode: ReviewMode = "quality"): boolean {
+  if (mode === "off" || dimension !== "3d") return false;
   if (/\b(?:only|just)\s+(?:an?\s+)?(?:rough\s+)?(?:block[ -]?out|draft|prototype)\b/i.test(input)) return false;
   // A realistic object can be the target of a simple transform; that does not ask for a quality upgrade.
   if (/^\s*(?:please\s+)?(?:move|rotate|scale|delete|rename|hide|show|select)\b/i.test(input) && !/\b(?:refine|improve|make .{0,40}(?:realistic|detailed|better))\b/i.test(input)) return false;
+  if (mode === "builds") return true;
   return /\b(?:photo[ -]?real(?:istic|ism)?|realistic|realism|lifelike|life[ -]?like|high[ -]?detail(?:ed)?|highly detailed|detailed|high[ -]?quality|refine|refinement|improve|make (?:it|this|the model) better|more detailed)\b/i.test(input);
 }
 
@@ -140,11 +164,31 @@ export function openWorkReasons(progress: RunProgress, statusOf: ProposalStatusL
     reasons.push(`the last scene check reported ${progress.sceneErrors} error${progress.sceneErrors === 1 ? "" : "s"}`);
   }
   reasons.push(...briefReasons(progress));
-  if (progress.quality.required && progress.quality.changes > 0) {
-    if (progress.quality.outcome === null) reasons.push("the requested quality work needs a fresh visual review: capture at least two distinct live views and call modeling.assess_quality, or report a concrete blocker");
-    if (progress.quality.outcome === "needs_refinement") reasons.push("the latest quality review identified issues: refine the scene, then capture and assess the new result, or record a blocker");
+  if (progress.quality.required && progress.quality.changes > 0 && progress.quality.outcome === "needs_refinement") {
+    reasons.push(...refinementReasons(progress.quality));
   }
   return reasons;
+}
+
+/** The reviewer's findings as work for the builder: major ones to fix, then the minor ones worth a look. */
+function refinementReasons(quality: RunProgress["quality"]): string[] {
+  const line = (finding: ReviewFinding) => `  - ${finding.aspect}: ${finding.observation}${finding.fix ? ` Fix: ${finding.fix}` : ""}`;
+  const major = quality.findings.filter((finding) => finding.severity === "major");
+  const minor = quality.findings.filter((finding) => finding.severity === "minor");
+  return [
+    `an independent review of the result found ${major.length} major problem${major.length === 1 ? "" : "s"}; fix them, then the result is reviewed again:`,
+    ...major.map(line),
+    ...(minor.length > 0 ? ["minor notes, worth fixing if cheap:", ...minor.map(line)] : []),
+  ];
+}
+
+/**
+ * True when the work is otherwise done and the independent reviewer has not yet seen it in its current state. A review
+ * is never due while work is open, and no more than `limit` reviews are made in one run.
+ */
+export function reviewDue(progress: RunProgress, limit: number): boolean {
+  const { quality } = progress;
+  return quality.required && quality.changes > 0 && quality.outcome === null && quality.reviews < limit;
 }
 
 /**
@@ -179,8 +223,8 @@ export function continuationPrompt(reasons: readonly string[]): string {
     "The work is not finished yet:",
     ...reasons.map((reason) => `- ${reason}`),
     "Continue with tool calls until each item is done: apply the waiting batches, name plan steps with stepId, and run validation.check_scene after changes.",
-    "When a quality review is requested, do not claim realism from structural validation. Use modeling.assess_quality after inspecting fresh live views, make targeted improvements when needed, and be specific about unresolved limitations.",
-    "If images are unavailable or a limitation prevents further work, record a blocked assessment explaining it. If you cannot finish without a decision from the user, ask one specific question and stop.",
+    "Do not claim realism or quality from structural validation or from the brief's checks alone. An independent reviewer examines the finished result; fix what it reports, and be specific about unresolved limitations.",
+    "If a limitation prevents further work, say what it is. If you cannot finish without a decision from the user, ask one specific question and stop.",
   ].join("\n");
 }
 
@@ -200,7 +244,7 @@ export function qualityCompletionNotice(progress: RunProgress, supportsImages: b
   const quality = progress.quality;
   if (!quality.required || quality.changes === 0 || quality.outcome === "ready") return undefined;
   if (quality.outcome === "blocked") return `Quality review was blocked: ${quality.summary}${supportsImages ? "" : " Images were not available to the model, so the result was not visually verified."}`;
-  const issue = quality.outcome === "needs_refinement" ? ` The last review found: ${quality.summary}` : " A final visual quality review was not completed.";
+  const issue = quality.outcome === "needs_refinement" ? ` The last review found: ${quality.summary}` : " An independent review of the final result was not completed.";
   return `The requested quality is not verified; the result may still be unfinished.${issue}${supportsImages ? "" : " Images were not available to the model, so the result was not visually verified."}`;
 }
 

@@ -19,6 +19,13 @@ const eventPayloadSchemas: { readonly [K in AgentRunEventType]: z.ZodType<AgentR
     attempt: z.number().int().positive(),
     reasons: z.array(z.string()),
   }),
+  "review.started": z.object({ attempt: z.number().int().positive() }),
+  "review.completed": z.object({
+    attempt: z.number().int().positive(),
+    outcome: z.enum(["ready", "needs_refinement", "blocked"]),
+    summary: z.string(),
+    findingCount: z.number().int().nonnegative(),
+  }),
   "skill.loaded": z.object({ skillId: z.string(), version: z.string() }),
   "tool.started": z.object({ toolName: z.string(), permission: z.string() }),
   "tool.completed": z.object({ toolName: z.string(), durationMs: z.number() }),

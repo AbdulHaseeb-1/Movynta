@@ -1,6 +1,6 @@
 ---
 name: model-design-principles
-version: 1.1.0
+version: 1.2.0
 description: Applies professional 3D design principles (silhouette, proportion, shape language, big-medium-small, real-world scale and an iterative blockout-to-detail review loop) to plan and judge any model.
 dimensions:
   - 2d
@@ -38,7 +38,6 @@ tools:
   - editor.measure
   - editor.inspect_mesh
   - viewport.capture
-  - modeling.assess_quality
   - modeling.record_brief
   - modeling.generate_model_plan
   - editor.propose_commands
@@ -140,7 +139,7 @@ These vary by country and maker; treat them as starting points.
 6. **Secondary pass**: add construction shapes. Use the `props-hard-surface` or `character-modeling` workflow as appropriate. Capture again before applying when the change is geometric (`viewport.capture` with the pending `proposalId`).
 7. **Tertiary pass**: bevels, seams and small parts, clustered at the focal point. Check normals and smoothing with `mode: normals`.
 8. **Materials**: follow `pbr-materials-and-color` for a value-first palette.
-9. Call `validation.check_scene` and `validation.check_brief`; fix every failing or unresolved check and measure again. For realism, detail or refinement requests, record the critique from fresh live captures with `modeling.assess_quality`. Then report the brief, what was built, and the open design choices the user may want to change.
+9. Call `validation.check_scene` and `validation.check_brief`; fix every failing or unresolved check and measure again. Look at fresh live captures and fix what they show; an independent reviewer examines the finished result against the request and sends back any major problems with a fix for each, which you carry out. Then report the brief, what was built, and the open design choices the user may want to change.
 
 ## 6. Self-critique checklist (use before reporting)
 

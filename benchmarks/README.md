@@ -77,6 +77,15 @@ QUALITY_TOKEN=<token> QUALITY_TRIALS=3 QUALITY_LABEL=baseline pnpm --filter movy
 | `QUALITY_PROVIDER`, `QUALITY_MODEL`, `QUALITY_EFFORT` | Override the provider, model and reasoning effort for the sweep | the app's active provider |
 | `QUALITY_LABEL` | Name used in the results file | `run` |
 
+**Measuring the independent review.** A finished build is examined by a separate reviewer agent only when the backend's `AGENT_REVIEW_MODE` says so. The benchmark prompts do not ask for realism, so the default (`quality`) never reviews them. To see what the review adds, run one sweep per mode on the same model and compare:
+
+```bash
+AGENT_REVIEW_MODE=off    AUTH_SECRET=<secret> pnpm dev:backend   # then: QUALITY_LABEL=no-review ... quality
+AGENT_REVIEW_MODE=builds AUTH_SECRET=<secret> pnpm dev:backend   # then: QUALITY_LABEL=review ... quality
+```
+
+The headless editor has no viewport, so the reviewer works from measurements: it can find fault and send the work back (up to `AGENT_REVIEW_LIMIT` times), but it can never approve, and every reviewed run ends with a "not visually verified" notice. That is enough to show whether the review catches defects the builder missed; it does not show what a reviewer who can see would add. A reviewed run costs noticeably more tokens and time, and the scorecard shows both.
+
 Runs happen one at a time. Each uses a throwaway project named `quality-<scenario>-<trial>-<id>`, which is deleted once the run is scored. **A sweep calls the model and costs money**: six scenarios with three trials is eighteen full assistant runs.
 
 The scorecard is printed and saved to `results/quality/<time>-<label>.json` with the commit, the settings and every run's score. Compare two sweeps:
@@ -89,7 +98,7 @@ node benchmarks/quality/compare.mjs results/quality/<before>.json results/qualit
 
 - A score is the share of acceptance checks passed (sizes, placement, centering, loose parts, part count, closed solids). It says whether the assistant built the right *thing at the right size and put together*. It does not judge shape, silhouette or style; those still need eyes.
 - The headless editor has no viewport, so a request to look at the scene (`viewport.capture`) is answered with an error and the assistant works from measurements. Runs are therefore comparable with each other, but they do not exercise the visual review loop.
-- Prompts avoid the words that start the quality-review gate (realistic, detailed, refine). The brief is still part of what is being measured: the assistant is told to write one for any build.
+- Prompts avoid the words that start the quality gate (realistic, detailed, refine), so a default backend does not review them and does not require a brief. The assistant is told to write a brief for any build, and that is part of what is measured. Start the backend with `AGENT_REVIEW_MODE=builds` to review them.
 - With few trials a difference of one scenario is noise. Use three trials or more, and the same model, before drawing a conclusion.
 - Live runs have only been exercised against a stand-in backend in tests. The first sweep against a real backend is the first test of that path end to end.
 

@@ -200,6 +200,34 @@ function applyEvent(message: ChatMessage, event: RunEvent): ChatMessage {
         }),
       );
     }
+    case "review.started": {
+      const attempt = readNumber(payload, "attempt");
+      return addStep(message, {
+        kind: "review",
+        label: attempt !== undefined && attempt > 1 ? "Reviewing the fixes" : "Independent review of the result",
+        status: "running",
+      });
+    }
+    case "review.completed": {
+      const outcome = readString(payload, "outcome");
+      const summary = readString(payload, "summary");
+      const count = readNumber(payload, "findingCount");
+      return updateLastRunning(
+        message,
+        (step) => step.kind === "review",
+        (step) => ({
+          ...step,
+          label:
+            outcome === "ready"
+              ? "Review passed"
+              : outcome === "needs_refinement"
+                ? `Review found ${count === undefined ? "problems" : pluralize(count, "problem")} to fix`
+                : "Review could not judge the result",
+          status: outcome === "ready" ? "done" : "failed",
+          ...(summary ? { detail: summary } : {}),
+        }),
+      );
+    }
     case "approval.required": {
       const summary = readString(payload, "summary");
       return addStep(message, {

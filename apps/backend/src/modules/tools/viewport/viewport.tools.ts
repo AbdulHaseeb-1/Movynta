@@ -72,9 +72,17 @@ export function createViewportTools({ bridge, proposals }: {
         // measurement-only responses must never satisfy it. Other captures avoid the extra context requests.
         const trackQuality = context.progress.quality.required && context.progress.quality.changes > 0 && !candidate && withImages && (request.mode ?? "solid") === "solid";
         const before = trackQuality ? await bridge.getContext(context.clientId) : undefined;
-        const result = await bridge.captureViews(context.clientId, request, {
-          withImages, captureId, ...(candidate ? { candidate } : {}),
-        });
+        let result: Awaited<ReturnType<typeof bridge.captureViews>>;
+        try {
+          result = await bridge.captureViews(context.clientId, request, {
+            withImages, captureId, ...(candidate ? { candidate } : {}),
+          });
+        } catch (error) {
+          // A viewport that cannot draw leaves nothing to look at. The reviewer is told, not left to retry for ever.
+          if (!candidate) context.progress.quality.viewportUnavailable = true;
+          throw error;
+        }
+        if (!candidate) context.progress.quality.viewportUnavailable = false;
         const images = withImages ? result.images.filter((image) => image.data.length > 0) : [];
         if (before && images.length) {
           const after = await bridge.getContext(context.clientId);

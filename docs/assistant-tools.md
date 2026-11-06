@@ -24,16 +24,39 @@ The modeling coordinator agent (`apps/backend/src/modules/agents/definitions/mod
 | `editor.apply_proposal` | `editor__apply_proposal` | `apply` | Never; automatic | Applies a stored proposal to the editor. Each entry of `results` can carry `name`, the name an object received from a command that created, renamed or re-parented it (see [Names and parents](#names-and-parents)). | `modules/tools/editor/editor.tools.ts` |
 | `validation.check_scene` | `validation__check_scene` | `read` | Never | Checks duplicate ids, missing parents, parent cycles, non-positive scale, an object in a collection that does not exist, and collections that sit in a missing collection or inside themselves (errors); names shared by objects under one parent or by collections in one place, and groups with children scaled unevenly (warnings); and groups and collections with nothing in them (information). Only errors make `ok` false. | `modules/tools/validation/validation.tools.ts` |
 | `skills.load_skill` | `skills__load_skill` | `skill` | Never | Loads the full workflow of a skill selected for this request. | `modules/tools/skills/skills.tools.ts` |
-| `modeling.assess_quality` | `modeling__assess_quality` | `plan` | Never | Records the model’s task-specific self-review or blocker. Ready and needs-refinement require two distinct live solid image views at the current revision; it does not guarantee visual quality. | `modules/tools/modeling/quality.tools.ts` |
+| `modeling.assess_quality` | `modeling__assess_quality` | `plan` | Never | **Reviewer only.** Records the independent reviewer's verdict on the finished work: `outcome`, `summary` and up to eight `findings` of `{ aspect, observation, severity, fix? }`. The assistant that builds does not have this tool. `ready` needs pictures of two distinct live views at the current scene; `needs_refinement` needs a major finding; `blocked` says what could not be checked. | `modules/tools/modeling/quality.tools.ts` |
 | `modeling.record_brief` | `modeling__record_brief` | `plan` | Never | Records the brief for the request: `subject`, optional `style`, up to eight `assumptions` and 1–40 measurable `checks`. Replaces any earlier brief and counts the replacement. It does not change the scene. | `modules/tools/modeling/brief.tools.ts` |
 | `validation.check_brief` | `validation__check_brief` | `read` | Never | Measures the recorded brief on the current scene's world bounds and returns each check as `pass`, `fail` or `unresolved` with the value measured and the value needed. Marks the brief as measured for the current scene. | `modules/tools/modeling/brief.tools.ts` |
 | `modeling.generate_model_plan` | `modeling__generate_model_plan` | `plan` | Never | Records a structured plan. It does not change the scene. Each step's `toolName` must be a known tool. A newer plan replaces the current one. | `modules/tools/modeling/modeling.tools.ts` |
 | `modeling.generate_commands` | `modeling__generate_commands` | `read` | Never | Runs synchronous JavaScript against an isolated `scene` snapshot. Optional `inspection` exposes the inspected mesh as `mesh`. Programs can generate bounded `geometry.create_mesh` commands. Returns validated commands and `sourceRevision`, or rejection details. Nothing is proposed or applied. | `modules/tools/procedural/procedural.tools.ts` |
 | `modeling.propose_generated` | `modeling__propose_generated` | `propose` | Never; automatic | Runs the same isolated generator and validates and stores a proposal at its source revision without echoing the command arrays. Accepts `summary`, `source`, and optional `inspection`. Inspect a geometry candidate with `viewport.capture` and call `editor.apply_proposal` to apply it automatically. | `modules/tools/procedural/procedural.tools.ts` |
 
-### Quality review
+### Independent review
 
-For explicit 3D realism, detail, or refinement requests, applied edits require a model self-review before a run is treated as visually reviewed. `modeling.assess_quality` accepts `outcome` (`ready`, `needs_refinement`, or `blocked`), `summary` (1–600 characters), and `findings` (up to eight `{ aspect, observation, severity }` records; severity is `major` or `minor`). It is a plan tool, needs no approval, and never changes the scene. A ready or needs-refinement review requires images from at least two distinct live solid camera positions at an unchanged current revision. Candidate previews, normals/wireframe views and measurement-only responses do not count. Ready rejects major findings and requires observations on at least two distinct aspects; needs-refinement requires a finding and another applied edit before ready. Blocked may be recorded without images and must describe at least one concrete blocker. When the run stops without a ready review, the final answer discloses the incomplete review or blocker. These checks record a fallible model judgment, not an objective quality guarantee.
+The assistant that builds does not decide when its work is good enough. When it has nothing left open, the run starts a second agent, the **quality reviewer** (`quality-reviewer`), which did not build the result and starts with no history. It is told the user's request, the builder's brief and any earlier findings, and nothing about how the result was made or what the builder said about it. It is internal: it is not listed by `GET /api/v1/agents` and a run cannot be started with it.
+
+The reviewer has only tools that look: `editor.get_context`, `editor.get_scene_summary`, `editor.inspect_mesh`, `editor.inspect_materials`, `editor.measure`, `viewport.capture`, `validation.check_scene`, `validation.check_brief`, and the verdict tool `modeling.assess_quality`. It cannot propose or apply a change, and the builder is not given the verdict tool, so neither can grade the other's work.
+
+`modeling.assess_quality` takes `outcome` (`ready`, `needs_refinement` or `blocked`), `summary` (1–600 characters) and `findings` (up to eight `{ aspect, observation, severity, fix? }`; severity is `major` or `minor`, and `fix` is what to change, up to 240 characters). Its evidence rules are enforced by code, not left to the reviewer:
+
+- **ready** needs pictures of at least two distinct live solid views taken by the reviewer at the current scene (pictures the builder took are discarded when the review starts), observations on at least two different aspects, no major finding, and a brief that is measured and passing.
+- **needs_refinement** needs at least one major finding. When pictures are possible the reviewer must have looked first; when the model connection cannot take pictures the findings may rest on measurements. A review with only minor findings is `ready`, not a request for work.
+- **blocked** says what could not be checked. A reviewer that gives no verdict, fails or runs out of turns is recorded as blocked, never as approval.
+
+How the run uses it (`AGENT_REVIEW_MODE`):
+
+| Mode | Reviewed |
+| --- | --- |
+| `off` | Nothing. The builder's own checks are the only gate. |
+| `quality` (default) | Explicit 3D realism, detail or refinement requests. |
+| `builds` | Every 3D request that changes the scene, except a plain move, rotate, scale, delete, rename or visibility change, or an explicit blockout-only request. |
+
+- The review happens only after the builder has no open work: every plan step applied, no batch waiting, the scene checked without errors, and the brief measured and passing. A review is never spent on a result that fails its own numbers.
+- A verdict of `needs_refinement` comes back to the builder as a continuation message: the major findings with their fixes, then the minor ones as optional notes. When the builder has made changes the result is reviewed again, a second reviewer being told what the first one asked for. At most `AGENT_REVIEW_LIMIT` reviews (2 by default) are made, and `AGENT_CONTINUATION_LIMIT` still applies.
+- Each review shows in the chat as one step, "Independent review of the result", that ends with its verdict. The `review.started` and `review.completed` events carry the attempt, the outcome, a short summary and the number of findings.
+- If the run ends without a passing review, the final reply says so and repeats what the last review found. A result nobody could look at is reported as not visually verified.
+- A review costs a full agent run: expect a build that is reviewed to use noticeably more tokens and time. `AGENT_REVIEW_MAX_TURNS` (40 by default) bounds one review.
+- The reviewer uses the same provider and model as the run. It is a fallible judgment, but a judgment made without having built the thing, and it cannot pass what it did not look at.
 
 ### Brief and measured checks
 
@@ -60,10 +83,10 @@ How the run uses it:
 
 - A brief is **required** for explicit 3D realism, detail or refinement requests (the same requests that need a quality review) and optional otherwise. Once one is recorded it is enforced.
 - A run with applied changes is not finished while the brief was never measured, was recorded or the scene changed since it was last measured, or any check fails or is unresolved. The model is sent a continuation message that lists up to five failing checks with measured and needed values. The usual continuation limit still applies.
-- `modeling.assess_quality` rejects `ready` while the brief is missing (in a run that requires one), stale or failing. `blocked` is still accepted.
+- The reviewer's `modeling.assess_quality` rejects `ready` while the brief is missing (in a run that requires one), stale or failing. `blocked` is still accepted.
 - An editor that reports no bounds cannot measure the checks. The run is not held for them, and the final reply says they are unverified.
 - At the end the user is told when checks still fail, when they were not measured on the final scene, and how many times the brief was replaced, so a check cannot be quietly weakened to pass.
-- Passing checks prove sizes, placement, counts and mirroring. They do not judge shape, silhouette or appearance, and the notice on a quality review still applies.
+- Passing checks prove sizes, placement, counts and mirroring. They do not judge shape, silhouette or appearance; the independent review is what looks at those.
 
 The same checks score the assistant's work in the quality benchmarks: see "Assistant quality" in [benchmarks/README.md](../benchmarks/README.md).
 
@@ -406,10 +429,10 @@ Skills are in `skills/<id>/SKILL.md`. Their `tools:` list tells the model which 
 
 | Skill | Tools named |
 | --- | --- |
-| `character-modeling` | `editor.get_context`, `editor.measure`, `editor.inspect_mesh`, `editor.inspect_materials`, `modeling.record_brief`, `modeling.generate_model_plan`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `viewport.capture`, `modeling.assess_quality`, `validation.check_scene`, `validation.check_brief` |
+| `character-modeling` | `editor.get_context`, `editor.measure`, `editor.inspect_mesh`, `editor.inspect_materials`, `modeling.record_brief`, `modeling.generate_model_plan`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `viewport.capture`, `validation.check_scene`, `validation.check_brief` |
 | `2.5d-character-design` | `editor.get_context`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 | `mesh-editing` | `editor.get_context`, `editor.inspect_mesh`, `editor.inspect_materials`, `editor.measure`, `editor.plan_placement`, `editor.plan_duplicates`, `viewport.capture`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
-| `model-design-principles` | `editor.get_context`, `editor.measure`, `editor.inspect_mesh`, `viewport.capture`, `modeling.assess_quality`, `modeling.record_brief`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene`, `validation.check_brief` |
+| `model-design-principles` | `editor.get_context`, `editor.measure`, `editor.inspect_mesh`, `viewport.capture`, `modeling.record_brief`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene`, `validation.check_brief` |
 | `props-hard-surface` | `editor.get_context`, `editor.inspect_mesh`, `editor.measure`, `editor.plan_placement`, `editor.plan_duplicates`, `viewport.capture`, `modeling.record_brief`, `modeling.generate_model_plan`, `modeling.generate_commands`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene`, `validation.check_brief` |
 | `topology-and-subdivision` | `editor.get_context`, `editor.inspect_mesh`, `editor.measure`, `viewport.capture`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 | `pbr-materials-and-color` | `editor.get_context`, `editor.inspect_materials`, `editor.inspect_mesh`, `viewport.capture`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |

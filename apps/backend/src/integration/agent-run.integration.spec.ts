@@ -7,6 +7,8 @@ import { assistantMessage, functionCall, modelResponder } from "@openai/agents/t
 import { startTestServer } from "../testing/test-app.js";
 import { openEventStream } from "../testing/event-stream.js";
 import { EditorSimulator, SIMULATED_IMAGE_BASE64 } from "../testing/editor-simulator.js";
+import { AgentRegistry } from "../modules/agents/agent.registry.js";
+import { ServiceUnavailableError } from "../common/errors/app-error.js";
 import type { EventStream, StreamedEvent, TestServer } from "../testing/testing.types.js";
 
 interface HttpResult<T = unknown> {
@@ -538,65 +540,214 @@ describe("agent run: continuation until the work is finished", () => {
     }
   }, 30_000);
 
-  it("accepts a quality review only after fresh live multi-view images", async () => {
-    const token = server.token("quality-ready");
-    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-quality-ready", torsoScene);
+  // A request that asks for quality is reviewed by a separate agent once the builder has nothing left open. The scripted
+  // model serves both agents from one queue, in the order the run calls them.
+  const unitCube = { kind: "size", target: { id: "quality_ready_box" }, axis: "x", min: 0.9, max: 1.1, label: "Cube is one unit wide" };
+  const recordBrief = (suffix: string) => functionCall("modeling__record_brief", { subject: "A unit cube", checks: [unitCube] }, { callId: `record-${suffix}` });
+  const builds = (suffix: string, objectId = "quality_ready_box") => [
+    [functionCall("editor__propose_commands", { summary: "Build the shape", commands: box(objectId) }, { callId: `propose-${suffix}` })],
+    modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: `apply-${suffix}` })]),
+    [functionCall("validation__check_scene", {}, { callId: `scene-${suffix}` })],
+    [functionCall("validation__check_brief", {}, { callId: `brief-${suffix}` })],
+  ];
+  const looksFromTwoViews = (suffix: string) => [functionCall("viewport__capture", { views: [{ preset: "front" }, { preset: "right" }] }, { callId: `capture-${suffix}` })];
+  const verdict = (suffix: string, outcome: "ready" | "needs_refinement", findings: { aspect: string; observation: string; severity: "major" | "minor"; fix?: string }[], summary: string) =>
+    [functionCall("modeling__assess_quality", { outcome, summary, findings }, { callId: `verdict-${suffix}` })];
+  const approves = [{ aspect: "silhouette", observation: "The outline matches the request.", severity: "minor" as const }, { aspect: "proportions", observation: "The parts are in proportion.", severity: "minor" as const }];
+
+  /** A bridge that gives each captured view its own camera position, as a real viewport does. */
+  function distinctCameras() {
     const bridge = server.app.get<EditorBridge>(EDITOR_BRIDGE);
     const capture = bridge.captureViews.bind(bridge);
-    // The simulator uses one fixed camera; provide distinct camera positions for this multi-view test.
     jest.spyOn(bridge, "captureViews").mockImplementation(async (...args) => {
       const result = await capture(...args);
       return { ...result, images: result.images.map((image, index) => ({ ...image, camera: { ...image.camera, position: index === 0 ? [0, 0, 10] : [10, 0, 0] } })) };
     });
+  }
+
+  async function finish(token: string, projectId: string, editor: EditorSimulator, message: string) {
+    const run = await createRun(token, { projectId, editorClientId: editor.clientId, dimension: "3d", message });
+    const stream = streamFor(run, token);
+    try {
+      const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+      return { terminal: terminal.envelope.type, events: stream.events.map((event) => event.envelope), final: final.body };
+    } finally { stream.stop(); }
+  }
+
+  it("has a separate agent review the finished work, and ends with the builder's reply once it passes", async () => {
+    const token = server.token("review-pass");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-review-pass", torsoScene);
+    distinctCameras();
     server.model.enqueue(
-      [functionCall("modeling__record_brief", { subject: "A unit cube", checks: [{ kind: "size", target: { id: "quality_ready_box" }, axis: "x", min: 0.9, max: 1.1 }] }, { callId: "brief-quality-ready" })],
-      [functionCall("editor__propose_commands", { summary: "Build the shape", commands: box("quality_ready_box") }, { callId: "propose-quality-ready" })],
-      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-quality-ready" })]),
-      [functionCall("validation__check_scene", {}, { callId: "check-quality-ready" })],
-      [functionCall("validation__check_brief", {}, { callId: "check-brief-quality-ready" })],
-      [functionCall("viewport__capture", { views: [{ preset: "front" }, { preset: "right" }] }, { callId: "capture-quality-ready" })],
-      [functionCall("modeling__assess_quality", { outcome: "ready", summary: "The requested shape is present.", findings: [{ aspect: "silhouette", observation: "The overall shape is clear.", severity: "minor" }, { aspect: "proportions", observation: "The parts are aligned.", severity: "minor" }] }, { callId: "assess-quality-ready" })],
-      [assistantMessage("I reviewed the model from two views.")],
+      [recordBrief("rp")],
+      ...builds("rp"),
+      [assistantMessage("I built the cube.")],
+      // The reviewer starts here, with no memory of the build: it is given the request and the brief, not the builder's reply.
+      modelResponder((call) => {
+        const text = JSON.stringify(call.request.input);
+        expect(text).toContain("Create a detailed cube");
+        expect(text).toContain("Cube is one unit wide");
+        expect(text).not.toContain("I built the cube.");
+        expect(text).not.toContain("propose-rp");
+        return [functionCall("editor__get_context", {}, { callId: "reviewer-context" })];
+      }),
+      looksFromTwoViews("rp"),
+      verdict("rp", "ready", approves, "The requested shape is present."),
+      [assistantMessage("Reviewed: it is right.")],
     );
     try {
-      const run = await createRun(token, { projectId: "proj-quality-ready", editorClientId: editor.clientId, dimension: "3d", message: "Create a detailed figure" });
-      const stream = streamFor(run, token);
-      try {
-        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
-        expect(terminal.envelope.type).toBe("run.completed");
-        expect(stream.events.filter((event) => event.envelope.type === "agent.continued")).toHaveLength(0);
-      } finally { stream.stop(); }
-      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
-      expect(final.body.finalOutput).toBe("I reviewed the model from two views.");
+      const { terminal, events, final } = await finish(token, "proj-review-pass", editor, "Create a detailed cube");
+      expect(terminal).toBe("run.completed");
+      expect(events.filter((event) => event.type === "agent.continued")).toHaveLength(0);
+      expect(events.filter((event) => event.type === "review.started")).toHaveLength(1);
+      expect(events.find((event) => event.type === "review.completed")?.payload).toMatchObject({ attempt: 1, outcome: "ready", findingCount: 2 });
+      // The reply the user reads is the builder's; the reviewer's words stay out of it.
+      expect(final.finalOutput).toBe("I built the cube.");
     } finally { editor.close(); }
   }, 30_000);
 
-  it("continues a realistic modeling request after structural validation and discloses an unfinished visual review", async () => {
-    const token = server.token("quality-review");
-    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-quality-review", torsoScene);
+  it("sends the reviewer's findings back to the builder as work, then reviews the fix", async () => {
+    const token = server.token("review-fix");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-review-fix", torsoScene);
+    distinctCameras();
     server.model.enqueue(
-      [functionCall("editor__propose_commands", { summary: "Block out a figure", commands: box("quality_box") }, { callId: "propose-quality" })],
-      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-quality" })]),
-      [functionCall("validation__check_scene", {}, { callId: "check-quality" })],
-      [assistantMessage("The figure is realistic.")],
+      [recordBrief("rf")],
+      ...builds("rf"),
+      [assistantMessage("Done.")],
+      looksFromTwoViews("rf1"),
+      verdict("rf1", "needs_refinement", [{ aspect: "legs", observation: "There are no legs under the cube.", severity: "major", fix: "Add four legs under the cube." }, { aspect: "paint", observation: "The color is flat.", severity: "minor" }], "Legs are missing."),
+      [assistantMessage("Reviewed.")],
       modelResponder((call) => {
-        expect(JSON.stringify(call.request.input)).toContain("modeling.assess_quality");
-        return [assistantMessage("The figure still needs review.")];
+        const text = JSON.stringify(call.request.input);
+        expect(text).toContain("an independent review of the result found 1 major problem");
+        expect(text).toContain("legs: There are no legs under the cube. Fix: Add four legs under the cube.");
+        expect(text).toContain("minor notes");
+        return [functionCall("editor__propose_commands", { summary: "Add legs", commands: box("quality_ready_legs") }, { callId: "propose-legs" })];
+      }),
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-legs" })]),
+      [functionCall("validation__check_scene", {}, { callId: "scene-legs" })],
+      [functionCall("validation__check_brief", {}, { callId: "brief-legs" })],
+      [assistantMessage("Added the legs.")],
+      // The second reviewer is told what the first one asked for.
+      modelResponder((call) => {
+        expect(JSON.stringify(call.request.input)).toContain("A previous review asked for these fixes");
+        return looksFromTwoViews("rf2");
+      }),
+      verdict("rf2", "ready", approves, "The legs are there."),
+      [assistantMessage("Reviewed again.")],
+    );
+    try {
+      const { terminal, events, final } = await finish(token, "proj-review-fix", editor, "Create a detailed cube");
+      expect(terminal).toBe("run.completed");
+      expect(events.filter((event) => event.type === "agent.continued")).toHaveLength(1);
+      expect(events.filter((event) => event.type === "review.completed").map((event) => (event.payload as { outcome: string }).outcome)).toEqual(["needs_refinement", "ready"]);
+      expect(final.finalOutput).toBe("Added the legs.");
+    } finally { editor.close(); }
+  }, 40_000);
+
+  it("lets a reviewer that cannot see find fault from measurements, and never approve", async () => {
+    const token = server.token("review-nopix");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-review-nopix", torsoScene);
+    const bridge = server.app.get<EditorBridge>(EDITOR_BRIDGE);
+    jest.spyOn(bridge, "captureViews").mockRejectedValue(new ServiceUnavailableError("Editor could not draw the view: No viewport is available in this run"));
+    server.model.enqueue(
+      [recordBrief("rn")],
+      ...builds("rn"),
+      [assistantMessage("Built.")],
+      [functionCall("viewport__capture", { views: [{ preset: "front" }] }, { callId: "capture-rn1" })],
+      modelResponder((call) => {
+        expect(JSON.stringify(call.request.input)).toContain("No viewport is available");
+        return verdict("rn1", "needs_refinement", [{ aspect: "legs", observation: "Only one object exists but a chair needs legs.", severity: "major", fix: "Add four legs." }], "Parts are missing.");
+      }),
+      [assistantMessage("Reviewed from measurements.")],
+      modelResponder((call) => {
+        expect(JSON.stringify(call.request.input)).toContain("Add four legs.");
+        return [functionCall("editor__propose_commands", { summary: "Add legs", commands: box("quality_ready_legs") }, { callId: "propose-rn-legs" })];
+      }),
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-rn-legs" })]),
+      [functionCall("validation__check_scene", {}, { callId: "scene-rn-legs" })],
+      [functionCall("validation__check_brief", {}, { callId: "brief-rn-legs" })],
+      [assistantMessage("Added legs.")],
+      // It still cannot see, so the best it can say is that it could not judge.
+      [functionCall("viewport__capture", { views: [{ preset: "front" }] }, { callId: "capture-rn2" })],
+      [functionCall("modeling__assess_quality", { outcome: "blocked", summary: "No viewport, so the result was not visually verified.", findings: [{ aspect: "evidence", observation: "Pictures were unavailable.", severity: "major" }] }, { callId: "verdict-rn2" })],
+      [assistantMessage("Could not judge.")],
+    );
+    try {
+      const { terminal, events, final } = await finish(token, "proj-review-nopix", editor, "Create a detailed cube");
+      expect(terminal).toBe("run.completed");
+      expect(events.filter((event) => event.type === "review.completed").map((event) => (event.payload as { outcome: string }).outcome)).toEqual(["needs_refinement", "blocked"]);
+      expect(final.finalOutput).toContain("Added legs.");
+      expect(final.finalOutput).toContain("Quality review was blocked: No viewport, so the result was not visually verified.");
+    } finally { jest.restoreAllMocks(); editor.close(); }
+  }, 40_000);
+
+  it("records a review that gives no verdict as blocked and says so", async () => {
+    const token = server.token("review-silent");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-review-silent", torsoScene);
+    server.model.enqueue(
+      [recordBrief("rs")],
+      ...builds("rs"),
+      [assistantMessage("Built.")],
+      [assistantMessage("Looks fine to me.")],
+    );
+    try {
+      const { terminal, events, final } = await finish(token, "proj-review-silent", editor, "Create a detailed cube");
+      expect(terminal).toBe("run.completed");
+      expect(events.find((event) => event.type === "review.completed")?.payload).toMatchObject({ outcome: "blocked" });
+      expect(final.finalOutput).toContain("Quality review was blocked: The reviewer finished without recording a verdict.");
+    } finally { editor.close(); }
+  }, 30_000);
+
+  it("refuses a verdict from a reviewer that never looked at the scene", async () => {
+    const token = server.token("review-blind");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-review-blind", torsoScene);
+    server.model.enqueue(
+      [recordBrief("rb")],
+      ...builds("rb"),
+      [assistantMessage("Built.")],
+      verdict("rb1", "needs_refinement", [{ aspect: "legs", observation: "No legs.", severity: "major" }], "Legs are missing."),
+      modelResponder((call) => {
+        expect(JSON.stringify(call.request.input)).toContain("Look at the scene with viewport.capture before reporting problems");
+        return [assistantMessage("I could not look.")];
       }),
     );
     try {
-      const run = await createRun(token, { projectId: "proj-quality-review", editorClientId: editor.clientId, dimension: "3d", message: "Create a realistic figure" });
-      const stream = streamFor(run, token);
-      try {
-        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
-        expect(terminal.envelope.type).toBe("run.completed");
-        expect(stream.events.filter((event) => event.envelope.type === "agent.continued")).toHaveLength(1);
-      } finally { stream.stop(); }
-      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
-      expect(final.body.finalOutput).toContain("requested quality is not verified");
-      expect(final.body.finalOutput).toContain("visual quality review was not completed");
+      const { final } = await finish(token, "proj-review-blind", editor, "Create a detailed cube");
+      expect(final.finalOutput).toContain("Quality review was blocked");
     } finally { editor.close(); }
   }, 30_000);
+
+  it("does not review a request that did not ask for quality", async () => {
+    const token = server.token("review-none");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-review-none", torsoScene);
+    server.model.enqueue(
+      ...builds("rn"),
+      [assistantMessage("Added a cube.")],
+    );
+    try {
+      const { events, final } = await finish(token, "proj-review-none", editor, "Add a cube");
+      expect(events.some((event) => event.type === "review.started")).toBe(false);
+      expect(final.finalOutput).toBe("Added a cube.");
+    } finally { editor.close(); }
+  }, 30_000);
+
+  it("keeps the builder from grading itself and the reviewer from changing the scene", async () => {
+    const registry = server.app.get(AgentRegistry);
+    const toolsOf = (id: string) => registry.agent(id).tools.map((tool) => tool.name);
+    expect(toolsOf("modeling-coordinator")).not.toContain("modeling__assess_quality");
+    expect(toolsOf("modeling-coordinator")).toContain("editor__apply_proposal");
+    const reviewer = toolsOf("quality-reviewer");
+    expect(reviewer).toContain("modeling__assess_quality");
+    expect(reviewer).toContain("viewport__capture");
+    for (const forbidden of ["editor__propose_commands", "editor__apply_proposal", "modeling__propose_generated", "modeling__generate_commands", "modeling__record_brief"]) expect(reviewer).not.toContain(forbidden);
+    // The reviewer is not something a client can list or start a run with.
+    const token = server.token("review-hidden");
+    expect((await http<{ id: string }[]>("GET", "/api/v1/agents", { token })).body.map((agent) => agent.id)).toEqual(["modeling-coordinator"]);
+    expect((await http("GET", "/api/v1/agents/quality-reviewer", { token })).status).toBe(404);
+    expect((await http("POST", "/api/v1/agent-runs", { token, body: { projectId: "proj-hidden", message: "Hello there", agentId: "quality-reviewer" } })).status).toBe(404);
+  });
 
   const onFloor = [{ kind: "position", target: { id: "brief_box" }, axis: "y", anchor: "min", min: 0, max: 0, label: "Box rests on the floor" }];
   const floating = (objectId: string) => [

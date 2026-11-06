@@ -19,6 +19,8 @@ export interface AgentSummary {
  * guardrails; they do not perform I/O.
  */
 export interface AgentDefinition extends AgentSummary {
+  /** Internal agents are started by the run loop. They are not listed and cannot be chosen for a run. */
+  readonly internal?: boolean;
   createAgent(): AppAgent;
 }
 

@@ -9,6 +9,7 @@ import {
   openWorkReasons,
   qualityCompletionNotice,
   requiresQualityReview,
+  reviewDue,
   parseRunProgress,
   serializeRunProgress,
   type RunProgress,
@@ -123,13 +124,55 @@ describe("quality review completion", () => {
     expect(requiresQualityReview("Move the cube", "3d")).toBe(false);
     expect(requiresQualityReview("Move the realistic car", "3d")).toBe(false);
   });
-  it("keeps changed quality work open until reviewed and discloses an unfinished result", () => {
+  it("chooses which requests are reviewed: none, those asking for quality, or every build", () => {
+    expect(requiresQualityReview("Create a realistic person", "3d", "off")).toBe(false);
+    expect(requiresQualityReview("Add a cube", "3d")).toBe(false);
+    expect(requiresQualityReview("Add a cube", "3d", "quality")).toBe(false);
+    expect(requiresQualityReview("Add a cube", "3d", "builds")).toBe(true);
+    expect(requiresQualityReview("Make a chair", "2d", "builds")).toBe(false);
+    expect(requiresQualityReview("Move the cube", "3d", "builds")).toBe(false);
+    expect(requiresQualityReview("Just a rough blockout of a chair", "3d", "builds")).toBe(false);
+    expect(requiresQualityReview("Create a realistic person", "3d", "quality")).toBe(true);
+  });
+  it("is due a review once the work is done and not before, and never more than the limit", () => {
+    const progress = emptyRunProgress(); progress.quality.required = true;
+    expect(reviewDue(progress, 2)).toBe(false);
+    progress.quality.changes = 1;
+    expect(reviewDue(progress, 2)).toBe(true);
+    expect(reviewDue(progress, 0)).toBe(false);
+    progress.quality.reviews = 2;
+    expect(reviewDue(progress, 2)).toBe(false);
+    progress.quality.reviews = 1; progress.quality.outcome = "ready";
+    expect(reviewDue(progress, 2)).toBe(false);
+    progress.quality.outcome = null; progress.quality.required = false;
+    expect(reviewDue(progress, 2)).toBe(false);
+  });
+  it("gives the builder the reviewer's major findings with their fixes as work, and the minor ones as notes", () => {
+    const progress = emptyRunProgress(); progress.quality.required = true; withBrief(progress);
+    progress.quality.outcome = "needs_refinement";
+    progress.quality.findings = [
+      { aspect: "legs", observation: "No legs.", severity: "major", fix: "Add four legs." },
+      { aspect: "back", observation: "Floating.", severity: "major" },
+      { aspect: "color", observation: "Flat.", severity: "minor" },
+    ];
+    const reasons = openWorkReasons(progress, () => undefined);
+    expect(reasons[0]).toContain("found 2 major problems");
+    expect(reasons).toContain("  - legs: No legs. Fix: Add four legs.");
+    expect(reasons).toContain("  - back: Floating.");
+    expect(reasons).toContain("minor notes, worth fixing if cheap:");
+    expect(reasons).toContain("  - color: Flat.");
+    // A review that has not happened yet is the run loop's to start, so the builder is not told to do it.
+    progress.quality.outcome = null;
+    expect(openWorkReasons(progress, () => undefined)).toEqual([]);
+  });
+  it("discloses an unfinished review and the last verdict when the run ends", () => {
     const progress = emptyRunProgress(); progress.quality.required = true; progress.quality.changes = 1;
     withBrief(progress);
-    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("modeling.assess_quality");
     expect(qualityCompletionNotice(progress, false)).toContain("not visually verified");
+    expect(qualityCompletionNotice(progress, true)).toContain("An independent review of the final result was not completed");
     progress.quality.outcome = "needs_refinement"; progress.quality.summary = "Hands are missing.";
-    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("refine");
+    progress.quality.findings = [{ aspect: "hands", observation: "Missing.", severity: "major" }];
+    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("independent review");
     expect(qualityCompletionNotice(progress, true)).toContain("Hands are missing");
     progress.quality.outcome = "blocked";
     expect(openWorkReasons(progress, () => undefined)).toEqual([]);
@@ -147,7 +190,7 @@ describe("quality review completion", () => {
     invalidateStaleQualityReview(progress, 6);
     expect(progress.quality.outcome).toBeNull();
     expect(progress.quality.viewpoints).toEqual([]);
-    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("modeling.assess_quality");
+    expect(reviewDue(progress, 2)).toBe(true);
   });
   it("holds a quality run open until it has a brief, then until the brief was measured on the final scene and passes", () => {
     const progress = emptyRunProgress(); progress.quality.required = true; progress.quality.changes = 1; progress.quality.outcome = "ready";

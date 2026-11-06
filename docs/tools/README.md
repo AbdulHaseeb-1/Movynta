@@ -65,7 +65,7 @@ Every example uses this scene, at revision 12, with `crate` selected.
 ### Plan
 
 - [`modeling.generate_model_plan`](modeling.generate_model_plan.md): Writes down the goal and the ordered steps, and the tool each step will use. Recording a plan changes nothing in the scene.
-- [`modeling.assess_quality`](modeling.assess_quality.md): Records the assistant’s task-specific self-review of a changed scene; it does not change geometry or guarantee visual quality.
+- [`modeling.assess_quality`](modeling.assess_quality.md): Records the independent reviewer's verdict on the finished work. Only the reviewer has this tool; the assistant that builds cannot grade itself.
 - [`modeling.record_brief`](modeling.record_brief.md): Writes down what the finished work must be as checks that code can pass or fail: sizes, placement, symmetry and counts. Recording a brief changes nothing in the scene.
 
 ### Propose

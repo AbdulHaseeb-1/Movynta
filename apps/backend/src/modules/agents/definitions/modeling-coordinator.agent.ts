@@ -1,5 +1,6 @@
 import { Agent, type AgentOutputType } from "@openai/agents";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
+import { REVIEWER_ONLY_TOOL_NAMES } from "../../tools/modeling/quality.tools.js";
 import { toProviderToolName } from "../../tools/tool.types.js";
 import { toSdkTool } from "../../tools/tool.sdk-adapter.js";
 import { requestPolicyGuardrail } from "../guardrails/request-policy.guardrail.js";
@@ -15,8 +16,10 @@ export const MODELING_COORDINATOR_VERSION = "1.0.0";
  * so only skills selected for the current request reach the prompt.
  */
 export function createModelingCoordinatorDefinition(deps: ModelingCoordinatorDependencies): AgentDefinition {
-  const { tools, skills } = deps;
-  const toolNameMap = tools.list().map((tool) => ({ name: tool.name, providerName: toProviderToolName(tool.name) }));
+  const { skills } = deps;
+  // The assistant that builds does not get the verdict tool: an independent reviewer judges the finished work.
+  const tools = deps.tools.list().filter((tool) => !REVIEWER_ONLY_TOOL_NAMES.has(tool.name));
+  const toolNameMap = tools.map((tool) => ({ name: tool.name, providerName: toProviderToolName(tool.name) }));
 
   return {
     id: MODELING_COORDINATOR_ID,
@@ -32,7 +35,7 @@ export function createModelingCoordinatorDefinition(deps: ModelingCoordinatorDep
             skills: skills.list().filter((skill) => runContext.context.selectedSkillIds.includes(skill.id)),
             toolNameMap,
           }),
-        tools: tools.list().map((tool) => toSdkTool(tool)),
+        tools: tools.map((tool) => toSdkTool(tool)),
         inputGuardrails: [requestPolicyGuardrail],
       });
     },
