@@ -13,7 +13,7 @@ import {
   type Quaternion,
   type Scene,
 } from "three";
-import { CollectionModel, editorCommandListSchema, isWithinBranch, resolveMeshPath, resolveSiblingName, SiblingNames, stableMeshPath, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
+import { CollectionModel, editorCommandListSchema, isCageEditCommand as isCageEditType, isTopologyEditCommand, isWithinBranch, resolveMeshPath, resolveSiblingName, SiblingNames, stableMeshPath, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { measureScene } from "./measureScene";
@@ -37,6 +37,11 @@ import { mergeVertices } from "../meshGeometry/meshMerge";
 import { dissolveEdges } from "../meshGeometry/meshDissolve";
 import { slideEdges } from "../meshGeometry/meshSlide";
 import { loopCut } from "../meshGeometry/meshLoopCut";
+import { bisectMesh } from "../meshGeometry/meshBisect";
+import { resolveBisectPlane } from "../meshGeometry/bisectPlane";
+import { deleteComponents } from "../meshGeometry/meshDelete";
+import { flipNormals } from "../meshGeometry/meshFlip";
+import { triangulateFaces } from "../meshGeometry/meshTriangulateFaces";
 import { applyMaterialEdit, assignMaterial, isMaterialEdit, materialSlots } from "../materials";
 import { transformComponents } from "../meshGeometry/meshComponentTransform";
 import { transformFaces } from "../meshGeometry/meshFaceTransform";
@@ -55,12 +60,13 @@ export type DesignFocus = z.infer<typeof designFocusSchema>;
 type Command = z.infer<typeof editorCommandListSchema>[number];
 type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" | "geometry.boolean" }>;
 /** Commands that rewrite the base cage of one mesh part. They share a batch and the same rules about modifiers. */
-type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.inset_faces" | "geometry.bevel_edges" | "geometry.subdivide_faces" | "geometry.fill_hole" | "material.assign" | "geometry.merge_vertices" | "geometry.merge_by_distance" | "geometry.remove_duplicate_faces" | "geometry.correct_normals" | "geometry.knife_chord" | "geometry.knife_path" | "geometry.dissolve_edges" | "geometry.slide_edges" | "geometry.loop_cut" | "geometry.transform_components" | "geometry.transform_faces" }>;
+type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.inset_faces" | "geometry.bevel_edges" | "geometry.subdivide_faces" | "geometry.fill_hole" | "material.assign" | "geometry.merge_vertices" | "geometry.merge_by_distance" | "geometry.remove_duplicate_faces" | "geometry.correct_normals" | "geometry.knife_chord" | "geometry.knife_path" | "geometry.dissolve_edges" | "geometry.slide_edges" | "geometry.loop_cut" | "geometry.transform_components" | "geometry.transform_faces" | "geometry.bisect" | "geometry.delete_components" | "geometry.flip_normals" | "geometry.triangulate_faces" }>;
 function isGeometryCommand(command: Command): command is GeometryCommand {
   return command.type === "geometry.bevel" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || command.type === "geometry.boolean";
 }
+/** The protocol's list of cage edits decides; the type above only narrows it for the compiler. */
 function isCageEditCommand(command: Command): command is CageEditCommand {
-  return command.type === "material.assign" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.bevel_edges" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || command.type === "geometry.transform_faces" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "geometry.transform_components";
+  return isCageEditType(command);
 }
 /** Rewrites the base cage for one command: extrude moves a region, subdivide-faces splits only the selected faces. */
 function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, source: BufferGeometry): ExtrudeResult {
@@ -70,11 +76,28 @@ function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, sourc
     return assignMaterial(cage, command.ids, command.slot);
   }
   if (command.type === "geometry.knife_path") {
-    const session = new KnifeSession(cage, source);
-    for (const segment of command.segments) session.append({ ...segment, face: Number(segment.face) });
-    return { mesh: session.mesh, selection: session.selection, walls: [] };
+    const session = new KnifeSession(cage, source, { deferValidation: true });
+    command.segments.forEach((segment, index) => {
+      try { session.append({ ...segment, face: Number(segment.face) }); }
+      catch (error) {
+        // Say which cut failed; the same error goes on, so its stack and cause are kept.
+        if (error instanceof Error) error.message = `Segment ${index + 1} of ${command.segments.length}: ${error.message}`;
+        throw error;
+      }
+    });
+    return session.finish();
   }
   if (command.type === "geometry.knife_chord") return knifeChord(cage, Number(command.face), command.start, command.end, source);
+  if (command.type === "geometry.bisect") {
+    mesh.updateWorldMatrix(true, false);
+    const plane = resolveBisectPlane(command.plane, command.space, mesh.matrixWorld);
+    return bisectMesh(cage, source, plane, { keep: command.keep, fill: command.fill,
+      ...(command.ids ? { faces: new Set(command.ids.map(Number)) } : {}),
+      ...(command.snapDistance === undefined ? {} : { snapDistance: command.snapDistance }) });
+  }
+  if (command.type === "geometry.delete_components") return deleteComponents(cage, command.kind, command.ids);
+  if (command.type === "geometry.flip_normals") return flipNormals(cage, command.ids);
+  if (command.type === "geometry.triangulate_faces") return triangulateFaces(cage, command.ids);
   if (command.type === "geometry.correct_normals") return correctNormals(cage, command.mode);
   if (command.type === "geometry.remove_duplicate_faces") return removeDuplicateFaces(cage, source);
   if (command.type === "geometry.merge_by_distance") return mergeByDistance(cage, command.ids, command.distance);
@@ -1146,7 +1169,7 @@ export class EditorScene {
         const live = modifierStack(mesh);
         const previous = staged.get(mesh);
         const modifiers = previous?.modifiers ?? live?.modifiers ?? [];
-        const topologyChange = command.type === "geometry.bevel_edges" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut";
+        const topologyChange = isTopologyEditCommand(command);
         if (topologyChange && (commands.length !== 1 || modifiers.some((modifier) => modifier.enabled))) throw new Error("Use one topology edit per proposal and disable modifiers first");
         const liveExtrusion = modifiers.find((modifier) => modifier.kind === "extrusion");
         if (liveExtrusion && command.type !== "geometry.fill_hole" && command.type !== "material.assign" &&

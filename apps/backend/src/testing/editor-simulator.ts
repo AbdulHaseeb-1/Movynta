@@ -237,6 +237,10 @@ export class EditorSimulator {
       case "geometry.set_modifiers":
       case "geometry.knife_path":
       case "geometry.knife_chord":
+      case "geometry.bisect":
+      case "geometry.delete_components":
+      case "geometry.flip_normals":
+      case "geometry.triangulate_faces":
       case "geometry.correct_normals":
       case "geometry.remove_duplicate_faces":
       case "geometry.merge_by_distance":

@@ -1,4 +1,5 @@
 export * from "./collection-graph.js";
+export * from "./command-traits.js";
 export * from "./editor-command.schema.js";
 export * from "./editor-context.schema.js";
 export * from "./hand-edits.js";

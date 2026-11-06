@@ -93,6 +93,8 @@ Triangle budgets (rough guides): background prop 100–1,000; mid prop 1,000–1
    - Pinching at a pole: move the pole to a flatter area by sliding edges (`geometry.slide_edges`) or adding a loop to spread the faces.
    - Too dense on flat areas: `geometry.dissolve_edges` on coplanar regions, or `geometry.merge_vertices` for duplicate points.
    - Only part of a mesh needs more detail: `geometry.subdivide_faces` on those faces, not `geometry.subdivide` on everything.
+   - An edge loop is needed where the surface is not made of quads (triangles or polygons break `geometry.loop_cut`): `geometry.bisect` with a plane across the area adds the loop, and `ids` limits it to part of the mesh.
+   - A bent quad stops a cut or dissolve: `geometry.triangulate_faces` on it makes it flat pieces.
    - An unintended hole: `geometry.fill_hole` with the boundary edge ids.
 4. Make each topology-changing edit in its own proposal, with modifiers disabled and the base inspection revision. Re-inspect after it applies because ids change.
 5. Restore the modifier stack with `geometry.set_modifiers`, preserving ids and order (mirror/array, boolean, bevel, subdivision).

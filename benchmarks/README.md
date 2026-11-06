@@ -63,6 +63,7 @@ Prepared assistant edits also have a smoke benchmark in `EditorScene.prepared.te
 | `editor/faceQuery` | Inspection of a dense mesh filtered by face normal and center | HIGH | Cached topology, full query and response construction |
 | `editor/customMesh` | Validation and generation of a large structured polygon mesh | HIGH | CPU work only, including topology and render buffers |
 | `editor/meshRepair` | Triangulation and validation of a warped hole boundary with up to 256 edges | MEDIUM | O(mesh size + boundary edges²); excludes rendering and buffer upload |
+| `editor/knifeAndCuts` | Knife chord, a 30-cut knife path, plane cuts with and without keeping a side and capping, deleting a patch of faces, flipping every face and validating a whole cage, on cages of up to about 20,000 faces | HIGH | O(faces) for every case; a knife path is checked once, not after every cut. Before this suite a 32-cut path on 1,024 faces took 269 ms (now about 4 ms for 30 cuts) and a single checked chord took 13 ms at 1,024 faces and 32 ms at 4,096 (now 1.2 ms and 5.9 ms); no baseline is committed because numbers only compare on one machine |
 | `editor/frame` | Per-frame gizmo sync and the panel's number helpers | HIGH | O(1) |
 | `importer/import` | `prepareModel`, OBJ and STL reading, naming | HIGH | O(vertices), O(file) |
 | `projects/helpers` | Store reducers, chat restore, card text | MEDIUM | O(items) |

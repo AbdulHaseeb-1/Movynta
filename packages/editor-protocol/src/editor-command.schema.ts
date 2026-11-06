@@ -32,6 +32,14 @@ const knifePoint = z.union([z.object({ edge: edgeId, factor: z.number().finite()
 const knifeSegment = z.object({ face: vertexId, start: knifePoint, end: knifePoint }).strict().refine((segment) => !("edge" in segment.start && "edge" in segment.end && segment.start.edge === segment.end.edge) && !("vertex" in segment.start && "vertex" in segment.end && segment.start.vertex === segment.end.vertex), "Cut endpoints must be distinct");
 const uniqueVertices = z.array(vertexId).min(2).max(4096).refine((ids) => new Set(ids).size === ids.length, "Vertex IDs must be unique");
 const uniqueEdges = z.array(edgeId).min(1).max(4096).refine((ids) => new Set(ids).size === ids.length, "Edge IDs must be unique");
+const uniqueFaces = z.array(vertexId).min(1).max(4096).refine((ids) => new Set(ids).size === ids.length, "Face IDs must be unique");
+const planeVector = (message: string) => vector3.refine((values) => values.every((value) => Math.abs(value) <= 1_000_000), message);
+/** A cut plane: a point on it and its normal, or an axis-aligned plane given by its offset along that axis. */
+const cutPlane = z.union([
+  z.object({ point: planeVector("Plane point must be within ±1000000"),
+    normal: planeVector("Plane normal must be within ±1000000").refine((values) => values.some((value) => Math.abs(value) > 1e-9), "Plane normal must be nonzero") }).strict(),
+  z.object({ axis: z.enum(["x", "y", "z"]), offset: z.number().finite().min(-1_000_000).max(1_000_000) }).strict(),
+]);
 const primitiveOptions = z.object({
   width: dimension.optional(), height: dimension.optional(), depth: dimension.optional(),
   radius: dimension.optional(), radiusTop: z.number().finite().min(0).max(100).optional(),
@@ -79,6 +87,22 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
   z.object({ ...commandBase, type: z.literal("material.replace_slot"), objectId: identifierSchema, meshPath: meshPathSchema.default([]),
     slot: z.number().int().min(0).max(255), properties: materialPropertiesSchema.default({}),
   }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.bisect"), plane: cutPlane,
+    space: z.enum(["local", "world"]).default("local"),
+    ids: uniqueFaces.optional(),
+    keep: z.enum(["both", "positive", "negative"]).default("both"),
+    fill: z.boolean().default(false),
+    snapDistance: z.number().finite().positive().max(100).optional(),
+  }).strict()
+    .refine((command) => !command.fill || command.keep !== "both", "Fill closes the opening that keep positive or negative leaves; use it only with keep")
+    .refine((command) => command.ids === undefined || command.keep === "both", "Keeping one side removes whole sides, so it cannot be limited to ids"),
+  z.object({ ...baseEdit, type: z.literal("geometry.delete_components"), kind: z.enum(["face", "edge", "vertex"]),
+    ids: z.array(z.string().regex(/^(0|[1-9]\d{0,9})(_(0|[1-9]\d{0,9}))?$/)).min(1).max(4096)
+      .refine((ids) => new Set(ids).size === ids.length, "Component IDs must be unique"),
+  }).strict().refine((command) => command.ids.every((id) => command.kind === "edge" ?
+    id.includes("_") && Number(id.split("_")[0]) < Number(id.split("_")[1]) : !id.includes("_")), "Use face or vertex IDs, or canonical edge IDs, matching kind"),
+  z.object({ ...baseEdit, type: z.literal("geometry.flip_normals"), ids: uniqueFaces.optional() }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.triangulate_faces"), ids: uniqueFaces.optional() }).strict(),
   z.object({ ...baseEdit, type: z.literal("geometry.knife_path"), segments: z.array(knifeSegment).min(1).max(64) }).strict(),
   z.object({ ...baseEdit, type: z.literal("geometry.knife_chord"), ...knifeSegment.shape }).strict().refine((command) => !("edge" in command.start && "edge" in command.end && command.start.edge === command.end.edge) && !("vertex" in command.start && "vertex" in command.end && command.start.vertex === command.end.vertex), "Cut endpoints must be distinct"),
   z.object({ ...baseEdit, type: z.literal("geometry.correct_normals"), mode: z.enum(["consistent", "outward"]).default("consistent") }).strict(),

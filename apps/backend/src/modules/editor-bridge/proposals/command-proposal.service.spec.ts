@@ -208,6 +208,11 @@ describe("command proposals", () => {
     { type: "geometry.knife_path", segments: [{ face: "0", start: { vertex: "0" }, end: { vertex: "2" } }] },
     { type: "geometry.dissolve_edges", ids: ["0_1"] },
     { type: "geometry.loop_cut", edge: "0_1" },
+    { type: "geometry.bisect", plane: { axis: "y", offset: 0.5 } },
+    { type: "geometry.bisect", plane: { point: [0, 0, 0], normal: [1, 0, 0] }, space: "world", keep: "positive", fill: true },
+    { type: "geometry.delete_components", kind: "face", ids: ["0"] },
+    { type: "geometry.flip_normals" },
+    { type: "geometry.triangulate_faces", ids: ["0", "1"] },
     { type: "geometry.slide_edges", ids: ["0_1"], rails: [{ vertex: "0", toward: "2" }, { vertex: "1", toward: "3" }], factor: 0.25 },
   ])("requires a base inspection revision for $type and applies automatically", async (edit) => {
     const { bridge, service, run } = setup();

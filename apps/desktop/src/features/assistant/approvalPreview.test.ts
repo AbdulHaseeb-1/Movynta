@@ -44,3 +44,20 @@ it("describes collection changes in words, and says an object goes with what han
     "Delete the empty collection props",
   ]);
 });
+
+it("describes the plane cut, deletion, flip and triangulation in words", () => {
+  const text = describeApproval({ commands: [
+    { commandId: "a", type: "geometry.bisect", objectId: "ball", plane: { axis: "y", offset: 0.5 }, space: "world", keep: "positive", fill: true },
+    { commandId: "b", type: "geometry.bisect", objectId: "wall", plane: { point: [0, 1, 0], normal: [1, 0, 0] }, space: "local", keep: "both", ids: ["1", "2"] },
+    { commandId: "c", type: "geometry.delete_components", objectId: "wall", kind: "face", ids: ["4"] },
+    { commandId: "d", type: "geometry.flip_normals", objectId: "plane" },
+    { commandId: "e", type: "geometry.triangulate_faces", objectId: "wall", ids: ["1", "2"] },
+  ] }).commands.map((command) => command.text);
+  expect(text).toEqual([
+    "Cut ball at y = 0.5 (world space), keep the positive side and cap the opening",
+    "Cut wall along the plane through [0, 1, 0] facing [1, 0, 0] (local space) · 2 faces only",
+    "Delete 1 face of wall",
+    "Flip every surface of plane to face the other way",
+    "Triangulate 2 faces of wall",
+  ]);
+});

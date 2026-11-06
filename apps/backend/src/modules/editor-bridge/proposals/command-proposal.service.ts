@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { validateAgainstContext } from "@movynta/editor-protocol";
+import { isCageEditCommand, usesBaseIds, validateAgainstContext } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import { ApprovalPolicy } from "../../approvals/approval.policy.js";
 import type { EditorContext } from "../../../shared/types/editor-context.types.js";
@@ -39,7 +39,7 @@ export class CommandProposalService {
   async propose(run: ProposalRun, input: ProposalInput): Promise<CommandProposalRecord> {
     this.bridge.assertConnection(run.userId, run.projectId, run.clientId);
     if (input.expectedRevision === undefined && input.commands.some(
-      (command) => command.type === "scene.duplicate_hierarchy" || command.type === "material.add_slot" || command.type === "material.replace_slot" || command.type === "material.set_properties" || (((command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.fill_hole") && command.componentView === "base") ||
+      (command) => command.type === "scene.duplicate_hierarchy" || command.type === "material.add_slot" || command.type === "material.replace_slot" || command.type === "material.set_properties" || usesBaseIds(command) ||
         (command.type === "geometry.set_modifiers" && command.modifiers.some((modifier) => modifier.kind === "extrusion")),
     )) {
       throw new ValidationFailedError("Base-cage or live geometry edits require expectedRevision from the scene context or mesh inspection.");
@@ -63,7 +63,7 @@ export class CommandProposalService {
       projectId: run.projectId,
       clientId: run.clientId,
       baseRevision: context.revision,
-      strictRevision: input.commands.some((command) => command.type === "scene.duplicate_hierarchy" || command.type.startsWith("material.")) || input.expectedRevision !== undefined || input.commands.some((command) => command.type === "geometry.bevel_edges" || command.type === "geometry.bevel" || command.type === "geometry.boolean" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers")),
+      strictRevision: input.expectedRevision !== undefined || input.commands.some((command) => command.type === "scene.duplicate_hierarchy" || command.type.startsWith("material.") || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || isCageEditCommand(command)),
       summary: input.summary,
       commands: input.commands,
       requiresApproval: this.policy.requiresApproval(input.commands),
