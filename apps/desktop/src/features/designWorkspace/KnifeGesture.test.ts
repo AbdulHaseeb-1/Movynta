@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BoxGeometry, Mesh, MOUSE, PerspectiveCamera, Scene } from "three";
+import {
+  BoxGeometry,
+  SphereGeometry,
+  type BufferGeometry,
+  Mesh,
+  MOUSE,
+  PerspectiveCamera,
+  Scene,
+  Vector3,
+} from "three";
 import type { Viewport } from "@/features/viewport3d";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { KnifeGesture, type KnifeCommit } from "./KnifeGesture";
@@ -46,10 +55,10 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.unstubAllGlobals());
-function fixture() {
+function fixture(geometry: BufferGeometry = new BoxGeometry(2, 2, 2)) {
   const world = new Scene(),
     scene = new EditorScene(world, "project"),
-    mesh = new Mesh(new BoxGeometry(2, 2, 2));
+    mesh = new Mesh(geometry);
   scene.importObject("box", mesh);
   scene.select("box");
   const camera = new PerspectiveCamera(45, 1, 0.1, 100);
@@ -65,7 +74,7 @@ function fixture() {
     scene: world,
     camera,
     renderer: { domElement: dom },
-    controls: { mouseButtons: { MIDDLE: MOUSE.DOLLY } },
+    controls: { mouseButtons: { MIDDLE: MOUSE.DOLLY }, target: new Vector3() },
     addFrameListener: (callback: () => void) => {
       frame = callback;
       return () => undefined;
@@ -116,6 +125,7 @@ function fixture() {
   return {
     scene,
     mesh,
+    camera,
     gesture,
     commit,
     report,
@@ -189,22 +199,76 @@ describe("interactive Knife", () => {
     f.gesture.dispose();
   });
   it("constrains the drawn line to global and local axes", () => {
-    const f=fixture();f.mesh.rotation.z=Math.PI/4;f.key("k");
-    f.pointer("pointerdown",400,400);f.pointer("pointerup",400,400);f.key("x");f.pointer("pointermove",500,440);
-    const svg=f.body.children[0];const globalLine=svg?.children.find((child)=>child.attributes.has("x1"));
+    const f = fixture();
+    f.mesh.rotation.z = Math.PI / 4;
+    f.key("k");
+    f.pointer("pointerdown", 400, 400);
+    f.pointer("pointerup", 400, 400);
+    f.key("x");
+    f.pointer("pointermove", 500, 440);
+    const svg = f.body.children[0];
+    const globalLine = svg?.children.find((child) =>
+      child.attributes.has("x1"),
+    );
     expect(Number(globalLine?.attributes.get("y2"))).toBeCloseTo(400);
-    f.key("x");f.pointer("pointermove",500,440);
-    const localLine=svg?.children.find((child)=>child.attributes.has("x1"));
-    const dx=Number(localLine?.attributes.get("x2"))-400,dy=Number(localLine?.attributes.get("y2"))-400;
-    expect(dy/dx).toBeCloseTo(-1);f.key("Escape");f.gesture.dispose();
+    f.key("x");
+    f.pointer("pointermove", 500, 440);
+    const localLine = svg?.children.find((child) => child.attributes.has("x1"));
+    const dx = Number(localLine?.attributes.get("x2")) - 400,
+      dy = Number(localLine?.attributes.get("y2")) - 400;
+    expect(dy / dx).toBeCloseTo(-1);
+    f.key("Escape");
+    f.gesture.dispose();
   });
-  it("uses screen snapping and reports measured surface distances",()=>{
-    const f=fixture();f.key("k");f.pointer("pointerdown",400,400);f.pointer("pointerup",400,400);f.key("a");f.pointer("pointermove",500,440);
-    const line=f.body.children[0]?.children.find((child)=>child.attributes.has("x1"));
-    const dx=Number(line?.attributes.get("x2"))-400,dy=Number(line?.attributes.get("y2"))-400;
-    expect(dy/dx).toBeCloseTo(Math.tan(Math.PI/6));
-    f.key("s");expect(f.status).toHaveBeenLastCalledWith(expect.stringContaining("world units"));
-    window.dispatchEvent(new Event("pointercancel"));expect(knifeIsActive()).toBe(false);expect(f.commit).not.toHaveBeenCalled();f.gesture.dispose();
+  it("uses screen snapping and reports measured surface distances", () => {
+    const f = fixture();
+    f.key("k");
+    f.pointer("pointerdown", 400, 400);
+    f.pointer("pointerup", 400, 400);
+    f.key("a");
+    f.pointer("pointermove", 500, 440);
+    const line = f.body.children[0]?.children.find((child) =>
+      child.attributes.has("x1"),
+    );
+    const dx = Number(line?.attributes.get("x2")) - 400,
+      dy = Number(line?.attributes.get("y2")) - 400;
+    expect(dy / dx).toBeCloseTo(Math.tan(Math.PI / 6));
+    f.key("s");
+    expect(f.status).toHaveBeenLastCalledWith(
+      expect.stringContaining("world units"),
+    );
+    window.dispatchEvent(new Event("pointercancel"));
+    expect(knifeIsActive()).toBe(false);
+    expect(f.commit).not.toHaveBeenCalled();
+    f.gesture.dispose();
+  });
+  it("cancels an in-progress drag on Undo without committing it on pointer release", () => {
+    const f = fixture(),
+      original = f.mesh.geometry;
+    f.key("k");
+    f.pointer("pointerdown", 100, 400);
+    f.key("z", true);
+    f.pointer("pointerup", 700, 400);
+    f.key("Enter");
+    expect(f.commit).not.toHaveBeenCalled();
+    expect(f.mesh.geometry).toBe(original);
+    f.gesture.dispose();
+  });
+  it("does not apply an unconstrained stroke when relative snapping has no surface anchor", () => {
+    const f=fixture(),original=f.mesh.geometry;f.key("k");f.key("a");f.key("a");
+    f.pointer("pointerdown",100,400);f.pointer("pointerup",700,400);f.key("Enter");
+    expect(f.commit).not.toHaveBeenCalled();expect(f.mesh.geometry).toBe(original);f.gesture.dispose();
+  });
+  it("does not restore a stale screen anchor after moving the camera", () => {
+    const f=fixture();f.key("k");f.frame();f.pointer("pointerdown",100,400);f.pointer("pointerup",700,400);
+    f.camera.position.x=1;f.camera.lookAt(0,0,0);f.frame();f.key("z",true);f.pointer("pointermove",450,400);
+    expect(f.body.children[0]?.children.some((child)=>child.attributes.has("x1"))).toBe(false);f.key("Escape");f.gesture.dispose();
+  });
+  it("cuts a visible curved mesh with collinear split vertices", () => {
+    const f=fixture(new SphereGeometry(1,32,16)),original=f.mesh.geometry;f.key("k");
+    f.pointer("pointerdown",100,410);f.pointer("pointerup",700,410);
+    expect(f.mesh.geometry).not.toBe(original);expect(f.status.mock.lastCall?.[0]).not.toContain("degenerate");
+    f.key("Escape");f.gesture.dispose();
   });
   it("refuses selected-only mode without faces", () => {
     const f = fixture();

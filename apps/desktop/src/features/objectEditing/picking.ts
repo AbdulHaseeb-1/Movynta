@@ -1,5 +1,6 @@
 import { Raycaster, Vector2, type Camera, type Intersection } from "three";
 import type { EditorScene } from "@/features/assistant";
+import { setCameraRay } from "@/features/viewport3d/cameraRay";
 import { accelerateRaycasts } from "./denseRaycast";
 
 const raycaster = new Raycaster();
@@ -19,7 +20,7 @@ export function pickObjectId(
   camera: Camera,
   ndc: Vector2,
 ): string | undefined {
-  raycaster.setFromCamera(ndc, camera);
+  setCameraRay(raycaster, ndc, camera);
   let nearest = Infinity;
   let nearestId: string | undefined;
   for (const object of editor.pickables()) {
@@ -27,7 +28,8 @@ export function pickObjectId(
     hits.length = 0;
     raycaster.intersectObject(object, true, hits);
     for (const hit of hits) {
-      if (hit.distance >= nearest) continue;
+      const depth = hit.point.clone().project(camera).z;
+      if (depth < -1 || depth > 1 || hit.distance >= nearest) continue;
       let visible = true;
       for (let node: typeof hit.object | null = hit.object; node; node = node.parent) {
         if (!node.visible) { visible = false; break; }
@@ -45,13 +47,15 @@ export function pickObjectId(
 
 /** Every visible hit under the pointer, nearest first, with one entry per editor object. */
 export function pickObjectIds(editor: EditorScene, camera: Camera, ndc: Vector2): string[] {
-  raycaster.setFromCamera(ndc, camera);
+  setCameraRay(raycaster, ndc, camera);
   const distances = new Map<string, number>();
   for (const object of editor.pickables()) {
     accelerateRaycasts(object);
     hits.length = 0;
     raycaster.intersectObject(object, true, hits);
     for (const hit of hits) {
+      const depth = hit.point.clone().project(camera).z;
+      if (depth < -1 || depth > 1) continue;
       let visible = true;
       for (let node: typeof hit.object | null = hit.object; node; node = node.parent) if (!node.visible) { visible = false; break; }
       if (!visible) continue;

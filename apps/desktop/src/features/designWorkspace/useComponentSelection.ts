@@ -21,6 +21,7 @@ export function useComponentSelection(
   disabled: boolean,
 ) {
   const dispatch = useAppDispatch();
+  const { shadingMode, wireframeXray } = useAppSelector((state) => state.viewport);
   const { mode, componentKind } = useAppSelector(
     (state) => state.designWorkspace,
   );
@@ -106,6 +107,8 @@ export function useComponentSelection(
             scene.select(clicked);
             return true;
           },
+          () => scene.pickables(),
+          () => shadingMode === "wireframe" && wireframeXray,
         );
         controllerRef.current = controller;
         const queued = takeComponentSelection(scene, id);
@@ -136,7 +139,7 @@ export function useComponentSelection(
       stopObjectSelection();
       viewport.setEditNavigation(false);
     };
-  }, [viewport, scene, mode, componentKind, disabled, dispatch]);
+  }, [viewport, scene, mode, componentKind, disabled, dispatch, shadingMode, wireframeXray]);
   useEffect(() => {
     if (!diagnosticSelection || diagnosticSelection.sequence === lastDiagnosticSequence.current) return;
     lastDiagnosticSequence.current = diagnosticSelection.sequence;

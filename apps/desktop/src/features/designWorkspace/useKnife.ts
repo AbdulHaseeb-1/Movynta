@@ -12,17 +12,15 @@ import {
   setKnifeSettings,
 } from "./workspaceSlice";
 
-function firstMesh(node: Object3D, path: number[] = []): number[] | null {
-  if (!node.visible) return null;
-  if (node instanceof Mesh) return path;
-  for (let i = 0; i < node.children.length; i++) {
-    const child = node.children[i];
-    if (child) {
-      const found = firstMesh(child, [...path, i]);
-      if (found) return found;
-    }
-  }
-  return null;
+/** Do not silently choose a part in a multi-mesh hierarchy. */
+export function singleVisibleMesh(node: Object3D): number[] | null {
+  const found: number[][] = [];
+  const visit=(part: Object3D,path: number[]) => {
+    if(!part.visible || found.length>1) return;
+    if(part instanceof Mesh) found.push(path);
+    part.children.forEach((child,i)=>visit(child,[...path,i]));
+  };
+  visit(node,[]); return found.length===1 ? found[0] ?? null : null;
 }
 export function useKnife(
   viewport: Viewport | null,
@@ -52,7 +50,7 @@ export function useKnife(
       const root = scene.getObject(objectId);
       if (!root) return null;
       const meshPath =
-        choice?.objectId === objectId ? choice.meshPath : firstMesh(root);
+        choice?.objectId === objectId ? choice.meshPath : singleVisibleMesh(root);
       if (!meshPath) return null;
       return {
         objectId,

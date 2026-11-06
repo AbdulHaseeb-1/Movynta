@@ -14,11 +14,11 @@ import {
   type Object3D,
 } from "three";
 import type { EditorScene } from "@/features/assistant";
+import { setCameraRay } from "@/features/viewport3d/cameraRay";
 import type { Viewport } from "@/features/viewport3d";
 import { meshAtPath, modifierStack } from "@/features/meshGeometry";
 import {
   readTopology,
-  topology,
   faceNormal,
   type PolygonMesh,
 } from "@/features/meshGeometry/meshTopology";
@@ -50,6 +50,7 @@ interface Stroke {
   from: Vector2;
   to: Vector2;
   count: number;
+  view: string;
 }
 interface Session {
   target: KnifeTarget;
@@ -75,8 +76,8 @@ interface Session {
   svg: SVGSVGElement;
   middle: MOUSE | null | undefined;
   pointerId: number | null;
-  baseEdges: Set<string>;
   relativeAngle: number | null;
+  constraintBlocked: boolean;
 }
 function typing(event: KeyboardEvent): boolean {
   const target = event.target;
@@ -186,7 +187,12 @@ export class KnifeGesture {
         });
     };
     const bounds = () => dom.getBoundingClientRect();
-    const pixel = (event: PointerEvent) => {
+    const viewSignature = () => {
+      viewport.camera.updateMatrixWorld();
+      const r = bounds();
+      return `${viewport.camera.matrixWorld.elements.join(",")}:${viewport.camera.projectionMatrix.elements.join(",")}:${r.width}:${r.height}:${r.left}:${r.top}`;
+    };
+    const pixel = (event: Pick<PointerEvent, "clientX" | "clientY">) => {
       const rect = bounds();
       return new Vector2(event.clientX - rect.left, event.clientY - rect.top);
     };
@@ -195,14 +201,18 @@ export class KnifeGesture {
         pick = getPick(s.knife.mesh);
       s.mesh.updateWorldMatrix(true, false);
       pick.proxy.matrixWorld.copy(s.mesh.matrixWorld);
-      ray.setFromCamera(
+      setCameraRay(
+        ray,
         new Vector2(
           (pixelPoint.x / rect.width) * 2 - 1,
           1 - (pixelPoint.y / rect.height) * 2,
         ),
         viewport.camera,
       );
-      const hit = ray.intersectObject(pick.proxy, false)[0];
+      const hit = ray.intersectObject(pick.proxy, false).find((entry) => {
+        const depth = entry.point.clone().project(viewport.camera).z;
+        return depth >= -1 && depth <= 1;
+      });
       const face = hit ? pick.faces[hit.faceIndex ?? -1] : undefined;
       return hit && face !== undefined ? { point: hit.point, face } : null;
     };
@@ -219,19 +229,25 @@ export class KnifeGesture {
         pick = getPick(mesh);
       s.mesh.updateWorldMatrix(true, false);
       pick.proxy.matrixWorld.copy(s.mesh.matrixWorld);
-      ray.setFromCamera(
+      setCameraRay(
+        ray,
         new Vector2(
           (midpoint.x / rect.width) * 2 - 1,
           1 - (midpoint.y / rect.height) * 2,
         ),
         viewport.camera,
       );
-      const hit = ray.intersectObject(pick.proxy, false)[0];
+      const hit = ray.intersectObject(pick.proxy, false).find((entry) => {
+        const depth = entry.point.clone().project(viewport.camera).z;
+        return depth >= -1 && depth <= 1;
+      });
       if (!hit || pick.faces[hit.faceIndex ?? -1] !== face) return false;
       const blocker = ray
         .intersectObjects(viewport.scene.children, true)
         .find(
           (entry) =>
+            entry.point.clone().project(viewport.camera).z >= -1 &&
+            entry.point.clone().project(viewport.camera).z <= 1 &&
             entry.object instanceof Mesh &&
             entry.object !== s.mesh &&
             visible(entry.object) &&
@@ -239,8 +255,15 @@ export class KnifeGesture {
         );
       return !blocker;
     };
-    const constrained = (s: Session, event: PointerEvent) => {
+    const constrained = (
+      s: Session,
+      event: Pick<
+        PointerEvent,
+        "clientX" | "clientY" | "ctrlKey" | "metaKey" | "shiftKey"
+      >,
+    ) => {
       s.relativeAngle = null;
+      s.constraintBlocked = false;
       const rect = bounds();
       s.mesh.updateWorldMatrix(true, false);
       let cursor = pixel(event);
@@ -252,11 +275,65 @@ export class KnifeGesture {
         rect.height,
       );
       if (!event.ctrlKey && !event.metaKey)
-        cursor = snapKnife(s.knife.mesh, projected, cursor, event.shiftKey);
+        cursor = snapKnife(
+          s.knife.mesh,
+          projected,
+          cursor,
+          event.shiftKey,
+          (local) => {
+            if (s.cutThrough) return true;
+            const world = local.clone().applyMatrix4(s.mesh.matrixWorld);
+            const ndc = world.clone().project(viewport.camera);
+            setCameraRay(ray, new Vector2(ndc.x, ndc.y), viewport.camera);
+            const distance = world.distanceTo(viewport.camera.position),
+              tolerance = Math.max(1e-5, distance * 1e-6);
+            const pick = getPick(s.knife.mesh);
+            pick.proxy.matrixWorld.copy(s.mesh.matrixWorld);
+            const nearest = ray
+              .intersectObject(pick.proxy, false)
+              .find((entry) => {
+                const depth = entry.point.clone().project(viewport.camera).z;
+                return depth >= -1 && depth <= 1;
+              });
+            if (nearest && nearest.distance < distance - tolerance)
+              return false;
+            return !ray
+              .intersectObjects(viewport.scene.children, true)
+              .some((hit) => {
+                const depth = hit.point.clone().project(viewport.camera).z;
+                return (
+                  depth >= -1 &&
+                  depth <= 1 &&
+                  hit.object instanceof Mesh &&
+                  hit.object !== s.mesh &&
+                  visible(hit.object) &&
+                  hit.distance < distance - tolerance
+                );
+              });
+          },
+        );
       if (!s.anchor) return cursor;
       const anchor = s.anchor;
       if (s.axis) {
-        const base = surface(s, anchor);
+        let base = surface(s, anchor);
+        if (!base) {
+          setCameraRay(
+            ray,
+            new Vector2(
+              (anchor.x / rect.width) * 2 - 1,
+              1 - (anchor.y / rect.height) * 2,
+            ),
+            viewport.camera,
+          );
+          const normal = viewport.camera.getWorldDirection(new Vector3());
+          base = ray.ray.intersectPlane(
+            new Plane().setFromNormalAndCoplanarPoint(
+              normal,
+              viewport.controls.target,
+            ),
+            new Vector3(),
+          );
+        }
         if (base) {
           const direction = new Vector3().setComponent(s.axis.index, 1);
           if (s.axis.local) direction.transformDirection(s.mesh.matrixWorld);
@@ -266,7 +343,7 @@ export class KnifeGesture {
             ((b.x - a.x) * rect.width) / 2,
             (-(b.y - a.y) * rect.height) / 2,
           ).normalize();
-          if (axis.lengthSq() > 0)
+          if (axis.lengthSq() > 1e-12)
             cursor = anchor
               .clone()
               .addScaledVector(axis, cursor.clone().sub(anchor).dot(axis));
@@ -295,7 +372,8 @@ export class KnifeGesture {
               normal,
               hit.point,
             );
-            ray.setFromCamera(
+            setCameraRay(
+              ray,
               new Vector2(
                 (cursor.x / rect.width) * 2 - 1,
                 1 - (cursor.y / rect.height) * 2,
@@ -335,7 +413,10 @@ export class KnifeGesture {
               s.error = "";
             }
           }
-        } else s.error = "Relative angle needs a start point on a face.";
+        } else {
+          s.constraintBlocked = true;
+          s.error = "Relative angle needs a start point on a face.";
+        }
       }
       return cursor;
     };
@@ -369,9 +450,9 @@ export class KnifeGesture {
         rect.width,
         rect.height,
       );
-      const originalEdges = s.baseEdges;
-      for (const [key, incident] of knifeGraph(s.knife.mesh).edges) {
-        if (originalEdges.has(key)) continue;
+      const graph = knifeGraph(s.knife.mesh);
+      for (const key of s.knife.selection) {
+        const incident = graph.edges.get(key) ?? [];
         const half = incident[0];
         if (!half) continue;
         const a = projected[half.from],
@@ -441,6 +522,10 @@ export class KnifeGesture {
         draw();
         return;
       }
+      if (s.constraintBlocked) {
+        draw();
+        return;
+      }
       const from = s.anchor.clone();
       if (from.distanceTo(to) < 1) return;
       const previous = s.knife.length;
@@ -464,7 +549,7 @@ export class KnifeGesture {
           return;
         }
         preview(s);
-        s.strokes.push({ from, to: to.clone(), count });
+        s.strokes.push({ from, to: to.clone(), count, view: viewSignature() });
         s.anchor = to.clone();
         s.error = "";
       } catch (error) {
@@ -480,7 +565,9 @@ export class KnifeGesture {
       try {
         const choice = target();
         if (!choice)
-          throw new Error("Select a mesh part before starting Knife.");
+          throw new Error(
+            "Select a component on the intended mesh part before starting Knife.",
+          );
         if (onlySelected && !choice.selectedFaces.length)
           throw new Error("Select faces before starting Knife with Shift+K.");
         const mesh = meshAtPath(
@@ -524,8 +611,8 @@ export class KnifeGesture {
           svg,
           middle: viewport.controls.mouseButtons.MIDDLE,
           pointerId: null,
-          baseEdges: new Set(topology(cage).edges.keys()),
           relativeAngle: null,
+          constraintBlocked: false,
         };
         viewport.controls.mouseButtons.MIDDLE = MOUSE.ROTATE;
         dom.style.cursor = "crosshair";
@@ -537,6 +624,7 @@ export class KnifeGesture {
         report(errorMessage(error));
       }
     };
+    let lastPointer: { clientX: number; clientY: number } | null = null;
     const keydown = (event: KeyboardEvent) => {
       if (typing(event)) return;
       const key = event.key.toLowerCase();
@@ -574,10 +662,19 @@ export class KnifeGesture {
         return;
       }
       if ((event.ctrlKey || event.metaKey) && key === "z") {
+        if (s.down) {
+          s.down = null;
+          s.anchor = null;
+          if (s.pointerId !== null && dom.hasPointerCapture(s.pointerId))
+            dom.releasePointerCapture(s.pointerId);
+          s.pointerId = null;
+          draw();
+          return;
+        }
         const stroke = s.strokes.pop();
         if (stroke) {
           s.knife.undo(stroke.count);
-          s.anchor = stroke.from;
+          s.anchor = stroke.view === viewSignature() ? stroke.from : null;
           preview(s);
         }
         return;
@@ -609,6 +706,13 @@ export class KnifeGesture {
           if (value > 0 && value <= 180) s.angle = value;
         }
       }
+      if (lastPointer)
+        s.cursor = constrained(s, {
+          ...lastPointer,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
+        });
       changedSettings({
         cutThrough: s.cutThrough,
         xray: s.xray,
@@ -621,6 +725,7 @@ export class KnifeGesture {
     const move = (event: PointerEvent) => {
       const s = this.session;
       if (!s || this.space || event.buttons === 4) return;
+      lastPointer = { clientX: event.clientX, clientY: event.clientY };
       s.cursor = constrained(s, event);
       draw();
     };
@@ -635,11 +740,13 @@ export class KnifeGesture {
       event.preventDefault();
       event.stopImmediatePropagation();
       if (event.button === 2) {
+        s.down = null;
         s.anchor = null;
         draw();
         return;
       }
       if (event.button !== 0) return;
+      lastPointer = { clientX: event.clientX, clientY: event.clientY };
       s.cursor = constrained(s, event);
       s.down = s.cursor.clone();
       if (!s.anchor) s.anchor = s.cursor.clone();
@@ -669,6 +776,15 @@ export class KnifeGesture {
     };
     const keyup = (event: KeyboardEvent) => {
       if (event.code === "Space") this.space = false;
+      if (this.session && lastPointer && !typing(event)) {
+        this.session.cursor = constrained(this.session, {
+          ...lastPointer,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
+        });
+        draw();
+      }
     };
     const cancel = () => finish(false);
     window.addEventListener("keydown", keydown, true);

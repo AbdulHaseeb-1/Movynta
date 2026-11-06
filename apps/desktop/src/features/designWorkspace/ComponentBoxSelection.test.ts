@@ -41,7 +41,7 @@ describe("edit mode box selection", () => {
     pointer("pointerdown", x - 70, y + 20);
     pointer("pointermove", x + 20, y + 120);
     pointer("pointerup", x + 20, y + 120);
-    expect(selected.mock.lastCall?.[0]?.ids.length).toBeGreaterThan(1);
+    expect(selected.mock.lastCall?.[0]?.ids.length).toBeGreaterThan(0);
     expect(switchObject).not.toHaveBeenCalled();
     pointer("pointerdown", x, y);
     pointer("pointerup", x, y);
@@ -49,6 +49,20 @@ describe("edit mode box selection", () => {
     expect(switchObject).toHaveBeenCalledOnce();
     controller.dispose();
 
+  });
+  it.each([false,true])("respects solid visibility and X-ray: %s", (xray) => {
+    vi.stubGlobal("HTMLElement", class HTMLElement { readonly isContentEditable = false; readonly tagName = ""; });
+    vi.stubGlobal("window", new EventTarget());
+    vi.stubGlobal("document", { createElement: () => ({ style: {}, remove() {} }), body: { appendChild() {} } });
+    const dom=new EventTarget();Object.assign(dom,{style:{},getBoundingClientRect:()=>({left:0,top:0,width:800,height:800}),setPointerCapture(){},hasPointerCapture:()=>true,releasePointerCapture(){}});
+    const world=new Scene(), root=new Mesh(new BoxGeometry());world.add(root);world.updateMatrixWorld(true);
+    const camera=new PerspectiveCamera(45,1,0.1,100);camera.position.z=5;camera.updateMatrixWorld(true);
+    // eslint-disable-next-line typescript/no-unsafe-type-assertion -- This fixture does not create a GPU-backed viewport.
+    const viewport={scene:world,camera,renderer:{domElement:dom},addFrameListener:()=>()=>{}} as unknown as Viewport;
+    const selected=vi.fn<(value:{path:number[];ids:string[]}|null)=>void>();
+    const controller=new ComponentSelection(viewport,root,"vertex",selected,()=>true,()=>false,()=>[root],()=>xray);
+    for(const [type,x,y] of [["pointerdown",200,200],["pointermove",600,600],["pointerup",600,600]] as const){const event=new Event(type,{cancelable:true});Object.assign(event,{button:0,pointerId:1,clientX:x,clientY:y,shiftKey:false,altKey:false});dom.dispatchEvent(event);}
+    expect(selected.mock.lastCall?.[0]?.ids.length).toBe(xray?8:4);controller.dispose();
   });
   it.each(["edge", "face"] as const)("box-selects %s components when the drag begins on the mesh", (kind) => {
     vi.stubGlobal("HTMLElement", class HTMLElement { readonly isContentEditable = false; readonly tagName = ""; });

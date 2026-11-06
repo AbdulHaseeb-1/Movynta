@@ -1,7 +1,6 @@
 import type { BufferGeometry } from "three";
 import { channels, continuityChannels, faceNormal, point, type PolygonMesh } from "./meshTopology";
 import { evaluate } from "./meshWeights";
-import { triangulate } from "./meshOutput";
 
 /** Reject retriangulation that could change the surface or non-affine corner data. */
 export function validateKnifeFace(mesh: PolygonMesh, faceId: number, source: BufferGeometry): void {
@@ -12,12 +11,18 @@ export function validateKnifeFace(mesh: PolygonMesh, faceId: number, source: Buf
   const size = Math.max(...face.map((id) => point(mesh, id).distanceTo(origin)), 1e-10);
   if (normal.lengthSq() === 0 || face.some((id) => Math.abs(point(mesh, id).clone().sub(origin).dot(normal)) > size * 1e-7)) throw new Error("Knife requires planar affected faces");
   if (face.length === 3) return;
-  const triangle = triangulate(mesh, face)[0];
-  const ai = triangle?.[0], bi = triangle?.[1], ci = triangle?.[2];
-  if (ai === undefined || bi === undefined || ci === undefined) throw new Error("Knife face has no stable triangulation");
-  const a = point(mesh, face[ai]), u = point(mesh, face[bi]).clone().sub(a), v = point(mesh, face[ci]).clone().sub(a);
-  const wa = corners[ai], wb = corners[bi], wc = corners[ci]; if (!wa || !wb || !wc) throw new Error("Missing knife corner attributes");
-  const uu = u.dot(u), uv = u.dot(v), vv = v.dot(v), det = uu * vv - uv * uv;
+  // Collinear vertices are common after a prior edge split. Choose a well-conditioned
+  // basis from the whole polygon rather than relying on the first output triangle.
+  const ai = 0, a = point(mesh, face[ai]);
+  let bi = 0, distance = 0;
+  for (let i = 1; i < face.length; i++) { const d = point(mesh,face[i]).distanceToSquared(a); if (d > distance) { distance=d; bi=i; } }
+  const u=point(mesh,face[bi]).clone().sub(a);
+  let ci=0, area=0;
+  for (let i=1;i<face.length;i++) { const value=u.clone().cross(point(mesh,face[i]).clone().sub(a)).lengthSq(); if(value>area) {area=value;ci=i;} }
+  const v=point(mesh,face[ci]).clone().sub(a);
+  const wa=corners[ai],wb=corners[bi],wc=corners[ci];
+  if (!wa || !wb || !wc) throw new Error("Missing knife corner attributes");
+  const uu=u.dot(u),uv=u.dot(v),vv=v.dot(v),det=u.clone().cross(v).lengthSq();
   if (!(det > 0)) throw new Error("Knife face is degenerate");
   const attributes = [...continuityChannels(source), ...(source.morphAttributes.position ?? []), source.getAttribute("skinIndex"), source.getAttribute("skinWeight")].filter((attribute) => attribute !== undefined);
   face.forEach((vertex, corner) => {

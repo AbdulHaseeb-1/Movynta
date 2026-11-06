@@ -1,5 +1,6 @@
 import {
   Box3,
+  Color,
   DoubleSide,
   Mesh,
   MeshBasicMaterial,
@@ -128,6 +129,7 @@ export function createOutlineRenderer(
   const corners = Array.from({ length: 8 }, () => new Vector3());
   const mask = new WebGLRenderTarget(1, 1, { depthBuffer: true });
   const maskMaterial = new MeshBasicMaterial({ color: 0xffffff, side: DoubleSide });
+  const occluderMaterial = new MeshBasicMaterial({ colorWrite: false, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
   // Held directly, so a frame can update them without looking them up by name.
   const texel = { value: new Vector2(1, 1) };
   const radius = { value: THICKNESS_PIXELS };
@@ -207,25 +209,30 @@ export function createOutlineRenderer(
     const previousLayers = camera.layers.mask;
     const previousOverride = scene.overrideMaterial;
     const previousBackground = scene.background;
-    renderer.setRenderTarget(mask);
-    mask.scissorTest = rect !== undefined;
-    if (rect)
-      mask.scissor.set(
-        Math.floor(rect.x * MASK_SCALE),
-        Math.floor(rect.y * MASK_SCALE),
-        Math.ceil(rect.width * MASK_SCALE),
-        Math.ceil(rect.height * MASK_SCALE),
-      );
-    renderer.setClearColor(0x000000, 0);
-    renderer.clear();
-    camera.layers.set(SELECTION_LAYER);
-    scene.overrideMaterial = maskMaterial;
-    scene.background = null;
-    renderer.render(scene, camera);
-    scene.background = previousBackground;
-    scene.overrideMaterial = previousOverride;
-    camera.layers.mask = previousLayers;
-    renderer.setRenderTarget(previousTarget);
+    const clearColor = renderer.getClearColor(new Color()).clone();
+    const clearAlpha = renderer.getClearAlpha();
+    const autoClear = renderer.autoClear;
+    try {
+      renderer.setRenderTarget(mask);
+      mask.scissorTest = rect !== undefined;
+      if (rect) mask.scissor.set(Math.floor(rect.x * MASK_SCALE), Math.floor(rect.y * MASK_SCALE), Math.ceil(rect.width * MASK_SCALE), Math.ceil(rect.height * MASK_SCALE));
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear(); renderer.autoClear = false;
+      scene.background = null;
+      // Populate depth with all visible scene geometry before drawing selected pixels.
+      scene.overrideMaterial = occluderMaterial;
+      renderer.render(scene, camera);
+      camera.layers.set(SELECTION_LAYER);
+      scene.overrideMaterial = maskMaterial;
+      renderer.render(scene, camera);
+    } finally {
+      scene.background = previousBackground;
+      scene.overrideMaterial = previousOverride;
+      camera.layers.mask = previousLayers;
+      renderer.setRenderTarget(previousTarget);
+      renderer.setClearColor(clearColor, clearAlpha);
+      renderer.autoClear = autoClear;
+    }
   };
 
   return {
@@ -272,6 +279,7 @@ export function createOutlineRenderer(
       targets = [];
       mask.dispose();
       maskMaterial.dispose();
+      occluderMaterial.dispose();
       edgeMaterial.dispose();
       quad.geometry.dispose();
     },

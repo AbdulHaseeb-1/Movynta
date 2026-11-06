@@ -1,3 +1,4 @@
+import { visibleBounds } from "@/features/viewport3d/visibleBounds";
 import { Box3, Vector3, type Camera, type Object3D } from "three";
 
 /** A rectangle of the view in normalized device coordinates (-1 to 1 on both axes, y up). */
@@ -28,12 +29,13 @@ export function idsInRect(
     }
     if (!visible) continue;
     object.updateWorldMatrix(true, false);
-    box.makeEmpty().expandByObject(object);
+    visibleBounds(object, box.makeEmpty());
     if (box.isEmpty()) { object.getWorldPosition(box.min); box.max.copy(box.min); }
     box.getCenter(point);
     point.applyMatrix4(camera.matrixWorldInverse);
     if (point.z >= -1e-6) continue;
     point.applyMatrix4(camera.projectionMatrix);
+    if (point.z < -1 || point.z > 1) continue;
     if (point.x >= rect.minX && point.x <= rect.maxX && point.y >= rect.minY && point.y <= rect.maxY) found.push(id);
   }
   return found;

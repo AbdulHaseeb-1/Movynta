@@ -14,7 +14,7 @@ import {
 } from "@/features/meshGeometry/meshTopology";
 import { KnifeSession } from "@/features/meshGeometry/meshKnifeSession";
 import { cutKnifeStroke } from "./knifeStroke";
-import { perspectiveEdgeFactor } from "./knifeProjection";
+import { perspectiveEdgeFactor, snapKnife } from "./knifeProjection";
 function camera() {
   const result = new PerspectiveCamera(60, 2, 0.1, 100);
   result.position.set(1, 0.5, 5);
@@ -76,6 +76,97 @@ describe("projected Knife strokes", () => {
         () => true,
       ),
     ).toBe(0);
+  });
+  it("keeps both crossing cuts selected after an earlier cut edge is split", () => {
+    const geometry = createPolygonMesh(
+        [
+          [0, 0, 0],
+          [1, 0, 0],
+          [1, 1, 0],
+          [0, 1, 0],
+        ],
+        [[0, 1, 2, 3]],
+      ),
+      session = new KnifeSession(readTopology(geometry), geometry),
+      view = camera();
+    cutKnifeStroke(
+      session,
+      new Matrix4(),
+      view,
+      800,
+      400,
+      pixel(view, new Vector3(-0.5, 0.5, 0)),
+      pixel(view, new Vector3(1.5, 0.5, 0)),
+      null,
+      () => true,
+    );
+    cutKnifeStroke(
+      session,
+      new Matrix4(),
+      view,
+      800,
+      400,
+      pixel(view, new Vector3(0.5, -0.5, 0)),
+      pixel(view, new Vector3(0.5, 1.5, 0)),
+      null,
+      () => true,
+    );
+    expect(session.selection).toHaveLength(4);
+    const graph = topology(session.mesh);
+    expect(session.selection.every((id) => graph.edges.has(id))).toBe(true);
+  });
+  it("rejects a partly occluded face without leaving a partial cut", () => {
+    const geometry = createPolygonMesh(
+        [
+          [0, 0, 0],
+          [1, 0, 0],
+          [1, 1, 0],
+          [0, 1, 0],
+        ],
+        [[0, 1, 2, 3]],
+      ),
+      session = new KnifeSession(readTopology(geometry), geometry),
+      view = camera();
+    const from = pixel(view, new Vector3(-0.5, 0.5, 0)),
+      to = pixel(view, new Vector3(1.5, 0.5, 0)),
+      mid = pixel(view, new Vector3(0.5, 0.5, 0)).x;
+    expect(() =>
+      cutKnifeStroke(
+        session,
+        new Matrix4(),
+        view,
+        800,
+        400,
+        from,
+        to,
+        null,
+        (_mesh, _face, p) => p.x < mid,
+      ),
+    ).toThrow("Partially occluded");
+    expect(session.length).toBe(0);
+  });
+  it("ignores hidden snap candidates", () => {
+    const mesh = {
+      positions: [new Vector3(0, 0, 0), new Vector3(1, 0, 0)],
+      faces: [],
+    };
+    const projected = [
+      {
+        local: mesh.positions[0] ?? new Vector3(),
+        screen: new Vector2(2, 0),
+        w: 1,
+        depth: 0,
+      },
+      {
+        local: mesh.positions[1] ?? new Vector3(),
+        screen: new Vector2(5, 0),
+        w: 1,
+        depth: 0,
+      },
+    ];
+    expect(
+      snapKnife(mesh, projected, new Vector2(0, 0), false, (p) => p.x === 1).x,
+    ).toBe(5);
   });
   it("honors selected-only and occlusion filters", () => {
     const geometry = createPolygonMesh(
