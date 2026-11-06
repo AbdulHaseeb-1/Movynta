@@ -17,7 +17,7 @@ The backend test `apps/backend/src/modules/tools/tool-docs.spec.ts` runs the too
 | Type | What it does | Tools |
 | --- | --- | --- |
 | **Read** | These tools look at the scene or calculate a result. Nothing changes. | [`editor.get_context`](editor.get_context.md), [`editor.get_scene_summary`](editor.get_scene_summary.md), [`editor.inspect_mesh`](editor.inspect_mesh.md), [`editor.inspect_materials`](editor.inspect_materials.md), [`viewport.capture`](viewport.capture.md), [`validation.check_scene`](validation.check_scene.md), [`editor.measure`](editor.measure.md), [`editor.plan_placement`](editor.plan_placement.md), [`editor.plan_duplicates`](editor.plan_duplicates.md), [`modeling.generate_commands`](modeling.generate_commands.md) |
-| **Plan** | Records intent and the steps for a task. It changes nothing. | [`modeling.generate_model_plan`](modeling.generate_model_plan.md) |
+| **Plan** | Records intent and the steps for a task. It changes nothing. | [`modeling.generate_model_plan`](modeling.generate_model_plan.md), [`modeling.assess_quality`](modeling.assess_quality.md) |
 | **Propose** | Stores a batch of changes for review. The scene is still unchanged. | [`editor.propose_commands`](editor.propose_commands.md), [`modeling.propose_generated`](modeling.propose_generated.md) |
 | **Apply** | Changes the scene by applying a stored proposal. | [`editor.apply_proposal`](editor.apply_proposal.md) |
 | **Skill** | Loads the workflow for a skill selected for this request. | [`skills.load_skill`](skills.load_skill.md) |
@@ -64,6 +64,7 @@ Every example uses this scene, at revision 12, with `crate` selected.
 ### Plan
 
 - [`modeling.generate_model_plan`](modeling.generate_model_plan.md): Writes down the goal and the ordered steps, and the tool each step will use. Recording a plan changes nothing in the scene.
+- [`modeling.assess_quality`](modeling.assess_quality.md): Records the assistant’s task-specific self-review of a changed scene; it does not change geometry or guarantee visual quality.
 
 ### Propose
 

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
-import { Box, ChevronDown, ChevronRight, Eye, EyeOff, Folder, FolderOpen, FolderPlus, Group, Layers3, Trash2 } from "lucide-react";
+import { MAX_COMMANDS_PER_PROPOSAL } from "@movynta/editor-protocol";
+import { Box, ChevronDown, ChevronRight, Eye, EyeOff, Ellipsis, Folder, FolderOpen, FolderPlus, Group, Layers3, Trash2 } from "lucide-react";
 import type { EditorScene } from "@/features/assistant";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { saveManualCommands } from "@/features/objectEditing/saveManualCommands";
 import { errorMessage, type SerialQueue } from "@/lib";
 import {
@@ -13,6 +15,7 @@ import {
   dropCommands,
   flattenTree,
   outlineCommands,
+  objectRange,
   revealed,
   ROOT_ROW_ID,
   rowTarget,
@@ -71,6 +74,7 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const selectionAnchor = useRef<string | null>(null);
   const cancelled = useRef(false);
   const scrolledTo = useRef<string | null>(null);
   const keyboardMoved = useRef(false);
@@ -200,8 +204,31 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   function click(event: MouseEvent, row: TreeRow) {
     if (!scene || wasDrag()) return;
     const target = rowTarget(row.id);
-    if (target.kind === "object" && (event.ctrlKey || event.metaKey || event.shiftKey)) scene.toggleSelection(target.id);
-    else choose(row);
+    if (target.kind === "object" && event.shiftKey) {
+      const anchor = selectionAnchor.current ?? scene.selection;
+      const ids = anchor === null ? [] : objectRange(rows, anchor, row.id);
+      if (ids.length) scene.selectMany(ids);
+      else { scene.select(target.id); selectionAnchor.current = target.id; }
+    } else {
+      if (target.kind === "object" && (event.ctrlKey || event.metaKey)) scene.toggleSelection(target.id);
+      else choose(row);
+      selectionAnchor.current = target.kind === "object" ? target.id : null;
+    }
+  }
+
+  function changeVisibility(action: "selected" | "unselected" | "reveal") {
+    if (!scene) return;
+    const protectedIds = new Set(selected);
+    for (const id of selected) {
+      for (let parent = tree.parents.get(id); parent; parent = tree.parents.get(parent)) protectedIds.add(parent);
+    }
+    const commands: unknown[] = [...tree.entries.values()]
+      .filter((entry) => action === "reveal" ? !entry.visible : entry.visible && (action === "selected" ? selectedSet.has(entry.id) : !protectedIds.has(entry.id)))
+      .map((entry) => outlineCommands.show(entry.id, action === "reveal"));
+    if (action === "reveal") for (const collection of tree.collections.values()) if (!collection.visible) commands.push(outlineCommands.showCollection(collection.id, true));
+    if (!commands.length) return;
+    if (commands.length > MAX_COMMANDS_PER_PROPOSAL) { setError(`Change at most ${MAX_COMMANDS_PER_PROPOSAL} visibility settings at once.`); return; }
+    run(commands);
   }
 
   function makeCollection() {
@@ -303,7 +330,15 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
       <div className="mb-2 flex items-center gap-2">
         <Layers3 className="size-4 text-muted-foreground" aria-hidden="true" />
         <h2 className="flex-1 text-xs font-medium">Scene</h2>
-        <span className="text-[11px] text-muted-foreground">{tree.entries.size}</span>
+        <span className="text-[11px] text-muted-foreground">{selected.length ? `${selected.length} selected / ` : ""}{tree.entries.size}</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon-sm" className="size-6" aria-label="Scene visibility actions" disabled={locked}><Ellipsis className="size-4" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem disabled={!selected.length} onSelect={() => changeVisibility("selected")}>Hide selected</DropdownMenuItem>
+            <DropdownMenuItem disabled={!selected.length} onSelect={() => changeVisibility("unselected")}>Hide unselected</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => changeVisibility("reveal")}>Reveal all</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           type="button"
           variant="ghost"
@@ -353,6 +388,7 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
                   className={cn(
                     "group absolute inset-x-0 flex touch-none items-center rounded-md pr-1 text-xs select-none hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none",
                     isSelected && "bg-accent",
+                    row.id === active && selected.length > 1 && "ring-1 ring-inset ring-ring",
                     (isCollection || isRoot) && "font-medium",
                     drag?.id === row.id && "opacity-50",
                     drag?.target === row.id && "bg-accent ring-1 ring-brand",

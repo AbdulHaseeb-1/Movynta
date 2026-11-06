@@ -28,3 +28,6 @@ export {
   type ViewportTool,
 } from "./viewportSlice";
 export { ToolButton, ViewportToolbar, type ToolButtonProps } from "./ViewportToolbar";
+
+export { ShadingMenu } from "./ShadingMenu";
+export { OrientationGizmo } from "./OrientationGizmo";

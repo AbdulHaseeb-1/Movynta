@@ -74,7 +74,7 @@ For procedural layouts, the assistant can call `modeling.generate_commands`: bou
 8. The editor executes the approved commands and reports results. Each proposal runs at most once, keyed by its id and checked against the base revision.
 9. The agent validates the scene with `validation.check_scene` and responds. The full history is stored in the session.
 
-A reply ends the run only when the work is finished. After each turn the run checks its own progress (`run-progress.ts`): every scene step of the latest plan that names a `stepId` has an applied batch, no batch waits unapplied, and the last scene check reported no errors after the last change. If something is open, the run sends the model a continuation message that lists it and emits `agent.continued`. This repeats up to `AGENT_CONTINUATION_LIMIT` times (3 by default), after which the last reply is accepted. A continuation that answers without a tool call ends the run with that reply, so a question for the user is not repeated.
+A reply ends the run only when the work is finished. After each turn the run checks its own progress (`run-progress.ts`): every scene step of the latest plan that names a `stepId` has an applied batch, no batch waits unapplied, and the last scene check reported no errors after the last change. If something is open, the run sends the model a continuation message that lists it and emits `agent.continued`. For explicit 3D realism and refinement requests with applied edits, a separate quality gate also requires the model to assess fresh live views or record a blocker; the model’s self-review is not an objective quality guarantee. This repeats up to `AGENT_CONTINUATION_LIMIT` times (5 by default), after which the last reply is accepted. A continuation that answers without a tool call ends the run with that reply, so a question for the user is not repeated.
 
 Time limits are separate. `AGENT_RUN_IDLE_TIMEOUT_MS` (5 minutes by default) stops a run that has shown no progress, and the run then fails with `run_stalled`. `AGENT_RUN_TIMEOUT_MS` (30 minutes by default) caps the active time of one run. Both clocks pause while a run waits for an approval.
 
@@ -125,6 +125,7 @@ All routes are under `/api/v1` and need `Authorization: Bearer <token>` except t
 | POST | `/api/v1/projects/:projectId/assets` | import a model: the file is the body (`application/octet-stream`, up to 64 MB); `name`, `format` and `objectId` are query parameters |
 | GET | `/api/v1/projects/:projectId/assets/:assetId` | download an imported model |
 | GET | `/api/v1/projects/:projectId/conversation` | the latest chat of a project |
+| DELETE | `/api/v1/projects/:projectId/conversation` | clear saved chat sessions and messages while retaining scene and undo history; rejected while an assistant run is active |
 | POST | `/api/v1/sessions` | create a session |
 | GET | `/api/v1/sessions/:sessionId` | read a session |
 | DELETE | `/api/v1/sessions/:sessionId` | delete a session and its history |

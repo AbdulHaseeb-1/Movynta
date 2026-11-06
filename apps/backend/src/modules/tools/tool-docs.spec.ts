@@ -17,6 +17,7 @@ import { parseSkillDocument } from "../skills/skill-document.parser.js";
 import type { SkillsRegistry } from "../skills/skills.registry.js";
 import { createEditorTools } from "./editor/editor.tools.js";
 import { createModelingTools, MODELING_PLAN_TOOL_NAME } from "./modeling/modeling.tools.js";
+import { createQualityTools } from "./modeling/quality.tools.js";
 import { createProceduralTools } from "./procedural/procedural.tools.js";
 import { createSkillTools } from "./skills/skills.tools.js";
 import { createValidationTools } from "./validation/validation.tools.js";
@@ -134,9 +135,10 @@ function buildTools(scene: EditorContext, state: { nextId: string; revision: num
   const skillTools = createSkillTools({ skills });
   const proceduralTools = createProceduralTools({ bridge, proposals });
   const viewportTools = createViewportTools({ bridge, proposals });
-  const knownToolNames = [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools].map((tool) => tool.name);
+  const qualityTools = createQualityTools(bridge);
+  const knownToolNames = [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools, ...qualityTools].map((tool) => tool.name);
   const modelingTools = createModelingTools({ knownToolNames: [...knownToolNames, MODELING_PLAN_TOOL_NAME] });
-  return [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools, ...modelingTools];
+  return [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools, ...qualityTools, ...modelingTools];
 }
 
 /** The real manifest of the skill the example loads, so its tool list and checks are compared with the file. */

@@ -1,4 +1,5 @@
 import type { ViewCaptureOptions } from "../../editor-bridge/editor-bridge.types.js";
+import type { EditorContext } from "../../../shared/types/editor-context.types.js";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import type { ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
@@ -40,8 +41,9 @@ class RecordingBridge implements EditorBridge {
   assertConnection(userId: string, projectId: string, clientId: string) {
     return { userId, projectId, clientId };
   }
-  getContext(): Promise<never> {
-    return Promise.reject(new Error("unused"));
+  revision = 5;
+  getContext(): Promise<EditorContext> {
+    return Promise.resolve({ revision: this.revision } as EditorContext);
   }
   proposeCommands(): Promise<void> {
     return Promise.resolve();
@@ -104,6 +106,25 @@ describe("viewport.capture", () => {
     await expect(tool(bridge, () => ({ ...proposal, status: "applied" }))
       .execute(request, contextWith(true))).rejects.toThrow("Only a pending proposal");
     expect(bridge.requests).toHaveLength(1);
+  });
+  it("tracks only fresh live images as quality evidence", async () => {
+    const bridge = new RecordingBridge();
+    const context = contextWith(true);
+    context.progress.quality.required = true;
+    context.progress.quality.changes = 1;
+    await tool(bridge).execute({ views: [{ preset: "front" }, { preset: "top" }] }, context);
+    expect(context.progress.quality.captureRevision).toBe(5);
+    expect(context.progress.quality.viewpoints).toHaveLength(2);
+    context.progress.quality.outcome = "ready";
+    context.progress.quality.summary = "Reviewed the earlier revision.";
+    bridge.revision = 6;
+    bridge.result = { ...captured, images: [captured.images[0]].filter((image) => image !== undefined) };
+    await tool(bridge).execute({ views: [{ preset: "front" }] }, context);
+    expect(context.progress.quality.captureRevision).toBe(6);
+    expect(context.progress.quality.viewpoints).toHaveLength(1);
+    expect(context.progress.quality.outcome).toBeNull();
+    await tool(bridge).execute({ views: [{ preset: "front" }], mode: "wireframe" }, context);
+    expect(context.progress.quality.viewpoints).toHaveLength(1);
   });
   it("is a read-only tool that never needs approval", async () => {
     const definition = tool(new RecordingBridge());

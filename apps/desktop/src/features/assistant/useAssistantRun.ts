@@ -4,10 +4,11 @@ import { z } from "zod";
 import { useAssistantSelection } from "./useAssistantSelection";
 import { useReasoningEffort } from "./useReasoningEffort";
 import { backendRequest, errorMessage } from "@/lib/backend";
-import type { ViewCaptureHandler } from "@/features/viewCapture";
+import { forgetCaptures, type ViewCaptureHandler } from "@/features/viewCapture";
 import type { EditorScene } from "./EditorScene";
 import { connectEditor, type EditorConnection } from "./editorConnection";
-import { acceptedSchema, approvalSchema, getRun, streamRun } from "./runClient";
+import { waitForAbortable } from "./waitForAbortable";
+import { acceptedSchema, approvalSchema, readRunProgress } from "./runClient";
 import {
   savedExchangesToMessages,
   type SavedExchange,
@@ -63,6 +64,7 @@ export function useAssistantRun(
   const [phase, setPhase] = useState<RunPhase>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const session = useRef<string | undefined>(undefined);
   const runId = useRef<string | undefined>(undefined);
@@ -133,9 +135,16 @@ export function useAssistantRun(
     controller.current = abort;
     try {
       // Validate/refresh native authentication before opening the WebSocket, which cannot retry HTTP 401s.
-      await beforeSubmit?.();
-      await backendRequest("/agents", z.array(z.object({ id: z.string() })));
-      scene.bindProject(await ensureProject());
+      if (beforeSubmit) await waitForAbortable(abort.signal, beforeSubmit);
+      abort.signal.throwIfAborted();
+      await waitForAbortable(abort.signal, () => backendRequest(
+        "/agents", z.array(z.object({ id: z.string() })), "GET", undefined,
+        AbortSignal.any([abort.signal, AbortSignal.timeout(20000)]),
+      ));
+      abort.signal.throwIfAborted();
+      const projectId = await waitForAbortable(abort.signal, ensureProject);
+      abort.signal.throwIfAborted();
+      scene.bindProject(projectId);
       connection.current?.close();
       connection.current = await connectEditor(scene, abort.signal, capture);
       const accepted = await backendRequest(
@@ -163,8 +172,9 @@ export function useAssistantRun(
       let terminal = false;
       const cursor = { id: "" };
       while (!terminal && !abort.signal.aborted) {
-        await streamRun(
+        const result = await readRunProgress(
           accepted.eventsUrl,
+          accepted.runId,
           abort.signal,
           (event) => {
             patchMessage(reply.id, (current) => applyRunEvent(current, event));
@@ -191,7 +201,6 @@ export function useAssistantRun(
           },
           cursor,
         );
-        const result = await getRun(accepted.runId);
         if (TERMINAL_STATUSES.includes(result.status)) {
           await recoverSavedScene(scene, true);
           terminal = true;
@@ -292,6 +301,29 @@ export function useAssistantRun(
       setStatus(errorMessage(error));
     }
   }
+  /** Clears the saved conversation and starts the next request in a new session. */
+  async function clearChat(): Promise<void> {
+    if (inFlight.current) throw new Error("Wait for the assistant to finish before clearing the chat.");
+    inFlight.current = true;
+    setClearing(true);
+    try {
+      const scene = editor.current;
+      if (scene?.hasProject) await backendRequest(`/projects/${scene.projectId}/conversation`, z.void(), "DELETE");
+      connection.current?.close();
+      connection.current = null;
+      session.current = undefined;
+      sessionProvider.current = "";
+      lastPrompt.current = "";
+      forgetCaptures();
+      setMessages([]);
+      setApprovals([]);
+      setPhase("idle");
+      setStatus("Ready");
+    } finally {
+      inFlight.current = false;
+      setClearing(false);
+    }
+  }
   /** Shows the saved chat of a reopened project and lets the assistant continue its session. */
   function hydrate(saved: SavedConversation) {
     session.current = saved.sessionId;
@@ -310,13 +342,14 @@ export function useAssistantRun(
     status,
     phase,
     messages,
-    busy,
+    busy: busy || clearing,
     approvals,
+    clearChat,
     cancel,
     decide,
     hydrate,
     retry,
-    canRetry: !busy && messages.some((message) => message.role === "user"),
+    canRetry: !busy && !clearing && messages.some((message) => message.role === "user"),
     ready: connected && Boolean(provider) && Boolean(model.trim()),
   };
 }

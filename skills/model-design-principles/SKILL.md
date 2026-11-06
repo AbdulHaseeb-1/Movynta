@@ -38,6 +38,7 @@ tools:
   - editor.measure
   - editor.inspect_mesh
   - viewport.capture
+  - modeling.assess_quality
   - modeling.generate_model_plan
   - editor.propose_commands
   - editor.apply_proposal
@@ -125,7 +126,7 @@ These vary by country and maker; treat them as starting points.
 6. **Secondary pass**: add construction shapes. Use the `props-hard-surface` or `character-modeling` workflow as appropriate. Capture again before applying when the change is geometric (`viewport.capture` with the pending `proposalId`).
 7. **Tertiary pass**: bevels, seams and small parts, clustered at the focal point. Check normals and smoothing with `mode: normals`.
 8. **Materials**: follow `pbr-materials-and-color` for a value-first palette.
-9. Call `validation.check_scene`, then report the brief, what was built, and the open design choices the user may want to change.
+9. Call `validation.check_scene`. For realism, detail or refinement requests, record the critique from fresh live captures with `modeling.assess_quality`. Then report the brief, what was built, and the open design choices the user may want to change.
 
 ## 6. Self-critique checklist (use before reporting)
 

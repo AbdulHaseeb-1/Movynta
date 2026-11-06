@@ -1,5 +1,6 @@
 import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
+import { combineSelection, selectionOperation } from "@/features/viewport3d/selectionOperation";
 import { idsInRect, rectBetween } from "./boxSelect";
 import type { GizmoView } from "./ObjectGizmo";
 import { pickObjectId, toNdc } from "./picking";
@@ -64,8 +65,9 @@ export class SelectionTools {
 
     // Also in the capture phase, so the press that starts a rectangle never reaches the camera or the handles.
     const onPointerDown = (event: PointerEvent) => {
+      if (!this.view.enabled()) { if (this.armed || this.start) this.cancel(); return; }
       if (!this.armed) {
-        if (event.button !== 0 || event.altKey || this.navigationHeld || !this.view.enabled() || this.view.tool() !== "select") return;
+        if (event.button !== 0 || this.navigationHeld || !this.view.enabled() || this.view.tool() !== "select") return;
         const point = toNdc(event.clientX, event.clientY, dom.getBoundingClientRect());
         if (pickObjectId(this.editor, viewport.camera, point) !== undefined) return;
         this.arm();
@@ -80,16 +82,17 @@ export class SelectionTools {
       dom.setPointerCapture(event.pointerId);
     };
     const onPointerMove = (event: PointerEvent) => {
-      if (this.start && (Math.abs(event.clientX - this.start.x) >= MIN_BOX_PX || Math.abs(event.clientY - this.start.y) >= MIN_BOX_PX)) this.draw(event.clientX, event.clientY);
+      if (this.start && (Math.abs(event.clientX - this.start.x) >= MIN_BOX_PX || Math.abs(event.clientY - this.start.y) >= MIN_BOX_PX)) this.draw(event.clientX, event.clientY, event);
     };
     const onPointerUp = (event: PointerEvent) => {
       const start = this.start;
       if (!start) return;
+      if (!this.view.enabled()) { this.cancel(); return; }
       event.stopImmediatePropagation();
       if (dom.hasPointerCapture(event.pointerId)) dom.releasePointerCapture(event.pointerId);
       const wide = Math.abs(event.clientX - start.x) >= MIN_BOX_PX || Math.abs(event.clientY - start.y) >= MIN_BOX_PX;
       if (wide) this.select(start, event);
-      else if (!event.shiftKey) this.editor.select(null);
+      else if (!event.shiftKey && !event.altKey) this.editor.select(null);
       this.cancel();
     };
     const onPointerCancel = () => this.cancel();
@@ -135,7 +138,7 @@ export class SelectionTools {
     this.frame = undefined;
   }
 
-  private draw(x: number, y: number) {
+  private draw(x: number, y: number, modifiers: PointerEvent) {
     const start = this.start;
     if (!start) return;
     if (!this.frame) {
@@ -145,6 +148,9 @@ export class SelectionTools {
         "background:color-mix(in srgb, var(--foreground) 10%, transparent)";
       document.body.appendChild(this.frame);
     }
+    this.frame.textContent = ` ${selectionOperation(modifiers)} `;
+    this.frame.style.color = "var(--foreground)";
+    this.frame.style.fontSize = "11px";
     this.frame.style.left = `${Math.min(start.x, x)}px`;
     this.frame.style.top = `${Math.min(start.y, y)}px`;
     this.frame.style.width = `${Math.abs(x - start.x)}px`;
@@ -156,6 +162,6 @@ export class SelectionTools {
     const a = toNdc(start.x, start.y, bounds);
     const b = toNdc(end.clientX, end.clientY, bounds);
     const inside = idsInRect(this.editor.entries(), this.viewport.camera, rectBetween(a.x, a.y, b.x, b.y));
-    this.editor.selectMany(end.shiftKey ? [...this.editor.selectedIds, ...inside] : inside);
+    this.editor.selectMany(combineSelection(this.editor.selectedIds, inside, selectionOperation(end)));
   }
 }

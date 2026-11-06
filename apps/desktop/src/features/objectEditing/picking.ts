@@ -43,6 +43,26 @@ export function pickObjectId(
   return nearestId;
 }
 
+/** Every visible hit under the pointer, nearest first, with one entry per editor object. */
+export function pickObjectIds(editor: EditorScene, camera: Camera, ndc: Vector2): string[] {
+  raycaster.setFromCamera(ndc, camera);
+  const distances = new Map<string, number>();
+  for (const object of editor.pickables()) {
+    accelerateRaycasts(object);
+    hits.length = 0;
+    raycaster.intersectObject(object, true, hits);
+    for (const hit of hits) {
+      let visible = true;
+      for (let node: typeof hit.object | null = hit.object; node; node = node.parent) if (!node.visible) { visible = false; break; }
+      if (!visible) continue;
+      const id = editor.idOf(hit.object);
+      if (id !== undefined && hit.distance < (distances.get(id) ?? Infinity)) distances.set(id, hit.distance);
+    }
+  }
+  hits.length = 0;
+  return [...distances].sort((a, b) => a[1] - b[1]).map(([id]) => id);
+}
+
 /** A pointer position as normalized device coordinates within `bounds`. */
 export function toNdc(
   clientX: number,

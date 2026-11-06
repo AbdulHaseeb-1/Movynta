@@ -1,7 +1,10 @@
 import {
   continuationPrompt,
   emptyRunProgress,
+  invalidateStaleQualityReview,
   openWorkReasons,
+  qualityCompletionNotice,
+  requiresQualityReview,
   parseRunProgress,
   serializeRunProgress,
   type RunProgress,
@@ -78,6 +81,12 @@ describe("openWorkReasons", () => {
 describe("run progress storage", () => {
   it("keeps plans and proposals through a save and a load", () => {
     const progress = withProgress({ plans: [plan], proposals: [{ id: "prp_1", stepId: "torso" }], unverifiedChanges: true, sceneErrors: 1 });
+    progress.quality.required = true;
+    progress.quality.changes = 2;
+    progress.quality.captureRevision = 5;
+    progress.quality.viewpoints = ["front", "side"];
+    progress.quality.outcome = "needs_refinement";
+    progress.quality.summary = "Hands need work.";
     expect(parseRunProgress(serializeRunProgress(progress))).toEqual(progress);
   });
 });
@@ -88,5 +97,47 @@ describe("continuationPrompt", () => {
     expect(prompt).toContain("- 1 proposed batch is not applied");
     expect(prompt).toContain("- the scene changed after its last check");
     expect(prompt).toContain("validation.check_scene");
+  });
+});
+
+describe("quality review completion", () => {
+  it("targets explicit 3D realism and refinement, while allowing an explicitly requested blockout", () => {
+    expect(requiresQualityReview("Create a realistic person", "3d")).toBe(true);
+    expect(requiresQualityReview("Improve this sculpture", "3d")).toBe(true);
+    expect(requiresQualityReview("Make it better", "3d")).toBe(true);
+    expect(requiresQualityReview("Create a detailed model", "3d")).toBe(true);
+    expect(requiresQualityReview("Create a realistic person", "2d")).toBe(false);
+    expect(requiresQualityReview("Just a rough blockout of a realistic person", "3d")).toBe(false);
+    expect(requiresQualityReview("Move the cube", "3d")).toBe(false);
+    expect(requiresQualityReview("Move the realistic car", "3d")).toBe(false);
+  });
+  it("keeps changed quality work open until reviewed and discloses an unfinished result", () => {
+    const progress = emptyRunProgress(); progress.quality.required = true; progress.quality.changes = 1;
+    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("modeling.assess_quality");
+    expect(qualityCompletionNotice(progress, false)).toContain("not visually verified");
+    progress.quality.outcome = "needs_refinement"; progress.quality.summary = "Hands are missing.";
+    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("refine");
+    expect(qualityCompletionNotice(progress, true)).toContain("Hands are missing");
+    progress.quality.outcome = "blocked";
+    expect(openWorkReasons(progress, () => undefined)).toEqual([]);
+    expect(qualityCompletionNotice(progress, true)).toContain("blocked");
+    progress.quality.outcome = "ready";
+    expect(qualityCompletionNotice(progress, true)).toBeUndefined();
+  });
+  it("invalidates a ready review if the scene changes or is unavailable", () => {
+    const progress = emptyRunProgress();
+    progress.quality.required = true; progress.quality.changes = 1;
+    progress.quality.captureRevision = 5; progress.quality.viewpoints = ["front", "side"]; progress.quality.outcome = "ready";
+    invalidateStaleQualityReview(progress, 5);
+    expect(progress.quality.outcome).toBe("ready");
+    invalidateStaleQualityReview(progress, 6);
+    expect(progress.quality.outcome).toBeNull();
+    expect(progress.quality.viewpoints).toEqual([]);
+    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("modeling.assess_quality");
+  });
+  it("loads progress saved before the quality fields existed", () => {
+    const progress = parseRunProgress(JSON.stringify({ plans: [], proposals: [], unverifiedChanges: false, sceneErrors: 0 }));
+    expect(progress.quality.required).toBe(false);
+    expect(progress.quality.changes).toBe(0);
   });
 });

@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import type { ComponentSelectionOperation } from "./componentNeighbors";
 import { loadPanelVisibility, type PanelId, type PanelVisibility } from "./panelStorage";
 
 export type DesignMode = "object" | "edit";
@@ -12,6 +13,7 @@ interface WorkspaceState {
     ids: string[];
   } | null;
   componentError: string;
+  selectionRequest: { operation: ComponentSelectionOperation; sequence: number } | null;
   panels: PanelVisibility;
 }
 const initialState: WorkspaceState = {
@@ -19,6 +21,7 @@ const initialState: WorkspaceState = {
   componentKind: "face",
   componentSelection: null,
   componentError: "",
+  selectionRequest: null,
   panels: loadPanelVisibility(),
 };
 
@@ -26,6 +29,9 @@ const workspaceSlice = createSlice({
   name: "designWorkspace",
   initialState,
   reducers: {
+    requestComponentSelection(state, action: PayloadAction<ComponentSelectionOperation>) {
+      state.selectionRequest = { operation: action.payload, sequence: (state.selectionRequest?.sequence ?? 0) + 1 };
+    },
     setDesignMode(state, action: PayloadAction<DesignMode>) {
       state.mode = action.payload;
       state.componentSelection = null;
@@ -48,6 +54,7 @@ const workspaceSlice = createSlice({
 });
 
 export const {
+  requestComponentSelection,
   setDesignMode,
   setComponentKind,
   setComponentSelection,

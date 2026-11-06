@@ -15,7 +15,7 @@ import {
   type Object3D,
 } from "three";
 import type { Viewport } from "@/features/viewport3d";
-import { watchClicks } from "@/features/viewport3d/clicks";
+import { combineSelection, selectionOperation } from "@/features/viewport3d/selectionOperation";
 import { toNdc } from "@/features/objectEditing/picking";
 import { isEditableTarget } from "@/features/meshGeometry/meshInspection";
 import {
@@ -29,6 +29,8 @@ import {
   extrudeIsActive,
 } from "@/features/objectEditing/ExtrudeGesture";
 import type { ComponentKind } from "./workspaceSlice";
+import { changeComponentSelection, type ComponentSelectionOperation } from "./componentNeighbors";
+import { selectEdgeFlow } from "./edgeFlowSelection";
 import { ComponentBoxSelection } from "./ComponentBoxSelection";
 
 interface Target {
@@ -54,7 +56,6 @@ export class ComponentSelection {
   private targets: Target[] = [];
   private selected: Selection | null = null;
   private readonly tint: Color;
-  private stop: () => void;
   private stopFrame: () => void;
   private stopKeys: () => void;
   private kind: ComponentKind;
@@ -65,6 +66,8 @@ export class ComponentSelection {
     root: Object3D,
     kind: ComponentKind,
     onSelect: (value: Selection | null) => void,
+    canStartBox: () => boolean,
+    switchObject: (event: PointerEvent) => boolean,
   ) {
     this.kind = kind;
     this.onSelect = onSelect;
@@ -131,44 +134,53 @@ export class ComponentSelection {
     const dom = viewport.renderer.domElement;
     this.boxSelection = new ComponentBoxSelection(viewport, (start, event) => {
       this.sync();
+      viewport.camera.updateMatrixWorld();
       const bounds = dom.getBoundingClientRect();
       const a = toNdc(start.x, start.y, bounds);
       const b = toNdc(event.clientX, event.clientY, bounds);
       const minX = Math.min(a.x, b.x); const maxX = Math.max(a.x, b.x);
       const minY = Math.min(a.y, b.y); const maxY = Math.max(a.y, b.y);
       const selectedTarget = this.targets.find((entry) => entry.proxy.visible && entry.path.join("/") === this.selected?.path.join("/"));
-      const target = selectedTarget ?? this.targets.find((entry) => entry.proxy.visible);
-      if (!target) return;
+      const operation = selectionOperation(event);
       const point = new Vector3();
-      const contains = (vertices: readonly number[]) => {
-        point.set(0, 0, 0);
-        for (const id of vertices) {
-          const position = target.data.mesh.positions[id];
-          if (!position) return false;
-          point.add(position);
-        }
-        point.divideScalar(vertices.length).applyMatrix4(target.source.matrixWorld);
-        point.applyMatrix4(viewport.camera.matrixWorldInverse);
-        if (point.z >= 0) return false;
-        point.applyMatrix4(viewport.camera.projectionMatrix);
-        return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+      const hitsFor = (target: Target): string[] => {
+        const contains = (vertices: readonly number[]) => {
+          point.set(0, 0, 0);
+          for (const id of vertices) {
+            const position = target.data.mesh.positions[id];
+            if (!position) return false;
+            point.add(position);
+          }
+          point.divideScalar(vertices.length).applyMatrix4(target.source.matrixWorld);
+          point.applyMatrix4(viewport.camera.matrixWorldInverse);
+          if (point.z >= 0) return false;
+          point.applyMatrix4(viewport.camera.projectionMatrix);
+          return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+        };
+        return kind === "vertex" ? target.data.mesh.positions.flatMap((_, index) => contains([index]) ? [String(index)] : [])
+          : kind === "edge" ? [...target.data.edges].flatMap(([id, vertices]) => contains(vertices) ? [id] : [])
+          : target.data.mesh.faces.flatMap((face, index) => contains(face) ? [String(index)] : []);
       };
-      const ids = kind === "vertex" ? target.data.mesh.positions.flatMap((_, index) => contains([index]) ? [String(index)] : [])
-        : kind === "edge" ? [...target.data.edges].flatMap(([id, vertices]) => contains(vertices) ? [id] : [])
-        : target.data.mesh.faces.flatMap((face, index) => contains(face) ? [String(index)] : []);
-      const previous = event.shiftKey && selectedTarget === target ? this.selected?.ids ?? [] : [];
-      const result = [...new Set([...previous, ...ids])];
+      let target = selectedTarget;
+      let ids = target ? hitsFor(target) : [];
+      if (!ids.length && (operation === "replace" || operation === "add")) {
+        for (const candidate of this.targets) {
+          if (!candidate.proxy.visible || candidate === selectedTarget) continue;
+          const matches = hitsFor(candidate);
+          if (matches.length) { target = candidate; ids = matches; break; }
+        }
+      }
+      if (!target) return;
+      const previous = selectedTarget === target ? this.selected?.ids ?? [] : [];
+      const result = combineSelection(previous, ids, operation);
       if (result.length) this.select(target.path, result);
       else {
         this.selected = null;
         this.highlight(tint);
         this.onSelect(null);
       }
-    }, extrudeIsActive);
-    this.stop = watchClicks(dom, {
-      capture: true,
-      onClick: (event) => {
-        event.preventDefault();
+    }, extrudeIsActive, canStartBox, (event) => {
+        if (switchObject(event)) return;
         this.sync();
         const bounds = dom.getBoundingClientRect();
         const cursor = toNdc(event.clientX, event.clientY, bounds);
@@ -210,7 +222,6 @@ export class ComponentSelection {
         }
         this.highlight(tint);
         this.onSelect(this.selected);
-      },
     });
     this.stopFrame = viewport.addFrameListener(() => this.sync());
     const onKeyDown = (event: KeyboardEvent) => {
@@ -221,6 +232,15 @@ export class ComponentSelection {
           ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName))
       )
         return;
+      if (!extrudeIsActive() && !event.ctrlKey && !event.metaKey && !event.repeat && (event.key.toLowerCase() === "a" || (event.altKey && event.code === "KeyA"))) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (event.altKey) { this.selected = null; this.highlight(tint); this.onSelect(null); return; }
+        const target = this.targets.find((entry) => entry.proxy.visible && entry.path.join("/") === this.selected?.path.join("/")) ?? this.targets.find((entry) => entry.proxy.visible);
+        if (!target) return;
+        const ids = kind === "vertex" ? target.data.mesh.positions.map((_, index) => String(index)) : kind === "edge" ? [...target.data.edges.keys()] : target.data.mesh.faces.map((_, index) => String(index));
+        if (ids.length) this.select(target.path, ids);
+        return;
+      }
       if (event.key === "Escape" && !extrudeIsActive()) {
         event.stopImmediatePropagation();
         this.selected = null;
@@ -232,6 +252,17 @@ export class ComponentSelection {
     this.stopKeys = () =>
       window.removeEventListener("keydown", onKeyDown, true);
     this.sync();
+  }
+  changeSelection(operation: ComponentSelectionOperation): void {
+    const selected = this.selected;
+    if (!selected) return;
+    const target = this.targets.find((entry) => entry.path.join("/") === selected.path.join("/"));
+    if (!target) return;
+    const ids = operation === "loop" || operation === "ring"
+      ? this.kind === "edge" ? selectEdgeFlow(target.data.mesh, selected.ids, operation) : selected.ids
+      : changeComponentSelection(target.data, this.kind, selected.ids, operation);
+    if (ids.length) this.select(selected.path, ids);
+    else { this.selected = null; this.highlight(this.tint); this.onSelect(null); }
   }
   /** Selects components after a rebuild, such as the cap left by an extrude. */
   select(path: readonly number[], ids: readonly string[]): void {
@@ -364,7 +395,6 @@ export class ComponentSelection {
   }
   dispose() {
     this.boxSelection.dispose();
-    this.stop();
     this.stopFrame();
     this.stopKeys();
     this.disposeTargets();

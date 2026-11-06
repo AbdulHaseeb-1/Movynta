@@ -266,6 +266,13 @@ export class ProjectsService {
     return this.scenes.asset(projectId, assetId);
   }
 
+  /** Clears the saved conversation while retaining scene edits and undo history. */
+  clearConversation(userId: string, projectId: string): void {
+    this.owned(userId, projectId);
+    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before clearing the chat.");
+    this.repository.clearConversation(projectId, new Date().toISOString());
+  }
+
   conversation(userId: string, projectId: string): ProjectConversation {
     this.owned(userId, projectId);
     return this.repository.conversation(projectId);

@@ -18,7 +18,7 @@ import { GroupTransform, medianPosition, topLevel } from "./groupTransform";
 import { assignLocalMatrix, correctWorldRotation, hasNonUniformWorldScale } from "./shearFit";
 import { HANDLE_MODES, isHandleTool, type HandleMode } from "./handleModes";
 import { styleHandles } from "./handleStyle";
-import { pickObjectId, toNdc } from "./picking";
+import { pickObjectId, pickObjectIds, toNdc } from "./picking";
 import { bindShiftSnap } from "./shiftSnap";
 import { sameTransform } from "./transformMath";
 
@@ -40,6 +40,8 @@ export interface GizmoView {
   tool: () => ViewportTool;
   /** False while the assistant works, which turns the handles off. */
   enabled: () => boolean;
+  /** Whole-object selection markers and clicks are only used in Object mode. */
+  objectMode?: () => boolean;
 }
 
 /** An object that a drag moved: where it was and where it is now. */
@@ -88,7 +90,7 @@ export class ObjectGizmo {
   private readonly group = new GroupTransform();
   private mode: HandleMode | undefined;
   /** The selection and scene revision the outline and the pivot were last made for. */
-  private outlinedFor: { ids: readonly string[]; revision: number } | undefined;
+  private outlinedFor: { ids: readonly string[]; revision: number; objectMode: boolean } | undefined;
   private pivotFor: { ids: readonly string[]; revision: number } | undefined;
   private before: ObjectTransform | undefined;
   private dragged: Dragged[] = [];
@@ -165,12 +167,18 @@ export class ObjectGizmo {
       // A press on a handle drags it; it is never a click on the scene.
       ignore: () => this.controls.axis !== null,
       onClick: (event) => {
-        if (this.view.tool() === "pan") return;
+        if (this.view.tool() === "pan" || this.view.objectMode?.() === false) return;
         const ndc = toNdc(
           event.clientX,
           event.clientY,
           dom.getBoundingClientRect(),
         );
+        if (event.altKey && !event.shiftKey) {
+          const hits = pickObjectIds(this.editor, viewport.camera, ndc);
+          const index = hits.findIndex((id) => id === this.editor.selection);
+          this.editor.select(hits.length ? hits[(index + 1) % hits.length] ?? null : null);
+          return;
+        }
         const hit = pickObjectId(this.editor, viewport.camera, ndc);
         if (!event.shiftKey) this.editor.select(hit ?? null);
         else if (hit !== undefined) this.editor.toggleSelection(hit);
@@ -317,13 +325,15 @@ export class ObjectGizmo {
     const id = this.editor.selection;
     const target = id ? this.editor.getObject(id) : undefined;
 
+    const objectMode = this.view.objectMode?.() ?? true;
     if (
       this.outlinedFor?.ids !== ids ||
-      this.outlinedFor.revision !== revision
+      this.outlinedFor.revision !== revision ||
+      this.outlinedFor.objectMode !== objectMode
     ) {
-      this.outlinedFor = { ids, revision };
+      this.outlinedFor = { ids, revision, objectMode };
       this.viewport.setOutlinedObjects(
-        ids.flatMap((selectedId) => this.editor.getObject(selectedId) ?? []),
+        objectMode ? ids.flatMap((selectedId) => this.editor.getObject(selectedId) ?? []) : [],
       );
     }
 
@@ -348,7 +358,7 @@ export class ObjectGizmo {
       this.controls.detach();
     }
 
-    this.origin.visible = Boolean(target);
+    this.origin.visible = objectMode && Boolean(target);
     if (target) target.getWorldPosition(this.origin.position);
   }
 }

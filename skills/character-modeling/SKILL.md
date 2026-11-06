@@ -1,7 +1,7 @@
 ---
 name: character-modeling
-version: 1.2.0
-description: Plans and builds 3D character bodies from primitives, using head-unit proportions, anatomical landmarks, shape language and correct joint pivots for realistic, heroic, stylized and chibi styles.
+version: 1.3.0
+description: Builds and refines 3D characters with head-unit proportions, landmarks, shape language and joint pivots, using a blockout only as the starting point for detailed or realistic requests.
 dimensions:
   - 3d
 tags:
@@ -13,45 +13,58 @@ tags:
   - chibi
 when_to_use:
   - The user asks for a new 3D character, figure, or humanoid body.
-  - The user asks to block out proportions before detailing.
-  - The user asks to fix or improve a character's proportions, anatomy or style.
+  - The user asks to block out or refine character proportions and appearance.
 required_inputs:
-  - Character goal and style (for example: stylized, realistic, chibi).
-  - Target height in scene units, and the number of body parts to block out.
+  - Character goal and style, inferred from the request when possible.
+  - Use sensible scene units and proportions when the user did not specify them; ask only if a missing decision blocks the work.
 tools:
   - editor.get_context
   - editor.measure
-  - viewport.capture
+  - editor.inspect_mesh
+  - editor.inspect_materials
   - modeling.generate_model_plan
+  - modeling.generate_commands
+  - modeling.propose_generated
   - editor.propose_commands
   - editor.apply_proposal
+  - viewport.capture
+  - modeling.assess_quality
   - validation.check_scene
 validation:
-  - Every object has a unique id and a finite transform before a proposal is created.
-  - The figure's group has the same scale on every axis.
-  - Every part has a role name (Torso, Head, Arm.L) and sits under the figure's group, never at the top level. Arms sit under the torso, which is under the group.
-  - The proposal references only objects present in the latest editor context.
-  - validation.check_scene reports no error-severity issues after the change is applied.
+  - Every object has a unique id and finite transform; the hierarchy is valid and groups have uniform scale.
+  - validation.check_scene has no error-severity issues after the last change.
+  - A structural check is not evidence that the character looks realistic.
+  - For explicit realism, detail or refinement requests, review fresh live images from at least two distinct viewpoints and report concrete findings with modeling.assess_quality.
 error_handling:
-  - If the editor is not connected, stop and report that the editor must be open.
-  - If a proposal is rejected or fails with a revision conflict, read the context again and build a new proposal.
-  - If the editor is too old for name, parentId and transform on shapes, create each part and then use `scene.rename_object`, `scene.set_parent` and `scene.transform_object`.
+  - If the editor is not connected, report that the editor must be open.
+  - On a revision conflict, inspect the latest context and make a new proposal.
+  - If images or required modeling capabilities are unavailable, record a blocked quality assessment and explain what remains unverified or unfinished.
   - Never delete existing objects to make room for new ones unless the user asked for it.
 ---
 
 # Character modeling workflow
 
-1. Call `editor.get_context` and note the existing objects and the revision.
-2. Call `modeling.generate_model_plan` with the goal, the dimension `3d`, and the ordered body-part steps (torso, head, arms, legs). Keep each step small.
-3. Create one empty group for the whole figure with `scene.create_object`, named for the character (for example `Character`), at the origin with no scale. Then, for each part, add one `geometry.create_primitive` with its own new `objectId` (use the step ids as the basis), a role `name` (`Torso`, `Head`, `Arm.L`, `Arm.R`), and a `transform` that places it relative to its parent. The torso and the other parts of the body take `parentId` set to the group. The arms take the torso's `objectId` as their `parentId`, so they move and turn with the torso; create the torso before them. A primitive is already an object, so do not create the same `objectId` with `scene.create_object` first. A part that belongs to another part (a hand on an arm) uses that part's `objectId` as its `parentId`. Create a parent before the parts that go under it.
-4. Submit everything with `editor.propose_commands`. Keep proposals under 20 commands so they are easy to review. The apply result lists the `name` each object ended up with; a name that a sibling already had gets a number such as `Arm.L.001`, so read it back instead of assuming.
-5. Call `editor.apply_proposal` with the returned proposal id. The user may need to approve it first.
-6. Call `validation.check_scene`. Fix any error-severity issues with a new proposal.
-7. Report the created objects and anything the user should review.
+## Establish the goal and plan
 
-When the scene holds more than one thing (several characters, props, a set), put each in its own collection named for it: `scene.create_collection`, then `collectionId` on the figure's group (its parts join it when they are created under it). A collection only organizes and can be hidden as a whole; it never moves anything.
+Read `editor.get_context`. Identify the requested style, subject, view and any accessible reference. Do not claim to have seen a reference that is not actually available. If the user did not give height or proportions, choose reasonable scene-unit assumptions rather than stopping. Ask one focused question only when an essential design decision prevents progress.
 
-Use scene units, keep the character centred on the origin, and place feet on the ground plane (y = 0). To move the whole figure later, change the group alone: `scene.move_object` adds a distance to where it is now (and keeps anything the user moved since you read the scene), and `scene.transform_object` sets exact values or turns and scales it. Do not move the parts one by one. Keep the group's scale the same on every axis; an unevenly scaled group cannot take a turned part by `scene.set_parent`.
+Use `modeling.generate_model_plan` with steps appropriate to the requested result. For a realistic or detailed character, include: a proportion blockout; silhouette and anatomy; characteristic head, face, hands, feet and clothing as applicable; surface and material refinement; and visual review with targeted corrections. For a user who explicitly requests only a blockout, stop at the requested stage and describe it as such.
+
+## Build in stages
+
+Create a named, uniformly scaled group for the figure. Place and name subparts under their logical parents. Primitives can establish the initial proportions, but a collection of unrefined spheres and cylinders is a blockout, not a realistic finished character. Use supported mesh creation, editing, modifiers, material properties and procedural generation when they improve the silhouette and distinctive structure. Inspect existing mesh topology and material slots before editing; preserve existing unrelated work. Use world bounds and measurements for placement, and do not equate their validity with visual quality.
+
+Propose small coherent batches with `editor.propose_commands` or use the supported generated-proposal workflow. Inspect geometry candidates with `viewport.capture`, apply through `editor.apply_proposal`, and check the apply result. Use the exact revisions and identifiers returned by tools. Run `validation.check_scene` after changes and fix errors. Keep each stage undoable and avoid unnecessary replacement of existing objects.
+
+## Review and improve
+
+For realism, high detail or an explicit refinement request, capture fresh **live** solid views after applying a stage. Use front, side and three-quarter/isometric views where useful; use close-ups for the face, hands or other important features. Compare with an accessible reference when one exists; otherwise judge against the requested style and your stated assumptions. Check silhouette, proportions, anatomy, characteristic features, obvious intersections, construction quality and appearance as appropriate to the subject.
+
+Call `modeling.assess_quality` with concrete observations. Mark `needs_refinement` when visible defects materially prevent the requested result; fix the highest-impact findings, recapture the changed scene, and assess again. Mark `ready` only when your review finds no major unresolved defects. The assessment is your own fallible judgment, not an independent guarantee. If you cannot see images or cannot reasonably complete a feature with the available tools, mark `blocked` and describe that limitation. Do not invent visual observations.
+
+Continue within the run's existing limits; do not repeat edits without meaningful progress. When finishing, describe the achieved stage and any important remaining shortcomings. Do not describe a primitive blockout as realistic. UV authoring, texture creation and node shaders are not currently available, so do not promise them.
+
+Keep the character centred where appropriate and use scene units unless the project is calibrated. Grouping and collections help organize a figure; they do not themselves add geometric detail.
 
 ## Proportions by style
 
@@ -88,4 +101,4 @@ Place each limb so its pivot is at the joint: a limb part's local origin sits at
 
 ## Visual check
 
-After applying the blockout, call `viewport.capture` on the character's group with orthographic `front` and `right` views and `guides: true`. Compare landmarks to the table (crotch near half height, knees near a quarter of height above the floor) and use `editor.measure` for total height. Fix proportions before adding detail.
+After applying the blockout, call `viewport.capture` on the character's group with orthographic `front` and `right` views and `guides: true`. Compare landmarks to the table (crotch near half height, knees near a quarter of height above the floor) and use `editor.measure` for total height. Fix proportions before adding detail, and record the result with `modeling.assess_quality` when the request asks for realism or refinement.

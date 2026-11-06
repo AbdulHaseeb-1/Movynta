@@ -363,7 +363,7 @@ flowchart LR
 
 - Up to six views per call; each JPEG stays under about 1.5 MB.
 - The call times out after EDITOR_REQUEST_TIMEOUT_MS (15 seconds by default).
-- Models behind an OpenAI-compatible Chat Completions endpoint get measurements only, with a note saying so.
+- An OpenAI-compatible endpoint receives the pictures in the message after the tool result, for the latest four captures; earlier ones keep their measurements. Turn Send pictures off in the provider settings for a model that cannot read images, and the assistant gets measurements only.
 - The editor window keeps the last 12 captures. Pictures are not kept in the saved conversation.
 
 ## Related

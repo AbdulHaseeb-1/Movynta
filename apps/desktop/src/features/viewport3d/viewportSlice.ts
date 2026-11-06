@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import type { ShadingMode } from "./shading";
 
 /**
  * The active tool of the workspace. Select, Move, Rotate and Scale all let a drag orbit the view and a
@@ -9,8 +10,10 @@ export type ViewportTool = "select" | "pan" | "move" | "rotate" | "scale";
 
 const viewportSlice = createSlice({
   name: "viewport",
-  initialState: { showGrid: true, tool: "select" as ViewportTool },
+  initialState: { showGrid: true, tool: "select" as ViewportTool, shadingMode: "default" as ShadingMode, wireframeXray: false },
   reducers: {
+    setShadingMode(state, action: PayloadAction<ShadingMode>) { state.shadingMode = action.payload; },
+    setWireframeXray(state, action: PayloadAction<boolean>) { state.wireframeXray = action.payload; },
     setShowGrid(state, action: PayloadAction<boolean>) {
       state.showGrid = action.payload;
     },
@@ -20,5 +23,5 @@ const viewportSlice = createSlice({
   },
 });
 
-export const { setShowGrid, setViewportTool } = viewportSlice.actions;
+export const { setShowGrid, setViewportTool, setShadingMode, setWireframeXray } = viewportSlice.actions;
 export const viewportReducer = viewportSlice.reducer;

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { MAX_COMMANDS_PER_PROPOSAL } from "@movynta/editor-protocol";
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsDefined, Min, IsOptional, IsString, Length, Matches, MaxLength } from "class-validator";
 
 export class SceneHistoryDto {
@@ -39,10 +40,10 @@ export class ImportModelQueryDto {
 
 export class RecordSceneEditDto {
   @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{1,64}$/) declare actionId?: string;
-  @ApiProperty({ description: "Manual transforms, deletion, modifier stacks and new primitives. A later transform can reference a primitive created in the same batch." })
+  @ApiProperty({ maxItems: MAX_COMMANDS_PER_PROPOSAL, description: "Manual transforms, deletion, modifier stacks and new primitives. A later transform can reference a primitive created in the same batch." })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(50)
+  @ArrayMaxSize(MAX_COMMANDS_PER_PROPOSAL)
   commands!: unknown[];
 }
 

@@ -12,7 +12,7 @@ const box = new Box3();
 const point = new Vector3();
 
 /**
- * Select objects whose projected world bounding boxes overlap the rectangle.
+ * Select objects whose world bounding-box centers project inside the rectangle.
  */
 export function idsInRect(
   objects: Iterable<readonly [string, Object3D]>,
@@ -30,16 +30,11 @@ export function idsInRect(
     object.updateWorldMatrix(true, false);
     box.makeEmpty().expandByObject(object);
     if (box.isEmpty()) { object.getWorldPosition(box.min); box.max.copy(box.min); }
-    let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
-    for (let corner = 0; corner < 8; corner += 1) {
-      point.set(corner & 1 ? box.max.x : box.min.x, corner & 2 ? box.max.y : box.min.y, corner & 4 ? box.max.z : box.min.z);
-      point.applyMatrix4(camera.matrixWorldInverse);
-      if (point.z >= -1e-6) continue;
-      point.applyMatrix4(camera.projectionMatrix);
-      minX = Math.min(minX, point.x); minY = Math.min(minY, point.y);
-      maxX = Math.max(maxX, point.x); maxY = Math.max(maxY, point.y);
-    }
-    if (minX <= rect.maxX && maxX >= rect.minX && minY <= rect.maxY && maxY >= rect.minY) found.push(id);
+    box.getCenter(point);
+    point.applyMatrix4(camera.matrixWorldInverse);
+    if (point.z >= -1e-6) continue;
+    point.applyMatrix4(camera.projectionMatrix);
+    if (point.x >= rect.minX && point.x <= rect.maxX && point.y >= rect.minY && point.y <= rect.maxY) found.push(id);
   }
   return found;
 }

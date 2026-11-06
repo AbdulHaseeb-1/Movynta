@@ -128,6 +128,13 @@ export class ProjectsController {
     return new StreamableFile(asset.content, { type: "application/octet-stream" });
   }
 
+  /** Clears saved chat sessions without removing the scene or its history. */
+  @Delete(":projectId/conversation")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  clearConversation(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string): void {
+    this.projects.clearConversation(user.id, projectId);
+  }
+
   /** The latest chat, so the assistant can continue where it stopped. */
   @Get(":projectId/conversation")
   conversation(
