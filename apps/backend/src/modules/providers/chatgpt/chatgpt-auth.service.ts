@@ -131,7 +131,7 @@ export class ChatgptAuthService implements OnModuleDestroy {
     if (!stored.encryptedTokens) throw new ChatgptSignInRequiredError(EXPIRED_MESSAGE);
     let tokens = await this.decrypt(userId, stored.encryptedTokens);
     if (tokens.accessExpiresAt - Date.now() < CHATGPT_REFRESH_MARGIN_MS)
-      tokens = await this.refresh(userId, tokens);
+      tokens = await this.refresh(userId);
     return { accessToken: tokens.accessToken, accountId: tokens.accountId };
   }
 
@@ -180,12 +180,16 @@ export class ChatgptAuthService implements OnModuleDestroy {
   }
 
   /** Concurrent callers share one refresh, because refresh tokens rotate and a second use would fail. */
-  private refresh(userId: string, tokens: ChatgptTokens): Promise<ChatgptTokens> {
+  private refresh(userId: string): Promise<ChatgptTokens> {
     const running = this.refreshing.get(userId);
     if (running) return running;
     const task = (async () => {
       try {
-        const next = await this.oauth.refresh(tokens);
+        // The tokens this caller read may be older than the stored ones: another caller can have refreshed
+        // since, and a rotated refresh token is rejected when used again, which would sign the user out.
+        const latest = await this.currentTokens(userId);
+        if (latest.accessExpiresAt - Date.now() >= CHATGPT_REFRESH_MARGIN_MS) return latest;
+        const next = await this.oauth.refresh(latest);
         this.logins.replaceTokens(userId, await this.encrypt(userId, next));
         return next;
       } catch (error) {
@@ -196,6 +200,13 @@ export class ChatgptAuthService implements OnModuleDestroy {
     })().finally(() => this.refreshing.delete(userId));
     this.refreshing.set(userId, task);
     return task;
+  }
+
+  /** The tokens as they are stored now. */
+  private async currentTokens(userId: string): Promise<ChatgptTokens> {
+    const encrypted = this.stored(userId)?.encryptedTokens;
+    if (!encrypted) throw new ChatgptSignInRequiredError(EXPIRED_MESSAGE);
+    return this.decrypt(userId, encrypted);
   }
 
   private encrypt(userId: string, tokens: ChatgptTokens): Promise<string> {
