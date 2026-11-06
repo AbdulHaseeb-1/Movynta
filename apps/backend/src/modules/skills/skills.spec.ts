@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseSkillDocument } from "./skill-document.parser.js";
@@ -74,11 +74,19 @@ describe("parseSkillDocument", () => {
 });
 
 describe("SkillsLoader", () => {
-  it("loads the three repository skills, including the dotted 2.5d id", () => {
+  it("loads the repository skills, including the dotted 2.5d id", () => {
     const ids = new SkillsLoader()
       .load(repositorySkills)
       .map((skill) => skill.id);
-    expect(ids).toEqual(["2.5d-character-design", "character-modeling", "mesh-editing"]);
+    expect(ids).toEqual([
+      "2.5d-character-design",
+      "character-modeling",
+      "mesh-editing",
+      "model-design-principles",
+      "pbr-materials-and-color",
+      "props-hard-surface",
+      "topology-and-subdivision",
+    ]);
   });
 
   it("rejects folder names that could escape the skills root", () => {
@@ -114,6 +122,37 @@ describe("SkillsRegistry.selectRelevant", () => {
   it("never returns more than two skills", () => {
     const ids = registry.selectRelevant({ message: "character humanoid mesh layer sprite", dimension: "3d" });
     expect(ids.length).toBeLessThanOrEqual(2);
+  });
+
+  it("selects the hard-surface skill for a furniture prop", () => {
+    const ids = registry.selectRelevant({ message: "Model a wooden chair prop", dimension: "3d" }).map((s) => s.id);
+    expect(ids[0]).toBe("props-hard-surface");
+  });
+
+  it("selects the materials skill for a colour palette request", () => {
+    const ids = registry.selectRelevant({ message: "Give it a metal material and a better color palette", dimension: "3d" }).map((s) => s.id);
+    expect(ids[0]).toBe("pbr-materials-and-color");
+  });
+
+  it("selects the topology skill for subdivision pinching", () => {
+    const ids = registry.selectRelevant({ message: "Fix the pinching poles after subdivision", dimension: "3d" }).map((s) => s.id);
+    expect(ids[0]).toBe("topology-and-subdivision");
+  });
+
+  it("keeps the earlier defaults for a 3D request that names no tag", () => {
+    const ids = registry.selectRelevant({ message: "Make it twice as tall", dimension: "3d" }).map((s) => s.id);
+    expect(ids).toEqual(["character-modeling", "mesh-editing"]);
+  });
+
+  it("names only tools listed in the assistant tool inventory", () => {
+    const inventory = readFileSync(resolve(repositorySkills, "../docs/assistant-tools.md"), "utf8");
+    const documented = new Set(
+      [...inventory.matchAll(/^\| `([a-z_]+\.[a-z_]+)` \| `[a-z_]+__[a-z_]+` \|/gm)].map((match) => match[1]),
+    );
+    expect(documented.size).toBeGreaterThan(10);
+    for (const skill of registry.all()) {
+      expect(skill.toolNames.filter((tool) => !documented.has(tool))).toEqual([]);
+    }
   });
 
   it("selects nothing for an unrelated request", () => {
