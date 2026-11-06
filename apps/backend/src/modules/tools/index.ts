@@ -1,4 +1,4 @@
-export * from "./tool.factory.js";
+export * from "./tool.sdk-adapter.js";
 export * from "./tool.registry.js";
 export * from "./tool.tokens.js";
 export * from "./tool.types.js";

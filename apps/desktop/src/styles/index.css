@@ -35,6 +35,14 @@
   --font-sans: Inter, "Segoe UI", Arial, sans-serif;
   --animate-page-fade-in: page-fade-in 220ms ease both;
 
+  /*
+   * Elevation shadows: a soft black ambient glow with a faint white inner highlight.
+   * Tune them together with the surfaces above; dark themes need heavier shadows than light ones.
+   */
+  --shadow-card-lift: 0 18px 45px #00000040, inset 0 1px #ffffff1a;
+  --shadow-card-lift-hover: 0 22px 54px #00000055, inset 0 1px #ffffff29;
+  --shadow-tile-lift: inset 0 1px #ffffff29, 0 14px 32px #00000030;
+
   @keyframes page-fade-in {
     from {
       opacity: 0;

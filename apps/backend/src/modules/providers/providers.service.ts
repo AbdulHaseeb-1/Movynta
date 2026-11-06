@@ -302,4 +302,19 @@ export class ProvidersService {
       ),
     };
   }
+
+  /**
+   * Whether a provider is reachable and the given model is one of its models.
+   * When no model is named, the saved model takes over, so the app can verify
+   * the setup a provider already has.
+   */
+  async testConnection(
+    userId: string,
+    id: ProviderId,
+    options: { apiKey?: string; baseUrl?: string; model?: string } = {},
+  ): Promise<{ connected: boolean; modelAvailable: boolean }> {
+    const { models } = await this.models(userId, id, options.apiKey, options.baseUrl);
+    const wanted = options.model ?? this.list(userId).find((provider) => provider.id === id)?.model ?? "";
+    return { connected: true, modelAvailable: models.includes(wanted) };
+  }
 }

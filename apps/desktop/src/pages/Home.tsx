@@ -23,7 +23,7 @@ export default function Home() {
           <Button
             type="button"
             variant="ghost"
-            className="surface-brand group relative block h-[184px] w-[min(100%,420px)] cursor-pointer overflow-hidden rounded-[14px] border border-brand/30 p-0 text-left whitespace-normal text-foreground shadow-[0_18px_45px_#00000040,inset_0_1px_#ffffff1a] transition-[transform,border-color,box-shadow] duration-[220ms] ease-[ease] hover:-translate-y-[3px] hover:border-brand/60 hover:text-foreground hover:shadow-[0_22px_54px_#00000055,inset_0_1px_#ffffff29] focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring motion-reduce:transition-none"
+            className="surface-brand group relative block h-[184px] w-[min(100%,420px)] cursor-pointer overflow-hidden rounded-[14px] border border-brand/30 p-0 text-left whitespace-normal text-foreground shadow-card-lift transition-[transform,border-color,box-shadow] duration-[220ms] ease-[ease] hover:-translate-y-[3px] hover:border-brand/60 hover:text-foreground hover:shadow-card-lift-hover focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring motion-reduce:transition-none"
             onClick={() => void navigate("/studio")}
           >
             <span className="relative z-1 flex h-full flex-col items-start justify-between px-6 py-5">
@@ -52,7 +52,7 @@ export default function Home() {
             >
               <span className="absolute inset-[17px] rounded-full border border-foreground/25" />
               <span className="absolute inset-x-[47px] inset-y-0 rotate-[55deg] rounded-full border border-foreground/25" />
-              <span className="absolute top-1/2 left-1/2 grid size-[76px] -translate-x-1/2 -translate-y-1/2 -rotate-12 place-items-center rounded-[22px] border border-foreground/35 bg-foreground/10 text-foreground shadow-[inset_0_1px_#ffffff29,0_14px_32px_#00000030]">
+              <span className="absolute top-1/2 left-1/2 grid size-[76px] -translate-x-1/2 -translate-y-1/2 -rotate-12 place-items-center rounded-[22px] border border-foreground/35 bg-foreground/10 text-foreground shadow-tile-lift">
                 <Box size={46} strokeWidth={1.1} />
               </span>
               <span className="absolute top-[29px] left-[39px] size-1.5 rounded-full bg-foreground shadow-[0_0_14px_var(--foreground)]" />

@@ -1,26 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common";
-import { IsBoolean, IsIn, IsOptional, IsString, Length, Matches } from "class-validator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator.js";
 import { ValidationFailedError } from "../../common/errors/app-error.js";
 import type { AuthUser } from "../auth/auth.types.js";
-import { ProvidersService } from "./providers.service.js";
+import { ProbeProviderDto, SaveProviderDto, SelectProviderDto } from "./dto/index.js";
 import { reasoningEffortsFor } from "./model-capabilities.js";
+import { ProvidersService } from "./providers.service.js";
 import { PROVIDER_IDS, type ProviderId } from "./providers.types.js";
 
-class SaveProviderDto {
-  @IsString() @Length(1, 160) @Matches(/^[A-Za-z0-9._:/-]+$/) model!: string;
-  @IsOptional() @IsString() @Length(1, 4096) apiKey?: string;
-  @IsOptional() @IsString() @Length(1, 2048) baseUrl?: string;
-  @IsOptional() @IsBoolean() acceptsImages?: boolean;
-}
-class SelectProviderDto {
-  @IsIn(PROVIDER_IDS) id!: ProviderId;
-}
-class ProbeProviderDto {
-  @IsOptional() @IsString() @Length(1, 4096) apiKey?: string;
-  @IsOptional() @IsString() @Length(1, 160) model?: string;
-  @IsOptional() @IsString() @Length(1, 2048) baseUrl?: string;
-}
 function providerId(value: string): ProviderId {
   const id = PROVIDER_IDS.find((item) => item === value);
   if (!id) throw new ValidationFailedError("Unknown provider");
@@ -79,25 +65,12 @@ export class ProvidersController {
       body.baseUrl,
     );
   }
-  @Post(":id/test") async test(
+  @Post(":id/test")
+  test(
     @CurrentUser() user: AuthUser,
     @Param("id") id: string,
     @Body() body: ProbeProviderDto = {},
   ) {
-    const result = await this.providers.models(
-      user.id,
-      providerId(id),
-      body.apiKey,
-      body.baseUrl,
-    );
-    return {
-      connected: true,
-      modelAvailable: result.models.includes(
-        body.model ??
-          this.providers.list(user.id).find((provider) => provider.id === id)
-            ?.model ??
-          "",
-      ),
-    };
+    return this.providers.testConnection(user.id, providerId(id), body);
   }
 }

@@ -1,7 +1,7 @@
 import { Agent, type AgentOutputType } from "@openai/agents";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
 import { toProviderToolName } from "../../tools/tool.types.js";
-import { toSdkTool } from "../../tools/tool.factory.js";
+import { toSdkTool } from "../../tools/tool.sdk-adapter.js";
 import { requestPolicyGuardrail } from "../guardrails/request-policy.guardrail.js";
 import type { AgentDefinition, AppAgent, ModelingCoordinatorDependencies } from "./definitions.types.js";
 import { buildModelingInstructions } from "./modeling-coordinator.instructions.js";

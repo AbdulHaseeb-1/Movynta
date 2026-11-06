@@ -1,6 +1,6 @@
 import { createEditorTools } from "./editor/editor.tools.js";
 import { createModelingTools } from "./modeling/modeling.tools.js";
-import { toSdkTool } from "./tool.factory.js";
+import { toSdkTool } from "./tool.sdk-adapter.js";
 
 /** Collects every place a JSON schema uses a construct that model providers reject in tool definitions. */
 function problems(schema: unknown, path = "#"): string[] {
