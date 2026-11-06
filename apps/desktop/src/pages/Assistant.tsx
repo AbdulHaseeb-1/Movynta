@@ -54,7 +54,7 @@ import { errorMessage } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { ObjectActions } from "@/features/objectEditing/ObjectActions";
-import { AddShapeMenu, ComponentToolbar, useComponentSelection, useDesignFocus, useExtrude, DesignModeMenu, DesignWorkspacePanel, setDesignMode, setPanelOpen as setWorkspacePanelOpen } from "@/features/designWorkspace";
+import { AddShapeMenu, ComponentToolbar, useComponentSelection, useDesignFocus, useExtrude, useKnife, DesignModeMenu, DesignWorkspacePanel, setDesignMode, setPanelOpen as setWorkspacePanelOpen } from "@/features/designWorkspace";
 
 /** A saved project, fetched in full before the workspace shows it. */
 interface SavedProject {
@@ -136,6 +136,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     historyDisabled: run.busy || modifierBusy || opening !== "ready" || measurementPicking,
     saves,
   });
+  const knife = useKnife(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking, saves);
   const extrude = useExtrude(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking, saves);
   useDesignFocus(editorScene);
   useComponentSelection(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking);
@@ -310,7 +311,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
           </section>
         )}
       </CoordinateViewport>
-      {((submitted && designMode === "object") || (designMode === "edit" && extrude.hint !== "")) && (
+      {((submitted && designMode === "object") || (designMode === "edit" && (extrude.hint !== "" || knife.hint !== ""))) && (
         // The tools sit at the bottom of the free part of the view: clear of the chat on the left and of
         // the object's values on the right, and centered under the work.
         <div
@@ -319,7 +320,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
             panelOpen ? "left-[340px]" : "left-4",
           )}
         >
-          {extrude.hint || editing.transformHint ? <output aria-live="off" className="pointer-events-none max-w-3xl rounded-lg bg-popover px-3 py-2 text-center text-xs text-popover-foreground shadow-xl">{extrude.hint || editing.transformHint}</output> : <ToolHint hasSelection={editing.selected !== null} />}
+          {knife.hint || extrude.hint || editing.transformHint ? <output aria-live="off" className="pointer-events-none max-w-3xl rounded-lg bg-popover px-3 py-2 text-center text-xs text-popover-foreground shadow-xl">{knife.hint || extrude.hint || editing.transformHint}</output> : <ToolHint hasSelection={editing.selected !== null} />}
           {designMode === "object" && (
             <ViewportToolbar
               viewport={viewport}
@@ -347,9 +348,10 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <ProjectBar project={project} onAction={actions.perform} onRename={renameProject} />
         <DesignModeMenu />
-        {designMode === "edit" && <ComponentToolbar scene={editorScene} saves={saves} start={extrude.start} disabled={run.busy || modifierBusy || opening !== "ready"} />}
+
         <AddShapeMenu scene={editorScene} ensureProject={ensureProject} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} onAdded={() => setSubmitted(true)} />
       </div>
+      {designMode === "edit" && <div className={cn("absolute top-14 right-4 z-20 w-fit max-w-[calc(100vw_-_2rem)]", panelOpen ? "left-[340px] max-w-[calc(100vw_-_356px)]" : "left-4")}><ComponentToolbar scene={editorScene} saves={saves} start={extrude.start} startKnife={knife.start} disabled={run.busy || modifierBusy || opening !== "ready"} /></div>}
       {/* Panel launchers stay compact until opened. */}
       <div className="pointer-events-none absolute top-4 right-4 bottom-20 z-20 flex w-[272px] flex-col items-end gap-3 overflow-y-auto">
         <div className="pointer-events-auto flex w-full shrink-0 items-start justify-end gap-2">

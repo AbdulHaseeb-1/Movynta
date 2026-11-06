@@ -62,7 +62,7 @@ export async function startDesktopFixture() {
           ),
         ];
       }),
-      [assistantMessage("The cube is in your scene.")],
+      [functionCall("validation__check_scene", {}, { callId: "verify-desktop-0" })], [assistantMessage("The cube is in your scene.")],
     );
   }
   function enqueueMeshModifiers() {
@@ -80,7 +80,7 @@ export async function startDesktopFixture() {
         if (!proposalId) throw new Error("Missing modifier proposal");
         return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-modifiers" })];
       }),
-      [assistantMessage("The mesh is beveled and subdivided.")],
+      [functionCall("validation__check_scene", {}, { callId: "verify-desktop-1" })], [assistantMessage("The mesh is beveled and subdivided.")],
     );
   }
   function enqueueRoundedCut() {
@@ -94,7 +94,7 @@ export async function startDesktopFixture() {
         if (!proposalId) throw new Error("Missing Boolean proposal");
         return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-cut" })];
       }),
-      [assistantMessage("The target is cut and rounded.")],
+      [functionCall("validation__check_scene", {}, { callId: "verify-desktop-2" })], [assistantMessage("The target is cut and rounded.")],
     );
   }
   return {
@@ -107,7 +107,7 @@ export async function startDesktopFixture() {
         const proposalId = JSON.stringify(call.request.input).match(/prp_[0-9a-f-]{36}/g)?.at(-1);
         if (!proposalId) throw new Error("Missing copy proposal");
         return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-copy" })];
-      }), [assistantMessage("The assembly copy is saved.")],
+      }), [functionCall("validation__check_scene", {}, { callId: "verify-desktop-3" })], [assistantMessage("The assembly copy is saved.")],
     ),
     enqueueRepetition: (expectedRevision: number, kind: "array" | "mirror") => server.model.enqueue(
       [functionCall("editor__inspect_mesh", { objectId: "box", view: "base" }, { callId: "inspect-repetition" })],
@@ -118,7 +118,7 @@ export async function startDesktopFixture() {
         const proposalId = JSON.stringify(call.request.input).match(/prp_[0-9a-f-]{36}/g)?.at(-1);
         if (!proposalId) throw new Error("Missing repetition proposal");
         return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-repetition" })];
-      }), [assistantMessage("The live repetition is saved.")],
+      }), [functionCall("validation__check_scene", {}, { callId: "verify-desktop-4" })], [assistantMessage("The live repetition is saved.")],
     ),
     enqueueMaterialEdit: (expectedRevision: number, edit: Record<string, unknown>) => server.model.enqueue(
       [functionCall("editor__inspect_materials", { objectId: "box" }, { callId: "inspect-materials" })],
@@ -133,7 +133,7 @@ export async function startDesktopFixture() {
         if (!proposalId) throw new Error("Missing material proposal");
         return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-material" })];
       }),
-      [assistantMessage("The material edit is saved.")],
+      [functionCall("validation__check_scene", {}, { callId: "verify-desktop-5" })], [assistantMessage("The material edit is saved.")],
     ),
     enqueueTopologyEdit: (expectedRevision: number, edit: Record<string, unknown>) => server.model.enqueue(
       [functionCall("editor__inspect_mesh", { objectId: "mesh", meshPath: [], view: "base", offset: 0, limit: 100 }, { callId: "inspect-topology" })],
@@ -145,7 +145,7 @@ export async function startDesktopFixture() {
         if (!proposalId) throw new Error("Missing topology proposal");
         return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-topology" })];
       }),
-      [assistantMessage("The mesh edit is saved.")],
+      [functionCall("validation__check_scene", {}, { callId: "verify-desktop-6" })], [assistantMessage("The mesh edit is saved.")],
     ),
     enqueueComponentTransform: (expectedRevision: number, kind: "vertex" | "edge", ids: string[]) => server.model.enqueue(
       [functionCall("editor__inspect_mesh", { objectId: "box", meshPath: [], view: "base", offset: 0, limit: 25 }, { callId: "inspect-components" })],
@@ -158,7 +158,7 @@ export async function startDesktopFixture() {
         if (!proposalId) throw new Error("Missing component proposal");
         return [functionCall("editor__apply_proposal", { proposalId }, { callId: "apply-components" })];
       }),
-      [assistantMessage("The base components have moved.")],
+      [functionCall("validation__check_scene", {}, { callId: "verify-desktop-7" })], [assistantMessage("The base components have moved.")],
     ),
     enqueueMeasurement: () => server.model.enqueue(
       [functionCall("editor__measure", { request: { kind: "distance", from: [0, 0, 0], to: [3, 4, 0] } }, { callId: "measure" })],

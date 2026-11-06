@@ -15,21 +15,23 @@ import { errorMessage, type SerialQueue } from "@/lib";
 import { requestComponentSelection, setComponentError, setComponentKind } from "./workspaceSlice";
 import { MeshSelectionIcon } from "./MeshSelectionIcon";
 import { subdivideSelectedFaces } from "./subdivideSelection";
+import { KnifeToolMenu } from "./KnifeToolMenu";
 import { MeshCleanupMenu } from "./MeshCleanupMenu";
 
 interface ComponentToolbarProps {
   scene: EditorScene | null;
   saves: SerialQueue;
   start: (tool: FaceTool) => void;
+  startKnife: (onlySelected?: boolean) => void;
   disabled: boolean;
 }
 
-export function ComponentToolbar({ scene, saves, start, disabled }: ComponentToolbarProps) {
+export function ComponentToolbar({ scene, saves, start, startKnife, disabled }: ComponentToolbarProps) {
   const dispatch = useAppDispatch();
   const [extrudeTooltip, setExtrudeTooltip] = useState(false);
   const suppressExtrudeTooltip = useRef(false);
   const extrudeMenuOpen = useRef(false);
-  const { componentKind, componentError, componentSelection } = useAppSelector(
+  const { componentKind, componentError, componentSelection, knifeActive } = useAppSelector(
     (state) => state.designWorkspace,
   );
   const canSubdivide = componentKind === "face" && (componentSelection?.ids.length ?? 0) > 0;
@@ -47,9 +49,9 @@ export function ComponentToolbar({ scene, saves, start, disabled }: ComponentToo
     <div className="relative">
       <TooltipProvider>
         <fieldset
-          disabled={disabled}
+          disabled={disabled || knifeActive}
           aria-label="Mesh selection"
-          className="flex h-8 items-center gap-0.5 rounded-md border border-border bg-card p-0.5 shadow-xl"
+          className="flex min-h-8 max-w-full flex-wrap items-center gap-0.5 rounded-md border border-border bg-card p-0.5 shadow-xl"
         >
           {(
             [
@@ -163,6 +165,7 @@ export function ComponentToolbar({ scene, saves, start, disabled }: ComponentToo
             </TooltipContent>
           </Tooltip>
           <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
+          <KnifeToolMenu start={startKnife} disabled={!scene} />
           <MeshCleanupMenu scene={scene} saves={saves} disabled={disabled} />
         </fieldset>
       </TooltipProvider>

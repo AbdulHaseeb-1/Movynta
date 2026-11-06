@@ -31,6 +31,7 @@ import {
 import type { ComponentKind } from "./workspaceSlice";
 import { changeComponentSelection, type ComponentSelectionOperation } from "./componentNeighbors";
 import { selectEdgeFlow } from "./edgeFlowSelection";
+import { knifeIsActive } from "./knifeActivity";
 import { ComponentBoxSelection } from "./ComponentBoxSelection";
 
 interface Target {
@@ -179,7 +180,7 @@ export class ComponentSelection {
         this.highlight(tint);
         this.onSelect(null);
       }
-    }, extrudeIsActive, canStartBox, (event) => {
+    }, () => extrudeIsActive() || knifeIsActive(), canStartBox, (event) => {
         if (switchObject(event)) return;
         this.sync();
         const bounds = dom.getBoundingClientRect();
@@ -225,6 +226,7 @@ export class ComponentSelection {
     });
     this.stopFrame = viewport.addFrameListener(() => this.sync());
     const onKeyDown = (event: KeyboardEvent) => {
+      if (knifeIsActive()) return;
       const element = event.target;
       if (
         element instanceof HTMLElement &&

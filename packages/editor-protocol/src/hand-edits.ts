@@ -25,6 +25,11 @@ export const HAND_EDIT_COMMAND_TYPES: ReadonlySet<string> = new Set([
   "geometry.inset_faces",
   "geometry.bevel_edges",
   "geometry.merge_vertices",
+  "geometry.merge_by_distance",
+  "geometry.remove_duplicate_faces",
+  "geometry.correct_normals",
+  "geometry.knife_chord",
+  "geometry.knife_path",
   "geometry.dissolve_edges",
   "geometry.fill_hole",
 ]);

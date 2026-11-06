@@ -6,6 +6,8 @@ import { errorMessage } from "@/lib";
 import { pickObjectId, toNdc } from "@/features/objectEditing/picking";
 import { meshAtPath } from "@/features/meshGeometry";
 import { cageKey, readTopology } from "@/features/meshGeometry/meshTopology";
+import { extrudeIsActive } from "@/features/objectEditing/ExtrudeGesture";
+import { knifeIsActive } from "./knifeActivity";
 import { ComponentSelection } from "./ComponentSelection";
 import { convertComponentSelection } from "./convertComponentSelection";
 import { loadComponentSelection, saveComponentSelection } from "./selectionStorage";
@@ -23,6 +25,8 @@ export function useComponentSelection(
     (state) => state.designWorkspace,
   );
   const controllerRef = useRef<ComponentSelection | undefined>(undefined);
+  const lastDiagnosticSequence = useRef(0);
+  const diagnosticSelection = useAppSelector((state) => state.designWorkspace.diagnosticSelection);
   const selectionRequest = useAppSelector((state) => state.designWorkspace.selectionRequest);
   const remembered = useRef<{ scene: EditorScene; objectId: string; kind: typeof componentKind; path: number[]; ids: string[]; key: string } | null>(null);
   const keys = useRef(new WeakMap<ReturnType<typeof readTopology>, string>());
@@ -133,6 +137,13 @@ export function useComponentSelection(
       viewport.setEditNavigation(false);
     };
   }, [viewport, scene, mode, componentKind, disabled, dispatch]);
+  useEffect(() => {
+    if (!diagnosticSelection || diagnosticSelection.sequence === lastDiagnosticSequence.current) return;
+    lastDiagnosticSequence.current = diagnosticSelection.sequence;
+    if (scene && mode === "edit" && componentKind === "edge" && scene.selection === diagnosticSelection.objectId && scene.currentRevision === diagnosticSelection.revision && !extrudeIsActive() && !knifeIsActive()) {
+      controllerRef.current?.select(diagnosticSelection.meshPath, diagnosticSelection.ids);
+    }
+  }, [diagnosticSelection, scene, mode, componentKind]);
   useEffect(() => {
     if (selectionRequest) controllerRef.current?.changeSelection(selectionRequest.operation);
   }, [selectionRequest]);

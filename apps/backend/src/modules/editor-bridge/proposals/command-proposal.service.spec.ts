@@ -201,6 +201,11 @@ describe("command proposals", () => {
   });
   it.each([
     { type: "geometry.merge_vertices", ids: ["0", "1"] },
+    { type: "geometry.merge_by_distance", ids: ["0", "1"], distance: 0.01 },
+    { type: "geometry.remove_duplicate_faces" },
+    { type: "geometry.correct_normals", mode: "outward" },
+    { type: "geometry.knife_chord", face: "0", start: { edge: "0_1", factor: 0.5 }, end: { edge: "2_3", factor: 0.5 } },
+    { type: "geometry.knife_path", segments: [{ face: "0", start: { vertex: "0" }, end: { vertex: "2" } }] },
     { type: "geometry.dissolve_edges", ids: ["0_1"] },
     { type: "geometry.loop_cut", edge: "0_1" },
     { type: "geometry.slide_edges", ids: ["0_1"], rails: [{ vertex: "0", toward: "2" }, { vertex: "1", toward: "3" }], factor: 0.25 },

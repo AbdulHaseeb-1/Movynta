@@ -22,6 +22,11 @@ import { Scene as ThreeScene } from "three";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { duplicateHierarchy, hierarchyBytes } from "../objectEditing/duplicateHierarchy";
 import { extrudeAlongRegionNormal, extrudeRegion, writeExtrudedGeometry, type ExtrudeResult } from "../meshGeometry/meshExtrude";
+import { KnifeSession } from "../meshGeometry/meshKnifeSession";
+import { knifeChord } from "../meshGeometry/meshKnifeChord";
+import { correctNormals } from "../meshGeometry/meshCorrectNormals";
+import { removeDuplicateFaces } from "../meshGeometry/meshDuplicateFaces";
+import { mergeByDistance } from "../meshGeometry/meshMergeDistance";
 import { subdivideFaces } from "../meshGeometry/meshSubdivideFaces";
 import { insetFaces } from "../meshGeometry/meshInset";
 import { bevelSurface } from "../meshGeometry/meshBevel";
@@ -50,12 +55,12 @@ export type DesignFocus = z.infer<typeof designFocusSchema>;
 type Command = z.infer<typeof editorCommandListSchema>[number];
 type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" | "geometry.boolean" }>;
 /** Commands that rewrite the base cage of one mesh part. They share a batch and the same rules about modifiers. */
-type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.inset_faces" | "geometry.bevel_edges" | "geometry.subdivide_faces" | "geometry.fill_hole" | "material.assign" | "geometry.merge_vertices" | "geometry.dissolve_edges" | "geometry.slide_edges" | "geometry.loop_cut" | "geometry.transform_components" | "geometry.transform_faces" }>;
+type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.inset_faces" | "geometry.bevel_edges" | "geometry.subdivide_faces" | "geometry.fill_hole" | "material.assign" | "geometry.merge_vertices" | "geometry.merge_by_distance" | "geometry.remove_duplicate_faces" | "geometry.correct_normals" | "geometry.knife_chord" | "geometry.knife_path" | "geometry.dissolve_edges" | "geometry.slide_edges" | "geometry.loop_cut" | "geometry.transform_components" | "geometry.transform_faces" }>;
 function isGeometryCommand(command: Command): command is GeometryCommand {
   return command.type === "geometry.bevel" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || command.type === "geometry.boolean";
 }
 function isCageEditCommand(command: Command): command is CageEditCommand {
-  return command.type === "material.assign" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.bevel_edges" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || command.type === "geometry.transform_faces" || command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "geometry.transform_components";
+  return command.type === "material.assign" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.bevel_edges" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || command.type === "geometry.transform_faces" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "geometry.transform_components";
 }
 /** Rewrites the base cage for one command: extrude moves a region, subdivide-faces splits only the selected faces. */
 function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, source: BufferGeometry): ExtrudeResult {
@@ -64,6 +69,15 @@ function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, sourc
     if (!materialSlots(mesh)[command.slot]) throw new Error("Material slot does not exist; inspect materials first");
     return assignMaterial(cage, command.ids, command.slot);
   }
+  if (command.type === "geometry.knife_path") {
+    const session = new KnifeSession(cage, source);
+    for (const segment of command.segments) session.append({ ...segment, face: Number(segment.face) });
+    return { mesh: session.mesh, selection: session.selection, walls: [] };
+  }
+  if (command.type === "geometry.knife_chord") return knifeChord(cage, Number(command.face), command.start, command.end, source);
+  if (command.type === "geometry.correct_normals") return correctNormals(cage, command.mode);
+  if (command.type === "geometry.remove_duplicate_faces") return removeDuplicateFaces(cage, source);
+  if (command.type === "geometry.merge_by_distance") return mergeByDistance(cage, command.ids, command.distance);
   if (command.type === "geometry.merge_vertices") return mergeVertices(cage, command.ids, command.mode);
   if (command.type === "geometry.dissolve_edges") return dissolveEdges(cage, command.ids, source);
   if (command.type === "geometry.slide_edges") return slideEdges(cage, command.ids, command.rails, command.factor);
@@ -1132,7 +1146,7 @@ export class EditorScene {
         const live = modifierStack(mesh);
         const previous = staged.get(mesh);
         const modifiers = previous?.modifiers ?? live?.modifiers ?? [];
-        const topologyChange = command.type === "geometry.bevel_edges" || command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut";
+        const topologyChange = command.type === "geometry.bevel_edges" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut";
         if (topologyChange && (commands.length !== 1 || modifiers.some((modifier) => modifier.enabled))) throw new Error("Use one topology edit per proposal and disable modifiers first");
         const liveExtrusion = modifiers.find((modifier) => modifier.kind === "extrusion");
         if (liveExtrusion && command.type !== "geometry.fill_hole" && command.type !== "material.assign" &&

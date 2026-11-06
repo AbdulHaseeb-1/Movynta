@@ -6,6 +6,7 @@ import type { Viewport } from "@/features/viewport3d";
 import { errorMessage, type SerialQueue } from "@/lib";
 import { saveExtrude } from "./saveExtrude";
 import { saveCageEdit } from "./saveCageEdit";
+import { knifeIsActive } from "./knifeActivity";
 import { setComponentError } from "./workspaceSlice";
 
 /** Edit-mode E extrudes the component selection and saves it with the project. */
@@ -29,7 +30,7 @@ export function useExtrude(
     const gesture = new ExtrudeGesture(
       viewport,
       scene,
-      () => !current.current.disabled && !scene.requiresRecovery,
+      () => !current.current.disabled && !scene.requiresRecovery && !knifeIsActive(),
       () => current.current.mode === "edit",
       () => {
         const selected = current.current.componentSelection;

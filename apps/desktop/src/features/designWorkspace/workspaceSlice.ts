@@ -1,3 +1,4 @@
+import { defaultKnifeSettings, type KnifeSettings } from "./knifeSettings";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { ComponentSelectionOperation } from "./componentNeighbors";
 import { loadPanelVisibility, type PanelId, type PanelVisibility } from "./panelStorage";
@@ -6,6 +7,8 @@ export type DesignMode = "object" | "edit";
 export type ComponentKind = "vertex" | "edge" | "face";
 interface WorkspaceState {
   mode: DesignMode;
+  knifeActive: boolean;
+  knifeSettings: KnifeSettings;
   componentKind: ComponentKind;
   componentSelection: {
     objectId: string;
@@ -14,14 +17,18 @@ interface WorkspaceState {
   } | null;
   componentError: string;
   selectionRequest: { operation: ComponentSelectionOperation; sequence: number } | null;
+  diagnosticSelection: { objectId: string; meshPath: number[]; ids: string[]; revision: number; sequence: number } | null;
   panels: PanelVisibility;
 }
 const initialState: WorkspaceState = {
   mode: "object",
+  knifeActive: false,
+  knifeSettings: defaultKnifeSettings,
   componentKind: "face",
   componentSelection: null,
   componentError: "",
   selectionRequest: null,
+  diagnosticSelection: null,
   panels: loadPanelVisibility(),
 };
 
@@ -29,6 +36,11 @@ const workspaceSlice = createSlice({
   name: "designWorkspace",
   initialState,
   reducers: {
+    setKnifeSettings(state, action: PayloadAction<Partial<KnifeSettings>>) { state.knifeSettings = {...state.knifeSettings,...action.payload}; },
+    setKnifeActive(state, action: PayloadAction<boolean>) { state.knifeActive = action.payload; },
+    requestDiagnosticSelection(state, action: PayloadAction<{ objectId: string; meshPath: number[]; ids: string[]; revision: number }>) {
+      state.diagnosticSelection = { ...action.payload, sequence: (state.diagnosticSelection?.sequence ?? 0) + 1 };
+    },
     requestComponentSelection(state, action: PayloadAction<ComponentSelectionOperation>) {
       state.selectionRequest = { operation: action.payload, sequence: (state.selectionRequest?.sequence ?? 0) + 1 };
     },
@@ -55,6 +67,9 @@ const workspaceSlice = createSlice({
 
 export const {
   requestComponentSelection,
+  requestDiagnosticSelection,
+  setKnifeActive,
+  setKnifeSettings,
   setDesignMode,
   setComponentKind,
   setComponentSelection,

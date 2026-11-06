@@ -1,3 +1,4 @@
+import { knifeIsActive } from "./knifeActivity";
 import type { EditorScene } from "@/features/assistant";
 import { extrudeIsActive } from "@/features/objectEditing/ExtrudeGesture";
 import { pickObjectId, toNdc } from "@/features/objectEditing/picking";
@@ -9,7 +10,7 @@ export function watchEditObjectSelection(viewport: Viewport, scene: EditorScene)
   const dom = viewport.renderer.domElement;
   return watchClicks(dom, {
     capture: true,
-    ignore: extrudeIsActive,
+    ignore: () => extrudeIsActive() || knifeIsActive(),
     onClick: (event) => {
       const bounds = dom.getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;

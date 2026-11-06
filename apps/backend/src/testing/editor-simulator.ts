@@ -235,6 +235,11 @@ export class EditorSimulator {
       case "geometry.bevel":
       case "geometry.subdivide":
       case "geometry.set_modifiers":
+      case "geometry.knife_path":
+      case "geometry.knife_chord":
+      case "geometry.correct_normals":
+      case "geometry.remove_duplicate_faces":
+      case "geometry.merge_by_distance":
       case "geometry.merge_vertices":
       case "geometry.dissolve_edges":
       case "geometry.slide_edges":

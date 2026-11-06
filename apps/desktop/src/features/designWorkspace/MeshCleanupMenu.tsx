@@ -7,20 +7,41 @@ import type { EditorScene } from "@/features/assistant";
 import { extrudeIsActive } from "@/features/objectEditing/ExtrudeGesture";
 import { errorMessage, type SerialQueue } from "@/lib";
 import { cleanupSelection, type CleanupAction } from "./cleanupSelection";
-import { setComponentError } from "./workspaceSlice";
+import { meshAtPath } from "@/features/meshGeometry";
+import { readTopology } from "@/features/meshGeometry/meshTopology";
+import { CorrectNormalsDialog } from "./CorrectNormalsDialog";
+import { DuplicateFacesDialog } from "./DuplicateFacesDialog";
+import { MergeDistanceDialog, type DistanceChoice } from "./MergeDistanceDialog";
+import { meshEdgeDiagnostics } from "./meshDiagnostics";
+import { requestDiagnosticSelection, setComponentError } from "./workspaceSlice";
 
 interface MeshCleanupMenuProps { scene: EditorScene | null; saves: SerialQueue; disabled: boolean }
 
 export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps) {
   const dispatch = useAppDispatch();
-  const { componentKind, componentSelection } = useAppSelector((state) => state.designWorkspace);
+  const { componentKind, componentSelection, knifeActive } = useAppSelector((state) => state.designWorkspace);
+  const [normalsChoice, setNormalsChoice] = useState<DistanceChoice | null>(null);
+  const [duplicateChoice, setDuplicateChoice] = useState<DistanceChoice | null>(null);
+  const [distanceChoice, setDistanceChoice] = useState<DistanceChoice | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const count = componentSelection?.ids.length ?? 0;
   const merge = componentKind === "vertex" && count >= 2 && count <= 4096;
   const edges = componentKind === "edge" && count > 0;
-  const locked = disabled || busy || !scene || scene.requiresRecovery;
+  let diagnostics: ReturnType<typeof meshEdgeDiagnostics> | null = null;
+  let diagnosticError = "";
+  if (scene && componentKind === "edge" && componentSelection && scene.selection === componentSelection.objectId) {
+    try {
+      const mesh = meshAtPath(scene.getObject(componentSelection.objectId), componentSelection.meshPath);
+      diagnostics = meshEdgeDiagnostics(readTopology(mesh.geometry));
+    } catch (error) { diagnosticError = errorMessage(error); }
+  }
+  const selectDiagnostic = (ids: string[]) => {
+    if (!scene || !componentSelection || !ids.length || extrudeIsActive()) return;
+    dispatch(requestDiagnosticSelection({ objectId: componentSelection.objectId, meshPath: componentSelection.meshPath, ids, revision: scene.currentRevision }));
+  };
+  const locked = disabled || knifeActive || busy || !scene || scene.requiresRecovery;
   const run = (action: CleanupAction) => {
     if (locked || pending.current || !scene || !componentSelection || extrudeIsActive()) return;
     const choice = { ...componentSelection, meshPath: [...componentSelection.meshPath], ids: [...componentSelection.ids] };
@@ -43,7 +64,7 @@ export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   });
-  return (
+  return (<>
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button size="sm" variant="ghost" disabled={locked} aria-label="Mesh cleanup tools" aria-keyshortcuts={merge ? "M" : undefined} title="Mesh cleanup tools · M opens the menu with vertices selected" aria-busy={busy} className="h-7 gap-1 rounded-sm px-2 text-[11px]">
@@ -53,13 +74,28 @@ export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps
       <DropdownMenuContent align="end" className="w-72 border border-border p-1.5">
         <DropdownMenuLabel>Mesh cleanup · {count} {componentKind === "vertex" ? "vertices" : componentKind === "edge" ? "edges" : "faces"} selected</DropdownMenuLabel>
         <p className="px-2 pb-2 text-[11px] leading-4 text-muted-foreground">Choose vertices to merge, or edges to dissolve or fill. Changes save immediately and support Undo.</p>
+        <DropdownMenuItem disabled={!merge} onSelect={() => { if (scene && componentSelection) setDistanceChoice({ ...componentSelection, meshPath: [...componentSelection.meshPath], ids: [...componentSelection.ids], revision: scene.currentRevision }); }}>Merge by distance...</DropdownMenuItem>
         <DropdownMenuItem disabled={!merge} onSelect={() => run("merge-center")}><Combine /><div className="flex-1"><div>Merge at center</div><div className="text-[11px] text-muted-foreground">Collapse to the average position</div></div></DropdownMenuItem>
         <DropdownMenuItem disabled={!merge} onSelect={() => run("merge-first")}><div className="pl-6">Merge at first selected vertex</div></DropdownMenuItem>
         <DropdownMenuItem disabled={!merge} onSelect={() => run("merge-last")}><div className="pl-6">Merge at last selected vertex</div></DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!edges} onSelect={() => run("dissolve")}><Eraser /><div><div>Dissolve edges</div><div className="text-[11px] text-muted-foreground">Remove coplanar internal edges</div></div></DropdownMenuItem>
         <DropdownMenuItem disabled={!edges || count < 3 || count > 256} onSelect={() => run("fill")}><PanelTopClose /><div className="flex-1"><div>Fill hole</div><div className="text-[11px] text-muted-foreground">Close one selected boundary loop</div></div><span className="text-xs text-muted-foreground">F</span></DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!componentSelection || extrudeIsActive()} onSelect={() => { if (scene && componentSelection) setNormalsChoice({ ...componentSelection, meshPath: [...componentSelection.meshPath], ids: [...componentSelection.ids], revision: scene.currentRevision }); }}>Correct normals...</DropdownMenuItem>
+        <DropdownMenuItem disabled={!componentSelection || extrudeIsActive()} onSelect={() => { if (scene && componentSelection) setDuplicateChoice({ ...componentSelection, meshPath: [...componentSelection.meshPath], ids: [...componentSelection.ids], revision: scene.currentRevision }); }}>Remove duplicate faces...</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Mesh diagnostics</DropdownMenuLabel>
+        {diagnostics ? <>
+          <p className="px-2 pb-1 text-[11px] text-muted-foreground">Evaluated mesh - select an issue to highlight its edges</p>
+          <DropdownMenuItem disabled={!diagnostics.boundary.length} onSelect={() => selectDiagnostic(diagnostics.boundary)}>Boundary edges: {diagnostics.boundary.length}</DropdownMenuItem>
+          <DropdownMenuItem disabled={!diagnostics.nonManifold.length} onSelect={() => selectDiagnostic(diagnostics.nonManifold)}>Non-manifold edges: {diagnostics.nonManifold.length}</DropdownMenuItem>
+          <DropdownMenuItem disabled={!diagnostics.inconsistent.length} onSelect={() => selectDiagnostic(diagnostics.inconsistent)}>Inconsistent winding: {diagnostics.inconsistent.length}</DropdownMenuItem>
+        </> : <p className="px-2 pb-2 text-[11px] text-muted-foreground">{diagnosticError || "Select an edge on a mesh part to inspect it."}</p>}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
+    {normalsChoice && scene && <CorrectNormalsDialog scene={scene} choice={normalsChoice} saves={saves} close={() => setNormalsChoice(null)} onError={(message) => dispatch(setComponentError(message))} />}
+    {duplicateChoice && scene && <DuplicateFacesDialog scene={scene} choice={duplicateChoice} saves={saves} close={() => setDuplicateChoice(null)} onError={(message) => dispatch(setComponentError(message))} />}
+    {distanceChoice && scene && <MergeDistanceDialog scene={scene} choice={distanceChoice} saves={saves} close={() => setDistanceChoice(null)} onError={(message) => dispatch(setComponentError(message))} />}
+  </>);
 }

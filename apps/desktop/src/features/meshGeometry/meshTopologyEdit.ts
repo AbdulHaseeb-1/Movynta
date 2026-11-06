@@ -11,7 +11,8 @@ export function requireIds(ids: readonly string[], minimum = 1): void {
 export function validateTopologyEdit(before: PolygonMesh, after: PolygonMesh): void {
   const graph = topology(before); assertManifold(before, graph);
   const closed = [...graph.edges.values()].every((edges) => edges.length === 2);
-  assertManifold(after, topology(after), closed);
+  // The same candidate was already checked above; its closedness was derived from that graph.
+  if (after !== before) assertManifold(after, topology(after), closed);
   if (after.faces.reduce((sum, face) => sum + face.length - 2, 0) > MAX_MESH_OUTPUT_TRIANGLES) throw new Error("Topology edit exceeds the geometry output budget");
   const faceKeys = new Set<string>();
   for (const face of after.faces) {

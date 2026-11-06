@@ -1,5 +1,6 @@
 import type { EditorScene } from "@/features/assistant";
 import { saveManualCommands } from "@/features/objectEditing/saveManualCommands";
+import type { KnifePoint } from "@/features/meshGeometry/meshKnifeChord";
 import type { ExtrudeKind } from "@/features/meshGeometry/meshExtrude";
 import type { FaceTransform } from "@/features/meshGeometry/meshFaceTransform";
 import type { InsetOptions } from "@/features/meshGeometry/meshInset";
@@ -8,6 +9,11 @@ import type { ConfirmedPreview } from "@/features/objectEditing/ExtrudeGesture";
 
 /** The change a component edit makes to the base cage of one mesh part. */
 export type CageEdit =
+  | { type: "geometry.knife_chord"; face: string; start: KnifePoint; end: KnifePoint }
+  | { type: "geometry.knife_path"; segments: { face: string; start: KnifePoint; end: KnifePoint }[] }
+  | { type: "geometry.correct_normals"; mode: "consistent" | "outward" }
+  | { type: "geometry.remove_duplicate_faces" }
+  | { type: "geometry.merge_by_distance"; ids: string[]; distance: number }
   | { type: "geometry.merge_vertices"; ids: string[]; mode: "center" | "first" | "last" }
   | { type: "geometry.dissolve_edges"; ids: string[] }
   | { type: "geometry.fill_hole"; ids: string[] }

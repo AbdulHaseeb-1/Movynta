@@ -137,6 +137,16 @@ function describeCommand(command: Command): string {
       ].filter(Boolean);
       return `Transform ${command.type === "geometry.transform_components" ? command.kind === "edge" ? "edges" : "vertices" : "faces"} of ${target}${command.ids ? ` (${command.ids.length})` : ""}${details.length ? ` · ${command.space ?? "local"} · ${details.join(", ")}` : ""}`;
     }
+    case "geometry.knife_path":
+      return `Cut a sequence of faces on ${target}`;
+    case "geometry.knife_chord":
+      return `Cut one face of ${target} between two edge points`;
+    case "geometry.correct_normals":
+      return `Correct face winding and rebuild normals on ${target} (${command.mode ?? "consistent"})`;
+    case "geometry.remove_duplicate_faces":
+      return `Remove matching duplicate faces from ${target}`;
+    case "geometry.merge_by_distance":
+      return `Merge nearby vertices of ${target} within ${String(command["distance"])} local units`;
     case "geometry.merge_vertices":
       return `Merge ${command.ids?.length ?? 0} vertices of ${target} (${command.mode ?? "center"})`;
     case "geometry.dissolve_edges":

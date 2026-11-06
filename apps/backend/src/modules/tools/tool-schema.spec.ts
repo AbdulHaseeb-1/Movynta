@@ -54,10 +54,23 @@ describe("editor command schema", () => {
   it("validates merge, dissolve, slide and loop-cut inputs", () => {
     const base = { commandId: "edit", objectId: "box" };
     expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.merge_vertices", ids: ["0", "1"] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.remove_duplicate_faces" }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.correct_normals", mode: "outward" }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.knife_chord", face: "0", start: { edge: "0_1", factor: 0.5 }, end: { edge: "2_3", factor: 0.5 } }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.knife_chord", face: "0", start: { vertex: "0" }, end: { vertex: "2" } }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.knife_path", segments: [{ face: "0", start: { vertex: "0" }, end: { vertex: "2" } }] }]).success).toBe(true);
+    expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.merge_by_distance", ids: ["0", "1"], distance: 0.01 }]).success).toBe(true);
     expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.dissolve_edges", ids: ["0_1"] }]).success).toBe(true);
     expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.slide_edges", ids: ["0_1"], rails: [{ vertex: "0", toward: "2" }, { vertex: "1", toward: "3" }], factor: 0.5 }]).success).toBe(true);
     expect(editorCommandListSchema.safeParse([{ ...base, type: "geometry.loop_cut", edge: "0_1", cuts: 3 }]).success).toBe(true);
     for (const fields of [
+      { type: "geometry.correct_normals", mode: "unknown" },
+      { type: "geometry.knife_path", segments: [] },
+      { type: "geometry.knife_path", segments: [{ face: "0", start: { vertex: "0" }, end: { vertex: "0" } }] },
+      { type: "geometry.knife_chord", face: "0", start: { vertex: "0" }, end: { vertex: "0" } },
+      { type: "geometry.knife_chord", face: "0", start: { edge: "0_1", factor: 0 }, end: { edge: "2_3", factor: 0.5 } },
+      { type: "geometry.knife_chord", face: "0", start: { edge: "0_1", factor: 0.5 }, end: { edge: "0_1", factor: 0.5 } },
+      { type: "geometry.merge_by_distance", ids: ["0", "1"], distance: 0 }, { type: "geometry.merge_by_distance", ids: ["0", "0"], distance: 0.1 },
       { type: "geometry.merge_vertices", ids: ["0"] }, { type: "geometry.merge_vertices", ids: ["0", "0"] },
       { type: "geometry.dissolve_edges", ids: ["1_0"] }, { type: "geometry.loop_cut", edge: "0_1", cuts: 0 },
       { type: "geometry.loop_cut", edge: "0_1", cuts: 2, factor: 0.25 }, { type: "geometry.loop_cut", edge: "0_1", factor: 1 },

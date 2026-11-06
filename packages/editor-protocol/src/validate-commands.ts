@@ -53,11 +53,11 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
   if (materialEdits.length && (materialEdits.length !== commands.length || commands.length > 20)) {
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use a separate batch of at most 20 material property/slot commands; assign faces in a following proposal" }];
   }
-  if (commands.length !== 1 && commands.some((command) => command.type === "geometry.bevel_edges" || command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut")) {
+  if (commands.length !== 1 && commands.some((command) => command.type === "geometry.bevel_edges" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut")) {
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use one topology-changing bevel, merge, dissolve or loop cut per proposal; inspect the resulting IDs before the next edit" }];
   }
   const modifiers = commands.filter((command) => command.type === "geometry.bevel" || command.type === "geometry.boolean" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers"));
-  const cageEdits = commands.filter((command) => command.type === "geometry.bevel_edges" || command.type === "geometry.merge_vertices" || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole");
+  const cageEdits = commands.filter((command) => command.type === "geometry.bevel_edges" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole");
   if (modifiers.length > 0 && (modifiers.length !== commands.length || commands.length > 20)) {
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Geometry batches accept only bevel/subdivision and Boolean modifier commands, at most 20; create/transform in separate proposals" }];
   }
@@ -198,6 +198,11 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       case "geometry.bevel":
       case "geometry.subdivide":
       case "geometry.set_modifiers":
+      case "geometry.knife_path":
+      case "geometry.knife_chord":
+      case "geometry.correct_normals":
+      case "geometry.remove_duplicate_faces":
+      case "geometry.merge_by_distance":
       case "geometry.merge_vertices":
       case "geometry.dissolve_edges":
       case "geometry.slide_edges":

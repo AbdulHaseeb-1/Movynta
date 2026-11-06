@@ -28,6 +28,8 @@ const vertexId = z.string().regex(/^(0|[1-9]\d{0,9})$/);
 const edgeId = z.string().regex(/^(0|[1-9]\d{0,9})_(0|[1-9]\d{0,9})$/)
   .refine((id) => Number(id.split("_")[0]) < Number(id.split("_")[1]), "Use canonical smaller_larger edge IDs");
 const baseEdit = { ...commandBase, objectId: identifierSchema, meshPath: meshPathSchema.default([]), componentView: z.literal("base").default("base") };
+const knifePoint = z.union([z.object({ edge: edgeId, factor: z.number().finite().gt(1e-8).lt(1 - 1e-8) }).strict(), z.object({ vertex: vertexId }).strict()]);
+const knifeSegment = z.object({ face: vertexId, start: knifePoint, end: knifePoint }).strict().refine((segment) => !("edge" in segment.start && "edge" in segment.end && segment.start.edge === segment.end.edge) && !("vertex" in segment.start && "vertex" in segment.end && segment.start.vertex === segment.end.vertex), "Cut endpoints must be distinct");
 const uniqueVertices = z.array(vertexId).min(2).max(4096).refine((ids) => new Set(ids).size === ids.length, "Vertex IDs must be unique");
 const uniqueEdges = z.array(edgeId).min(1).max(4096).refine((ids) => new Set(ids).size === ids.length, "Edge IDs must be unique");
 const primitiveOptions = z.object({
@@ -77,6 +79,11 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
   z.object({ ...commandBase, type: z.literal("material.replace_slot"), objectId: identifierSchema, meshPath: meshPathSchema.default([]),
     slot: z.number().int().min(0).max(255), properties: materialPropertiesSchema.default({}),
   }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.knife_path"), segments: z.array(knifeSegment).min(1).max(64) }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.knife_chord"), ...knifeSegment.shape }).strict().refine((command) => !("edge" in command.start && "edge" in command.end && command.start.edge === command.end.edge) && !("vertex" in command.start && "vertex" in command.end && command.start.vertex === command.end.vertex), "Cut endpoints must be distinct"),
+  z.object({ ...baseEdit, type: z.literal("geometry.correct_normals"), mode: z.enum(["consistent", "outward"]).default("consistent") }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.remove_duplicate_faces") }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.merge_by_distance"), ids: uniqueVertices, distance: z.number().finite().positive().max(100) }).strict(),
   z.object({ ...baseEdit, type: z.literal("geometry.merge_vertices"), ids: uniqueVertices, mode: z.enum(["center", "first", "last"]).default("center") }).strict(),
   z.object({ ...baseEdit, type: z.literal("geometry.dissolve_edges"), ids: uniqueEdges }).strict(),
   z.object({ ...baseEdit, type: z.literal("geometry.slide_edges"), ids: uniqueEdges,
