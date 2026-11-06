@@ -12,10 +12,13 @@ import {
   Timer,
   Vector3,
   WebGLRenderer,
+  type Box3,
   type ColorRepresentation,
   type Object3D,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { framePose } from "./framing";
+import { viewPosition, type ViewPreset } from "./viewPresets";
 import { createOutlineRenderer } from "./outline";
 
 export type FrameListener = (deltaSeconds: number) => void;
@@ -43,6 +46,10 @@ export interface Viewport {
   zoomBy: (factor: number) => void;
   // Eases the camera back to its starting view.
   resetView: () => void;
+  // Looks at the same target from a preset direction (front, top, ...), at the same distance.
+  setView: (preset: ViewPreset) => void;
+  // Eases the camera to look at the middle of this box from the current direction, far enough to show it whole.
+  frameBox: (box: Box3) => void;
   // Shifts the view right while the assistant panel is open, then restores its previous center.
   setAssistantPanelOpen: (open: boolean) => void;
   // Runs before each frame renders. Returns a function that removes the listener.
@@ -256,6 +263,26 @@ export function createViewport(
     const target = assistantPanelOffset?.clone() ?? new Vector3();
     easeTo(CAMERA_START.clone().add(target), target);
   };
+  const setView = (preset: ViewPreset) => {
+    if (!fullNavigation) return;
+    stopEase?.();
+    const distance = Math.max(camera.position.distanceTo(controls.target), ORBIT_MIN_DISTANCE);
+    camera.position.copy(viewPosition(controls.target, preset.direction, distance));
+    controls.update();
+  };
+  const frameBox = (box: Box3) => {
+    if (!fullNavigation || box.isEmpty()) return;
+    const pose = framePose(box, { position: camera.position, target: controls.target }, camera.fov, camera.aspect, {
+      minDistance: ORBIT_MIN_DISTANCE,
+      maxDistance: ORBIT_MAX_DISTANCE,
+    });
+    // While the assistant panel is open the view is shifted to the free part of the screen; keep that shift.
+    if (assistantPanelOffset) {
+      pose.position.add(assistantPanelOffset);
+      pose.target.add(assistantPanelOffset);
+    }
+    easeTo(pose.position, pose.target);
+  };
   const setAssistantPanelOpen = (open: boolean) => {
     if (open) {
       if (assistantPanelOffset) return;
@@ -340,6 +367,8 @@ export function createViewport(
     setNavigationScope,
     zoomBy,
     resetView,
+    frameBox,
+    setView,
     setAssistantPanelOpen,
     addFrameListener,
     setOutlinedObjects: outline.setObjects,

@@ -11,7 +11,7 @@ import {
 } from "three";
 import { EditorScene } from "../assistant/EditorScene";
 import { GroupTransform } from "./groupTransform";
-import { correctWorldRotation, meshVertexWorld } from "./shearFit";
+import { assignLocalMatrix, correctWorldRotation, meshVertexWorld } from "./shearFit";
 
 function cornerMesh(): Mesh {
   const geometry = new BufferGeometry()
@@ -94,5 +94,24 @@ describe("transforms that shear", () => {
     expect(child.matrixAutoUpdate).toBe(true);
     const rebuilt = new Matrix4().compose(child.position, child.quaternion, child.scale);
     expect(new Vector3(0.5, 0, 0).applyMatrix4(rebuilt).applyMatrix4(parent.matrixWorld).z).toBeCloseTo(-1, 5);
+  });
+});
+
+describe("baking a shear", () => {
+  const shear = new Matrix4().set(1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+  const worldTangent = (mesh: Mesh, index: number) => {
+    const tangent = mesh.geometry.getAttribute("tangent");
+    mesh.updateMatrix();
+    return new Vector3(tangent.getX(index), tangent.getY(index), tangent.getZ(index)).transformDirection(mesh.matrix);
+  };
+
+  it.each([[[1, 0, 0]], [[0, 1, 0]], [[1, 2, 3]]])("moves the tangent %j as the surface moves", (direction) => {
+    const mesh = cornerMesh();
+    const [x = 0, y = 0, z = 0] = direction;
+    mesh.geometry.setAttribute("tangent", new Float32BufferAttribute([x, y, z, 1, x, y, z, 1, x, y, z, 1], 4));
+    assignLocalMatrix(mesh, shear, true);
+    const expected = new Vector3(x, y, z).transformDirection(shear);
+    expect(worldTangent(mesh, 0).distanceTo(expected)).toBeLessThan(1e-5);
+    expect(mesh.geometry.getAttribute("tangent").getW(0)).toBe(1);
   });
 });

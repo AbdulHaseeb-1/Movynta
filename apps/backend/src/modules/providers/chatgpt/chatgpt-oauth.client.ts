@@ -132,7 +132,9 @@ export class ChatgptOAuthClient {
       throw new ServiceUnavailableError(
         "ChatGPT sign-in is unavailable right now. Try again shortly.",
       );
-    const parsed = tokenResponseSchema.safeParse(await response.json());
+    // A proxy or captive portal can answer 200 with a page that is not JSON.
+    const payload: unknown = await response.json().catch(() => undefined);
+    const parsed = tokenResponseSchema.safeParse(payload);
     if (!parsed.success)
       throw new ServiceUnavailableError(
         "ChatGPT sign-in returned an unexpected response.",

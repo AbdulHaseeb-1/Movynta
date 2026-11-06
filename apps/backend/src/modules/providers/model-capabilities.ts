@@ -26,7 +26,7 @@ function openaiEfforts(model: string): readonly ReasoningEffort[] {
 
 function chatgptEfforts(model: string): readonly ReasoningEffort[] {
   // The subscription backend accepts the shared subset on every reasoning model, but not "minimal".
-  return /^(gpt-([5-9]|d{2,})|od)|codex/.test(model) && !/chat|-pro/.test(model)
+  return /^(gpt-([5-9]|\d{2,})|o\d)|codex/.test(model) && !/chat|-pro/.test(model)
     ? LOW_MEDIUM_HIGH
     : [];
 }

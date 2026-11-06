@@ -135,6 +135,9 @@ export class AgentRunsService implements OnModuleInit {
         throw new ValidationFailedError("The selected model does not support that reasoning effort");
     }
     this.projects.assertOwner(user.id, dto.projectId);
+    // Two runs on one project would interleave the conversation and edit the same scene at once.
+    if (this.projects.hasActiveRun(dto.projectId))
+      throw new ConflictError("The assistant is already working on this project. Wait for it to finish or stop it first.");
     const agentId = dto.agentId ?? MODELING_COORDINATOR_ID;
     this.agents.summary(agentId);
 

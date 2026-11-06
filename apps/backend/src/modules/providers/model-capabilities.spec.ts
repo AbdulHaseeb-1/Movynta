@@ -71,3 +71,15 @@ describe("reasoningModelSettings", () => {
     });
   });
 });
+
+describe("ChatGPT reasoning efforts", () => {
+  it("offers the shared subset to gpt-5 and later models, codex variants and o-series models", () => {
+    for (const model of ["gpt-5", "gpt-5.1-codex", "gpt-6", "gpt-12", "gpt-10-mini", "o3", "o4-mini", "gpt-5-codex"])
+      expect(reasoningEffortsFor("chatgpt", model)).toEqual(["low", "medium", "high"]);
+  });
+
+  it("offers none to chat-tuned, pro and older models", () => {
+    for (const model of ["gpt-4o", "gpt-4.1", "gpt-5-chat-latest", "gpt-5-pro", "gpt-3.5-turbo", "dall-e"])
+      expect(reasoningEffortsFor("chatgpt", model)).toEqual([]);
+  });
+});

@@ -20,6 +20,7 @@ export const HAND_EDIT_COMMAND_TYPES: ReadonlySet<string> = new Set([
   "geometry.create_primitive",
   "geometry.extrude",
   "geometry.transform_faces",
+  "geometry.transform_components",
   "geometry.subdivide_faces",
   "geometry.inset_faces",
   "geometry.bevel_edges",

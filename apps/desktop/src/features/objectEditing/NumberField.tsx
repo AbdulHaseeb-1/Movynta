@@ -1,7 +1,7 @@
 /* eslint-disable jsx-a11y/prefer-tag-over-role -- The visible text label is a keyboard-accessible unbounded scrub control alongside the editable input. */
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
-import { formatNumber, parseNumber } from "./transformMath";
+import { fieldCommitValue, formatNumber } from "./transformMath";
 import { useNumberScrub } from "./useNumberScrub";
 
 interface NumberFieldProps {
@@ -35,6 +35,9 @@ export function NumberField({
   className,
 }: NumberFieldProps) {
   const [draft, setDraft] = useState<string | null>(null);
+  // Set by Escape so the blur that follows it does not apply the text that was typed. State would still be stale there.
+  const cancelled = useRef(false);
+  const atLeast = (next: number) => (min === undefined ? next : Math.max(min, next));
   const scrub = useNumberScrub({
     value,
     step,
@@ -51,9 +54,12 @@ export function NumberField({
 
   function finish(commit: boolean) {
     if (draft === null) return;
+    const wasCancelled = cancelled.current;
+    cancelled.current = false;
     setDraft(null);
-    const next = commit ? parseNumber(draft) : undefined;
-    if (next !== undefined && next !== value) onCommit(next);
+    if (!commit) return;
+    const next = fieldCommitValue(draft, value, { min, cancelled: wasCancelled });
+    if (next !== undefined) onCommit(next);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -63,6 +69,7 @@ export function NumberField({
       // Leaving the field this way must not also clear the selection behind it.
       event.stopPropagation();
       scrub.cancel();
+      cancelled.current = true;
       setDraft(null);
       event.currentTarget.blur();
     } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -71,7 +78,7 @@ export function NumberField({
         (event.shiftKey ? step * 10 : step) *
         (event.key === "ArrowUp" ? 1 : -1);
       setDraft(null);
-      onCommit(Number((value + amount).toFixed(6)));
+      onCommit(atLeast(Number((value + amount).toFixed(6))));
     }
   }
 
@@ -117,6 +124,7 @@ export function NumberField({
         value={draft ?? formatNumber(value)}
         onChange={(event) => setDraft(event.target.value)}
         onFocus={(event) => {
+          cancelled.current = false;
           setDraft(formatNumber(value));
           event.currentTarget.select();
         }}

@@ -26,6 +26,11 @@ interface ObjectEditingOptions {
   scene: EditorScene | null;
   /** True while the assistant is working: objects can be selected but not changed. */
   disabled: boolean;
+  /**
+   * True while undo and redo must not run. Unlike `disabled` this stays false in Edit mode, where component edits
+   * are saved and must be undoable too. Defaults to `disabled`.
+   */
+  historyDisabled?: boolean;
   /** Where saves wait their turn; shared with other editors of the scene so the saved order is the real one. */
   saves: SerialQueue;
 }
@@ -43,6 +48,9 @@ export interface ObjectEditing {
   deselect: () => void;
   /** Deletes every selected object immediately. */
   requestDelete: () => void;
+  /** Steps back or forward through the saved edits; the same as Ctrl+Z and Ctrl+Shift+Z. */
+  undo: () => void;
+  redo: () => void;
 }
 
 type SceneChange =
@@ -112,6 +120,7 @@ export function useObjectEditing({
   viewport,
   scene,
   disabled,
+  historyDisabled = disabled,
   saves,
 }: ObjectEditingOptions): ObjectEditing {
   const tool = useAppSelector((state) => state.viewport.tool);
@@ -123,6 +132,10 @@ export function useObjectEditing({
   useEffect(() => {
     current.current = { tool, enabled: !disabled };
   }, [tool, disabled]);
+  const historyEnabled = useRef(!historyDisabled);
+  useEffect(() => {
+    historyEnabled.current = !historyDisabled;
+  }, [historyDisabled]);
 
   const [selected, setSelected] = useState<SelectedObject | null>(null);
   const [error, setError] = useState("");
@@ -216,7 +229,7 @@ export function useObjectEditing({
   }, [scene, save]);
 
   const history = useCallback((direction: "undo" | "redo") => {
-    if (!scene || !current.current.enabled || historyBusy.current || scene.requiresRecovery) return;
+    if (!scene || !historyEnabled.current || historyBusy.current || scene.requiresRecovery) return;
     historyBusy.current = true;
     saves.run(async () => {
       try { await changeSceneHistory(scene, direction); }
@@ -290,5 +303,7 @@ export function useObjectEditing({
     finishTransformPreview,
     deselect: () => scene?.select(null),
     requestDelete,
+    undo,
+    redo,
   };
 }

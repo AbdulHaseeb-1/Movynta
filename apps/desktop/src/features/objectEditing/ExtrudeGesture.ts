@@ -32,9 +32,11 @@ import {
   type PolygonMesh,
 } from "@/features/meshGeometry/meshTopology";
 import { faceTransformSelection, transformFaces, type FaceTransform } from "@/features/meshGeometry/meshFaceTransform";
+import { componentTransformSelection } from "@/features/meshGeometry/meshComponentTransform";
 import { ExtrudeFacePreview } from "@/features/meshGeometry/extrudeFacePreview";
 import { FaceTransformPreview } from "@/features/meshGeometry/faceTransformPreview";
 import { ExtrudePreviewOverlay } from "./ExtrudePreviewOverlay";
+import { rotationSign } from "./transformMath";
 
 type Axis = "x" | "y" | "z";
 type ExtrudeMode = "move" | "scale" | "rotate";
@@ -76,7 +78,7 @@ export interface ExtrudeCommit {
   normalMode?: "vertex" | "individual";
   closeOpenSurface?: true;
 }
-export type FaceTransformCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & {
+export type FaceTransformCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "kind" | "ids" | "selection" | "revision"> & {
   transform: FaceTransform;
 };
 export type InsetCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & {
@@ -209,7 +211,7 @@ function faceGestureTransform(
   }
   const direction = axis ?? camera.getWorldDirection(new Vector3()).negate();
   const angle = from.length() < 8 || to.length() < 8
-    ? delta * Math.PI / 360 : -Math.atan2(from.cross(to), from.dot(to));
+    ? delta * Math.PI / 360 : -Math.atan2(from.cross(to), from.dot(to)) * (axis ? rotationSign(axis, camera) : 1);
   if (Math.abs(angle) < 1e-8) return null;
   const euler = new Euler().setFromQuaternion(new Quaternion().setFromAxisAngle(direction, angle));
   return { rotation: [euler.x, euler.y, euler.z] };
@@ -258,7 +260,8 @@ function revealBackfaces(mesh: Mesh): () => void {
 }
 function hint(session: Session): string {
   const transforming = session.faceSelection !== null;
-  const mode = transforming ? `${session.mode[0]?.toUpperCase() ?? ""}${session.mode.slice(1)} faces`
+  const parts = session.kind === "face" ? "faces" : session.kind === "edge" ? "edges" : "vertices";
+  const mode = transforming ? `${session.mode[0]?.toUpperCase() ?? ""}${session.mode.slice(1)} ${parts}`
     : session.mode === "scale" ? "Scale cap" : session.mode === "rotate" ? "Rotate cap"
     : session.tool === "normals" ? "Extrude along normals" : session.tool === "individual" ? "Extrude individual faces"
     : session.tool === "solid" ? "Extrude solid sheet" : "Extrude";
@@ -322,7 +325,7 @@ export class ExtrudeGesture {
       const offset = session.offset;
       const selection = session.selection;
       const faceCommit = valid && session.transform && selection ? {
-        objectId: session.objectId, meshPath: session.meshPath, ids: session.ids,
+        objectId: session.objectId, meshPath: session.meshPath, kind: session.kind, ids: session.ids,
         selection, revision: session.revision, transform: session.transform,
       } : null;
       const insetCommit = valid && session.inset && selection ? {
@@ -585,7 +588,7 @@ export class ExtrudeGesture {
         !selected ||
         selected.ids.length === 0 ||
         editor.selection !== selected.objectId ||
-        (tool === "bevel" ? selected.kind !== "edge" : tool !== "extrude" && selected.kind !== "face")
+        (tool === "bevel" ? selected.kind !== "edge" : tool !== "extrude" && !transforming && selected.kind !== "face")
       )
         return;
       try {
@@ -604,7 +607,10 @@ export class ExtrudeGesture {
             "Disable modifiers before editing components, so the selection matches the base mesh",
           );
         const cage = readTopology(mesh.geometry);
-        const faceSelection = transforming ? faceTransformSelection(cage, selected.ids) : null;
+        // Faces, edges and vertices all move by their shared cage vertices; only the way the ids name them differs.
+        const faceSelection = !transforming ? null
+          : selected.kind === "face" ? faceTransformSelection(cage, selected.ids)
+          : componentTransformSelection(cage, selected.kind, selected.ids);
         const inset = tool === "inset" ? {
           options: { thickness: 0, depth: 0, boundary: true, offsetEven: true, interpolate: true },
           depthMode: false, numeric: "",
@@ -763,7 +769,7 @@ export class ExtrudeGesture {
         return;
       }
       const tool = event.ctrlKey && key === "b" ? "bevel" : key === "e" ? "extrude" : key === "i" ? "inset" : key === "g" ? "move" : key === "r" ? "rotate" : key === "s" ? "scale" : null;
-      if (!tool || !enabled() || !editing() || (tool === "bevel" ? target()?.kind !== "edge" : tool !== "extrude" && target()?.kind !== "face")) return;
+      if (!tool || !enabled() || !editing() || (tool === "bevel" ? target()?.kind !== "edge" : (tool === "inset") && target()?.kind !== "face")) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       this.start(tool);

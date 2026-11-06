@@ -65,6 +65,10 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Component edit batches accept only extrude, transform_components, transform_faces, fill_hole, inset_faces, and subdivide_faces commands, at most 20. Create or transform objects in a separate proposal." }];
   }
   const issue = (commandId: string, message: string) => issues.push({ commandId, message });
+  /** A zero or negative scale collapses or mirrors an object and breaks parenting and bounds, so it is refused. */
+  const checkScale = (commandId: string, transform: { readonly scale?: readonly number[] | undefined } | undefined) => {
+    if (transform?.scale?.some((value) => !(value > 0))) issue(commandId, "scale must be positive on every axis; zero or negative scale is not allowed");
+  };
   const missing = (commandId: string, objectId: string) =>
     issue(commandId, `objectId "${objectId}" does not exist; create it first or use an id from editor.get_context`);
 
@@ -124,6 +128,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           issue(command.commandId, existsMessage(command.objectId, createdInBatch, "scene.create_object"));
         }
         placeCreated(command.commandId, command.objectId, command.parentId, false, command.collectionId);
+        checkScale(command.commandId, command.transform);
         placement?.created(command.objectId, command.transform);
         break;
       case "geometry.create_primitive":
@@ -139,6 +144,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
             issue(command.commandId, existsMessage(command.objectId, createdInBatch, "geometry.create_primitive"));
           }
           placeCreated(command.commandId, command.objectId, command.parentId, command.parentId !== undefined || command.name !== undefined || command.transform !== undefined, command.collectionId);
+          checkScale(command.commandId, command.transform);
           placement?.created(command.objectId, command.transform);
         }
         break;
@@ -147,6 +153,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           issue(command.commandId, `objectId "${command.objectId}" already exists; use a fresh id for the mesh`);
         }
         placeCreated(command.commandId, command.objectId, command.parentId, command.parentId !== undefined || command.transform !== undefined, command.collectionId);
+        checkScale(command.commandId, command.transform);
         placement?.created(command.objectId, command.transform);
         break;
       case "scene.create_collection":
@@ -212,6 +219,7 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
         if (command.type === "scene.move_object" && context.supportsSceneGraph !== true) {
           issue(command.commandId, "This editor is too old for scene.move_object; use scene.transform_object with the new position");
         }
+        if (command.type === "scene.transform_object") checkScale(command.commandId, command.transform);
         if (command.type === "scene.transform_object") placement?.transformed(command.objectId, command.transform);
         if (command.type === "scene.move_object") placement?.moved(command.objectId, command.delta);
         if (command.type === "geometry.set_modifiers" || command.type === "geometry.boolean") booleanOperandIssues(command, parents, issue);

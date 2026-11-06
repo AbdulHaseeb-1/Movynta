@@ -13,7 +13,7 @@ export {
 } from "./modelFormats";
 export { makeObjectId } from "./objectId";
 export { parseModel } from "./parseModel";
-export { disposeModel, prepareModel, type PreparedModel } from "./prepareModel";
+export { disposeModel, prepareModel, scaleNotice, type PreparedModel } from "./prepareModel";
 export {
   useModelImport,
   type ImportedModelSummary,

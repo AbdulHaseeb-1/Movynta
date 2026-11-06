@@ -48,7 +48,8 @@ export class SelectionTools {
         return;
       }
       if (!this.view.enabled()) return;
-      const key = event.key.toLowerCase();
+      // With Alt held some layouts (macOS) type another character, so the physical key decides for A.
+      const key = event.altKey && event.code === "KeyA" ? "a" : event.key.toLowerCase();
       if (key === "a") {
         event.preventDefault();
         if (event.altKey) this.editor.select(null);

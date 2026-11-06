@@ -185,7 +185,11 @@ export class ProvidersService {
         "DELETE FROM model_providers WHERE user_id = ? AND provider_id = ?",
       )
       .run(userId, id);
-    return this.list(userId);
+    // Removing the selected provider must not leave the user with none selected while another is configured.
+    const remaining = this.list(userId);
+    const next = remaining.find((provider) => provider.configured);
+    if (next && !remaining.some((provider) => provider.active)) return this.activate(userId, next.id);
+    return remaining;
   }
 
   active(userId: string): ProviderView {

@@ -13,9 +13,11 @@ export { recordSceneEdit } from "./sceneEditApi";
 export { bindShiftSnap } from "./shiftSnap";
 export {
   degreesToRadians,
+  fieldCommitValue,
   formatNumber,
   parseNumber,
   radiansToDegrees,
+  rotationSign,
   sameTransform,
   withAxis,
 } from "./transformMath";

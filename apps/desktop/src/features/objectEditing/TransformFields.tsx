@@ -69,8 +69,8 @@ export function TransformFields({ transform, disabled, onChange, onPreview, onPr
             onPreviewEnd={onPreviewEnd}
             disabled={disabled}
             onCommit={(value) => {
-              // Something with no size cannot be selected or seen again, so zero is not accepted.
-              if (value === 0) return;
+              // Something with no size cannot be selected or seen again, and a negative scale mirrors it, so only positive values are accepted.
+              if (!(value >= 0.001)) return;
               onChange({ scale: withAxis(scale, index, value) });
             }}
           />
