@@ -74,4 +74,9 @@ describe("ChatGPT token refresh when callers overlap", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(service.isConnected(user)).toBe(true);
   }, 20000);
+
+  it("reports a 200 answer that is not JSON as an unavailable service, not a crash", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(new Response("<html>sign in to the wifi</html>", { status: 200 }));
+    await expect(server.app.get(ChatgptOAuthClient).refresh(nearExpiry)).rejects.toThrow("unexpected response");
+  });
 });
