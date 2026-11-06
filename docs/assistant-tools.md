@@ -25,6 +25,8 @@ The modeling coordinator agent (`apps/backend/src/modules/agents/definitions/mod
 | `validation.check_scene` | `validation__check_scene` | `read` | Never | Checks duplicate ids, missing parents, parent cycles, non-positive scale, an object in a collection that does not exist, and collections that sit in a missing collection or inside themselves (errors); names shared by objects under one parent or by collections in one place, and groups with children scaled unevenly (warnings); and groups and collections with nothing in them (information). Only errors make `ok` false. | `modules/tools/validation/validation.tools.ts` |
 | `skills.load_skill` | `skills__load_skill` | `skill` | Never | Loads the full workflow of a skill selected for this request. | `modules/tools/skills/skills.tools.ts` |
 | `modeling.assess_quality` | `modeling__assess_quality` | `plan` | Never | Records the model’s task-specific self-review or blocker. Ready and needs-refinement require two distinct live solid image views at the current revision; it does not guarantee visual quality. | `modules/tools/modeling/quality.tools.ts` |
+| `modeling.record_brief` | `modeling__record_brief` | `plan` | Never | Records the brief for the request: `subject`, optional `style`, up to eight `assumptions` and 1–40 measurable `checks`. Replaces any earlier brief and counts the replacement. It does not change the scene. | `modules/tools/modeling/brief.tools.ts` |
+| `validation.check_brief` | `validation__check_brief` | `read` | Never | Measures the recorded brief on the current scene's world bounds and returns each check as `pass`, `fail` or `unresolved` with the value measured and the value needed. Marks the brief as measured for the current scene. | `modules/tools/modeling/brief.tools.ts` |
 | `modeling.generate_model_plan` | `modeling__generate_model_plan` | `plan` | Never | Records a structured plan. It does not change the scene. Each step's `toolName` must be a known tool. A newer plan replaces the current one. | `modules/tools/modeling/modeling.tools.ts` |
 | `modeling.generate_commands` | `modeling__generate_commands` | `read` | Never | Runs synchronous JavaScript against an isolated `scene` snapshot. Optional `inspection` exposes the inspected mesh as `mesh`. Programs can generate bounded `geometry.create_mesh` commands. Returns validated commands and `sourceRevision`, or rejection details. Nothing is proposed or applied. | `modules/tools/procedural/procedural.tools.ts` |
 | `modeling.propose_generated` | `modeling__propose_generated` | `propose` | Never; automatic | Runs the same isolated generator and validates and stores a proposal at its source revision without echoing the command arrays. Accepts `summary`, `source`, and optional `inspection`. Inspect a geometry candidate with `viewport.capture` and call `editor.apply_proposal` to apply it automatically. | `modules/tools/procedural/procedural.tools.ts` |
@@ -32,6 +34,38 @@ The modeling coordinator agent (`apps/backend/src/modules/agents/definitions/mod
 ### Quality review
 
 For explicit 3D realism, detail, or refinement requests, applied edits require a model self-review before a run is treated as visually reviewed. `modeling.assess_quality` accepts `outcome` (`ready`, `needs_refinement`, or `blocked`), `summary` (1–600 characters), and `findings` (up to eight `{ aspect, observation, severity }` records; severity is `major` or `minor`). It is a plan tool, needs no approval, and never changes the scene. A ready or needs-refinement review requires images from at least two distinct live solid camera positions at an unchanged current revision. Candidate previews, normals/wireframe views and measurement-only responses do not count. Ready rejects major findings and requires observations on at least two distinct aspects; needs-refinement requires a finding and another applied edit before ready. Blocked may be recorded without images and must describe at least one concrete blocker. When the run stops without a ready review, the final answer discloses the incomplete review or blocker. These checks record a fallible model judgment, not an objective quality guarantee.
+
+### Brief and measured checks
+
+For a request that builds or reshapes something, the assistant records what the finished work must be, as checks that code can pass or fail, and is held to them. This replaces a feeling of "done" with a measurement; it does not replace looking at the scene.
+
+`modeling.record_brief` takes `subject` (1–200 characters), `style` (optional), `assumptions` (up to eight strings, for the user to read) and `checks` (1–40). A check names objects by `id`, by exact `name` (letter case ignored) or, for `count` only, by `namePrefix` (`Leg` matches `Leg`, `Leg.001`). The objects need not exist when the brief is recorded. Lengths are scene units, measured on world-space axis-aligned bounds; a group's bounds include its parts, so a whole thing is named by its group. Every check may carry a `label` (up to 120 characters) that is shown in results.
+
+| Kind | Fields | Passes when |
+| --- | --- | --- |
+| `count` | `selector`, `min` (default 1), `max` | The number of matching objects is within the limits. |
+| `size` | `target`, `axis`, `min` and/or `max` | The object's extent on the axis is within the limits. |
+| `position` | `target`, `axis`, `anchor` (`min`, `center`, `max`), `min` and/or `max` | That edge or center of the object lies within the limits. Lowest point on the floor: `anchor: "min"`, `min: 0`, `max: 0`. |
+| `gap` | `first`, `second`, `axis`, `min` and/or `max` | `second`'s low edge minus `first`'s high edge is within the limits. 0 is touching, negative is overlapping. |
+| `symmetric` | `first`, `second`, `axis`, `planeAt` (default 0), `tolerance` | `second` is `first` mirrored across the plane where the axis equals `planeAt`, on every side, within the tolerance. |
+| `aligned` | `first`, `second`, `axis`, `tolerance` | The centers match on the axis within the tolerance. |
+| `contained` | `inner`, `outer`, `tolerance` | `inner` lies inside `outer` on every axis, within the tolerance. |
+| `connected` | `group`, `tolerance` | Every mesh at or under `group` touches the rest, directly or through other parts (bounds within the tolerance, default 1% of the group's largest side). The result names the detached parts. Touching bounds are necessary for contact, not proof of it. |
+
+Single-object checks need exactly one match. A check whose object is missing, shared by several objects, or without geometry is `unresolved`, and the result says which. A `tolerance` that is left out is 2% of the largest side of the objects compared (1% for `contained`). Equal `min` and `max` read as "exactly" in results. A range of 1e-6 around each limit absorbs rounding.
+
+`validation.check_brief` returns `status` (`pass`, `fail`, `unmeasurable` when the editor sent no bounds, or `rejected` when no brief exists), `revision`, `passed`, `failed`, `unresolved` and `results[]` of `{ index, label, kind, status, measured, expected }`. The evaluator is one pure function, `evaluateBrief` in `packages/editor-protocol/src/brief-checks.ts`, so the tool, the run's completion rules and the benchmarks measure a scene the same way.
+
+How the run uses it:
+
+- A brief is **required** for explicit 3D realism, detail or refinement requests (the same requests that need a quality review) and optional otherwise. Once one is recorded it is enforced.
+- A run with applied changes is not finished while the brief was never measured, was recorded or the scene changed since it was last measured, or any check fails or is unresolved. The model is sent a continuation message that lists up to five failing checks with measured and needed values. The usual continuation limit still applies.
+- `modeling.assess_quality` rejects `ready` while the brief is missing (in a run that requires one), stale or failing. `blocked` is still accepted.
+- An editor that reports no bounds cannot measure the checks. The run is not held for them, and the final reply says they are unverified.
+- At the end the user is told when checks still fail, when they were not measured on the final scene, and how many times the brief was replaced, so a check cannot be quietly weakened to pass.
+- Passing checks prove sizes, placement, counts and mirroring. They do not judge shape, silhouette or appearance, and the notice on a quality review still applies.
+
+The same checks score the assistant's work in the quality benchmarks: see "Assistant quality" in [benchmarks/README.md](../benchmarks/README.md).
 
 ### Permissions
 
@@ -372,11 +406,11 @@ Skills are in `skills/<id>/SKILL.md`. Their `tools:` list tells the model which 
 
 | Skill | Tools named |
 | --- | --- |
-| `character-modeling` | `editor.get_context`, `editor.measure`, `editor.inspect_mesh`, `editor.inspect_materials`, `modeling.generate_model_plan`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `viewport.capture`, `modeling.assess_quality`, `validation.check_scene` |
+| `character-modeling` | `editor.get_context`, `editor.measure`, `editor.inspect_mesh`, `editor.inspect_materials`, `modeling.record_brief`, `modeling.generate_model_plan`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `viewport.capture`, `modeling.assess_quality`, `validation.check_scene`, `validation.check_brief` |
 | `2.5d-character-design` | `editor.get_context`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 | `mesh-editing` | `editor.get_context`, `editor.inspect_mesh`, `editor.inspect_materials`, `editor.measure`, `editor.plan_placement`, `editor.plan_duplicates`, `viewport.capture`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
-| `model-design-principles` | `editor.get_context`, `editor.measure`, `editor.inspect_mesh`, `viewport.capture`, `modeling.assess_quality`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
-| `props-hard-surface` | `editor.get_context`, `editor.inspect_mesh`, `editor.measure`, `editor.plan_placement`, `editor.plan_duplicates`, `viewport.capture`, `modeling.generate_model_plan`, `modeling.generate_commands`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
+| `model-design-principles` | `editor.get_context`, `editor.measure`, `editor.inspect_mesh`, `viewport.capture`, `modeling.assess_quality`, `modeling.record_brief`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene`, `validation.check_brief` |
+| `props-hard-surface` | `editor.get_context`, `editor.inspect_mesh`, `editor.measure`, `editor.plan_placement`, `editor.plan_duplicates`, `viewport.capture`, `modeling.record_brief`, `modeling.generate_model_plan`, `modeling.generate_commands`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene`, `validation.check_brief` |
 | `topology-and-subdivision` | `editor.get_context`, `editor.inspect_mesh`, `editor.measure`, `viewport.capture`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 | `pbr-materials-and-color` | `editor.get_context`, `editor.inspect_materials`, `editor.inspect_mesh`, `viewport.capture`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 

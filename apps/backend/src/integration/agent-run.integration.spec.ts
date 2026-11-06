@@ -549,9 +549,11 @@ describe("agent run: continuation until the work is finished", () => {
       return { ...result, images: result.images.map((image, index) => ({ ...image, camera: { ...image.camera, position: index === 0 ? [0, 0, 10] : [10, 0, 0] } })) };
     });
     server.model.enqueue(
+      [functionCall("modeling__record_brief", { subject: "A unit cube", checks: [{ kind: "size", target: { id: "quality_ready_box" }, axis: "x", min: 0.9, max: 1.1 }] }, { callId: "brief-quality-ready" })],
       [functionCall("editor__propose_commands", { summary: "Build the shape", commands: box("quality_ready_box") }, { callId: "propose-quality-ready" })],
       modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-quality-ready" })]),
       [functionCall("validation__check_scene", {}, { callId: "check-quality-ready" })],
+      [functionCall("validation__check_brief", {}, { callId: "check-brief-quality-ready" })],
       [functionCall("viewport__capture", { views: [{ preset: "front" }, { preset: "right" }] }, { callId: "capture-quality-ready" })],
       [functionCall("modeling__assess_quality", { outcome: "ready", summary: "The requested shape is present.", findings: [{ aspect: "silhouette", observation: "The overall shape is clear.", severity: "minor" }, { aspect: "proportions", observation: "The parts are aligned.", severity: "minor" }] }, { callId: "assess-quality-ready" })],
       [assistantMessage("I reviewed the model from two views.")],
@@ -593,6 +595,105 @@ describe("agent run: continuation until the work is finished", () => {
       const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
       expect(final.body.finalOutput).toContain("requested quality is not verified");
       expect(final.body.finalOutput).toContain("visual quality review was not completed");
+    } finally { editor.close(); }
+  }, 30_000);
+
+  const onFloor = [{ kind: "position", target: { id: "brief_box" }, axis: "y", anchor: "min", min: 0, max: 0, label: "Box rests on the floor" }];
+  const floating = (objectId: string) => [
+    { commandId: `c-${objectId}`, type: "geometry.create_primitive", objectId, primitive: "box", size: 1, replaceExisting: false, transform: { position: [0, 2, 0] } },
+  ];
+
+  it("holds a run to its brief: the failing check is named, the model fixes the scene, and the run then finishes", async () => {
+    const token = server.token("brief-fix");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-brief-fix", torsoScene);
+    server.model.enqueue(
+      [functionCall("modeling__record_brief", { subject: "A box on the floor", checks: onFloor }, { callId: "brief-1" })],
+      [functionCall("editor__propose_commands", { summary: "Add a box", commands: floating("brief_box") }, { callId: "propose-b" })],
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-b" })]),
+      [functionCall("validation__check_scene", {}, { callId: "scene-b" })],
+      [functionCall("validation__check_brief", {}, { callId: "check-b" })],
+      modelResponder((call) => {
+        // The box floats at 1.5, so the measured value and the needed value are both in front of the model.
+        expect(JSON.stringify(call.request.input)).toContain("Box rests on the floor");
+        return [assistantMessage("The box is placed.")];
+      }),
+      modelResponder((call) => {
+        const text = JSON.stringify(call.request.input);
+        expect(text).toContain("1 of 1 brief checks do not pass");
+        expect(text).toContain("1.5, needs exactly 0");
+        return [functionCall("editor__propose_commands", { summary: "Lower the box", commands: [{ commandId: "lower", type: "scene.transform_object", objectId: "brief_box", transform: { position: [0, 0.5, 0] } }] }, { callId: "propose-fix" })];
+      }),
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-fix" })]),
+      [functionCall("validation__check_scene", {}, { callId: "scene-fix" })],
+      [functionCall("validation__check_brief", {}, { callId: "check-fix" })],
+      [assistantMessage("The box now rests on the floor.")],
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-brief-fix", editorClientId: editor.clientId, dimension: "3d", message: "Put a box on the floor" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+        expect(stream.events.filter((event) => event.envelope.type === "agent.continued")).toHaveLength(1);
+      } finally { stream.stop(); }
+      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+      expect(final.body.finalOutput).toBe("The box now rests on the floor.");
+    } finally { editor.close(); }
+  }, 30_000);
+
+  it("tells the user when the run ends with a brief check still failing", async () => {
+    const token = server.token("brief-giveup");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-brief-giveup", torsoScene);
+    server.model.enqueue(
+      [functionCall("modeling__record_brief", { subject: "A box on the floor", checks: onFloor }, { callId: "brief-2" })],
+      [functionCall("editor__propose_commands", { summary: "Add a box", commands: floating("brief_box") }, { callId: "propose-g" })],
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-g" })]),
+      [functionCall("validation__check_scene", {}, { callId: "scene-g" })],
+      [functionCall("validation__check_brief", {}, { callId: "check-g" })],
+      [assistantMessage("The box is placed.")],
+      // The reminder gets an answer without a tool call: the model has chosen to stop, and the run ends honestly.
+      [assistantMessage("I could not lower it.")],
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-brief-giveup", editorClientId: editor.clientId, dimension: "3d", message: "Put a box on the floor" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+      } finally { stream.stop(); }
+      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+      expect(final.body.finalOutput).toContain("I could not lower it.");
+      expect(final.body.finalOutput).toContain("1 of 1 brief checks do not pass: Box rests on the floor: 1.5, needs exactly 0");
+    } finally { editor.close(); }
+  }, 30_000);
+
+  it("marks the brief as unmeasured when the scene changes after its check", async () => {
+    const token = server.token("brief-stale");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-brief-stale", torsoScene);
+    server.model.enqueue(
+      [functionCall("modeling__record_brief", { subject: "A box on the floor", checks: onFloor }, { callId: "brief-3" })],
+      [functionCall("editor__propose_commands", { summary: "Add a box", commands: box("brief_box") }, { callId: "propose-s" })],
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-s" })]),
+      [functionCall("validation__check_scene", {}, { callId: "scene-s" })],
+      [functionCall("validation__check_brief", {}, { callId: "check-s" })],
+      [functionCall("editor__propose_commands", { summary: "Move the box", commands: [{ commandId: "nudge", type: "scene.transform_object", objectId: "brief_box", transform: { position: [1, 0, 0] } }] }, { callId: "propose-s2" })],
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-s2" })]),
+      [functionCall("validation__check_scene", {}, { callId: "scene-s2" })],
+      [assistantMessage("Done.")],
+      modelResponder((call) => {
+        expect(JSON.stringify(call.request.input)).toContain("the scene changed after the brief was last measured");
+        return [assistantMessage("Done, unchecked.")];
+      }),
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-brief-stale", editorClientId: editor.clientId, dimension: "3d", message: "Put a box on the floor" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+      } finally { stream.stop(); }
+      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+      expect(final.body.finalOutput).toContain("not measured on the final scene");
     } finally { editor.close(); }
   }, 30_000);
 

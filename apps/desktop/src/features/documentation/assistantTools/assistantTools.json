@@ -835,6 +835,382 @@
         "validation.check_scene",
         "editor.apply_proposal"
       ]
+    },
+    {
+      "name": "modeling.record_brief",
+      "type": "plan",
+      "provider": "modeling__record_brief",
+      "permission": "plan",
+      "approval": "Never",
+      "needsEditor": false,
+      "verify": "code",
+      "source": "apps/backend/src/modules/tools/modeling/brief.tools.ts",
+      "doc": "modeling.record_brief.md",
+      "summary": "Writes down what the finished work must be as checks that code can pass or fail: sizes, placement, symmetry and counts. Recording a brief changes nothing in the scene.",
+      "when": [
+        "After reading the scene and before the plan, for any request that builds or reshapes something.",
+        "Whenever a request has a measurable meaning: real proportions, parts resting on what carries them, left and right matching, details inside their parent.",
+        "Skip it for a rename, a move or a question."
+      ],
+      "input": {
+        "note": "The brief is what the run is held to: it is not finished while a check fails.",
+        "rows": [
+          {
+            "name": "subject",
+            "type": "string 1–200",
+            "required": true,
+            "meaning": "What is being made."
+          },
+          {
+            "name": "style",
+            "type": "string up to 200",
+            "required": false,
+            "meaning": "The look asked for, such as low poly or realistic."
+          },
+          {
+            "name": "assumptions",
+            "type": "up to 8 strings",
+            "required": false,
+            "meaning": "Choices made where the user gave no detail, such as the scale. They are for the user to read."
+          },
+          {
+            "name": "checks",
+            "type": "array of 1–40 checks",
+            "required": true,
+            "meaning": "Measurable statements about the finished scene. Each kind is described below."
+          }
+        ]
+      },
+      "details": [
+        {
+          "title": "Naming an object",
+          "rows": [
+            {
+              "label": "id",
+              "meaning": "The object's id."
+            },
+            {
+              "label": "name",
+              "meaning": "Its exact name, ignoring letter case. Must match one object when the check is measured."
+            },
+            {
+              "label": "namePrefix",
+              "meaning": "Names that start with this text, such as Leg for Leg, Leg.001 and Leg.002. Only the count check takes it."
+            }
+          ]
+        },
+        {
+          "title": "Check kinds",
+          "rows": [
+            {
+              "label": "count",
+              "meaning": "How many objects match: at least min (default 1) and at most max."
+            },
+            {
+              "label": "size",
+              "meaning": "The extent of target along axis, between min and max."
+            },
+            {
+              "label": "position",
+              "meaning": "Where the low edge (min), middle (center) or high edge (max) of target lies on axis, between min and max. Lowest point on the floor: anchor min, min 0, max 0."
+            },
+            {
+              "label": "gap",
+              "meaning": "From the high edge of first to the low edge of second along axis. 0 is touching, negative is overlapping."
+            },
+            {
+              "label": "symmetric",
+              "meaning": "second mirrors first across the plane where axis equals planeAt (default 0), within tolerance."
+            },
+            {
+              "label": "aligned",
+              "meaning": "first and second have the same center on axis, within tolerance."
+            },
+            {
+              "label": "contained",
+              "meaning": "inner lies inside outer on every axis, within tolerance."
+            },
+            {
+              "label": "connected",
+              "meaning": "Every mesh at or under group touches the rest, directly or through other parts, within tolerance (default 1% of the group's largest side). Names the parts that are detached. Touching means the bounds meet, which is necessary for contact but not proof of it."
+            }
+          ]
+        },
+        {
+          "title": "Measuring",
+          "rows": [
+            {
+              "label": "Bounds",
+              "meaning": "World-space axis-aligned bounds in scene units. A group's bounds include its parts, so name a whole thing by its group."
+            },
+            {
+              "label": "tolerance",
+              "meaning": "Scene units. Left out, 2% of the largest side of the objects compared (1% for contained)."
+            },
+            {
+              "label": "label",
+              "meaning": "Optional name for a check, up to 120 characters, shown in results."
+            }
+          ]
+        }
+      ],
+      "result": {
+        "rows": [
+          {
+            "field": "status: recorded",
+            "meaning": "checkCount, replaced and next. A warning appears when a brief with failing checks was replaced."
+          }
+        ]
+      },
+      "request": {
+        "subject": "A figure with two matching arms, standing beside a crate",
+        "assumptions": [
+          "One scene unit is one meter",
+          "The figure is about as tall as a person"
+        ],
+        "checks": [
+          {
+            "kind": "size",
+            "label": "Figure is about as tall as a person",
+            "target": {
+              "name": "Figure"
+            },
+            "axis": "y",
+            "min": 1.5,
+            "max": 1.9
+          },
+          {
+            "kind": "position",
+            "label": "Figure stands on the floor",
+            "target": {
+              "name": "Figure"
+            },
+            "axis": "y",
+            "anchor": "min",
+            "min": 0,
+            "max": 0
+          },
+          {
+            "kind": "position",
+            "label": "Crate rests on the floor",
+            "target": {
+              "name": "Crate"
+            },
+            "axis": "y",
+            "anchor": "min",
+            "min": 0,
+            "max": 0
+          },
+          {
+            "kind": "symmetric",
+            "label": "Arms mirror each other",
+            "first": {
+              "id": "arm_left"
+            },
+            "second": {
+              "id": "arm_right"
+            },
+            "axis": "x"
+          }
+        ]
+      },
+      "response": {
+        "status": "recorded",
+        "checkCount": 4,
+        "replaced": false,
+        "next": "Build the model, then call validation.check_brief after the changes are applied."
+      },
+      "visual": {
+        "kind": "lists",
+        "caption": "Four checks for the sample scene, each one a number the code can test.",
+        "groups": [
+          {
+            "title": "Size and placement",
+            "tone": "neutral",
+            "items": [
+              "Figure height between 1.5 and 1.9",
+              "Figure's lowest point exactly 0",
+              "Crate's lowest point exactly 0"
+            ]
+          },
+          {
+            "title": "Symmetry",
+            "tone": "neutral",
+            "items": [
+              "arm_left and arm_right mirror each other across x"
+            ]
+          }
+        ]
+      },
+      "tips": [
+        "Write checks for what makes this subject right, not for what is easy to pass.",
+        "Name objects the way the plan will create them. The objects need not exist when the brief is recorded.",
+        "Recording again replaces the brief. The user is told at the end how many times it changed, so change a check only when it was wrong."
+      ],
+      "limits": [
+        "Checks measure bounds, so they prove sizes, placement, mirroring and that parts meet, but not shape or appearance.",
+        "Bounds are axis-aligned boxes: a turned part can fail a size check that its true shape would pass.",
+        "An editor that does not report bounds leaves the checks unmeasurable; the final reply says so."
+      ],
+      "errors": [
+        {
+          "message": "Give exactly one of id, name or namePrefix",
+          "cause": "A check named an object in more than one way, or in none."
+        },
+        {
+          "message": "namePrefix is only for count checks; use id or name",
+          "cause": "A size, position, gap, symmetric, aligned or contained check pointed at several objects."
+        }
+      ],
+      "related": [
+        "validation.check_brief",
+        "modeling.generate_model_plan",
+        "modeling.assess_quality"
+      ]
+    },
+    {
+      "name": "validation.check_brief",
+      "type": "read",
+      "group": "Inspect",
+      "provider": "validation__check_brief",
+      "permission": "read",
+      "approval": "Never",
+      "needsEditor": true,
+      "verify": "code",
+      "source": "apps/backend/src/modules/tools/modeling/brief.tools.ts",
+      "doc": "validation.check_brief.md",
+      "summary": "Measures the recorded brief against the current scene and reports each check as pass, fail or unresolved, with what was measured and what was needed.",
+      "when": [
+        "After applying changes, as the step that follows validation.check_scene.",
+        "Again after every fix, until no check fails. The run is not finished while a check fails or the scene changed since the last measurement."
+      ],
+      "input": {
+        "note": "No input. Send an empty object.",
+        "rows": []
+      },
+      "result": {
+        "rows": [
+          {
+            "field": "status",
+            "meaning": "pass, fail, unmeasurable (the editor sent no bounds) or rejected (no brief recorded)."
+          },
+          {
+            "field": "revision",
+            "meaning": "The scene revision that was measured."
+          },
+          {
+            "field": "passed / failed / unresolved",
+            "meaning": "Counts of checks."
+          },
+          {
+            "field": "results[]",
+            "meaning": "For each check: index, label, kind, status, measured and expected."
+          }
+        ]
+      },
+      "details": [
+        {
+          "title": "Statuses",
+          "rows": [
+            {
+              "label": "pass",
+              "meaning": "The measured value is inside what the check needs."
+            },
+            {
+              "label": "fail",
+              "meaning": "The model is wrong or the check was. measured and expected show by how much."
+            },
+            {
+              "label": "unresolved",
+              "meaning": "The check could not be measured: the object does not exist yet, several objects have that name, or it has no geometry. measured says which."
+            }
+          ]
+        }
+      ],
+      "request": {},
+      "response": {
+        "status": "fail",
+        "revision": 12,
+        "passed": 3,
+        "failed": 1,
+        "unresolved": 0,
+        "results": [
+          {
+            "index": 0,
+            "label": "Figure is about as tall as a person",
+            "kind": "size",
+            "status": "pass",
+            "measured": "1.55",
+            "expected": "between 1.5 and 1.9"
+          },
+          {
+            "index": 1,
+            "label": "Figure stands on the floor",
+            "kind": "position",
+            "status": "fail",
+            "measured": "0.25",
+            "expected": "exactly 0"
+          },
+          {
+            "index": 2,
+            "label": "Crate rests on the floor",
+            "kind": "position",
+            "status": "pass",
+            "measured": "0",
+            "expected": "exactly 0"
+          },
+          {
+            "index": 3,
+            "label": "Arms mirror each other",
+            "kind": "symmetric",
+            "status": "pass",
+            "measured": "exact mirror",
+            "expected": "within 0.024"
+          }
+        ]
+      },
+      "visual": {
+        "kind": "lists",
+        "caption": "Result for the sample scene: the figure floats 0.25 above the floor.",
+        "groups": [
+          {
+            "title": "Pass",
+            "tone": "ok",
+            "items": [
+              "Figure is about as tall as a person: 1.55",
+              "Crate rests on the floor: 0",
+              "Arms mirror each other: exact mirror"
+            ]
+          },
+          {
+            "title": "Fail",
+            "tone": "warn",
+            "items": [
+              "Figure stands on the floor: 0.25, needs exactly 0"
+            ]
+          }
+        ]
+      },
+      "tips": [
+        "Fix every fail and unresolved check, then measure again. Do not loosen a check to make it pass unless it was wrong, and say so in the reply.",
+        "A passing brief is not a finished model. Look at the scene with viewport.capture for shape and appearance."
+      ],
+      "limits": [
+        "It reads the snapshot only and cannot find parts that overlap without being listed in a check.",
+        "Only changes the run applied are tracked: a change made by the user in between is measured the next time it runs."
+      ],
+      "errors": [
+        {
+          "message": "No brief is recorded. Call modeling.record_brief first.",
+          "cause": "Checking before recording."
+        }
+      ],
+      "related": [
+        "modeling.record_brief",
+        "validation.check_scene",
+        "viewport.capture",
+        "modeling.assess_quality"
+      ]
     }
   ]
 }

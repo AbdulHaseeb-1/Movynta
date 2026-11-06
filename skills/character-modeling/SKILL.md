@@ -1,6 +1,6 @@
 ---
 name: character-modeling
-version: 1.3.0
+version: 1.4.0
 description: Builds and refines 3D characters with head-unit proportions, landmarks, shape language and joint pivots, using a blockout only as the starting point for detailed or realistic requests.
 dimensions:
   - 3d
@@ -22,6 +22,7 @@ tools:
   - editor.measure
   - editor.inspect_mesh
   - editor.inspect_materials
+  - modeling.record_brief
   - modeling.generate_model_plan
   - modeling.generate_commands
   - modeling.propose_generated
@@ -30,9 +31,11 @@ tools:
   - viewport.capture
   - modeling.assess_quality
   - validation.check_scene
+  - validation.check_brief
 validation:
   - Every object has a unique id and finite transform; the hierarchy is valid and groups have uniform scale.
   - validation.check_scene has no error-severity issues after the last change.
+  - validation.check_brief shows no failing check after the last change: height, feet on the floor, left and right limbs mirrored, hands and head attached.
   - A structural check is not evidence that the character looks realistic.
   - For explicit realism, detail or refinement requests, review fresh live images from at least two distinct viewpoints and report concrete findings with modeling.assess_quality.
 error_handling:
@@ -48,13 +51,15 @@ error_handling:
 
 Read `editor.get_context`. Identify the requested style, subject, view and any accessible reference. Do not claim to have seen a reference that is not actually available. If the user did not give height or proportions, choose reasonable scene-unit assumptions rather than stopping. Ask one focused question only when an essential design decision prevents progress.
 
+Record the measurable parts of the goal with `modeling.record_brief` before building. For a figure of height H: `size` of the figure group on y between 0.95 H and 1.05 H; `position` of its low edge (`anchor: "min"`, axis y) exactly 0; `symmetric` for each left and right pair (`Arm.L` and `Arm.R`, `Leg.L` and `Leg.R`) across x; `contained` for the head inside the figure group; `gap` on y from feet to legs and head to neck between -0.02 and 0.02 so no part floats or sinks. Pick the head-unit proportions from the style table below. Names must match what you create.
+
 Use `modeling.generate_model_plan` with steps appropriate to the requested result. For a realistic or detailed character, include: a proportion blockout; silhouette and anatomy; characteristic head, face, hands, feet and clothing as applicable; surface and material refinement; and visual review with targeted corrections. For a user who explicitly requests only a blockout, stop at the requested stage and describe it as such.
 
 ## Build in stages
 
 Create a named, uniformly scaled group for the figure. Place and name subparts under their logical parents. Primitives can establish the initial proportions, but a collection of unrefined spheres and cylinders is a blockout, not a realistic finished character. Use supported mesh creation, editing, modifiers, material properties and procedural generation when they improve the silhouette and distinctive structure. Inspect existing mesh topology and material slots before editing; preserve existing unrelated work. Use world bounds and measurements for placement, and do not equate their validity with visual quality.
 
-Propose small coherent batches with `editor.propose_commands` or use the supported generated-proposal workflow. Inspect geometry candidates with `viewport.capture`, apply through `editor.apply_proposal`, and check the apply result. Use the exact revisions and identifiers returned by tools. Run `validation.check_scene` after changes and fix errors. Keep each stage undoable and avoid unnecessary replacement of existing objects.
+Propose small coherent batches with `editor.propose_commands` or use the supported generated-proposal workflow. Inspect geometry candidates with `viewport.capture`, apply through `editor.apply_proposal`, and check the apply result. Use the exact revisions and identifiers returned by tools. Run `validation.check_scene` and `validation.check_brief` after changes, fix errors and failing checks, and measure again. Keep each stage undoable and avoid unnecessary replacement of existing objects.
 
 ## Review and improve
 

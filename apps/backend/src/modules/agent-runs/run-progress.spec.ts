@@ -1,4 +1,8 @@
+import { briefSchema } from "@movynta/editor-protocol";
 import {
+  briefBlocksReady,
+  briefCompletionNotice,
+  completionNotice,
   continuationPrompt,
   emptyRunProgress,
   invalidateStaleQualityReview,
@@ -11,6 +15,14 @@ import {
 } from "./run-progress.js";
 
 type Plan = RunProgress["plans"][number];
+
+/** A run that built something and has a brief measured on the final scene, passing unless `failing` lists lines. */
+function withBrief(progress: RunProgress, failing: string[] = [], measurable = true): void {
+  progress.quality.changes = Math.max(progress.quality.changes, 1);
+  progress.brief.current = briefSchema.parse({ subject: "Chair", checks: [{ kind: "count", selector: { name: "Seat" } }, { kind: "count", selector: { name: "Leg" }, min: 4 }] });
+  progress.brief.stale = false;
+  progress.brief.last = { revision: 4, measurable, total: 2, passed: 2 - failing.length, failing };
+}
 
 const torsoStep: Plan["steps"][number] = {
   id: "torso",
@@ -113,6 +125,7 @@ describe("quality review completion", () => {
   });
   it("keeps changed quality work open until reviewed and discloses an unfinished result", () => {
     const progress = emptyRunProgress(); progress.quality.required = true; progress.quality.changes = 1;
+    withBrief(progress);
     expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("modeling.assess_quality");
     expect(qualityCompletionNotice(progress, false)).toContain("not visually verified");
     progress.quality.outcome = "needs_refinement"; progress.quality.summary = "Hands are missing.";
@@ -128,6 +141,7 @@ describe("quality review completion", () => {
     const progress = emptyRunProgress();
     progress.quality.required = true; progress.quality.changes = 1;
     progress.quality.captureRevision = 5; progress.quality.viewpoints = ["front", "side"]; progress.quality.outcome = "ready";
+    withBrief(progress);
     invalidateStaleQualityReview(progress, 5);
     expect(progress.quality.outcome).toBe("ready");
     invalidateStaleQualityReview(progress, 6);
@@ -135,9 +149,70 @@ describe("quality review completion", () => {
     expect(progress.quality.viewpoints).toEqual([]);
     expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("modeling.assess_quality");
   });
+  it("holds a quality run open until it has a brief, then until the brief was measured on the final scene and passes", () => {
+    const progress = emptyRunProgress(); progress.quality.required = true; progress.quality.changes = 1; progress.quality.outcome = "ready";
+    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("modeling.record_brief");
+    withBrief(progress);
+    expect(openWorkReasons(progress, () => undefined)).toEqual([]);
+    progress.brief.stale = true;
+    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("validation.check_brief");
+    progress.brief.stale = false; progress.brief.last = null;
+    expect(openWorkReasons(progress, () => undefined).join(" ")).toContain("validation.check_brief");
+    withBrief(progress, ['count of objects named "Leg…": 3 found, needs at least 4']);
+    const reasons = openWorkReasons(progress, () => undefined);
+    expect(reasons[0]).toContain("1 of 2 brief checks do not pass");
+    expect(reasons.join("\n")).toContain("3 found, needs at least 4");
+  });
+  it("asks for a brief only when the request wanted quality, and holds any brief that exists to its checks", () => {
+    const ordinary = emptyRunProgress(); ordinary.quality.changes = 1;
+    expect(openWorkReasons(ordinary, () => undefined)).toEqual([]);
+    expect(briefBlocksReady(ordinary)).toBeUndefined();
+    withBrief(ordinary, ["size y of named \"Seat\": 2, needs at most 1"]);
+    expect(openWorkReasons(ordinary, () => undefined)[0]).toContain("brief checks do not pass");
+    const none = emptyRunProgress(); none.quality.required = true; none.quality.changes = 1;
+    expect(briefBlocksReady(none)).toContain("modeling.record_brief");
+  });
+  it("lists at most five failing checks in a reason and counts the rest", () => {
+    const progress = emptyRunProgress();
+    withBrief(progress, Array.from({ length: 8 }, (_, index) => `check ${index}: wrong, needs right`));
+    const text = openWorkReasons(progress, () => undefined).join("\n");
+    expect(text).toContain("check 4:");
+    expect(text).not.toContain("check 5:");
+    expect(text).toContain("and 3 more");
+  });
+  it("does not hold a run for checks that the editor cannot measure, but says so at the end", () => {
+    const progress = emptyRunProgress();
+    withBrief(progress, ["size y of named \"Seat\": no bounds, needs at least 1"], false);
+    expect(openWorkReasons(progress, () => undefined)).toEqual([]);
+    expect(briefBlocksReady(progress)).toBeUndefined();
+    expect(briefCompletionNotice(progress)).toContain("could not measure");
+  });
+  it("discloses failing, unmeasured and revised briefs, and stays silent for a clean one", () => {
+    const clean = emptyRunProgress(); withBrief(clean);
+    expect(briefCompletionNotice(clean)).toBeUndefined();
+    expect(completionNotice(clean, true)).toBeUndefined();
+    const failing = emptyRunProgress(); withBrief(failing, ["gap: 0.4, needs at most 0.01"]);
+    expect(briefCompletionNotice(failing)).toContain("1 of 2 brief checks do not pass: gap: 0.4");
+    const stale = emptyRunProgress(); withBrief(stale); stale.brief.stale = true;
+    expect(briefCompletionNotice(stale)).toContain("not measured on the final scene");
+    const revised = emptyRunProgress(); withBrief(revised); revised.brief.revisions = 2;
+    expect(briefCompletionNotice(revised)).toBe("The brief was revised 2 times after it was first recorded.");
+    const unplanned = emptyRunProgress(); unplanned.quality.changes = 1;
+    expect(briefCompletionNotice(unplanned)).toBeUndefined();
+  });
+  it("puts the brief before the quality review in the closing notice", () => {
+    const progress = emptyRunProgress(); progress.quality.required = true; withBrief(progress, ["gap: 0.4, needs at most 0.01"]);
+    const notice = completionNotice(progress, true) ?? "";
+    expect(notice.indexOf("brief checks do not pass")).toBeLessThan(notice.indexOf("requested quality is not verified"));
+  });
+  it("keeps and restores the brief when a paused run is saved", () => {
+    const progress = emptyRunProgress(); withBrief(progress, ["gap: 0.4, needs at most 0.01"]); progress.brief.revisions = 1;
+    expect(parseRunProgress(serializeRunProgress(progress)).brief).toEqual(progress.brief);
+  });
   it("loads progress saved before the quality fields existed", () => {
     const progress = parseRunProgress(JSON.stringify({ plans: [], proposals: [], unverifiedChanges: false, sceneErrors: 0 }));
     expect(progress.quality.required).toBe(false);
     expect(progress.quality.changes).toBe(0);
+    expect(progress.brief).toEqual({ current: null, revisions: 0, stale: false, last: null });
   });
 });

@@ -44,7 +44,7 @@ import {
   emptyRunProgress,
   invalidateStaleQualityReview,
   openWorkReasons,
-  qualityCompletionNotice,
+  completionNotice,
   requiresQualityReview,
   serializeRunProgress,
   type RunProgress,
@@ -302,7 +302,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
           continuations >= this.config.agents.continuationLimit ||
           (continuations > 0 && !acted)
         ) {
-          this.complete(run.id, result, totals, qualityCompletionNotice(context.progress, context.supportsToolImages));
+          this.complete(run.id, result, totals, completionNotice(context.progress, context.supportsToolImages));
           return;
         }
 

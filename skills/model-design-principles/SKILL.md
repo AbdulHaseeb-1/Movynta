@@ -1,6 +1,6 @@
 ---
 name: model-design-principles
-version: 1.0.0
+version: 1.1.0
 description: Applies professional 3D design principles (silhouette, proportion, shape language, big-medium-small, real-world scale and an iterative blockout-to-detail review loop) to plan and judge any model.
 dimensions:
   - 2d
@@ -39,12 +39,15 @@ tools:
   - editor.inspect_mesh
   - viewport.capture
   - modeling.assess_quality
+  - modeling.record_brief
   - modeling.generate_model_plan
   - editor.propose_commands
   - editor.apply_proposal
   - validation.check_scene
+  - validation.check_brief
 validation:
-  - The plan names a design brief (function, style, size, focal point) before any geometry is proposed.
+  - The plan names a design brief (function, style, size, focal point) before any geometry is proposed, and modeling.record_brief holds its measurable parts as checks.
+  - validation.check_brief shows no failing check after the last change.
   - Primary forms are created and checked from front, side and top orthographic views before secondary or tertiary detail is added.
   - Overall size matches the brief or the real-world reference table within about 10 percent, checked with editor.measure.
   - Every part has a role name and sits under one group for the model, so it can be moved and judged as a whole.
@@ -68,6 +71,17 @@ Before any command, put a short brief in the plan (`modeling.generate_model_plan
 - **Size**: a real-world size in scene units (1 unit = 1 metre unless the scene says otherwise). Use the reference table below.
 - **Focal point**: the one area the eye should go to first. Detail and contrast concentrate there.
 - **Viewing distance**: close-up hero object, mid-ground prop or background filler. Far objects need bolder, simpler shapes and fewer details.
+
+Then turn everything in it that can be measured into checks with `modeling.record_brief`, so that "done" is decided by `validation.check_brief` and not by a feeling. Take the numbers from the reference table in section 4. For a chair:
+
+- `size` of the group `Chair` on y between 0.8 and 1.0 (seat to back top);
+- `position` of the seat's top (`anchor: "max"`, axis y) between 0.43 and 0.47;
+- `position` of each leg's low edge (`anchor: "min"`, axis y) exactly 0, so the legs stand on the floor;
+- `gap` from the top of each leg to the bottom of the seat (axis y) between -0.01 and 0.01, so the legs touch what they carry;
+- `symmetric` for `Leg.FL` and `Leg.FR` across x, and for the back legs;
+- `count` of objects whose `namePrefix` is `Leg` at least 4.
+
+Checks measure sizes, placement and mirroring. Shape, silhouette and appearance are still judged from captures. Choose checks that make this subject right, not checks that are easy to pass.
 
 ## 2. Build in passes: primary → secondary → tertiary
 
@@ -119,17 +133,18 @@ These vary by country and maker; treat them as starting points.
 ## 5. Workflow with the editor
 
 1. Call `editor.get_context`. Note the revision, scene units, existing objects and anything to scale against.
-2. Write the brief and call `modeling.generate_model_plan` with one step per pass and major part.
+2. Write the brief, record its measurable parts with `modeling.record_brief`, and call `modeling.generate_model_plan` with one step per pass and major part.
 3. **Blockout**: create one empty group for the model with `scene.create_object` (named for the object), then primitives under it with role names (`Seat`, `Leg.FL`, `Backrest`). Set exact sizes with primitive `options` rather than scaling a unit cube unevenly. Place the base on y = 0 and centre the model on its group.
 4. Apply, then `viewport.capture` with `focus` on the group and views `front`, `right` and `top` (orthographic) plus `isometric`. Set `labels: false` when judging shape. Measure the overall size with `editor.measure` (`dimensions`).
 5. Critique against section 3. Write two or three concrete fixes ("the seat is too thin for the leg thickness; double it") and supersede or follow up with a new proposal. Repeat until the silhouette and proportions read.
 6. **Secondary pass**: add construction shapes. Use the `props-hard-surface` or `character-modeling` workflow as appropriate. Capture again before applying when the change is geometric (`viewport.capture` with the pending `proposalId`).
 7. **Tertiary pass**: bevels, seams and small parts, clustered at the focal point. Check normals and smoothing with `mode: normals`.
 8. **Materials**: follow `pbr-materials-and-color` for a value-first palette.
-9. Call `validation.check_scene`. For realism, detail or refinement requests, record the critique from fresh live captures with `modeling.assess_quality`. Then report the brief, what was built, and the open design choices the user may want to change.
+9. Call `validation.check_scene` and `validation.check_brief`; fix every failing or unresolved check and measure again. For realism, detail or refinement requests, record the critique from fresh live captures with `modeling.assess_quality`. Then report the brief, what was built, and the open design choices the user may want to change.
 
 ## 6. Self-critique checklist (use before reporting)
 
+- Does `validation.check_brief` pass, and does each check still describe the right result?
 - Does the silhouette read from the front, side and top?
 - Is there one dominant mass, a few medium ones and small details, with clear size steps?
 - Is detail concentrated at the focal point, with calm areas elsewhere?

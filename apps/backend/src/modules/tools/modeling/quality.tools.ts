@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
+import { briefBlocksReady } from "../../agent-runs/run-progress.js";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 
 export const QUALITY_ASSESS_TOOL_NAME = "modeling.assess_quality";
@@ -36,6 +37,11 @@ export function createQualityTools(bridge: EditorBridge): ToolDefinition[] {
         }
         if (quality.outcome === "needs_refinement" && input.outcome === "ready")
           return { status: "rejected", reason: "The previous review requested refinement. Apply a targeted change and capture fresh views, or record a blocker." };
+      }
+      if (input.outcome === "ready") {
+        // Measured checks come before opinion: a result that fails its own brief is not ready, however it looks.
+        const blocked = briefBlocksReady(context.progress);
+        if (blocked) return { status: "rejected", reason: blocked };
       }
       if (input.outcome === "ready" && input.findings.some((finding) => finding.severity === "major"))
         return { status: "rejected", reason: "A review with major unresolved findings cannot be marked ready." };

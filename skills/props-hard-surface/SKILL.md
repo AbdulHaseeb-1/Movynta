@@ -1,6 +1,6 @@
 ---
 name: props-hard-surface
-version: 1.0.0
+version: 1.1.0
 description: Builds hard-surface props, furniture, products, vehicles and machines from blockout to detail with consistent bevels, booleans, insets, mirror and array modifiers in the right stack order.
 dimensions:
   - 3d
@@ -37,13 +37,15 @@ tools:
   - editor.plan_placement
   - editor.plan_duplicates
   - viewport.capture
+  - modeling.record_brief
   - modeling.generate_model_plan
   - modeling.generate_commands
   - editor.propose_commands
   - editor.apply_proposal
   - validation.check_scene
+  - validation.check_brief
 validation:
-  - The model has one group with role-named parts, and its base sits on y = 0 unless the brief says otherwise.
+  - The model has one group with role-named parts, and its base sits on y = 0 unless the brief says otherwise; modeling.record_brief holds this as a position check, and validation.check_brief passes.
   - Bevel widths come from one size scale (small, medium, large) tied to the model size, not chosen per part at random.
   - Modifier stacks are ordered mirror or array first, then boolean, then bevel, then subdivision.
   - Every boolean cutter is a closed solid, named Cutter.<Purpose>, hidden after the cut is checked, and kept in the scene.

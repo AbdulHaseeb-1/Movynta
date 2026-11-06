@@ -193,6 +193,7 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
         // The scene now differs from the last check, so the run must check it again before it can finish.
         if (result.status === "applied") {
           context.progress.unverifiedChanges = true;
+          context.progress.brief.stale = true;
           const quality = context.progress.quality;
           quality.changes += 1;
           quality.captureRevision = null;

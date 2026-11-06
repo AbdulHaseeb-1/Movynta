@@ -8,6 +8,7 @@ import { CommandProposalService } from "../editor-bridge/proposals/command-propo
 import { SkillsModule } from "../skills/skills.module.js";
 import { SkillsRegistry } from "../skills/skills.registry.js";
 import { createEditorTools } from "./editor/editor.tools.js";
+import { createBriefTools } from "./modeling/brief.tools.js";
 import { createModelingTools, MODELING_PLAN_TOOL_NAME } from "./modeling/modeling.tools.js";
 import { createQualityTools } from "./modeling/quality.tools.js";
 import { createSkillTools } from "./skills/skills.tools.js";
@@ -30,7 +31,7 @@ import { createViewportTools } from "./viewport/index.js";
         const skillTools = createSkillTools({ skills });
         const proceduralTools = createProceduralTools({ bridge, proposals });
         const viewportTools = createViewportTools({ bridge, proposals });
-        const qualityTools = createQualityTools(bridge);
+        const qualityTools = [...createQualityTools(bridge), ...createBriefTools(bridge)];
         const knownToolNames = [
           ...editorTools,
           ...validationTools,
