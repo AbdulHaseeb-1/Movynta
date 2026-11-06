@@ -15,6 +15,10 @@ const eventPayloadSchemas: { readonly [K in AgentRunEventType]: z.ZodType<AgentR
   "agent.started": z.object({ agentName: z.string() }),
   "agent.message.delta": z.object({ delta: z.string() }),
   "agent.message.completed": z.object({ text: z.string() }),
+  "agent.continued": z.object({
+    attempt: z.number().int().positive(),
+    reasons: z.array(z.string()),
+  }),
   "skill.loaded": z.object({ skillId: z.string(), version: z.string() }),
   "tool.started": z.object({ toolName: z.string(), permission: z.string() }),
   "tool.completed": z.object({ toolName: z.string(), durationMs: z.number() }),

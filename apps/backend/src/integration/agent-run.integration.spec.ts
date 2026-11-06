@@ -164,6 +164,8 @@ describe("agent run: propose, approve-free apply, and streaming", () => {
         return [functionCall("editor__propose_commands", { summary: "Three steps", commands, expectedRevision: 0 }, { callId: "propose-layout" })];
       }),
       modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-layout" })]),
+      // The run asks for a scene check after a change before it accepts the final reply.
+      [functionCall("validation__check_scene", {}, { callId: "check-layout" })],
       [assistantMessage("Three steps are arranged.")],
     );
     try {
@@ -270,6 +272,7 @@ describe("agent run: propose, approve-free apply, and streaming", () => {
       modelResponder((call) => [
         functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-1" }),
       ]),
+      [functionCall("validation__check_scene", {}, { callId: "check-1" })],
       [assistantMessage("The torso is in the scene.")],
     );
 
@@ -380,7 +383,8 @@ describe("agent run: legacy approval infrastructure (test-only policy)", () => {
     const token = server.token("bob");
     const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-approve", torsoScene);
     const { run, required } = await startDeleteRun(token, "proj-approve", editor);
-    server.model.enqueue([assistantMessage("Removed the torso.")]);
+    // After the approved change the run checks the scene before it accepts the final reply.
+    server.model.enqueue([functionCall("validation__check_scene", {}, { callId: "check-d" })], [assistantMessage("Removed the torso.")]);
 
     const approvals = await http<ApprovalRow[]>("GET", `/api/v1/agent-runs/${run.runId}/approvals`, { token });
     expect(approvals.body).toHaveLength(1);
@@ -437,7 +441,7 @@ describe("agent run: legacy approval infrastructure (test-only policy)", () => {
     const { run } = await startDeleteRun(token, "proj-double", editor);
     const approvals = await http<ApprovalRow[]>("GET", `/api/v1/agent-runs/${run.runId}/approvals`, { token });
     const approvalId = approvals.body[0]?.id ?? "";
-    server.model.enqueue([assistantMessage("Done.")]);
+    server.model.enqueue([functionCall("validation__check_scene", {}, { callId: "check-e" })], [assistantMessage("Done.")]);
 
     const first = await http("POST", `/api/v1/agent-runs/${run.runId}/approvals/${approvalId}`, { token, body: { decision: "approve" } });
     expect(first.status).toBe(200);
@@ -463,6 +467,170 @@ describe("agent run: legacy approval infrastructure (test-only policy)", () => {
     expect(approvals.body[0]?.status).toBe("expired");
     expect(editor.executions).toHaveLength(0);
     editor.close();
+  }, 40_000);
+});
+
+describe("agent run: continuation until the work is finished", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const box = (objectId: string) => [
+    { commandId: `c-${objectId}`, type: "geometry.create_primitive", objectId, primitive: "box", size: 1, replaceExisting: false },
+  ];
+  const planStep = (id: string, title: string) => ({
+    id,
+    title,
+    toolName: "editor.propose_commands",
+    description: title,
+    requiresApproval: false,
+  });
+
+  it("asks the model to carry on when it stops before the scene check, then accepts the reply", async () => {
+    const token = server.token("gina");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-continue", torsoScene);
+    server.model.enqueue(
+      [functionCall("editor__propose_commands", { summary: "Add a cube", commands: box("cube") }, { callId: "propose-c" })],
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-c" })]),
+      // The reply comes before the check, so the run must not end here.
+      [assistantMessage("I have added the cube.")],
+      modelResponder((call) => {
+        expect(JSON.stringify(call.request.input)).toContain("run validation.check_scene");
+        return [functionCall("validation__check_scene", {}, { callId: "check-c" })];
+      }),
+      [assistantMessage("The cube is in the scene and the check passed.")],
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-continue", editorClientId: editor.clientId, message: "Add a cube" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+        const continued = stream.events.filter((event) => event.envelope.type === "agent.continued");
+        expect(continued).toHaveLength(1);
+        expect(continued[0]?.envelope.payload).toMatchObject({ attempt: 1 });
+      } finally {
+        stream.stop();
+      }
+      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+      expect(final.body.finalOutput).toBe("The cube is in the scene and the check passed.");
+      expect(editor.executions).toHaveLength(1);
+    } finally {
+      editor.close();
+    }
+  }, 30_000);
+
+  it("stops asking after the continuation limit and accepts the last reply", async () => {
+    const token = server.token("hank");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-limit", torsoScene);
+    server.model.enqueue(
+      // The batch is proposed and never applied, so work stays open. Each continuation acts with a tool call,
+      // which is what lets the run keep asking until the limit is reached.
+      [functionCall("editor__propose_commands", { summary: "Add a cube", commands: box("cube") }, { callId: "propose-l" })],
+      [assistantMessage("Ready.")],
+      [functionCall("editor__get_context", {}, { callId: "look-1" })],
+      [assistantMessage("Still checking.")],
+      [functionCall("editor__get_context", {}, { callId: "look-2" })],
+      [assistantMessage("Still checking.")],
+      [functionCall("editor__get_context", {}, { callId: "look-3" })],
+      [assistantMessage("Final answer.")],
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-limit", editorClientId: editor.clientId, message: "Add a cube" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+        const continued = stream.events.filter((event) => event.envelope.type === "agent.continued");
+        expect(continued).toHaveLength(3);
+      } finally {
+        stream.stop();
+      }
+      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+      expect(final.body.finalOutput).toBe("Final answer.");
+      expect(editor.executions).toHaveLength(0);
+    } finally {
+      editor.close();
+    }
+  }, 30_000);
+
+  it("does not repeat a question when the model answers the continuation without acting", async () => {
+    const token = server.token("jade");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-question", torsoScene);
+    server.model.enqueue(
+      [functionCall("editor__propose_commands", { summary: "Add a cube", commands: box("cube") }, { callId: "propose-q" })],
+      [assistantMessage("Which colour should the cube be?")],
+      // The model answers the request to continue with the same question and no tool call: the run ends there.
+      [assistantMessage("Which colour should the cube be?")],
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-question", editorClientId: editor.clientId, message: "Add a cube" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+        expect(stream.events.filter((event) => event.envelope.type === "agent.continued")).toHaveLength(1);
+      } finally {
+        stream.stop();
+      }
+      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+      expect(final.body.finalOutput).toBe("Which colour should the cube be?");
+    } finally {
+      editor.close();
+    }
+  }, 30_000);
+
+  it("keeps the plan and the applied steps across an approval pause", async () => {
+    const token = server.token("ivy");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-plan-pause", torsoScene);
+    // Only the first apply waits for approval; the next one runs at once.
+    const tool = server.app.get(ToolRegistry).get("editor.apply_proposal");
+    if (!tool) throw new Error("Missing apply tool");
+    jest.spyOn(tool, "requiresApproval").mockResolvedValueOnce(true).mockResolvedValue(false);
+
+    server.model.enqueue(
+      [
+        functionCall(
+          "modeling__generate_model_plan",
+          { goal: "Two blocks", dimension: "3d", steps: [planStep("s1", "Left block"), planStep("s2", "Right block")] },
+          { callId: "plan-p" },
+        ),
+      ],
+      [functionCall("editor__propose_commands", { summary: "Left block", commands: box("left"), stepId: "s1" }, { callId: "propose-left" })],
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-left" })]),
+      // This turn runs after the approval, so the plan has to come back with the resumed run.
+      [functionCall("editor__propose_commands", { summary: "Right block", commands: box("right"), stepId: "s2" }, { callId: "propose-right" })],
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-right" })]),
+      [functionCall("validation__check_scene", {}, { callId: "check-p" })],
+      [assistantMessage("Both blocks are placed.")],
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-plan-pause", editorClientId: editor.clientId, message: "Build two blocks", dimension: "3d" });
+      const waiting = streamFor(run, token);
+      const required = await waiting.waitFor((event) => event.envelope.type === "approval.required", 20_000);
+      waiting.stop();
+
+      const approvals = await http<ApprovalRow[]>("GET", `/api/v1/agent-runs/${run.runId}/approvals`, { token });
+      const decided = await http("POST", `/api/v1/agent-runs/${run.runId}/approvals/${approvals.body[0]?.id ?? ""}`, {
+        token,
+        body: { decision: "approve" },
+      });
+      expect(decided.status).toBe(200);
+
+      const resumed = streamFor(run, token, required.id);
+      try {
+        const terminal = await resumed.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+        // The second batch names its step, and the editor accepts the step only if the plan survived the pause.
+        const proposed = resumed.events.filter((event) => event.envelope.type === "editor.proposal.created");
+        expect(proposed.at(-1)?.envelope.payload).toMatchObject({ planStepId: "s2" });
+      } finally {
+        resumed.stop();
+      }
+      expect(editor.executions).toHaveLength(2);
+    } finally {
+      editor.close();
+    }
   }, 40_000);
 });
 

@@ -26,6 +26,7 @@ import { classifyFailure, describeError } from "./agent-run.failure.js";
 import { AgentRunRepository } from "./agent-run.repository.js";
 import { ProvidersService } from "../providers/providers.service.js";
 import { ProviderTransport } from "../providers/provider-transport.js";
+import { pictureBridgedModel } from "../providers/chat-completions-pictures.js";
 import {
   reasoningModelSettings,
   requiredModelSettings,
@@ -35,6 +36,14 @@ import {
   interruptionCallId,
   toRegistryToolName,
 } from "./agent-run.stream-mapper.js";
+import { RunClock, type RunStop } from "./run-clock.js";
+import {
+  continuationPrompt,
+  emptyRunProgress,
+  openWorkReasons,
+  serializeRunProgress,
+  type RunProgress,
+} from "./run-progress.js";
 import type {
   ActiveRun,
   AgentRunContext,
@@ -45,11 +54,44 @@ import type {
   RunUpdate,
 } from "./agent-runs.types.js";
 
-/** Abort reasons, so the processor can tell a timeout from a cancellation. */
+/** Abort reasons, so the processor can tell a timeout, a stall and a cancellation apart. */
 const TIMEOUT_REASON = "run_timeout";
+const STALL_REASON = "run_stalled";
 const CANCEL_REASON = "run_cancelled";
 
-/** Runs the SDK agent for a run record: streams its events, pauses for approvals, and resumes after decisions. */
+interface RunTotals {
+  readonly requests: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly totalTokens: number;
+}
+
+const NO_TOTALS: RunTotals = {
+  requests: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
+};
+
+function addTotals(sum: RunTotals, usage: RunTotals): RunTotals {
+  return {
+    requests: sum.requests + usage.requests,
+    inputTokens: sum.inputTokens + usage.inputTokens,
+    outputTokens: sum.outputTokens + usage.outputTokens,
+    totalTokens: sum.totalTokens + usage.totalTokens,
+  };
+}
+
+function stopOf(reason: unknown): RunStop | undefined {
+  if (reason === TIMEOUT_REASON) return "timeout";
+  if (reason === STALL_REASON) return "stalled";
+  return undefined;
+}
+
+/**
+ * Runs the SDK agent for a run record: streams its events, pauses for approvals, resumes after decisions,
+ * and asks the model to carry on while the work is not finished.
+ */
 @Injectable()
 export class AgentRunProcessor implements OnModuleDestroy {
   private readonly logger = new Logger(AgentRunProcessor.name);
@@ -70,24 +112,14 @@ export class AgentRunProcessor implements OnModuleDestroy {
 
   /** Starts a run in the background. Failures are recorded on the run, never thrown to the caller. */
   start(run: AgentRunRecord): void {
-    this.launch(run, async (context, signal) =>
-      (await this.runnerFor(run)).run(
-        this.agents.agent(run.agentId),
-        run.input,
-        {
-          stream: true,
-          context,
-          session: this.sessions.store(run.sessionId),
-          signal,
-          maxTurns: this.config.agents.maxTurns,
-        },
-      ),
+    this.launch(run, emptyRunProgress(), (context, signal) =>
+      this.turn(run, context, signal, run.input),
     );
   }
 
   /** Continues a run that was waiting for approval, after every decision has been recorded. */
   resume(run: AgentRunRecord): void {
-    this.launch(run, async (context, signal) => {
+    this.launch(run, run.progress ?? emptyRunProgress(), async (context, signal) => {
       const agent = this.agents.agent(run.agentId);
       const serialized = this.runs.readRunState(run.id);
       if (!serialized) throw new Error("Run state is missing");
@@ -108,6 +140,22 @@ export class AgentRunProcessor implements OnModuleDestroy {
     });
   }
 
+  /** One model turn of the run, with the session's history. */
+  private async turn(
+    run: AgentRunRecord,
+    context: AgentRunContext,
+    signal: AbortSignal,
+    input: string,
+  ): Promise<RunResult> {
+    return (await this.runnerFor(run)).run(this.agents.agent(run.agentId), input, {
+      stream: true,
+      context,
+      session: this.sessions.store(run.sessionId),
+      signal,
+      maxTurns: this.config.agents.maxTurns,
+    });
+  }
+
   private async runnerFor(run: AgentRunRecord): Promise<Runner> {
     if (!this.config.agents.enabled) throw new Error("Agents are disabled");
     if (!run.providerId) return this.runner;
@@ -117,11 +165,16 @@ export class AgentRunProcessor implements OnModuleDestroy {
       run.providerModel,
       run.providerBaseUrl,
     );
-    const model = await this.transport.model(credentials);
+    const transport = await this.transport.model(credentials);
+    // Chat Completions cannot carry pictures in a tool result; the bridge moves them into the next user message.
+    const model =
+      run.providerId === "openai-compatible"
+        ? pictureBridgedModel(transport)
+        : transport;
     return new SdkRunner({
       modelProvider: { getModel: () => model },
       modelSettings: {
-        ...requiredModelSettings(run.providerId),
+        ...requiredModelSettings(run.providerId, credentials.model),
         ...(run.reasoningEffort
           ? reasoningModelSettings(
               run.providerId,
@@ -150,17 +203,21 @@ export class AgentRunProcessor implements OnModuleDestroy {
 
   private launch(
     run: AgentRunRecord,
-    execute: (
-      context: AgentRunContext,
-      signal: AbortSignal,
-    ) => Promise<RunResult> | RunResult,
+    progress: RunProgress,
+    first: (context: AgentRunContext, signal: AbortSignal) => Promise<RunResult>,
   ): void {
     const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(TIMEOUT_REASON),
-      this.config.agents.runTimeoutMs,
+    const clock = new RunClock(
+      {
+        totalMs: this.config.agents.runTimeoutMs,
+        idleMs: this.config.agents.runIdleTimeoutMs,
+      },
+      (stop) =>
+        controller.abort(stop === "timeout" ? TIMEOUT_REASON : STALL_REASON),
     );
-    this.active.set(run.id, { controller, timer });
+    // Any event of the run is a sign of progress; a run that goes quiet for too long is stopped.
+    const unsubscribe = this.events.subscribe(run.id, () => clock.touch());
+    this.active.set(run.id, { controller, clock, unsubscribe });
 
     const context: AgentRunContext = {
       runId: run.id,
@@ -172,51 +229,106 @@ export class AgentRunProcessor implements OnModuleDestroy {
       selectedSkillIds: run.selectedSkillIds,
       events: this.events.sinkFor(run.id),
       signal: controller.signal,
-      plans: [],
-      // Chat Completions tool messages carry text only; every other transport accepts images in tool results.
-      supportsToolImages: run.providerId !== "openai-compatible",
+      progress,
+      supportsToolImages: this.providers.picturesAllowed(
+        run.userId,
+        run.providerId,
+      ),
     };
 
-    this.drive(run, () => execute(context, controller.signal)).catch(
-      (error: unknown) => {
-        this.logger.error(
-          `run ${run.id} crashed in the processor`,
-          error instanceof Error ? error.stack : undefined,
-        );
-      },
-    );
+    clock.start();
+    this.drive(run, context, controller.signal, () =>
+      first(context, controller.signal),
+    ).catch((error: unknown) => {
+      this.logger.error(
+        `run ${run.id} crashed in the processor`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    });
   }
 
+  /**
+   * Streams each model turn. When a turn ends with work still open, it asks the model to carry on, up to the
+   * configured limit. Approvals pause the run; the stored state and progress let it resume later.
+   */
   private async drive(
     run: AgentRunRecord,
-    execute: () => Promise<RunResult> | RunResult,
+    context: AgentRunContext,
+    signal: AbortSignal,
+    first: () => Promise<RunResult>,
   ): Promise<void> {
-    const entry = this.active.get(run.id);
     try {
-      const result = await execute();
-      for await (const event of result) this.handleStreamEvent(run.id, event);
-      await result.completed;
+      let result = await first();
+      let totals = NO_TOTALS;
+      let continuations = 0;
+      for (;;) {
+        for await (const event of result) this.handleStreamEvent(run.id, event);
+        await result.completed;
+        totals = addTotals(totals, result.state.usage);
 
-      if (this.isCancelled(run.id)) return;
-      if (result.interruptions.length > 0) {
-        this.pauseForApprovals(run, result);
-      } else {
-        this.complete(run.id, result);
+        if (this.isCancelled(run.id)) return;
+        if (result.interruptions.length > 0) {
+          this.pauseForApprovals(run, context, result);
+          return;
+        }
+
+        const reasons = openWorkReasons(context.progress, (proposalId) =>
+          this.proposalStatus(run.id, proposalId),
+        );
+        // A continuation that answers again without a tool call has chosen to stop, most likely to ask the user
+        // something. The run ends with that reply instead of repeating the request until the limit.
+        const acted = result.newItems.some((item) => item.type === "tool_call_item");
+        if (
+          reasons.length === 0 ||
+          continuations >= this.config.agents.continuationLimit ||
+          (continuations > 0 && !acted)
+        ) {
+          this.complete(run.id, result, totals);
+          return;
+        }
+
+        continuations += 1;
+        this.logger.log(
+          `run ${run.id} continues (${continuations}): ${reasons.join("; ")}`,
+        );
+        this.events.publish(run.id, "agent.continued", {
+          attempt: continuations,
+          reasons,
+        });
+        result = await this.turn(
+          run,
+          context,
+          signal,
+          continuationPrompt(reasons),
+        );
       }
     } catch (error) {
       if (this.isCancelled(run.id)) return;
-      this.fail(
-        run,
-        error,
-        entry?.controller.signal.reason === TIMEOUT_REASON,
-      );
+      this.fail(run, error, stopOf(signal.reason));
     } finally {
-      if (entry) clearTimeout(entry.timer);
-      this.active.delete(run.id);
+      this.disarm(run.id);
+    }
+  }
+
+  /** Stops the clock and forgets the run. Safe to call more than once. */
+  private disarm(runId: string): void {
+    const entry = this.active.get(runId);
+    if (!entry) return;
+    entry.clock.stop();
+    entry.unsubscribe();
+    this.active.delete(runId);
+  }
+
+  private proposalStatus(runId: string, proposalId: string): string | undefined {
+    try {
+      return this.proposals.require(runId, proposalId).status;
+    } catch {
+      return undefined;
     }
   }
 
   private handleStreamEvent(runId: string, event: RunStreamEvent): void {
+    this.active.get(runId)?.clock.touch();
     switch (event.type) {
       case "raw_model_stream_event": {
         const delta = extractTextDelta(event.data);
@@ -240,7 +352,11 @@ export class AgentRunProcessor implements OnModuleDestroy {
     }
   }
 
-  private pauseForApprovals(run: AgentRunRecord, result: RunResult): void {
+  private pauseForApprovals(
+    run: AgentRunRecord,
+    context: AgentRunContext,
+    result: RunResult,
+  ): void {
     const serialized = result.state.toString();
     for (const item of result.interruptions) {
       const callId = interruptionCallId(item.rawItem);
@@ -259,33 +375,38 @@ export class AgentRunProcessor implements OnModuleDestroy {
         requiresApproval: true,
       });
     }
-    this.setStatus(run.id, "waiting_approval", { runState: serialized });
+    // The plans and unfinished work travel with the run, so the resumed run still knows what it set out to do.
+    this.setStatus(run.id, "waiting_approval", {
+      runState: serialized,
+      progressJson: serializeRunProgress(context.progress),
+    });
     this.logger.log(
       `run ${run.id} is waiting for ${result.interruptions.length} approval(s)`,
     );
   }
 
-  private complete(runId: string, result: RunResult): void {
-    const usage = result.state.usage;
+  private complete(runId: string, result: RunResult, totals: RunTotals): void {
     const finalOutput =
       typeof result.finalOutput === "string" ? result.finalOutput : "";
     this.setStatus(runId, "completed", {
       finalOutput,
       usage: {
-        requests: usage.requests,
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        totalTokens: usage.totalTokens,
+        requests: totals.requests,
+        inputTokens: totals.inputTokens,
+        outputTokens: totals.outputTokens,
+        totalTokens: totals.totalTokens,
       },
       runState: null,
     });
-    this.events.publish(runId, "run.completed", { usage: usage.totalTokens });
-    this.logger.log(`run ${runId} completed (${usage.totalTokens} tokens)`);
+    this.events.publish(runId, "run.completed", {
+      usage: totals.totalTokens,
+    });
+    this.logger.log(`run ${runId} completed (${totals.totalTokens} tokens)`);
   }
 
-  private fail(run: AgentRunRecord, error: unknown, timedOut: boolean): void {
+  private fail(run: AgentRunRecord, error: unknown, stop: RunStop | undefined): void {
     const runId = run.id;
-    const { code, message } = classifyFailure(error, timedOut);
+    const { code, message } = classifyFailure(error, stop);
     // The client only gets a short message; the full cause stays in the server log.
     this.logger.error(
       `run ${runId} failed with ${code} [provider=${run.providerId ?? "default"} model=${run.providerModel ?? "default"} effort=${run.reasoningEffort ?? "auto"}]: ${describeError(error)}`,
@@ -316,6 +437,12 @@ export class AgentRunProcessor implements OnModuleDestroy {
         state.reject(item, {
           message: decision.reason ?? "The user rejected this action",
         });
+        // A batch the user refused is no longer waiting for the run to apply it.
+        const proposalId =
+          toRegistryToolName(item.name) === "editor.apply_proposal"
+            ? parseProposalId(item.arguments)
+            : undefined;
+        if (proposalId !== undefined) this.proposals.reject(runId, proposalId);
       }
     }
   }

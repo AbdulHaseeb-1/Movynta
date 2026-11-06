@@ -2,6 +2,7 @@ import {
   InputGuardrailTripwireTriggered,
   MaxTurnsExceededError,
 } from "@openai/agents";
+import type { RunStop } from "./run-clock.js";
 
 export interface RunFailure {
   readonly code: string;
@@ -84,8 +85,9 @@ export function describeError(error: unknown): string {
 }
 
 /** Maps failures to stable codes and messages that are safe to show to clients. */
-export function classifyFailure(error: unknown, timedOut: boolean): RunFailure {
-  if (timedOut) return { code: "run_timeout", message: "The agent run exceeded its time limit" };
+export function classifyFailure(error: unknown, stop?: RunStop): RunFailure {
+  if (stop === "timeout") return { code: "run_timeout", message: "The agent run exceeded its time limit" };
+  if (stop === "stalled") return { code: "run_stalled", message: "The agent stopped making progress and was stopped" };
   if (error instanceof InputGuardrailTripwireTriggered)
     return { code: "guardrail_blocked", message: "This request cannot be processed" };
   if (error instanceof MaxTurnsExceededError)

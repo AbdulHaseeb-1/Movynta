@@ -2,6 +2,7 @@ import type { ViewCaptureOptions } from "../../editor-bridge/editor-bridge.types
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import type { ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
+import { emptyRunProgress } from "../../agent-runs/run-progress.js";
 import type { CommandProposalRecord } from "../../editor-bridge/proposals/proposals.types.js";
 import { RichToolResult } from "../tool-result.js";
 import { createViewportTools } from "./viewport.tools.js";
@@ -72,7 +73,7 @@ function contextWith(supportsToolImages: boolean): AgentRunContext {
     selectedSkillIds: [],
     events: { emit: (type: string, payload: unknown) => emitted.push({ type, payload }) } as never,
     signal: new AbortController().signal,
-    plans: [],
+    progress: emptyRunProgress(),
     supportsToolImages,
   };
 }

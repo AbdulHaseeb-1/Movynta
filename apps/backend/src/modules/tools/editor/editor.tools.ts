@@ -133,7 +133,7 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
         .strict(),
       execute: async (input, context) => {
         assertConnection(bridge, context);
-        const latestPlan = context.plans[context.plans.length - 1];
+        const latestPlan = context.progress.plans.at(-1);
         const steps = latestPlan?.steps ?? [];
         const planStep = input.stepId === undefined ? undefined : steps.find((step) => step.id === input.stepId);
         if (input.stepId !== undefined && !planStep) {
@@ -147,6 +147,7 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
           { id: context.runId, userId: context.userId, projectId: context.projectId, clientId: context.clientId },
           { summary: input.summary, commands: input.commands, supersedes: input.supersedes, expectedRevision: input.expectedRevision },
         );
+        context.progress.proposals.push({ id: proposal.id, ...(planStep ? { stepId: planStep.id } : {}) });
         context.events.emit("editor.proposal.created", {
           proposalId: proposal.id,
           summary: proposal.summary,
@@ -187,6 +188,8 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
           { id: context.runId, userId: context.userId, projectId: context.projectId, clientId: context.clientId },
           input.proposalId,
         );
+        // The scene now differs from the last check, so the run must check it again before it can finish.
+        if (result.status === "applied") context.progress.unverifiedChanges = true;
         return {
           proposalId: result.proposalId,
           status: result.status,

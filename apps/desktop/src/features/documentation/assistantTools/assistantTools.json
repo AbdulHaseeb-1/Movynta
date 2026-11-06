@@ -238,7 +238,7 @@
         ] }
       ] },
       "tips": ["Start with overview views, then focus and zoom into anything suspicious.", "Pass proposalId to check a stored proposal before it is applied."],
-      "limits": ["Up to six views per call; each JPEG stays under about 1.5 MB.", "The call times out after EDITOR_REQUEST_TIMEOUT_MS (15 seconds by default).", "Models behind an OpenAI-compatible Chat Completions endpoint get measurements only, with a note saying so.", "The editor window keeps the last 12 captures. Pictures are not kept in the saved conversation."],
+      "limits": ["Up to six views per call; each JPEG stays under about 1.5 MB.", "The call times out after EDITOR_REQUEST_TIMEOUT_MS (15 seconds by default).", "An OpenAI-compatible endpoint receives the pictures in the message after the tool result, for the latest four captures; earlier ones keep their measurements. Turn Send pictures off in the provider settings for a model that cannot read images, and the assistant gets measurements only.", "The editor window keeps the last 12 captures. Pictures are not kept in the saved conversation."],
       "related": ["editor.propose_commands", "modeling.propose_generated", "validation.check_scene"]
     },
     {
@@ -247,6 +247,7 @@
       "source": "apps/backend/src/modules/tools/validation/validation.tools.ts", "doc": "validation.check_scene.md",
       "summary": "Checks the scene for structural problems and reports each with a severity: errors, warnings and information.",
       "when": ["As the last step of a change, after the proposal is applied. The mesh-editing and character-modeling skills both do this.", "When the user asks whether the scene is in order."],
+      "limits": ["The run keeps asking the assistant to carry on until a check follows the last change and reports no errors, up to three times per request. A plan step that names a stepId must also have an applied batch."],
       "input": { "note": "No input. Send an empty object.", "rows": [] },
       "result": { "rows": [
         { "field": "ok", "meaning": "false only when there is at least one error." },

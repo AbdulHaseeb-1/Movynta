@@ -21,6 +21,8 @@ export interface ProviderView {
   configured: boolean;
   active: boolean;
   baseUrl: string;
+  /** False when the endpoint's model cannot read pictures, so tools return measurements only. */
+  acceptsImages: boolean;
 }
 export interface ProviderCredentials {
   id: ProviderId;

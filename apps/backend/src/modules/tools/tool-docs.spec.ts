@@ -22,6 +22,7 @@ import { createSkillTools } from "./skills/skills.tools.js";
 import { createValidationTools } from "./validation/validation.tools.js";
 import { createViewportTools } from "./viewport/viewport.tools.js";
 import type { ToolDefinition } from "./tool.types.js";
+import { emptyRunProgress } from "../agent-runs/run-progress.js";
 
 /*
  * Keeps the assistant tool reference honest. The reference (shown in the app's Documentation page, and generated into
@@ -119,7 +120,7 @@ function runContext(scene: EditorContext): AgentRunContext {
     selectedSkillIds: ["mesh-editing"],
     events: { emit: () => undefined },
     signal: new AbortController().signal,
-    plans: [],
+    progress: emptyRunProgress(),
     supportsToolImages: false,
   } as unknown as AgentRunContext;
 }

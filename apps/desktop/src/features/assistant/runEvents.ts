@@ -195,7 +195,7 @@ function applyEvent(message: ChatMessage, event: RunEvent): ChatMessage {
         (step) => ({
           ...step,
           captureId,
-          ...(imagesSent ? {} : { detail: "This model connection cannot receive images, so the scene was measured, not drawn." }),
+          ...(imagesSent ? {} : { detail: "Pictures are turned off for this model, so the scene was measured, not drawn." }),
         }),
       );
     }

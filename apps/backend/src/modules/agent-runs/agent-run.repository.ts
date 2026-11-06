@@ -26,6 +26,7 @@ import type {
 import { parseEventPayload } from "./agent-run-event-payload.schema.js";
 import { REASONING_EFFORTS } from "../providers/model-capabilities.js";
 import { PROVIDER_IDS } from "../providers/providers.types.js";
+import { parseRunProgress } from "./run-progress.js";
 
 const usageSchema = z.record(z.string(), z.number());
 const skillIdsSchema = z.array(z.string());
@@ -35,7 +36,9 @@ function toRecord(row: SqlRow): AgentRunRecord {
   const dimension = optionalTextColumn(row, "dimension");
   const providerId = optionalTextColumn(row, "provider_id");
   const reasoningEffort = optionalTextColumn(row, "reasoning_effort");
+  const progressJson = optionalTextColumn(row, "progress_json");
   return {
+    progress: progressJson === undefined ? undefined : parseRunProgress(progressJson),
     providerBaseUrl: optionalTextColumn(row, "provider_base_url"),
     providerId:
       providerId === undefined
@@ -154,6 +157,10 @@ export class AgentRunRepository {
     if (update.runState !== undefined) {
       assignments.push("run_state = ?");
       values.push(update.runState);
+    }
+    if (update.progressJson !== undefined) {
+      assignments.push("progress_json = ?");
+      values.push(update.progressJson);
     }
     values.push(runId);
     this.database.db

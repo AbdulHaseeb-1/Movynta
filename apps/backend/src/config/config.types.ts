@@ -22,7 +22,12 @@ export interface AppConfig {
     readonly apiKey: string | undefined;
     readonly model: string | undefined;
     readonly tracingDisabled: boolean;
+    /** Longest active time for one run, not counting waits for approval. */
     readonly runTimeoutMs: number;
+    /** Longest time a run may go without any progress before it is stopped. */
+    readonly runIdleTimeoutMs: number;
+    /** How many times a run asks the model to carry on before it accepts the reply as final. */
+    readonly continuationLimit: number;
     readonly maxTurns: number;
   };
   readonly editor: { readonly requestTimeoutMs: number };

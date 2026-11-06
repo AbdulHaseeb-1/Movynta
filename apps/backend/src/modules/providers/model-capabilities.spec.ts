@@ -1,4 +1,10 @@
-import { CHAT_COMPLETION_MAX_TOKENS, reasoningEffortsFor, reasoningModelSettings, requiredModelSettings } from "./model-capabilities.js";
+import {
+  ANTHROPIC_COMPATIBLE_MAX_TOKENS,
+  CHAT_COMPLETION_MAX_TOKENS,
+  reasoningEffortsFor,
+  reasoningModelSettings,
+  requiredModelSettings,
+} from "./model-capabilities.js";
 
 describe("reasoningEffortsFor", () => {
   it("offers efforts per OpenAI model family", () => {
@@ -28,9 +34,24 @@ describe("reasoningEffortsFor", () => {
 
 describe("requiredModelSettings", () => {
   it("gives Chat Completions a completion budget and leaves other providers alone", () => {
-    expect(requiredModelSettings("openai-compatible")).toEqual({ maxTokens: CHAT_COMPLETION_MAX_TOKENS });
-    expect(requiredModelSettings("openai")).toEqual({});
+    expect(requiredModelSettings("openai-compatible", "gpt-4o")).toEqual({ maxTokens: CHAT_COMPLETION_MAX_TOKENS });
+    expect(requiredModelSettings("openai", "gpt-4o")).toEqual({});
     expect(CHAT_COMPLETION_MAX_TOKENS).toBeGreaterThanOrEqual(8192);
+  });
+
+  it("raises the output budget of Anthropic-compatible models that the adapter does not know", () => {
+    expect(requiredModelSettings("anthropic-compatible", "my-gateway-model")).toEqual({ maxTokens: ANTHROPIC_COMPATIBLE_MAX_TOKENS });
+    expect(requiredModelSettings("anthropic-compatible", "claude-sonnet-5-5")).toEqual({ maxTokens: ANTHROPIC_COMPATIBLE_MAX_TOKENS });
+    expect(requiredModelSettings("anthropic-compatible", "claude-sonnet-4-5")).toEqual({ maxTokens: ANTHROPIC_COMPATIBLE_MAX_TOKENS });
+  });
+
+  it("keeps the adapter's limit for Claude 2 and 3 models, which accept less", () => {
+    expect(requiredModelSettings("anthropic-compatible", "claude-3-haiku-20240307")).toEqual({});
+    expect(requiredModelSettings("anthropic-compatible", "Claude-3-5-sonnet-latest")).toEqual({});
+  });
+
+  it("does not set an output budget for native Anthropic, whose adapter knows its models", () => {
+    expect(requiredModelSettings("anthropic", "my-new-model")).toEqual({});
   });
 });
 

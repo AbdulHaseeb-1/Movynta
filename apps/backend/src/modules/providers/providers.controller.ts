@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common";
-import { IsIn, IsOptional, IsString, Length, Matches } from "class-validator";
+import { IsBoolean, IsIn, IsOptional, IsString, Length, Matches } from "class-validator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator.js";
 import { ValidationFailedError } from "../../common/errors/app-error.js";
 import type { AuthUser } from "../auth/auth.types.js";
@@ -11,6 +11,7 @@ class SaveProviderDto {
   @IsString() @Length(1, 160) @Matches(/^[A-Za-z0-9._:/-]+$/) model!: string;
   @IsOptional() @IsString() @Length(1, 4096) apiKey?: string;
   @IsOptional() @IsString() @Length(1, 2048) baseUrl?: string;
+  @IsOptional() @IsBoolean() acceptsImages?: boolean;
 }
 class SelectProviderDto {
   @IsIn(PROVIDER_IDS) id!: ProviderId;
@@ -57,6 +58,7 @@ export class ProvidersController {
       body.model,
       body.apiKey,
       body.baseUrl,
+      body.acceptsImages,
     );
   }
   @Delete(":id") remove(

@@ -65,7 +65,7 @@ describe("applyRunEvent", () => {
       type: "viewport.captured",
       payload: { captureId: "cap_2", views: [], imagesSent: false },
     });
-    expect(measured.activity[0]?.detail).toMatch(/cannot receive images/);
+    expect(measured.activity[0]?.detail).toMatch(/Pictures are turned off for this model/);
     expect(applyRunEvent(started, { type: "viewport.captured", payload: { imagesSent: true } })).toBe(started);
     // Without the tool step running there is nothing to attach them to.
     expect(applyRunEvent(empty, { type: "viewport.captured", payload: { captureId: "cap_3", imagesSent: true } })).toBe(empty);

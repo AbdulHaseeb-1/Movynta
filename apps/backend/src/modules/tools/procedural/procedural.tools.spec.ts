@@ -1,4 +1,5 @@
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
+import { emptyRunProgress } from "../../agent-runs/run-progress.js";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import type { ProposalInput, ProposalRun } from "../../editor-bridge/proposals/proposals.types.js";
 import type { EditorContext } from "../../../shared/types/editor-context.types.js";
@@ -28,7 +29,7 @@ it("proposes generated face edits at the inspection revision without echoing com
   const events: unknown[] = [];
   const context: AgentRunContext = {
     runId: "run", userId: "u", projectId: "p", clientId: "c", sessionId: "s",
-    dimension: undefined, selectedSkillIds: [], plans: [], supportsToolImages: false,
+    dimension: undefined, selectedSkillIds: [], progress: emptyRunProgress(), supportsToolImages: false,
     signal: new AbortController().signal,
     events: { emit: (_type: string, payload: unknown) => events.push(payload) } as never,
   };

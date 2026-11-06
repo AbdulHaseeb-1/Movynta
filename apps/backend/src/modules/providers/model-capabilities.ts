@@ -112,15 +112,27 @@ export function reasoningModelSettings(
 
 /**
  * Completion budget for OpenAI-compatible Chat Completions. Gateways often pick a tiny default when
- * `max_tokens` is omitted, and Claude-style thinking spends that budget before any text or tool call.
- * The Agents SDK then rejects the empty `finish_reason: "length"` response. 16384 leaves room for
- * that thinking and a following tool call, and stays within the output limit of current Claude models.
+ * `max_tokens` is omitted, and reasoning models spend that budget before any text or tool call. Claude 5 models
+ * think adaptively by default, so a full modeling turn can exhaust 16384 tokens with no visible output; the SDK
+ * then rejects the empty `finish_reason: "length"` response. 64000 leaves room for the thinking and a large batch
+ * of commands, and current Claude and DeepSeek models accept it.
  */
-export const CHAT_COMPLETION_MAX_TOKENS = 16_384;
+export const CHAT_COMPLETION_MAX_TOKENS = 64_000;
+
+/**
+ * Output budget for Anthropic-compatible endpoints. The Anthropic adapter caps an unrecognised model name at
+ * 4,096 output tokens, which a batch of scene commands can exceed mid-call, and adaptive thinking spends from the
+ * same budget. Claude 4 and later accept this budget; the Claude 2 and 3 families accept less, so they keep the
+ * adapter's own limit.
+ */
+export const ANTHROPIC_COMPATIBLE_MAX_TOKENS = 64_000;
+const LEGACY_CLAUDE_MODEL = /^(claude-instant|claude-2|claude-3)/;
 
 /** Settings a provider needs on every run, whatever the user selects. */
-export function requiredModelSettings(providerId: ProviderId): ModelSettings {
+export function requiredModelSettings(providerId: ProviderId, model = ""): ModelSettings {
   if (providerId === "chatgpt") return CHATGPT_MODEL_SETTINGS;
   if (providerId === "openai-compatible") return { maxTokens: CHAT_COMPLETION_MAX_TOKENS };
+  if (providerId === "anthropic-compatible" && !LEGACY_CLAUDE_MODEL.test(model.toLowerCase()))
+    return { maxTokens: ANTHROPIC_COMPATIBLE_MAX_TOKENS };
   return {};
 }

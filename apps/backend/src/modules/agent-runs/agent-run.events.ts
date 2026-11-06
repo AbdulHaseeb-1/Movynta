@@ -4,6 +4,7 @@ export const AGENT_RUN_EVENT_TYPES = [
   "agent.started",
   "agent.message.delta",
   "agent.message.completed",
+  "agent.continued",
   "skill.loaded",
   "tool.started",
   "tool.completed",
