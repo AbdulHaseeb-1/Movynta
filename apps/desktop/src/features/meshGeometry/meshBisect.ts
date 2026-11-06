@@ -204,7 +204,7 @@ export function bisectMesh(mesh: PolygonMesh, source: BufferGeometry, plane: Bis
         if (!sample) throw new Error("Missing corner attributes");
         return sample;
       });
-      caps.push({ ids: entry.ids, samples, material: materials[entry.edges[0]?.face ?? 0] ?? 0 });
+      caps.push({ ids: entry.ids, samples: affineSamples(positions, entry.ids, samples), material: materials[entry.edges[0]?.face ?? 0] ?? 0 });
     }
   }
 
@@ -328,6 +328,43 @@ function strictlyInside(view: PolygonMesh, outline: readonly number[], at: Vecto
     if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+/**
+ * Samples for the corners of a cap that make every channel an affine function of position across it. Each corner of a
+ * cap sits on a different neighboring face, so their own samples point at unrelated parts of a texture, and any later cut
+ * through the cap would be refused as changing non-affine detail (a block could not be cut into quarters). Three
+ * well-spread corners keep their own samples and every other corner is blended from them, so the cap maps smoothly and
+ * a cut through it behaves like a cut through any other flat face. A cap of three corners already is affine.
+ */
+function affineSamples(positions: readonly Vector3[], ids: readonly number[], samples: readonly Weights[]): Weights[] {
+  if (ids.length <= 3) return [...samples];
+  const at = (corner: number): Vector3 => {
+    const position = positions[ids[corner] ?? -1];
+    if (!position) throw new Error("Missing cap vertex");
+    return position;
+  };
+  const origin = at(0);
+  let b = 1, c = 2, far = -1, area = -1;
+  for (let corner = 1; corner < ids.length; corner += 1) {
+    const distance = at(corner).distanceToSquared(origin);
+    if (distance > far) { far = distance; b = corner; }
+  }
+  const u = at(b).clone().sub(origin);
+  for (let corner = 1; corner < ids.length; corner += 1) {
+    const size = u.clone().cross(at(corner).clone().sub(origin)).lengthSq();
+    if (size > area) { area = size; c = corner; }
+  }
+  const v = at(c).clone().sub(origin);
+  const uu = u.dot(u), uv = u.dot(v), vv = v.dot(v), det = uu * vv - uv * uv;
+  const wa = samples[0], wb = samples[b], wc = samples[c];
+  // A cap with no area, or corners that cannot be told apart, keeps what it had; the cut will say if that is not enough.
+  if (!wa || !wb || !wc || !(det > 1e-24)) return [...samples];
+  return ids.map((_, corner) => {
+    const delta = at(corner).clone().sub(origin), du = delta.dot(u), dv = delta.dot(v);
+    const beta = (du * vv - dv * uv) / det, gamma = (dv * uu - du * uv) / det;
+    return blend([[wa, 1 - beta - gamma], [wb, beta], [wc, gamma]]);
+  });
 }
 
 /** Outlines inside other outlines would need a bridge to cap; refuse them rather than cover a hole. */

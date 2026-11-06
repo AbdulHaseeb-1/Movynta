@@ -48,7 +48,7 @@ describe("quality scenarios", () => {
   it("scores an unchanged scene as failing, not as nothing to judge", () => {
     const chair = scenarioById("chair");
     const empty = buildScenario("chair");
-    const score = scoreScenario(chair, { before: empty.after, after: empty.after, openEdges: {} });
+    const score = scoreScenario(chair, { before: empty.after, after: empty.after, meshes: {} });
     expect(score.ratio).toBe(0);
     expect(score.results.every((result) => result.status !== "pass")).toBe(true);
   });

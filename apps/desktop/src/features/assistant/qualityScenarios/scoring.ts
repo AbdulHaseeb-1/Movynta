@@ -1,5 +1,5 @@
 import { evaluateBrief, type BriefCheckResult, type EditorContext } from "@movynta/editor-protocol";
-import type { QualityScenario, ScenarioOutcome, ScenarioScore } from "./types";
+import type { MeshCheck, QualityScenario, ScenarioOutcome, ScenarioScore } from "./types";
 
 type SceneObject = EditorContext["objects"][number];
 
@@ -41,6 +41,27 @@ function extraResult(index: number, label: string, passed: boolean, measured: st
   return { index, label, kind: "count", status: passed ? "pass" : "fail", measured, expected };
 }
 
+const AXIS = { x: 0, y: 1, z: 2 } as const;
+const format = (value: number): string => String(Number.parseFloat(value.toPrecision(4)));
+const rangeText = (min: number | undefined, max: number | undefined): string =>
+  min !== undefined && max !== undefined ? `between ${format(min)} and ${format(max)}` : min !== undefined ? `at least ${format(min)}` : `at most ${format(max ?? 0)}`;
+const within = (value: number, min: number | undefined, max: number | undefined): boolean => (min === undefined || value >= min - 1e-6) && (max === undefined || value <= max + 1e-6);
+
+/** Judges one statement about a mesh. A mesh that cannot be found or measured fails it and says so. */
+function meshResult(index: number, check: MeshCheck, outcome: ScenarioOutcome) {
+  const mesh = outcome.meshes[check.objectId];
+  const unknown = "could not be inspected";
+  if (check.kind === "closed") return extraResult(index, check.label ?? `${check.objectId} is still a closed solid`, mesh?.openEdges === 0, mesh ? `${mesh.openEdges} open edges` : unknown, "0 open edges");
+  if (check.kind === "volume") return extraResult(index, check.label, mesh !== undefined && within(mesh.volume, check.min, check.max), mesh ? format(mesh.volume) : unknown, rangeText(check.min, check.max));
+  if (check.kind === "openings") return extraResult(index, check.label, mesh?.openings === check.count, mesh ? `${mesh.openings} openings` : unknown, `${check.count} openings`);
+  if (check.kind === "opening-at") {
+    const centers = mesh?.openingCenters.map((center) => center[AXIS[check.axis]] ?? NaN) ?? [];
+    return extraResult(index, check.label, centers.some((value) => within(value, check.min, check.max)),
+      mesh ? (centers.length === 0 ? "no openings" : `openings at ${check.axis} ${centers.map(format).join(", ")}`) : unknown, `an opening ${rangeText(check.min, check.max)} on ${check.axis}`);
+  }
+  return extraResult(index, check.label, mesh !== undefined && within(mesh.faces, check.min, check.max), mesh ? `${mesh.faces} faces` : unknown, rangeText(check.min, check.max));
+}
+
 /** Judges what a run left behind against the scenario's acceptance checks. Pure: the same outcome always scores the same. */
 export function scoreScenario(scenario: QualityScenario, outcome: ScenarioOutcome): ScenarioScore {
   const scene = withSubject(outcome.before, outcome.after);
@@ -51,10 +72,7 @@ export function scoreScenario(scenario: QualityScenario, outcome: ScenarioOutcom
     const parts = outcome.after.objects.filter((object) => object.type === "mesh" && !known.has(object.id)).length;
     results.push(extraResult(results.length, `At least ${scenario.minimumParts} separate parts`, parts >= scenario.minimumParts, `${parts} found`, `at least ${scenario.minimumParts}`));
   }
-  for (const id of scenario.closed ?? []) {
-    const open = outcome.openEdges[id];
-    results.push(extraResult(results.length, `${id} is still a closed solid`, open === 0, open === undefined ? "could not be inspected" : `${open} open edges`, "0 open edges"));
-  }
+  for (const check of scenario.meshChecks ?? []) results.push(meshResult(results.length, check, outcome));
 
   const passed = results.filter((result) => result.status === "pass").length;
   return { scenarioId: scenario.id, passed, total: results.length, ratio: results.length === 0 ? 0 : passed / results.length, results };

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { BoxGeometry, CylinderGeometry, Float32BufferAttribute, SphereGeometry, TorusGeometry, Vector3, type BufferGeometry } from "three";
 import { bisectMesh } from "./meshBisect";
+import { validateKnifeFace } from "./meshKnifeAttributes";
 import { createPolygonMesh } from "./createPolygonMesh";
 import { checkManifold } from "./meshManifold";
 import { evaluate } from "./meshWeights";
-import { faceAreaNormal, readTopology, type PolygonMesh } from "./meshTopology";
+import { channels, faceAreaNormal, readTopology, type PolygonMesh } from "./meshTopology";
 import { measureSurface as measure } from "./meshTestSupport";
 
 const plane = (axis: "x" | "y" | "z", at: number) => ({
@@ -93,6 +94,35 @@ describe("bisect", () => {
     expectClosedSolid(lower.mesh);
     expect(faceAreaNormal(lower.mesh, lower.mesh.faces[lower.mesh.faces.length - 1] ?? []).y).toBeGreaterThan(0);
     expect(measure(half.mesh).volume + measure(lower.mesh).volume).toBeCloseTo(whole.volume, 5);
+  });
+
+  it("gives a cap one consistent mapping of texture and detail, so the cap can be cut again", () => {
+    const geometry = new BoxGeometry(1, 1, 1), mesh = readTopology(geometry);
+    const first = bisectMesh(mesh, geometry, plane("x", 0), { keep: "positive", fill: true });
+    // Capping faces are last. Each corner of a cap touches a different face of the cube, whose texture islands are
+    // unrelated, so without care the cap's texture jumps between them and no cut across it can be trusted.
+    const cap = first.mesh.faces.length - 1;
+    expect(first.mesh.faces[cap]).toHaveLength(4);
+    expect(() => validateKnifeFace(first.mesh, cap, geometry)).not.toThrow();
+    // The block can therefore be cut into a quarter: the second cut crosses the first cut's cap.
+    const second = bisectMesh(first.mesh, geometry, plane("z", 0), { keep: "positive", fill: true });
+    expectClosedSolid(second.mesh);
+    expect(measure(second.mesh).volume).toBeCloseTo(0.25, 6);
+    for (const capped of [second.mesh.faces.length - 1, second.mesh.faces.length - 2]) expect(() => validateKnifeFace(second.mesh, capped, geometry)).not.toThrow();
+  });
+
+  it("keeps the exact attributes of the corners it anchors a cap to, and blends the rest", () => {
+    const geometry = new BoxGeometry(1, 1, 1), mesh = readTopology(geometry);
+    const result = bisectMesh(mesh, geometry, plane("y", 0), { keep: "positive", fill: true });
+    const cap = result.mesh.faces.length - 1;
+    const corners = channels(result.mesh).corners[cap] ?? [];
+    const uv = geometry.getAttribute("uv");
+    // Every weight set sums to one, so a corner is a true blend of texture positions and never a made-up value.
+    for (const sample of corners) {
+      expect([...sample.values()].reduce((sum, weight) => sum + weight, 0)).toBeCloseTo(1, 9);
+      expect(Number.isFinite(evaluate(uv, sample, 0))).toBe(true);
+    }
+    expect(corners.length).toBe(4);
   });
 
   it("leaves the opening open without fill, and only then allows an open result", () => {

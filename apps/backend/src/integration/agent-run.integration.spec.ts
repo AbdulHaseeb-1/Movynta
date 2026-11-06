@@ -34,6 +34,7 @@ interface ApprovalRow {
 interface RunRow {
   readonly id: string;
   readonly status: string;
+  readonly usage?: { readonly requests: number };
   readonly finalOutput?: string;
   readonly error?: { readonly code: string; readonly message: string };
 }
@@ -604,6 +605,8 @@ describe("agent run: continuation until the work is finished", () => {
       expect(events.find((event) => event.type === "review.completed")?.payload).toMatchObject({ attempt: 1, outcome: "ready", findingCount: 2 });
       // The reply the user reads is the builder's; the reviewer's words stay out of it.
       expect(final.finalOutput).toBe("I built the cube.");
+      // Six model calls to build and four to review: the run reports what it all cost.
+      expect(final.usage?.requests).toBe(10);
     } finally { editor.close(); }
   }, 30_000);
 

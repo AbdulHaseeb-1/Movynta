@@ -1,4 +1,5 @@
 export * from "./commands";
+export * from "./meshMeasure";
 export * from "./runScenario";
 export * from "./scenarios";
 export * from "./scoring";

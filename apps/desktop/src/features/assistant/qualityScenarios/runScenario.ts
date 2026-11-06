@@ -1,17 +1,39 @@
 import { Scene } from "three";
-import { editorContextSchema, type EditorContext } from "@movynta/editor-protocol";
+import { editorContextSchema, isCageEditCommand, type EditorContext } from "@movynta/editor-protocol";
 import { EditorScene } from "../EditorScene";
+import { measureMesh } from "./meshMeasure";
 import { scenarioById } from "./scenarios";
-import type { QualityScenario, ScenarioCommand, ScenarioOutcome } from "./types";
+import type { MeshMeasure, QualityScenario, ScenarioCommand, ScenarioOutcome } from "./types";
 
-/** Runs a batch on the real editor and fails loudly if it is not applied: a scenario that cannot be built proves nothing. */
-export function applyScenarioCommands(editor: EditorScene, label: string, commands: readonly ScenarioCommand[]): void {
-  if (commands.length === 0) return;
+function applyBatch(editor: EditorScene, label: string, commands: readonly ScenarioCommand[]): void {
   const result = editor.execute(`${label}-${editor.currentRevision}`, editor.currentRevision, commands);
   if (result.status !== "applied") {
     const failed = "results" in result ? JSON.stringify(result.results) : "";
     throw new Error(`The ${label} commands were ${result.status}. ${failed}`.trim());
   }
+}
+
+/**
+ * Runs commands on the real editor, and fails loudly if a batch is not applied: a scenario that cannot be built proves
+ * nothing. A command that edits a mesh's cage is applied alone, as the assistant can always send it (some renumber the
+ * mesh, and none may share a batch with creation), so a known answer never relies on a grouping the assistant could
+ * not use.
+ */
+export function applyScenarioCommands(editor: EditorScene, label: string, commands: readonly ScenarioCommand[]): void {
+  let pending: ScenarioCommand[] = [];
+  const flush = () => {
+    if (pending.length > 0) applyBatch(editor, label, pending);
+    pending = [];
+  };
+  for (const command of commands) {
+    if (isCageEditCommand({ type: String(command["type"]) })) {
+      flush();
+      applyBatch(editor, label, [command]);
+    } else {
+      pending.push(command);
+    }
+  }
+  flush();
 }
 
 /** The editor's snapshot as the protocol defines it. Parsing proves the snapshot is a valid payload, not just a typed one. */
@@ -28,12 +50,12 @@ export function startScenario(scenario: QualityScenario): EditorScene {
 
 /** Reads the end state of a run: the scene and how open each solid is. Works on any editor, scripted or driven by a live model. */
 export function observeOutcome(editor: EditorScene, scenario: QualityScenario, before: EditorContext): ScenarioOutcome {
-  const openEdges: Record<string, number> = {};
-  for (const id of scenario.closed ?? []) {
-    const stats = snapshotOf(editor, { objectId: id, meshPath: [], view: "base", offset: 0, limit: 1, includeSamples: false }).meshInspection?.stats;
-    if (stats) openEdges[id] = stats.boundaryEdges + stats.nonManifoldEdges;
+  const meshes: Record<string, MeshMeasure> = {};
+  for (const check of scenario.meshChecks ?? []) {
+    const measured = meshes[check.objectId] ?? measureMesh(editor, check.objectId);
+    if (measured) meshes[check.objectId] = measured;
   }
-  return { before, after: snapshotOf(editor), openEdges };
+  return { before, after: snapshotOf(editor), meshes };
 }
 
 /** Builds a scenario's known answer, or one of its defective answers, in the real editor. */

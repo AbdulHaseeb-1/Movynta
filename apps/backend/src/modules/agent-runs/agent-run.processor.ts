@@ -300,7 +300,8 @@ export class AgentRunProcessor implements OnModuleDestroy {
         // The builder has nothing left open, so a different agent looks at the result before the run may end. What it
         // finds comes back as work for the builder, in the same way as an unfinished step.
         if (reasons.length === 0 && reviewDue(context.progress, this.config.agents.reviewLimit)) {
-          await this.review(run, context, signal);
+          // The reviewer's model calls are part of what this run cost.
+          totals = addTotals(totals, await this.review(run, context, signal));
           if (this.isCancelled(run.id)) return;
           reasons = reasonsNow();
         }
@@ -344,7 +345,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
    * read-only tools, and records its verdict through the same quality tool the builder no longer has. A review that cannot
    * run is recorded as blocked, never as approval.
    */
-  private async review(run: AgentRunRecord, context: AgentRunContext, signal: AbortSignal): Promise<void> {
+  private async review(run: AgentRunRecord, context: AgentRunContext, signal: AbortSignal): Promise<RunTotals> {
     const quality = context.progress.quality;
     quality.reviews += 1;
     const attempt = quality.reviews;
@@ -361,13 +362,22 @@ export class AgentRunProcessor implements OnModuleDestroy {
       quality.outcome = "blocked";
       quality.summary = summary;
     };
+    let result: RunResult | undefined;
     try {
       const runner = await this.runnerFor(run);
-      await runner.run(this.agents.agent(QUALITY_REVIEWER_ID), request, {
+      // Streamed, so a slow model call still counts as activity and does not trip the idle limit. The reviewer's words are
+      // not forwarded: the user reads the builder's reply, and sees the review as one step.
+      result = await runner.run(this.agents.agent(QUALITY_REVIEWER_ID), request, {
+        stream: true,
         context,
         signal,
         maxTurns: this.config.agents.reviewMaxTurns,
       });
+      for await (const event of result) {
+        void event;
+        this.active.get(run.id)?.clock.touch();
+      }
+      await result.completed;
     } catch (error) {
       // A stop, a timeout and a cancellation end the whole run; anything else only ends the review.
       if (signal.aborted || this.isCancelled(run.id)) throw error;
@@ -381,6 +391,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
       summary: quality.summary.slice(0, 300),
       findingCount: quality.findings.length,
     });
+    return result ? addTotals(NO_TOTALS, result.state.usage) : NO_TOTALS;
   }
 
   /** Stops the clock and forgets the run. Safe to call more than once. */
