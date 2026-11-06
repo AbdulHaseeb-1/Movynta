@@ -31,6 +31,8 @@ The request is validated by meshInspectionRequestSchema.
 | `includeSamples` | boolean | No | – | false omits the vertex, edge and face pages. |
 | `materialsOnly` | boolean | No | – | true reads materials without topology. |
 | `faceQuery` | object | No | – | Filters faces. Needs normal, or a centerMin/centerMax bound. |
+| `openings` | object | No | – | Lists the openings (closed chains of boundary edges) with their edge IDs, ready for fill_hole or bridge_edge_loops. Optional offset and limit (1–50, default 20). |
+| `shells` | object | No | – | Lists the connected parts, each with a face that names it, its size and its extent. Optional offset and limit (1–50, default 20). |
 
 ## faceQuery fields
 
@@ -51,6 +53,8 @@ The request is validated by meshInspectionRequestSchema.
 | `localBounds, matrixWorld` | Bounds in mesh space, and the matrix that places the mesh in the scene. |
 | `vertices, edges, faces` | One page of samples. Indices refer to the whole mesh, not to the page. |
 | `faceMatches` | ids of matching faces on this page, with total, offset and hasMore. |
+| `openings` | loops: for each opening its edges (canonical IDs in walking order, at most 256), edgeCount, truncated, and its center, min and max. Also total, offset, hasMore, and irregularEdges for boundary edges that are not in a simple closed loop. |
+| `shells` | shells: for each connected part its faceCount, firstFace (a face ID that names the whole part), closed (it encloses a volume), center, min and max. Also total, offset and hasMore. |
 
 ## Example
 

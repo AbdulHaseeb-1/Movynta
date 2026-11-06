@@ -1,4 +1,4 @@
-import { CAGE_EDIT_COMMAND_TYPES, TOPOLOGY_EDIT_COMMAND_TYPES, editorCommandListSchema, editorCommandSchema, validateAgainstContext, type EditorContext } from "@movynta/editor-protocol";
+import { CAGE_EDIT_COMMAND_TYPES, meshInspectionRequestSchema, TOPOLOGY_EDIT_COMMAND_TYPES, editorCommandListSchema, editorCommandSchema, validateAgainstContext, type EditorContext } from "@movynta/editor-protocol";
 
 const base = { commandId: "cut", objectId: "mesh" };
 const scene: EditorContext = {
@@ -77,6 +77,17 @@ describe("plane cut, delete, flip and triangulate commands", () => {
     const flip = editorCommandListSchema.parse([{ ...base, commandId: "flip", type: "geometry.flip_normals" }])[0];
     if (!flip || !split[0]) throw new Error("parse failed");
     expect(validateAgainstContext([split[0], flip], scene)[0]?.message).toContain("one topology-changing edit");
+  });
+
+  it("accepts openings and shells in an inspection request, with bounded paging", () => {
+    const accepts = (fields: Record<string, unknown>) => meshInspectionRequestSchema.safeParse({ objectId: "mesh", view: "base", ...fields }).success;
+    expect(accepts({ openings: {} })).toBe(true);
+    expect(accepts({ shells: {} })).toBe(true);
+    expect(accepts({ openings: { offset: 20, limit: 50 }, shells: { offset: 0, limit: 1 }, includeSamples: false })).toBe(true);
+    for (const fields of [{ openings: { limit: 0 } }, { openings: { limit: 51 } }, { shells: { limit: 51 } }, { shells: { offset: -1 } },
+      { openings: { surprise: true } }, { shells: 3 }, { openings: { limit: 1.5 } }]) {
+      expect(accepts(fields)).toBe(false);
+    }
   });
 
   it("keeps the shared command lists in step with the schema", () => {

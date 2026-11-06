@@ -1,27 +1,9 @@
 import type { ExtrudeResult } from "./meshExtrude";
 import { channels, type PolygonMesh } from "./meshTopology";
+import { shellRoots } from "./meshRegions";
 import { validateTopologyEdit } from "./meshTopologyEdit";
 
 export interface FlipResult extends ExtrudeResult { flippedFaces: number }
-
-/** For each face, the lowest face number of the connected shell it belongs to (faces joined by shared edges). */
-function shellRoots(mesh: PolygonMesh): Int32Array {
-  const parent = Int32Array.from({ length: mesh.faces.length }, (_, face) => face);
-  const find = (face: number): number => {
-    let root = face;
-    while ((parent[root] ?? root) !== root) root = parent[root] ?? root;
-    for (let walk = face; walk !== root; ) { const next = parent[walk] ?? root; parent[walk] = root; walk = next; }
-    return root;
-  };
-  const count = mesh.positions.length, owner = new Map<number, number>();
-  mesh.faces.forEach((face, index) => face.forEach((from, corner) => {
-    const to = face[(corner + 1) % face.length] ?? from, key = from < to ? from * count + to : to * count + from;
-    const other = owner.get(key);
-    if (other === undefined) owner.set(key, index);
-    else { const a = find(index), b = find(other); if (a !== b) parent[Math.max(a, b)] = Math.min(a, b); }
-  }));
-  return parent.map((_, face) => find(face));
-}
 
 /**
  * Reverse the winding of whole connected shells, so a surface faces the other way (Blender's Flip, Alt+N).

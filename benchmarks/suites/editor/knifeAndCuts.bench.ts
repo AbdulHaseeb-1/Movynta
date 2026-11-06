@@ -3,7 +3,7 @@
  * TIER: HIGH
  * SUBJECT: apps/desktop/src/features/meshGeometry/meshKnifeChord.ts#knifeChord, meshKnifeSession.ts#KnifeSession,
  *          meshBisect.ts#bisectMesh, meshDelete.ts#deleteComponents, meshFlip.ts#flipNormals,
- *          meshShading.ts#shadeGeometry (the write of a whole cage with new normals), meshBridge.ts#bridgeEdgeLoops,
+ *          meshRegions.ts#boundaryLoops and #shellSummaries (what inspect_mesh openings/shells walk), meshShading.ts#shadeGeometry (the write of a whole cage with new normals), meshBridge.ts#bridgeEdgeLoops,
  *          meshTopologyEdit.ts#validateTopologyEdit
  * MEASURES: latency
  * COMPLEXITY: O(faces) for every case: a cut walks the face list once, and the whole-cage validation does too.
@@ -26,6 +26,7 @@ import { bridgeEdgeLoops } from "@/features/meshGeometry/meshBridge";
 import { bisectMesh } from "@/features/meshGeometry/meshBisect";
 import { deleteComponents } from "@/features/meshGeometry/meshDelete";
 import { flipNormals } from "@/features/meshGeometry/meshFlip";
+import { boundaryLoops, shellSummaries } from "@/features/meshGeometry/meshRegions";
 import { shadeGeometry } from "@/features/meshGeometry/meshShading";
 import { knifeChord } from "@/features/meshGeometry/meshKnifeChord";
 import { KnifeSession } from "@/features/meshGeometry/meshKnifeSession";
@@ -104,6 +105,7 @@ it("measures deleting, flipping, shading and validating a whole cage", async () 
     return [
       { name: "delete a patch of up to 1000 faces", params, run: () => consume(deleteComponents(mesh, "face", patch).mesh.faces.length) },
       { name: "flip every face", params, run: () => consume(flipNormals(mesh).mesh.faces.length) },
+      { name: "find openings and shells", params, run: () => { const graph = topology(mesh); consume(boundaryLoops(graph).loops.length + shellSummaries(mesh, graph).length); } },
       { name: "shade flat (rewrite the geometry)", params, run: () => consume(shadeGeometry(source, mesh, { mode: "flat" }).getAttribute("normal").count) },
       { name: "shade smooth by angle (rewrite the geometry)", params, run: () => consume(shadeGeometry(source, mesh, { mode: "smooth", angle: 40 }).getAttribute("normal").count) },
       { name: "validate a candidate (new cage each time)", params, run: () => {
@@ -118,6 +120,7 @@ it("measures deleting, flipping, shading and validating a whole cage", async () 
     { key: "faces", declared: 1, label: "delete", where: (result) => result.name.startsWith("delete") },
     { key: "faces", declared: 1, label: "flip", where: (result) => result.name.startsWith("flip") },
     { key: "faces", declared: 1, label: "validate", where: (result) => result.name.startsWith("validate") },
+    { key: "faces", declared: 1, label: "regions", where: (result) => result.name.startsWith("find openings") },
     { key: "faces", declared: 1, label: "shade flat", where: (result) => result.name.startsWith("shade flat") },
     { key: "faces", declared: 1, label: "shade by angle", where: (result) => result.name.startsWith("shade smooth") },
   ]);
