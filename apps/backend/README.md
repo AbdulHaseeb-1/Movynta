@@ -49,7 +49,9 @@ src/
   shared/                         Zod schemas for editor commands, context, plans
   testing/                        harness, editor simulator, SSE reader (tests only)
 skills/                           repository skills: character-modeling, mesh-editing,
-                                  2.5d-character-design
+                                  2.5d-character-design, model-design-principles,
+                                  props-hard-surface, topology-and-subdivision,
+                                  pbr-materials-and-color
 ```
 
 ### Modeling workflow

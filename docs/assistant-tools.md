@@ -313,9 +313,13 @@ Skills are in `skills/<id>/SKILL.md`. Their `tools:` list tells the model which 
 
 | Skill | Tools named |
 | --- | --- |
-| `character-modeling` | `editor.get_context`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
+| `character-modeling` | `editor.get_context`, `editor.measure`, `viewport.capture`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 | `2.5d-character-design` | `editor.get_context`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
-| `mesh-editing` | `editor.get_context`, `editor.inspect_mesh`, `viewport.capture`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
+| `mesh-editing` | `editor.get_context`, `editor.inspect_mesh`, `editor.inspect_materials`, `editor.measure`, `editor.plan_placement`, `editor.plan_duplicates`, `viewport.capture`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
+| `model-design-principles` | `editor.get_context`, `editor.measure`, `editor.inspect_mesh`, `viewport.capture`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
+| `props-hard-surface` | `editor.get_context`, `editor.inspect_mesh`, `editor.measure`, `editor.plan_placement`, `editor.plan_duplicates`, `viewport.capture`, `modeling.generate_model_plan`, `modeling.generate_commands`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
+| `topology-and-subdivision` | `editor.get_context`, `editor.inspect_mesh`, `editor.measure`, `viewport.capture`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
+| `pbr-materials-and-color` | `editor.get_context`, `editor.inspect_materials`, `editor.inspect_mesh`, `viewport.capture`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 
 ## Not exposed to the assistant
 
