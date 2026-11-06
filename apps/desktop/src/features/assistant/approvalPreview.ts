@@ -58,6 +58,9 @@ const commandSchema = z.looseObject({
     offset: z.number().optional(),
   }).optional(),
   keep: z.enum(["both", "positive", "negative"]).optional(),
+  angle: z.number().optional(),
+  twist: z.number().optional(),
+  newObjectId: z.string().optional(),
   fill: z.boolean().optional(),
 });
 
@@ -159,6 +162,12 @@ function describeCommand(command: Command): string {
       return `Delete ${command.ids?.length ?? 0} ${command.kind ?? "component"}${(command.ids?.length ?? 0) === 1 ? "" : "s"} of ${target}`;
     case "geometry.flip_normals":
       return command.ids ? `Flip the surfaces of ${target} that contain ${command.ids.length} chosen face${command.ids.length === 1 ? "" : "s"}` : `Flip every surface of ${target} to face the other way`;
+    case "geometry.separate_faces":
+      return `Move ${command.ids?.length ?? 0} face${command.ids?.length === 1 ? "" : "s"} of ${target} into a new object “${command.name ?? command.newObjectId ?? "part"}”`;
+    case "geometry.bridge_edge_loops":
+      return `Bridge two boundary loops of ${target} (${command.ids?.length ?? 0} edges)${command.twist ? ` · twist ${command.twist}` : ""}`;
+    case "geometry.set_shading":
+      return `Shade ${target} ${command.mode === "flat" ? "flat" : command.angle === undefined ? "smooth" : `smooth with edges sharper than ${command.angle}° kept crisp`}`;
     case "geometry.triangulate_faces":
       return command.ids ? `Triangulate ${command.ids.length} face${command.ids.length === 1 ? "" : "s"} of ${target}` : `Triangulate every face of ${target}`;
     case "geometry.correct_normals":

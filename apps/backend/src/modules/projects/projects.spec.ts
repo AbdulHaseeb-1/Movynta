@@ -585,6 +585,18 @@ describe("the object index of older projects", () => {
     expect((await recordEdit(copy.id, [move("m5", "lid")])).status).toBe(422);
   });
 
+  it("indexes the object a separation creates, so its id is taken and a hand edit can reach it", async () => {
+    const project = await create(), scenes = server.app.get(ProjectScenesService);
+    scenes.append(project.id, "prp_1", [box("a", "crate")]);
+    const split: EditorCommand = { commandId: "split", type: "geometry.separate_faces", objectId: "crate", meshPath: [], componentView: "base", ids: ["0"], newObjectId: "lid" };
+    scenes.append(project.id, "prp_2", [split]);
+    const ids = server.app.get(DatabaseService).db.prepare("SELECT object_id FROM project_objects WHERE project_id = ? ORDER BY object_id").all(project.id).map((row) => row["object_id"]);
+    expect(ids).toEqual(["crate", "lid"]);
+    // A hand edit can reach the new object (an unknown id is refused), and the id is taken for the next creation.
+    expect((await recordEdit(project.id, [move("m1", "lid")])).status).toBe(201);
+    expect((await recordEdit(project.id, [move("m2", "ghost")])).status).toBe(422);
+  });
+
   it("is removed with the project", async () => {
     const project = await create();
     server.app.get(ProjectScenesService).append(project.id, "prp_1", [box("a", "crate")]);

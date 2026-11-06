@@ -56,7 +56,7 @@ Result:
 {
   "status": "loaded",
   "skillId": "mesh-editing",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "instructions": "# Mesh editing workflow\n\n1. Call `editor.get_context` and confirm every target object exists.\n2. Describe the change in plain language, then build the smallest set of commands that achieves it.\n… (the rest of the workflow is in skills/mesh-editing/SKILL.md)",
   "toolNames": [
     "editor.get_context",

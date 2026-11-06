@@ -19,6 +19,9 @@ export const CAGE_EDIT_COMMAND_TYPES: ReadonlySet<string> = new Set([
   "geometry.transform_faces",
   "geometry.slide_edges",
   "geometry.flip_normals",
+  "geometry.set_shading",
+  "geometry.separate_faces",
+  "geometry.bridge_edge_loops",
   "geometry.merge_vertices",
   "geometry.merge_by_distance",
   "geometry.remove_duplicate_faces",
@@ -49,6 +52,7 @@ export const TOPOLOGY_EDIT_COMMAND_TYPES: ReadonlySet<string> = new Set([
   "geometry.bisect",
   "geometry.delete_components",
   "geometry.triangulate_faces",
+  "geometry.separate_faces",
 ]);
 
 /** Live modifier-stack commands: they append to or replace the stack and leave the base cage alone. */

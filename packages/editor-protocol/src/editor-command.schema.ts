@@ -101,6 +101,16 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
       .refine((ids) => new Set(ids).size === ids.length, "Component IDs must be unique"),
   }).strict().refine((command) => command.ids.every((id) => command.kind === "edge" ?
     id.includes("_") && Number(id.split("_")[0]) < Number(id.split("_")[1]) : !id.includes("_")), "Use face or vertex IDs, or canonical edge IDs, matching kind"),
+  z.object({ ...baseEdit, type: z.literal("geometry.bridge_edge_loops"),
+    ids: z.array(edgeId).min(6).max(512).refine((ids) => new Set(ids).size === ids.length, "Edge IDs must be unique"),
+    twist: z.number().int().min(-256).max(256).default(0),
+  }).strict(),
+  z.object({ ...baseEdit, type: z.literal("geometry.separate_faces"), ids: uniqueFaces, newObjectId: identifierSchema, name: nameSchema.optional() }).strict()
+    .refine((command) => command.meshPath.length === 0, "Separate faces of a whole object: leave meshPath empty")
+    .refine((command) => command.newObjectId !== command.objectId, "newObjectId must be a fresh ID, not the object being split"),
+  z.object({ ...baseEdit, type: z.literal("geometry.set_shading"), mode: z.enum(["flat", "smooth"]),
+    angle: z.number().finite().gt(0).lt(180).optional(),
+  }).strict().refine((command) => command.angle === undefined || command.mode === "smooth", "An angle applies to smooth shading only"),
   z.object({ ...baseEdit, type: z.literal("geometry.flip_normals"), ids: uniqueFaces.optional() }).strict(),
   z.object({ ...baseEdit, type: z.literal("geometry.triangulate_faces"), ids: uniqueFaces.optional() }).strict(),
   z.object({ ...baseEdit, type: z.literal("geometry.knife_path"), segments: z.array(knifeSegment).min(1).max(64) }).strict(),

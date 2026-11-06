@@ -97,6 +97,10 @@ function trackObjects(db: DatabaseSync, projectId: string, commands: readonly Ed
       for (const copy of command.copies) for (const id of [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]) statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, id);
       continue;
     }
+    if (command.type === "geometry.separate_faces") {
+      statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, command.newObjectId);
+      continue;
+    }
     if (command.type === "scene.create_collection") {
       statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, collectionKey(command.collectionId));
       continue;

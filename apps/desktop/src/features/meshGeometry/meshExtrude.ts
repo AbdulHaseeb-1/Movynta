@@ -1,6 +1,7 @@
 import { Euler, Quaternion, Vector3, type BufferAttribute, type BufferGeometry, type InterleavedBufferAttribute } from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
-import { writeShadedGeometry } from "./meshOutput";
+import { writeShadedGeometry, type CornerUvPatch } from "./meshOutput";
+import { shadeGeometry, type ShadingChoice } from "./meshShading";
 import { basis, type Weights } from "./meshWeights";
 import { assertManifold, channels, edgeKey, faceAreaNormal, faceNormal, point, topology, type HalfEdge, type PolygonMesh, type SurfaceChannels, type Topology } from "./meshTopology";
 
@@ -19,6 +20,8 @@ export interface ExtrudeResult {
   selection: string[];
   /** Indices of the quads grown along the boundary. They follow the original faces in `mesh.faces`. */
   walls: number[];
+  /** Set by an edit that changes only how the surface is shaded; the write uses it instead of keeping the old normals. */
+  shading?: ShadingChoice;
 }
 
 const COMPONENT = /^\d{1,10}$/;
@@ -617,9 +620,9 @@ export function extrudeAlongRegionNormal(mesh: PolygonMesh, ids: readonly string
 
 /** Writes an extruded cage. Each new wall gets texture area, so its UVs do not collapse onto the edge it grew from. */
 export function writeExtrudedGeometry(source: BufferGeometry, result: ExtrudeResult): BufferGeometry {
-  return writeShadedGeometry(source, result.mesh, (uv, renderCorner) => {
-    for (const wall of result.walls) stretchWall(result.mesh, uv, wall, renderCorner);
-  });
+  const patch: CornerUvPatch = (uv, renderCorner) => { for (const wall of result.walls) stretchWall(result.mesh, uv, wall, renderCorner); };
+  if (result.shading) return shadeGeometry(source, result.mesh, result.shading, patch);
+  return writeShadedGeometry(source, result.mesh, patch);
 }
 
 /** Update the wall UVs after changing a preview's positions. */

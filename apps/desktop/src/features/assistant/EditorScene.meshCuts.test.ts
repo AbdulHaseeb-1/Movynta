@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { Mesh, Scene, type Object3D } from "three";
+import { Mesh, Scene, Vector3, type Object3D } from "three";
 import { checkManifold } from "../meshGeometry/meshManifold";
-import { readTopology } from "../meshGeometry/meshTopology";
+import { readTopology, topology } from "../meshGeometry/meshTopology";
 import { measureSurface } from "../meshGeometry/meshTestSupport";
 import { EditorScene } from "./EditorScene";
 
@@ -93,5 +93,71 @@ describe("assistant mesh cuts", () => {
     expect(world.message).toContain("singular");
     // The same plane in mesh-local space does not depend on the transform.
     expect(editor.execute("local", editor.currentRevision, [bisect({ plane: { axis: "y", offset: 0 }, space: "local" })]).status).toBe("applied");
+  });
+
+  it("sets shading on an existing mesh and keeps it through the next edit", () => {
+    const editor = new EditorScene(new Scene(), "project");
+    editor.execute("make", 0, [{ commandId: "ball", type: "geometry.create_primitive", objectId: "box", primitive: "sphere", size: 1 }]);
+    expect(editor.execute("flat", editor.currentRevision, [{ commandId: "s", type: "geometry.set_shading", objectId: "box", mode: "flat" }]).status).toBe("applied");
+    const flatTriangles = (mesh: Mesh): boolean => {
+      const normals = mesh.geometry.getAttribute("normal"), index = mesh.geometry.index;
+      const count = (index?.count ?? normals.count) / 3;
+      for (let t = 0; t < count; t += 1) {
+        const at = (c: number) => index ? index.getX(t * 3 + c) : t * 3 + c;
+        for (const c of [1, 2]) for (const axis of [0, 1, 2]) if (Math.abs(normals.getComponent(at(0), axis) - normals.getComponent(at(c), axis)) > 1e-5) return false;
+      }
+      return true;
+    };
+    expect(flatTriangles(meshOf(editor))).toBe(true);
+    // A later cut rebuilds the normals; flat shading must survive it.
+    expect(editor.execute("cut", editor.currentRevision, [bisect({ plane: { axis: "y", offset: 0.1 } })]).status).toBe("applied");
+    expect(flatTriangles(meshOf(editor))).toBe(true);
+    expect(editor.execute("smooth", editor.currentRevision, [{ commandId: "s2", type: "geometry.set_shading", objectId: "box", mode: "smooth", angle: 50 }]).status).toBe("applied");
+    expect(flatTriangles(meshOf(editor))).toBe(false);
+    const withModifiers = editor.execute("mods", editor.currentRevision, [{ commandId: "m", type: "geometry.set_modifiers", objectId: "box", modifiers: [{ id: "s", kind: "subdivision", enabled: true, levels: 1 }] }]);
+    expect(withModifiers.status).toBe("applied");
+    // Shading is a base-cage edit like the others and can run while modifiers are on, using base IDs.
+    expect(editor.execute("again", editor.currentRevision, [{ commandId: "s3", type: "geometry.set_shading", objectId: "box", mode: "flat" }]).status).toBe("applied");
+  });
+
+  it("bridges two separate openings of one object into a single surface", () => {
+    const editor = new EditorScene(new Scene(), "project");
+    const ring = (y: number) => Array.from({ length: 6 }, (_, i) => [Math.cos((i / 6) * 2 * Math.PI), y, Math.sin((i / 6) * 2 * Math.PI)]);
+    const side = (offset: number) => Array.from({ length: 6 }, (_, i) => [offset + i, offset + (i + 1) % 6, offset + 6 + (i + 1) % 6, offset + 6 + i]);
+    const vertices = [...ring(0), ...ring(1), ...ring(2), ...ring(3)];
+    const created = editor.execute("make", 0, [{ commandId: "mesh", type: "geometry.create_mesh", objectId: "box", vertices, faces: [...side(0), ...side(12)] }]);
+    expect(created.status).toBe("applied");
+    const cage = readTopology(meshOf(editor).geometry);
+    const open = [...topology(cage).edges].filter(([, incident]) => incident.length === 1);
+    const at = (y: number) => open.filter(([, incident]) => incident.every((half) => Math.abs((cage.positions[half.from]?.y ?? Number.NaN) - y) < 1e-6)).map(([id]) => id);
+    const command = { commandId: "bridge", type: "geometry.bridge_edge_loops", objectId: "box", ids: [...at(1), ...at(2)] };
+    expect(editor.execute("stale", editor.currentRevision - 1, [command]).status).toBe("revision_conflict");
+    const result = editor.execute("bridge", editor.currentRevision, [command]);
+    expect(result.status).toBe("applied");
+    const bridged = readTopology(meshOf(editor).geometry);
+    expect(bridged.faces).toHaveLength(cage.faces.length + 6);
+    expect([...topology(bridged).edges.values()].filter((incident) => incident.length === 1)).toHaveLength(12);
+    const again = editor.execute("again", editor.currentRevision, [{ ...command, commandId: "again" }]);
+    expect(again.status).toBe("failed");
+  });
+
+  it("keeps smooth-by-angle shading through a later edit instead of faceting the side", () => {
+    const editor = new EditorScene(new Scene(), "project");
+    editor.execute("make", 0, [{ commandId: "tube", type: "geometry.create_primitive", objectId: "box", primitive: "cylinder", size: 1, options: { radialSegments: 12 } }]);
+    expect(editor.execute("shade", editor.currentRevision, [{ commandId: "s", type: "geometry.set_shading", objectId: "box", mode: "smooth", angle: 40 }]).status).toBe("applied");
+    expect(editor.execute("cut", editor.currentRevision, [bisect({ plane: { axis: "y", offset: 0.1 } })]).status).toBe("applied");
+    const geometry = meshOf(editor).geometry, position = geometry.getAttribute("position"), normal = geometry.getAttribute("normal"), index = geometry.index;
+    let sides = 0, caps = 0;
+    for (let i = 0; i < (index?.count ?? position.count); i += 1) {
+      const v = index ? index.getX(i) : i;
+      const n = new Vector3().fromBufferAttribute(normal, v), p = new Vector3().fromBufferAttribute(position, v);
+      if (Math.abs(n.y) > 0.999) { caps += 1; continue; }
+      sides += 1;
+      // Smooth around the tube: the normal at a corner points straight out from the axis, not along its face.
+      expect(Math.abs(n.y)).toBeLessThan(1e-4);
+      expect(n.dot(p.clone().setY(0).normalize())).toBeGreaterThan(0.999);
+    }
+    expect(sides).toBeGreaterThan(0);
+    expect(caps).toBeGreaterThan(0);
   });
 });

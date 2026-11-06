@@ -49,6 +49,36 @@ describe("plane cut, delete, flip and triangulate commands", () => {
     }
   });
 
+  it("validates shading and loop bridging", () => {
+    expect(editorCommandListSchema.parse([{ ...base, type: "geometry.set_shading", mode: "flat" }])[0]).toMatchObject({ componentView: "base" });
+    expect(ok({ type: "geometry.set_shading", mode: "smooth", angle: 30 })).toBe(true);
+    for (const fields of [{ mode: "round" }, { mode: "flat", angle: 30 }, { mode: "smooth", angle: 0 }, { mode: "smooth", angle: 180 }, {}]) {
+      expect(ok({ type: "geometry.set_shading", ...fields })).toBe(false);
+    }
+    const loops = ["0_1", "1_2", "0_2", "3_4", "4_5", "3_5"];
+    expect(editorCommandListSchema.parse([{ ...base, type: "geometry.bridge_edge_loops", ids: loops }])[0]).toMatchObject({ twist: 0 });
+    expect(ok({ type: "geometry.bridge_edge_loops", ids: loops, twist: -2 })).toBe(true);
+    for (const fields of [{ ids: loops.slice(0, 5) }, { ids: [...loops.slice(0, 5), "0_1"] }, { ids: [...loops.slice(0, 5), "2_1"] }, { ids: loops, twist: 1.5 }, { ids: loops, twist: 300 }]) {
+      expect(ok({ type: "geometry.bridge_edge_loops", ...fields })).toBe(false);
+    }
+  });
+
+  it("validates separation and treats the new object id as taken", () => {
+    expect(ok({ type: "geometry.separate_faces", ids: ["0", "1"], newObjectId: "part", name: "Part" })).toBe(true);
+    for (const fields of [{ ids: ["0"] }, { ids: [], newObjectId: "part" }, { ids: ["0"], newObjectId: "mesh" }, { ids: ["0"], newObjectId: "a b" },
+      { ids: ["0", "0"], newObjectId: "part" }, { ids: ["0"], newObjectId: "part", meshPath: ["Arm"] }, { ids: ["0"], newObjectId: "part", componentView: "evaluated" }]) {
+      expect(ok({ type: "geometry.separate_faces", ...fields })).toBe(false);
+    }
+    const split = editorCommandListSchema.parse([{ ...base, type: "geometry.separate_faces", ids: ["0"], newObjectId: "part" }]);
+    expect(validateAgainstContext(split, scene)).toEqual([]);
+    const taken: EditorContext = { ...scene, objects: [...scene.objects, { id: "part", name: "Part", type: "mesh", parentId: null, visible: true, transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } }] };
+    expect(validateAgainstContext(split, taken)[0]?.message).toContain("part");
+    expect(validateAgainstContext(editorCommandListSchema.parse([{ ...base, objectId: "ghost", type: "geometry.separate_faces", ids: ["0"], newObjectId: "part" }]), scene)[0]?.message).toContain("ghost");
+    const flip = editorCommandListSchema.parse([{ ...base, commandId: "flip", type: "geometry.flip_normals" }])[0];
+    if (!flip || !split[0]) throw new Error("parse failed");
+    expect(validateAgainstContext([split[0], flip], scene)[0]?.message).toContain("one topology-changing edit");
+  });
+
   it("keeps the shared command lists in step with the schema", () => {
     const types = new Map<string, boolean>();
     for (const option of editorCommandSchema.options) {

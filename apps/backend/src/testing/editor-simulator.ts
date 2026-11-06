@@ -185,6 +185,13 @@ export class EditorSimulator {
         });
         break;
       }
+      case "geometry.separate_faces": {
+        const source = this.objects.find((object) => object.id === command.objectId);
+        if (!source) throw new Error("Missing separation source");
+        this.objects.push({ ...source, id: command.newObjectId, name: command.name ?? `${source.name} part` });
+        this.collectionModel.assign(command.newObjectId, this.collectionModel.collectionOf(command.objectId));
+        break;
+      }
       case "scene.create_object":
       case "geometry.create_mesh":
       case "geometry.create_primitive": {
@@ -240,6 +247,8 @@ export class EditorSimulator {
       case "geometry.bisect":
       case "geometry.delete_components":
       case "geometry.flip_normals":
+      case "geometry.set_shading":
+      case "geometry.bridge_edge_loops":
       case "geometry.triangulate_faces":
       case "geometry.correct_normals":
       case "geometry.remove_duplicate_faces":

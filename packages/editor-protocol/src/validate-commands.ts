@@ -124,6 +124,13 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
         if (context.objects.length + added > 2000) issue(command.commandId, "Copies exceed the 2000-object scene limit");
         break;
       }
+      case "geometry.separate_faces": {
+        if (!parents.has(command.objectId)) { missing(command.commandId, command.objectId); break; }
+        if (parents.has(command.newObjectId)) issue(command.commandId, existsMessage(command.newObjectId, createdInBatch, "geometry.separate_faces"));
+        // The new object is a sibling of the one it is split from.
+        placeCreated(command.commandId, command.newObjectId, parents.get(command.objectId) ?? undefined, false);
+        break;
+      }
       case "scene.create_object":
         if (parents.has(command.objectId)) {
           issue(command.commandId, existsMessage(command.objectId, createdInBatch, "scene.create_object"));
@@ -204,6 +211,8 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       case "geometry.bisect":
       case "geometry.delete_components":
       case "geometry.flip_normals":
+      case "geometry.set_shading":
+      case "geometry.bridge_edge_loops":
       case "geometry.triangulate_faces":
       case "geometry.correct_normals":
       case "geometry.remove_duplicate_faces":

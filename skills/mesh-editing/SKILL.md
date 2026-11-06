@@ -1,7 +1,7 @@
 ---
 name: mesh-editing
-version: 1.8.0
-description: Inspects mesh geometry and edits transforms, bevels, subdivision surfaces, booleans, plane cuts, deletion, replacements, and cleanup through validated proposals with automatic application.
+version: 1.9.0
+description: Inspects mesh geometry and edits transforms, bevels, subdivision surfaces, booleans, plane cuts, deletion, shading, bridging, separating parts, replacements, and cleanup through validated proposals with automatic application.
 dimensions:
   - 2d
   - 2.5d
@@ -90,7 +90,13 @@ Cut a mesh with `geometry.bisect`, the plane cut, whenever the request is a stra
 
 Use `geometry.delete_components` with `kind` `face`, `edge` or `vertex` to take geometry away: faces go alone, an edge or vertex takes every face touching it. It keeps the order of what remains and may open a closed mesh; follow it with `geometry.fill_hole` (boundary edge IDs from a new inspection) when the object must stay closed. Deleting everything is refused (delete the object with `scene.delete_object`), as is leaving faces that touch only at a corner. Use `geometry.flip_normals` to make a surface face the other way (omit `ids` for every surface, or name one face per surface to flip; a surface flips as a whole), for example a one-sided layer plane that faces away from the camera. Use `geometry.triangulate_faces` to split polygons into triangles (omit `ids` for all).
 
-Merge, dissolve, loop cut, bisect, delete and triangulate each require a single-command proposal, disabled enabled modifiers, and removal of live extrusion. IDs change, so inspect again after applying. All use base IDs and the inspection's expectedRevision. `geometry.slide_edges` preserves IDs: provide selected edge `ids`, `factor` strictly between 0 and 1, and exactly one `rails` entry `{vertex,toward}` per unique selected endpoint. A rail is an existing edge to an unselected neighbor. Select the other rail for the opposite direction. Sliding moves geometry in mesh-local space and keeps UV/corner attributes attached; UV correction is not included. All four operations use automatic application and saved undo/redo.
+Use `geometry.set_shading` when a surface looks faceted or too soft: `flat` for a crisp faceted look, `smooth` to blend everything, or `smooth` with an `angle` (30 to 40 degrees suits most hard-surface props) to keep sharper edges crisp while rounding the rest. It changes only how the surface is shaded, keeps every ID, and is remembered, so later cuts, extrudes and bevels do not undo it.
+
+Use `geometry.bridge_edge_loops` to connect two openings, such as two pipe ends or a handle to a body. Inspect the base, collect the canonical edge IDs of every edge of both boundary loops (an edge with a single face is on a boundary), and pass them all in `ids`; both loops need the same number of edges. If the connecting edges cross or twist, repeat with `twist` 1, 2 or -1. Capture the result to check it. Existing IDs stay and the new faces are last.
+
+Use `geometry.separate_faces` to make a region its own object (to move, hide or give it a different material). Choose the faces with `editor.inspect_mesh` and a `faceQuery`, give a fresh `newObjectId` and optionally a `name`, clear the modifier stack first, and send it alone. The new object sits beside the source with the same transform, collection and material slots. Faces that touch only at a corner cannot be separated; choose a connected region. Inspect the source again afterward because its IDs change.
+
+Merge, dissolve, loop cut, bisect, delete, separate and triangulate each require a single-command proposal, disabled enabled modifiers, and removal of live extrusion. IDs change, so inspect again after applying. All use base IDs and the inspection's expectedRevision. `geometry.slide_edges` preserves IDs: provide selected edge `ids`, `factor` strictly between 0 and 1, and exactly one `rails` entry `{vertex,toward}` per unique selected endpoint. A rail is an existing edge to an unselected neighbor. Select the other rail for the opposite direction. Sliding moves geometry in mesh-local space and keeps UV/corner attributes attached; UV correction is not included. All four operations use automatic application and saved undo/redo.
 
 Use `geometry.fill_hole` to close a single opening whose boundary has a simple projection using 3–256 canonical base boundary-edge IDs. With enabled modifiers, pass `componentView: base` and `expectedRevision` from base inspection.
 

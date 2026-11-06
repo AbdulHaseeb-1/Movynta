@@ -212,6 +212,9 @@ describe("command proposals", () => {
     { type: "geometry.bisect", plane: { point: [0, 0, 0], normal: [1, 0, 0] }, space: "world", keep: "positive", fill: true },
     { type: "geometry.delete_components", kind: "face", ids: ["0"] },
     { type: "geometry.flip_normals" },
+    { type: "geometry.set_shading", mode: "smooth", angle: 35 },
+    { type: "geometry.separate_faces", ids: ["0", "1"], newObjectId: "part" },
+    { type: "geometry.bridge_edge_loops", ids: ["0_1", "1_2", "0_2", "3_4", "4_5", "3_5"] },
     { type: "geometry.triangulate_faces", ids: ["0", "1"] },
     { type: "geometry.slide_edges", ids: ["0_1"], rails: [{ vertex: "0", toward: "2" }, { vertex: "1", toward: "3" }], factor: 0.25 },
   ])("requires a base inspection revision for $type and applies automatically", async (edit) => {
