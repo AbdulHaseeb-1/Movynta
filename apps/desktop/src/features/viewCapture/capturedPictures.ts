@@ -53,7 +53,7 @@ export function recallCapture(captureId: string): readonly GalleryImage[] | unde
   return captures.get(captureId);
 }
 
-/** Forgets every capture, for tests. */
+/** Forgets captures when the conversation is cleared or a test is reset. */
 export function forgetCaptures(): void {
   captures.clear();
 }

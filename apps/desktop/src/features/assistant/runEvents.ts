@@ -10,6 +10,7 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   "editor.apply_proposal": "Applying scene changes",
   "viewport.capture": "Looking at the scene",
   "modeling.generate_model_plan": "Planning the model",
+  "modeling.assess_quality": "Reviewing model quality",
   "modeling.generate_commands": "Calculating scene changes",
 };
 

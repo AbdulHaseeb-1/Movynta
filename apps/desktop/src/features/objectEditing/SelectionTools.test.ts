@@ -20,6 +20,7 @@ it("selects by plain drag, adds with Shift, and cleans up a cancelled drag", () 
     releasePointerCapture: () => undefined,
   });
   vi.stubGlobal("window", new EventTarget());
+  vi.stubGlobal("HTMLElement", class HTMLElement { readonly isContentEditable = false; readonly tagName = ""; });
   vi.stubGlobal("document", {
     createElement: () => ({
       style: {},
@@ -43,8 +44,9 @@ it("selects by plain drag, adds with Shift, and cleans up a cancelled drag", () 
     camera,
     renderer: { domElement: dom },
   } as unknown as Viewport;
+  let enabled = true;
   const selecting = new SelectionTools(viewport, editor, {
-    enabled: () => true,
+    enabled: () => enabled,
     tool: () => "select",
   });
   const pointer = (type: string, x: number, y: number, shiftKey = false) => {
@@ -70,6 +72,16 @@ it("selects by plain drag, adds with Shift, and cleans up a cancelled drag", () 
   pointer("pointerdown", 20, 20);
   pointer("pointermove", 80, 80);
   dom.dispatchEvent(new Event("pointercancel"));
+  expect(rectangle).toBe(false);
+  const key = new Event("keydown", { cancelable: true });
+  Object.assign(key, { key: "b", code: "KeyB", ctrlKey: false, metaKey: false, altKey: false, repeat: false });
+  window.dispatchEvent(key);
+  enabled = false;
+  editor.select(null);
+  pointer("pointerdown", 20, 20);
+  pointer("pointermove", 80, 80);
+  pointer("pointerup", 80, 80);
+  expect(editor.selectedIds).toEqual([]);
   expect(rectangle).toBe(false);
   selecting.dispose();
 });

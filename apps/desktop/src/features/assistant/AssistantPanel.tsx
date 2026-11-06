@@ -1,7 +1,9 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, X } from "lucide-react";
+import { ArrowDown, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { errorMessage } from "@/lib/backend";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
@@ -22,10 +24,12 @@ function HeaderButton({
   label,
   onClick,
   children,
+  disabled = false,
 }: {
   label: string;
   onClick: () => void;
   children: ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <Tooltip>
@@ -37,6 +41,7 @@ function HeaderButton({
           className="text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
           onClick={onClick}
           aria-label={label}
+          disabled={disabled}
         >
           {children}
         </Button>
@@ -67,6 +72,8 @@ export function AssistantPanel({
   const viewport = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearError, setClearError] = useState("");
   const { messages, approvals } = run;
   const pending = approvals.filter((approval) => approval.status === "pending");
 
@@ -155,6 +162,9 @@ export function AssistantPanel({
               <h2 className="min-w-0 flex-1 truncate text-[14px] font-medium tracking-tight">
                 {ASSISTANT_NAME}
               </h2>
+              <HeaderButton label="Clear chat" disabled={run.busy || messages.length === 0} onClick={() => { setClearError(""); setClearOpen(true); }}>
+                <Trash2 className="size-4" />
+              </HeaderButton>
               <HeaderButton
                 label={`Close ${ASSISTANT_NAME}`}
                 onClick={() => onOpenChange(false)}
@@ -249,6 +259,22 @@ export function AssistantPanel({
           </div>
         </Card>
       </aside>
+      <Dialog open={clearOpen} onOpenChange={(next) => { if (!run.busy) setClearOpen(next); }}>
+        <DialogContent className="z-[100] w-[min(420px,calc(100vw-32px))]">
+          <DialogTitle>Clear chat?</DialogTitle>
+          <DialogDescription className="text-xs leading-5 text-muted-foreground">
+            This clears the saved conversation and starts a new assistant session. The scene and its undo history stay available.
+          </DialogDescription>
+          {clearError && <p role="alert" className="text-xs text-destructive">{clearError}</p>}
+          <div className="flex justify-end gap-2 border-t pt-4">
+            <Button type="button" variant="ghost" disabled={run.busy} onClick={() => setClearOpen(false)}>Cancel</Button>
+            <Button type="button" variant="destructive" disabled={run.busy} onClick={() => {
+              setClearError("");
+              void run.clearChat().then(() => setClearOpen(false)).catch((error: unknown) => setClearError(errorMessage(error)));
+            }}>{run.busy ? "Clearing…" : "Clear chat"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

@@ -1,6 +1,8 @@
 import type { AgentInputItem } from "@openai/agents";
 import { jest } from "@jest/globals";
 import { ToolRegistry } from "../modules/tools/tool.registry.js";
+import { EDITOR_BRIDGE } from "../modules/editor-bridge/editor-bridge.tokens.js";
+import type { EditorBridge } from "../modules/editor-bridge/editor-bridge.types.js";
 import { assistantMessage, functionCall, modelResponder } from "@openai/agents/testing";
 import { startTestServer } from "../testing/test-app.js";
 import { openEventStream } from "../testing/event-stream.js";
@@ -536,6 +538,64 @@ describe("agent run: continuation until the work is finished", () => {
     }
   }, 30_000);
 
+  it("accepts a quality review only after fresh live multi-view images", async () => {
+    const token = server.token("quality-ready");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-quality-ready", torsoScene);
+    const bridge = server.app.get<EditorBridge>(EDITOR_BRIDGE);
+    const capture = bridge.captureViews.bind(bridge);
+    // The simulator uses one fixed camera; provide distinct camera positions for this multi-view test.
+    jest.spyOn(bridge, "captureViews").mockImplementation(async (...args) => {
+      const result = await capture(...args);
+      return { ...result, images: result.images.map((image, index) => ({ ...image, camera: { ...image.camera, position: index === 0 ? [0, 0, 10] : [10, 0, 0] } })) };
+    });
+    server.model.enqueue(
+      [functionCall("editor__propose_commands", { summary: "Build the shape", commands: box("quality_ready_box") }, { callId: "propose-quality-ready" })],
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-quality-ready" })]),
+      [functionCall("validation__check_scene", {}, { callId: "check-quality-ready" })],
+      [functionCall("viewport__capture", { views: [{ preset: "front" }, { preset: "right" }] }, { callId: "capture-quality-ready" })],
+      [functionCall("modeling__assess_quality", { outcome: "ready", summary: "The requested shape is present.", findings: [{ aspect: "silhouette", observation: "The overall shape is clear.", severity: "minor" }, { aspect: "proportions", observation: "The parts are aligned.", severity: "minor" }] }, { callId: "assess-quality-ready" })],
+      [assistantMessage("I reviewed the model from two views.")],
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-quality-ready", editorClientId: editor.clientId, dimension: "3d", message: "Create a detailed figure" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+        expect(stream.events.filter((event) => event.envelope.type === "agent.continued")).toHaveLength(0);
+      } finally { stream.stop(); }
+      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+      expect(final.body.finalOutput).toBe("I reviewed the model from two views.");
+    } finally { editor.close(); }
+  }, 30_000);
+
+  it("continues a realistic modeling request after structural validation and discloses an unfinished visual review", async () => {
+    const token = server.token("quality-review");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-quality-review", torsoScene);
+    server.model.enqueue(
+      [functionCall("editor__propose_commands", { summary: "Block out a figure", commands: box("quality_box") }, { callId: "propose-quality" })],
+      modelResponder((call) => [functionCall("editor__apply_proposal", { proposalId: latestProposalId(call.request.input) }, { callId: "apply-quality" })]),
+      [functionCall("validation__check_scene", {}, { callId: "check-quality" })],
+      [assistantMessage("The figure is realistic.")],
+      modelResponder((call) => {
+        expect(JSON.stringify(call.request.input)).toContain("modeling.assess_quality");
+        return [assistantMessage("The figure still needs review.")];
+      }),
+    );
+    try {
+      const run = await createRun(token, { projectId: "proj-quality-review", editorClientId: editor.clientId, dimension: "3d", message: "Create a realistic figure" });
+      const stream = streamFor(run, token);
+      try {
+        const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+        expect(terminal.envelope.type).toBe("run.completed");
+        expect(stream.events.filter((event) => event.envelope.type === "agent.continued")).toHaveLength(1);
+      } finally { stream.stop(); }
+      const final = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+      expect(final.body.finalOutput).toContain("requested quality is not verified");
+      expect(final.body.finalOutput).toContain("visual quality review was not completed");
+    } finally { editor.close(); }
+  }, 30_000);
+
   it("stops asking after the continuation limit and accepts the last reply", async () => {
     const token = server.token("hank");
     const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-limit", torsoScene);
@@ -549,6 +609,10 @@ describe("agent run: continuation until the work is finished", () => {
       [functionCall("editor__get_context", {}, { callId: "look-2" })],
       [assistantMessage("Still checking.")],
       [functionCall("editor__get_context", {}, { callId: "look-3" })],
+      [assistantMessage("Still checking.")],
+      [functionCall("editor__get_context", {}, { callId: "look-4" })],
+      [assistantMessage("Still checking.")],
+      [functionCall("editor__get_context", {}, { callId: "look-5" })],
       [assistantMessage("Final answer.")],
     );
     try {
@@ -558,7 +622,7 @@ describe("agent run: continuation until the work is finished", () => {
         const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
         expect(terminal.envelope.type).toBe("run.completed");
         const continued = stream.events.filter((event) => event.envelope.type === "agent.continued");
-        expect(continued).toHaveLength(3);
+        expect(continued).toHaveLength(5);
       } finally {
         stream.stop();
       }

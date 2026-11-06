@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { errorMessage, type SerialQueue } from "@/lib";
-import { setComponentError, setComponentKind } from "./workspaceSlice";
+import { requestComponentSelection, setComponentError, setComponentKind } from "./workspaceSlice";
 import { MeshSelectionIcon } from "./MeshSelectionIcon";
 import { subdivideSelectedFaces } from "./subdivideSelection";
 import { MeshCleanupMenu } from "./MeshCleanupMenu";
@@ -72,10 +72,21 @@ export function ComponentToolbar({ scene, saves, start, disabled }: ComponentToo
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {label} · Shift-click to add or remove · B for box select
+                {label} · Shift-click to add or remove · drag or press B to box select
               </TooltipContent>
             </Tooltip>
           ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button size="icon-sm" variant="ghost" className="size-7 rounded-sm" aria-label="Expand or reduce selection" disabled={!selected}><SquareDashed className="size-4" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem disabled={componentKind !== "edge"} onSelect={() => dispatch(requestComponentSelection("loop"))}>Select edge loop</DropdownMenuItem>
+              <DropdownMenuItem disabled={componentKind !== "edge"} onSelect={() => dispatch(requestComponentSelection("ring"))}>Select edge ring</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => dispatch(requestComponentSelection("connected"))}>Select connected</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => dispatch(requestComponentSelection("grow"))}>Grow selection</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => dispatch(requestComponentSelection("shrink"))}>Shrink selection</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {selected && <span className="px-1 text-[10px] text-muted-foreground" aria-label={`${componentSelection?.ids.length ?? 0} components selected`}>{componentSelection?.ids.length}</span>}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4"

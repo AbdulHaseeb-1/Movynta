@@ -262,6 +262,12 @@ describe("selecting with a rectangle", () => {
     expect(wide.sort()).toEqual(["left", "middle", "right"]);
   });
 
+  it("does not select an object just because its bounds cross the rectangle", () => {
+    const editor = scene(["middle", 0, 0, 0]);
+    const camera = view();
+    expect(idsInRect(editor.entries(), camera, rectBetween(0.06, -0.02, 0.09, 0.02))).toEqual([]);
+  });
+
   it("does not depend on the order the corners were dragged in", () => {
     expect(rectBetween(1, 1, -1, -1)).toEqual(rectBetween(-1, -1, 1, 1));
   });

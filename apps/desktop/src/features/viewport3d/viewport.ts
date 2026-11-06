@@ -17,6 +17,7 @@ import {
   type Object3D,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { createShadingRenderer, type ShadingMode } from "./shading";
 import { framePose } from "./framing";
 import { viewPosition, type ViewPreset } from "./viewPresets";
 import { createOutlineRenderer } from "./outline";
@@ -36,10 +37,14 @@ export type NavigationScope = "rotate" | "full";
 
 export interface Viewport {
   scene: Scene;
+  setShadingMode: (mode: ShadingMode, xray: boolean) => void;
+  setShadingModelPredicate: (predicate: (object: Object3D) => boolean) => void;
   camera: PerspectiveCamera;
   renderer: WebGLRenderer;
   controls: OrbitControls;
   setNavigationTool: (tool: NavigationTool) => void;
+  // Edit mode uses left-drag for selection and right-drag for orbit.
+  setEditNavigation: (enabled: boolean) => void;
   // "rotate" limits the view to orbiting; "full" also allows pan, zoom, and Space + drag. Defaults to "full".
   setNavigationScope: (scope: NavigationScope) => void;
   // Moves the camera toward (factor > 1) or away from (factor < 1) the orbit target, with a short ease.
@@ -197,6 +202,7 @@ export function createViewport(
   });
 
   const outline = createOutlineRenderer(renderer, scene, camera);
+  const shading = createShadingRenderer(scene, renderer, camera);
 
   const resize = () => {
     const width = container.clientWidth;
@@ -330,8 +336,10 @@ export function createViewport(
     const delta = timer.getDelta();
     controls.update(delta);
     frameListeners.forEach((listener) => listener(delta));
-    if (outline.active) outline.render();
-    else renderer.render(scene, camera);
+    shading.render(() => {
+      if (outline.active) outline.render();
+      else renderer.render(scene, camera);
+    });
   });
 
   const dispose = () => {
@@ -341,6 +349,7 @@ export function createViewport(
     stopEase?.();
     disableSpacePan();
     outline.dispose();
+    shading.dispose();
     controls.dispose();
     frameListeners.clear();
 
@@ -360,10 +369,13 @@ export function createViewport(
 
   return {
     scene,
+    setShadingMode: (mode, xray) => shading.setMode(mode, xray),
+    setShadingModelPredicate: (predicate) => shading.setModelPredicate(predicate),
     camera,
     renderer,
     controls,
     setNavigationTool,
+    setEditNavigation: (enabled) => { controls.mouseButtons.RIGHT = enabled ? MOUSE.ROTATE : MOUSE.PAN; },
     setNavigationScope,
     zoomBy,
     resetView,

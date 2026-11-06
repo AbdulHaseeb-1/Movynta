@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
 import { errorMessage } from "@/lib";
+import { pickObjectId, toNdc } from "@/features/objectEditing/picking";
 import { meshAtPath } from "@/features/meshGeometry";
 import { cageKey, readTopology } from "@/features/meshGeometry/meshTopology";
 import { ComponentSelection } from "./ComponentSelection";
@@ -21,11 +22,14 @@ export function useComponentSelection(
   const { mode, componentKind } = useAppSelector(
     (state) => state.designWorkspace,
   );
+  const controllerRef = useRef<ComponentSelection | undefined>(undefined);
+  const selectionRequest = useAppSelector((state) => state.designWorkspace.selectionRequest);
   const remembered = useRef<{ scene: EditorScene; objectId: string; kind: typeof componentKind; path: number[]; ids: string[]; key: string } | null>(null);
   const keys = useRef(new WeakMap<ReturnType<typeof readTopology>, string>());
   const loadedScene = useRef<EditorScene | null>(null);
   useEffect(() => {
     if (!viewport || !scene || mode !== "edit" || disabled) return undefined;
+    viewport.setEditNavigation(true);
     let restoreObject: string | null = null;
     if (loadedScene.current !== scene) {
       loadedScene.current = scene;
@@ -56,6 +60,7 @@ export function useComponentSelection(
       signature = next;
       controller?.dispose();
       controller = undefined;
+      controllerRef.current = undefined;
       dispatch(setComponentSelection(null));
       const id = scene.selection;
       const root = id ? scene.getObject(id) : undefined;
@@ -88,7 +93,17 @@ export function useComponentSelection(
               ),
             );
           },
+          () => true,
+          (event) => {
+            const bounds = viewport.renderer.domElement.getBoundingClientRect();
+            if (!bounds.width || !bounds.height) return false;
+            const clicked = pickObjectId(scene, viewport.camera, toNdc(event.clientX, event.clientY, bounds));
+            if (!clicked || clicked === scene.selection) return false;
+            scene.select(clicked);
+            return true;
+          },
         );
+        controllerRef.current = controller;
         const queued = takeComponentSelection(scene, id);
         if (queued) controller.select(queued.meshPath, queued.ids);
         else {
@@ -113,7 +128,12 @@ export function useComponentSelection(
     return () => {
       unsubscribe();
       controller?.dispose();
+      controllerRef.current = undefined;
       stopObjectSelection();
+      viewport.setEditNavigation(false);
     };
   }, [viewport, scene, mode, componentKind, disabled, dispatch]);
+  useEffect(() => {
+    if (selectionRequest) controllerRef.current?.changeSelection(selectionRequest.operation);
+  }, [selectionRequest]);
 }

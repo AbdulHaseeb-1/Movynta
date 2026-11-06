@@ -9,6 +9,7 @@ import { SkillsModule } from "../skills/skills.module.js";
 import { SkillsRegistry } from "../skills/skills.registry.js";
 import { createEditorTools } from "./editor/editor.tools.js";
 import { createModelingTools, MODELING_PLAN_TOOL_NAME } from "./modeling/modeling.tools.js";
+import { createQualityTools } from "./modeling/quality.tools.js";
 import { createSkillTools } from "./skills/skills.tools.js";
 import { createProceduralTools } from "./procedural/index.js";
 import { ToolRegistry } from "./tool.registry.js";
@@ -29,17 +30,19 @@ import { createViewportTools } from "./viewport/index.js";
         const skillTools = createSkillTools({ skills });
         const proceduralTools = createProceduralTools({ bridge, proposals });
         const viewportTools = createViewportTools({ bridge, proposals });
+        const qualityTools = createQualityTools(bridge);
         const knownToolNames = [
           ...editorTools,
           ...validationTools,
           ...skillTools,
           ...proceduralTools,
           ...viewportTools,
+          ...qualityTools,
         ].map((definition) => definition.name);
         const modelingTools = createModelingTools({
           knownToolNames: [...knownToolNames, MODELING_PLAN_TOOL_NAME],
         });
-        return [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools, ...modelingTools];
+        return [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools, ...qualityTools, ...modelingTools];
       },
     },
     ToolRegistry,

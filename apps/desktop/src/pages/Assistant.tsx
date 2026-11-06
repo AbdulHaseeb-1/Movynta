@@ -7,6 +7,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import {
   boxToFrame,
   CoordinateViewport,
+  ShadingMenu,
+  OrientationGizmo,
   ViewportToolbar,
   type Viewport,
 } from "@/features/viewport3d";
@@ -73,6 +75,7 @@ interface WorkspaceProps {
 function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { shadingMode, wireframeXray } = useAppSelector((state) => state.viewport);
   const designMode = useAppSelector((state) => state.designWorkspace.mode);
   const [prompt, setPrompt] = useState("");
   const [modifierBusy, setModifierBusy] = useState(false);
@@ -83,6 +86,12 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const setPanelOpen = useCallback((open: boolean) => dispatch(setWorkspacePanelOpen({ id: "assistant", open })), [dispatch]);
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [editorScene, setEditorScene] = useState<EditorScene | null>(null);
+  useEffect(() => {
+    if (!viewport || !editorScene) return undefined;
+    viewport.setShadingModelPredicate((object) => editorScene.idOf(object) !== undefined);
+    return () => viewport.setShadingModelPredicate(() => false);
+  }, [viewport, editorScene]);
+  useEffect(() => { viewport?.setShadingMode(shadingMode, wireframeXray); }, [viewport, shadingMode, wireframeXray]);
   const [project, setProject] = useState<Project | undefined>(undefined);
   const [opening, setOpening] = useState<OpeningState>(
     openProjectId ? "loading" : "ready",
@@ -91,16 +100,22 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const loading = useRef(0);
   const editorRef = useRef<EditorScene | null>(null);
   const projectRef = useRef<Project | undefined>(undefined);
+  const creatingProject = useRef<Promise<string> | null>(null);
   const saved = useRef<SavedProject | null>(null);
   const restored = useRef(false);
 
   const ensureProject = useCallback(async () => {
     if (projectRef.current) return projectRef.current.id;
-    const created = await createProject("design");
-    projectRef.current = created;
-    setProject(created);
-    onProjectCreated(created.id);
-    return created.id;
+    if (creatingProject.current) return creatingProject.current;
+    const pending = createProject("design").then((created) => {
+      projectRef.current = created;
+      setProject(created);
+      onProjectCreated(created.id);
+      return created.id;
+    });
+    creatingProject.current = pending;
+    try { return await pending; }
+    finally { if (creatingProject.current === pending) creatingProject.current = null; }
   }, [onProjectCreated]);
 
   // The assistant looks at the scene through the same viewport the user sees, from any point of view.
@@ -337,11 +352,15 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       </div>
       {/* Panel launchers stay compact until opened. */}
       <div className="pointer-events-none absolute top-4 right-4 bottom-20 z-20 flex w-[272px] flex-col items-end gap-3 overflow-y-auto">
+        <div className="pointer-events-auto flex w-full shrink-0 items-start justify-end gap-2">
+        <ShadingMenu />
         <ImportButton
           importer={importer}
           disabled={run.busy || modifierBusy || opening !== "ready"}
-          className="pointer-events-auto w-full shrink-0"
+          className="min-w-0"
         />
+        </div>
+        {viewport && <OrientationGizmo viewport={viewport} />}
         <Button variant="ghost" size="icon" className={cn("pointer-events-auto size-8 rounded-xl border border-border bg-card/95 text-muted-foreground shadow-xl", measurementOpen && "bg-accent text-foreground")} title={measurementOpen ? "Close measurements" : "Open measurements"} aria-label={measurementOpen ? "Close measurements" : "Open measurements"} aria-expanded={measurementOpen} aria-controls="measurement-panel" onClick={() => setMeasurementOpen((open) => !open)}><Ruler className="size-4" /></Button>
         {editorScene && viewport && <div id="measurement-panel" inert={!measurementOpen} className={cn("pointer-events-auto w-full shrink-0", !measurementOpen && "hidden")}>
           <MeasurementPanel scene={editorScene} viewport={viewport} projectId={project?.id} disabled={!measurementOpen || run.busy || modifierBusy || opening !== "ready"} onPickingChange={setMeasurementPicking} />

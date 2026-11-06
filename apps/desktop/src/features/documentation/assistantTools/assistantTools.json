@@ -695,6 +695,142 @@
       "tips": ["Only selected skills load, so a workflow for another task cannot enter the prompt."],
       "limits": ["The registry loads skills once, when the backend starts. Restart the backend after editing a SKILL.md.", "A skill file must be at most 64 KiB."],
       "related": ["modeling.generate_model_plan", "editor.propose_commands"]
+    },
+    {
+      "name": "modeling.assess_quality",
+      "type": "plan",
+      "provider": "modeling__assess_quality",
+      "permission": "plan",
+      "approval": "Never",
+      "needsEditor": true,
+      "verify": "live",
+      "source": "apps/backend/src/modules/tools/modeling/quality.tools.ts",
+      "doc": "modeling.assess_quality.md",
+      "summary": "Records the assistant’s task-specific self-review of a changed scene; it does not change geometry or guarantee visual quality.",
+      "when": [
+        "After applying changes for an explicit 3D realism, detail or refinement request.",
+        "After capturing at least two distinct live solid views, or when explaining why review cannot proceed."
+      ],
+      "input": {
+        "rows": [
+          {
+            "name": "outcome",
+            "type": "ready | needs_refinement | blocked",
+            "required": true,
+            "meaning": "Whether the assistant sees no major defects, identifies work to do, or is blocked."
+          },
+          {
+            "name": "summary",
+            "type": "string 1–600",
+            "required": true,
+            "meaning": "Specific assessment or blocker."
+          },
+          {
+            "name": "findings",
+            "type": "array of up to 8 findings",
+            "required": true,
+            "meaning": "Each has aspect, observation, and severity (major or minor)."
+          }
+        ]
+      },
+      "details": [
+        {
+          "title": "Evidence",
+          "rows": [
+            {
+              "label": "ready / needs_refinement",
+              "meaning": "Require two distinct live solid views with images at the latest scene revision; ready rejects major findings and requires observations about at least two distinct aspects."
+            },
+            {
+              "label": "blocked",
+              "meaning": "Explains an actual limitation with at least one finding and may be recorded without visual evidence."
+            },
+            {
+              "label": "needs_refinement",
+              "meaning": "Requires a finding and another applied edit before the same revision can be marked ready."
+            }
+          ]
+        }
+      ],
+      "result": {
+        "rows": [
+          {
+            "field": "status: recorded",
+            "meaning": "Returns outcome, summary, findingCount and whether visual evidence was required."
+          },
+          {
+            "field": "status: rejected",
+            "meaning": "Reason the review could not be recorded."
+          }
+        ]
+      },
+      "request": {
+        "outcome": "blocked",
+        "summary": "Images are unavailable, so the shape cannot be visually assessed.",
+        "findings": [
+          {
+            "aspect": "visual evidence",
+            "observation": "The model connection cannot receive images.",
+            "severity": "major"
+          }
+        ]
+      },
+      "response": {
+        "status": "recorded",
+        "outcome": "blocked",
+        "summary": "Images are unavailable, so the shape cannot be visually assessed.",
+        "findingCount": 1,
+        "evidence": "not required"
+      },
+      "flow": [
+        "Apply the scene change",
+        "Capture distinct live views",
+        "Record findings",
+        "Refine and review again if needed"
+      ],
+      "visual": {
+        "kind": "steps",
+        "caption": "A quality review is evidence for a revision, not a guarantee.",
+        "goal": "Review and refine the model",
+        "dimension": "3d",
+        "steps": [
+          {
+            "title": "Capture views",
+            "tool": "viewport.capture",
+            "description": "Inspect multiple live perspectives."
+          },
+          {
+            "title": "Assess",
+            "tool": "modeling.assess_quality",
+            "description": "Record findings and the outcome."
+          },
+          {
+            "title": "Improve",
+            "tool": "editor.apply_proposal",
+            "description": "Fix significant issues and review again."
+          }
+        ]
+      },
+      "tips": [
+        "Prioritize visible task-specific issues and explain what is still missing.",
+        "A blocked assessment permits an honest stop when images or needed capabilities are unavailable."
+      ],
+      "limits": [
+        "The assessment is the model’s fallible self-review, not an independent quality guarantee.",
+        "Candidate previews and measurement-only captures do not count as live visual evidence.",
+        "A scene revision change invalidates earlier visual evidence."
+      ],
+      "errors": [
+        {
+          "message": "Capture at least two distinct live solid views with images after the latest change, or record a concrete blocker.",
+          "cause": "There is insufficient fresh image evidence."
+        }
+      ],
+      "related": [
+        "viewport.capture",
+        "validation.check_scene",
+        "editor.apply_proposal"
+      ]
     }
   ]
 }

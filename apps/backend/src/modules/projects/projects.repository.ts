@@ -68,8 +68,8 @@ function likePattern(search: string): string {
 
 const SELECT_VIEW = `
   SELECT p.*,
-    (SELECT COUNT(*) FROM agent_runs r WHERE r.project_id = p.id) AS run_count,
-    (SELECT r.input FROM agent_runs r WHERE r.project_id = p.id ORDER BY r.created_at ASC LIMIT 1) AS first_prompt
+    (SELECT COUNT(*) FROM agent_runs r JOIN sessions s ON s.id = r.session_id WHERE r.project_id = p.id AND s.deleted_at IS NULL) AS run_count,
+    (SELECT r.input FROM agent_runs r JOIN sessions s ON s.id = r.session_id WHERE r.project_id = p.id AND s.deleted_at IS NULL ORDER BY r.created_at ASC LIMIT 1) AS first_prompt
   FROM projects p`;
 
 /** SQL for projects and the data that belongs to them. Authorization lives in the service. */
@@ -179,7 +179,7 @@ export class ProjectsRepository {
   conversation(projectId: string): ProjectConversation {
     const latest = this.database.db
       .prepare(
-        "SELECT session_id, provider_id, provider_model, provider_base_url FROM agent_runs WHERE project_id = ? ORDER BY created_at DESC LIMIT 1",
+        "SELECT r.session_id, r.provider_id, r.provider_model, r.provider_base_url FROM agent_runs r JOIN sessions s ON s.id = r.session_id WHERE r.project_id = ? AND s.deleted_at IS NULL ORDER BY r.created_at DESC LIMIT 1",
       )
       .get(projectId);
     if (!latest) return { sessionId: undefined, provider: undefined, messages: [] };
@@ -209,6 +209,16 @@ export class ProjectsRepository {
         }),
       );
     return { sessionId, provider, messages };
+  }
+
+  /** Clears every chat session for a project, without deleting the runs and proposals needed by scene history. */
+  clearConversation(projectId: string, now: string): void {
+    this.database.transaction((db) => {
+      db.prepare("DELETE FROM session_items WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)").run(projectId);
+      db.prepare("UPDATE sessions SET deleted_at = COALESCE(deleted_at, ?) WHERE project_id = ?").run(now, projectId);
+      db.prepare("DELETE FROM agent_run_events WHERE run_id IN (SELECT id FROM agent_runs WHERE project_id = ?)").run(projectId);
+      db.prepare("UPDATE agent_runs SET input = '', final_output = NULL, error_message = NULL, run_state = NULL WHERE project_id = ?").run(projectId);
+    });
   }
 
   /** Removes the project with its chats, runs and scene. Deleting a run cascades to its events, approvals and proposals. */

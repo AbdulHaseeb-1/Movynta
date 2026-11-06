@@ -7,6 +7,7 @@ import {
 } from "@/lib/backend";
 import { rememberCapture, type ViewCaptureHandler } from "@/features/viewCapture";
 import type { EditorScene } from "./EditorScene";
+import { waitForAbortable } from "./waitForAbortable";
 import { recoverSavedScene } from "../objectEditing/sceneHistory";
 
 const messageSchema = z.object({
@@ -91,7 +92,8 @@ export async function connectEditor(
   signal: AbortSignal,
   capture: { readonly current: ViewCaptureHandler | null } = { current: null },
 ): Promise<EditorConnection> {
-  await ensureBackendConnection();
+  await waitForAbortable(signal, ensureBackendConnection);
+  signal.throwIfAborted();
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(
       `${BACKEND_URL.replace("http:", "ws:")}/api/v1/editor/ws`,
@@ -105,11 +107,15 @@ export async function connectEditor(
       clearTimeout(timer);
       socket.close();
     };
-    signal.addEventListener("abort", close, { once: true });
+    const onAbort = () => {
+      close();
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
     socket.onclose = () => {
       editor.discardPrepared();
       clearTimeout(timer);
-      signal.removeEventListener("abort", close);
+      signal.removeEventListener("abort", onAbort);
       reject(new Error("Editor disconnected"));
     };
     socket.onerror = () => {

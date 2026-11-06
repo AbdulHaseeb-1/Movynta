@@ -19,6 +19,15 @@ export function rowTarget(rowId: string): RowTarget {
   return rowId.startsWith(COLLECTION_PREFIX) ? { kind: "collection", id: rowId.slice(COLLECTION_PREFIX.length) } : { kind: "object", id: rowId };
 }
 
+/** Visible object rows in an inclusive range, with the clicked object last as the active selection. */
+export function objectRange(rows: readonly TreeRow[], anchor: string, clicked: string): string[] {
+  const from = rows.findIndex((row) => row.id === anchor);
+  const to = rows.findIndex((row) => row.id === clicked);
+  if (from < 0 || to < 0 || rowTarget(clicked).kind !== "object") return [];
+  const ids = rows.slice(Math.min(from, to), Math.max(from, to) + 1).map((row) => rowTarget(row.id)).filter((target) => target.kind === "object").map((target) => target.id);
+  return [...ids.filter((id) => id !== clicked), clicked];
+}
+
 /** The scene's objects and collections arranged for a list. Built once per change of the scene, not once per render. */
 export interface SceneTree {
   readonly entries: ReadonlyMap<string, OutlineEntry>;

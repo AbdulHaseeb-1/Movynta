@@ -68,10 +68,32 @@ export function createViewportTools({ bridge, proposals }: {
         const candidate = proposal
           ? { proposalId: proposal.id, revision: proposal.baseRevision, commands: proposal.commands }
           : undefined;
+        // A quality review needs live image evidence from one unchanged scene revision. Candidate previews and
+        // measurement-only responses must never satisfy it. Other captures avoid the extra context requests.
+        const trackQuality = context.progress.quality.required && context.progress.quality.changes > 0 && !candidate && withImages && (request.mode ?? "solid") === "solid";
+        const before = trackQuality ? await bridge.getContext(context.clientId) : undefined;
         const result = await bridge.captureViews(context.clientId, request, {
           withImages, captureId, ...(candidate ? { candidate } : {}),
         });
         const images = withImages ? result.images.filter((image) => image.data.length > 0) : [];
+        if (before && images.length) {
+          const after = await bridge.getContext(context.clientId);
+          const quality = context.progress.quality;
+          if (before.revision === after.revision) {
+            if (quality.captureRevision !== after.revision) {
+              quality.viewpoints = [];
+              quality.outcome = null;
+              quality.summary = "";
+            }
+            quality.captureRevision = after.revision;
+            quality.viewpoints = [...new Set([...quality.viewpoints, ...images.map((image) => image.camera.position.map((n) => n.toFixed(3)).join(","))])].slice(0, 12);
+          } else {
+            quality.captureRevision = null;
+            quality.viewpoints = [];
+            quality.outcome = null;
+            quality.summary = "";
+          }
+        }
         context.events.emit("viewport.captured", {
           captureId,
           views: result.images.map((image) => ({ label: image.label, width: image.width, height: image.height })),

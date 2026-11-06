@@ -28,7 +28,7 @@ export const envSchema = z
     OPENAI_AGENTS_DISABLE_TRACING: z.stringbool().default(true),
     AGENT_RUN_TIMEOUT_MS: durationMs(30 * 60 * 1000),
     AGENT_RUN_IDLE_TIMEOUT_MS: durationMs(5 * 60 * 1000),
-    AGENT_CONTINUATION_LIMIT: z.coerce.number().int().nonnegative().default(3),
+    AGENT_CONTINUATION_LIMIT: z.coerce.number().int().nonnegative().default(5),
     AGENT_MAX_TURNS: z.coerce.number().int().positive().default(500),
 
     EDITOR_REQUEST_TIMEOUT_MS: durationMs(15_000),

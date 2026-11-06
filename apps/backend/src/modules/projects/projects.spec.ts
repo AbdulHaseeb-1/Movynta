@@ -188,6 +188,43 @@ describe("projects API", () => {
     expect(conversation.messages).toMatchObject([{ prompt: "second idea", status: "failed" }]);
   });
 
+  it("clears all saved chat sessions while keeping scene history and preventing access by other users", async () => {
+    const project = await create();
+    const scenes = server.app.get(ProjectScenesService);
+    scenes.append(project.id, "scene-before-clear", [box("shape", "shape")]);
+    const first = insertRun(project.id, "first private prompt");
+    const second = insertRun(project.id, "second private prompt");
+    const db = server.app.get(DatabaseService).db;
+    db.prepare("INSERT INTO session_items (session_id, seq, item_json) VALUES (?, 1, ?)").run(first, "{}");
+    db.prepare("INSERT INTO session_items (session_id, seq, item_json) VALUES (?, 1, ?)").run(second, "{}");
+    const run = db.prepare("SELECT id FROM agent_runs WHERE session_id = ?").get(second);
+    const runId = run?.["id"];
+    if (typeof runId !== "string") throw new Error("Missing test run");
+    db.prepare("INSERT INTO agent_run_events (run_id, seq, event_id, type, timestamp, payload_json) VALUES (?, 1, ?, ?, ?, ?)")
+      .run(runId, `evt_${randomUUID()}`, "agent.message.delta", new Date().toISOString(), '{"delta":"private reply"}');
+    expect((await request(`/projects/${project.id}/conversation`, "DELETE", undefined, "intruder")).status).toBe(404);
+    expect((await request(`/projects/${project.id}/conversation`, "DELETE")).status).toBe(204);
+    expect(await (await request(`/projects/${project.id}/conversation`)).json()).toEqual({ messages: [] });
+    expect(db.prepare("SELECT COUNT(*) AS count FROM session_items WHERE session_id IN (?, ?)").get(first, second)?.["count"]).toBe(0);
+    expect(db.prepare("SELECT COUNT(*) AS count FROM agent_run_events WHERE run_id = ?").get(runId)?.["count"]).toBe(0);
+    expect(db.prepare("SELECT input, final_output FROM agent_runs WHERE id = ?").get(runId)).toMatchObject({ input: "", final_output: null });
+    expect(scenes.list(project.id)).toHaveLength(1);
+    const undo = scenes.previewHistory(project.id, "undo"); scenes.commitHistory(project.id, "undo", undo.version, "clearChatUndo");
+    expect(scenes.list(project.id)).toHaveLength(0);
+    const redo = scenes.previewHistory(project.id, "redo"); scenes.commitHistory(project.id, "redo", redo.version, "clearChatRedo");
+    expect(scenes.list(project.id)).toHaveLength(1);
+    insertRun(project.id, "fresh prompt");
+    expect(await (await request(`/projects/${project.id}/conversation`)).json()).toMatchObject({ messages: [{ prompt: "fresh prompt" }] });
+    expect((await (await request(`/projects/${project.id}`)).json() as ProjectView).firstPrompt).toBe("fresh prompt");
+  });
+
+  it("does not clear a conversation while the assistant is running", async () => {
+    const project = await create();
+    insertRun(project.id, "in progress", "running");
+    expect((await request(`/projects/${project.id}/conversation`, "DELETE")).status).toBe(409);
+    expect(await (await request(`/projects/${project.id}/conversation`)).json()).toMatchObject({ messages: [{ prompt: "in progress" }] });
+  });
+
   it("deletes a project with its chats and scene, but not while the assistant is working", async () => {
     const project = await create();
     const scenes = server.app.get(ProjectScenesService);
@@ -347,6 +384,23 @@ async function recordEdit(projectId: string, commands: unknown, user = "project-
 }
 
 describe("edits made by the user", () => {
+  it("accepts the shared command limit for manual batches and keeps them undoable", async () => {
+    const project = await create();
+    const scenes = server.app.get(ProjectScenesService);
+    const commands = Array.from({ length: 200 }, (_, index) => box(`add-${index}`, `object-${index}`));
+    expect((await recordEdit(project.id, commands)).status).toBe(201);
+    expect(scenes.list(project.id)).toHaveLength(1);
+    const undo = scenes.previewHistory(project.id, "undo");
+    scenes.commitHistory(project.id, "undo", undo.version, "largeBatchUndo");
+    expect(scenes.list(project.id)).toHaveLength(0);
+    const redo = scenes.previewHistory(project.id, "redo");
+    scenes.commitHistory(project.id, "redo", redo.version, "largeBatchRedo");
+    expect(scenes.list(project.id)).toHaveLength(1);
+
+    const tooMany = Array.from({ length: 201 }, (_, index) => box(`extra-${index}`, `extra-${index}`));
+    expect((await recordEdit(project.id, tooMany)).status).toBe(400);
+    expect(scenes.list(project.id)).toHaveLength(1);
+  });
   it("records a manual hierarchy duplicate and rejects foreign or reused object IDs", async () => {
     const project = await create(); const scenes = server.app.get(ProjectScenesService);
     scenes.append(project.id, "base", [box("base", "original")]);

@@ -24,9 +24,14 @@ The modeling coordinator agent (`apps/backend/src/modules/agents/definitions/mod
 | `editor.apply_proposal` | `editor__apply_proposal` | `apply` | Never; automatic | Applies a stored proposal to the editor. Each entry of `results` can carry `name`, the name an object received from a command that created, renamed or re-parented it (see [Names and parents](#names-and-parents)). | `modules/tools/editor/editor.tools.ts` |
 | `validation.check_scene` | `validation__check_scene` | `read` | Never | Checks duplicate ids, missing parents, parent cycles, non-positive scale, an object in a collection that does not exist, and collections that sit in a missing collection or inside themselves (errors); names shared by objects under one parent or by collections in one place, and groups with children scaled unevenly (warnings); and groups and collections with nothing in them (information). Only errors make `ok` false. | `modules/tools/validation/validation.tools.ts` |
 | `skills.load_skill` | `skills__load_skill` | `skill` | Never | Loads the full workflow of a skill selected for this request. | `modules/tools/skills/skills.tools.ts` |
+| `modeling.assess_quality` | `modeling__assess_quality` | `plan` | Never | Records the model’s task-specific self-review or blocker. Ready and needs-refinement require two distinct live solid image views at the current revision; it does not guarantee visual quality. | `modules/tools/modeling/quality.tools.ts` |
 | `modeling.generate_model_plan` | `modeling__generate_model_plan` | `plan` | Never | Records a structured plan. It does not change the scene. Each step's `toolName` must be a known tool. A newer plan replaces the current one. | `modules/tools/modeling/modeling.tools.ts` |
 | `modeling.generate_commands` | `modeling__generate_commands` | `read` | Never | Runs synchronous JavaScript against an isolated `scene` snapshot. Optional `inspection` exposes the inspected mesh as `mesh`. Programs can generate bounded `geometry.create_mesh` commands. Returns validated commands and `sourceRevision`, or rejection details. Nothing is proposed or applied. | `modules/tools/procedural/procedural.tools.ts` |
 | `modeling.propose_generated` | `modeling__propose_generated` | `propose` | Never; automatic | Runs the same isolated generator and validates and stores a proposal at its source revision without echoing the command arrays. Accepts `summary`, `source`, and optional `inspection`. Inspect a geometry candidate with `viewport.capture` and call `editor.apply_proposal` to apply it automatically. | `modules/tools/procedural/procedural.tools.ts` |
+
+### Quality review
+
+For explicit 3D realism, detail, or refinement requests, applied edits require a model self-review before a run is treated as visually reviewed. `modeling.assess_quality` accepts `outcome` (`ready`, `needs_refinement`, or `blocked`), `summary` (1–600 characters), and `findings` (up to eight `{ aspect, observation, severity }` records; severity is `major` or `minor`). It is a plan tool, needs no approval, and never changes the scene. A ready or needs-refinement review requires images from at least two distinct live solid camera positions at an unchanged current revision. Candidate previews, normals/wireframe views and measurement-only responses do not count. Ready rejects major findings and requires observations on at least two distinct aspects; needs-refinement requires a finding and another applied edit before ready. Blocked may be recorded without images and must describe at least one concrete blocker. When the run stops without a ready review, the final answer discloses the incomplete review or blocker. These checks record a fallible model judgment, not an objective quality guarantee.
 
 ### Permissions
 
@@ -313,7 +318,7 @@ Skills are in `skills/<id>/SKILL.md`. Their `tools:` list tells the model which 
 
 | Skill | Tools named |
 | --- | --- |
-| `character-modeling` | `editor.get_context`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
+| `character-modeling` | `editor.get_context`, `editor.inspect_mesh`, `editor.inspect_materials`, `modeling.generate_model_plan`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `viewport.capture`, `modeling.assess_quality`, `validation.check_scene` |
 | `2.5d-character-design` | `editor.get_context`, `modeling.generate_model_plan`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 | `mesh-editing` | `editor.get_context`, `editor.inspect_mesh`, `viewport.capture`, `modeling.generate_commands`, `modeling.propose_generated`, `editor.propose_commands`, `editor.apply_proposal`, `validation.check_scene` |
 

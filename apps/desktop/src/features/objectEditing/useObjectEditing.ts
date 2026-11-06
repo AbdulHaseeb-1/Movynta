@@ -124,14 +124,16 @@ export function useObjectEditing({
   saves,
 }: ObjectEditingOptions): ObjectEditing {
   const tool = useAppSelector((state) => state.viewport.tool);
+  const objectMode = useAppSelector((state) => state.designWorkspace.mode === "object");
   // The gizmo reads these on every frame, so a change of tool needs no rebuild.
-  const current = useRef<{ tool: ViewportTool; enabled: boolean }>({
+  const current = useRef<{ tool: ViewportTool; enabled: boolean; objectMode: boolean }>({
     tool,
     enabled: !disabled,
+    objectMode,
   });
   useEffect(() => {
-    current.current = { tool, enabled: !disabled };
-  }, [tool, disabled]);
+    current.current = { tool, enabled: !disabled, objectMode };
+  }, [tool, disabled, objectMode]);
   const historyEnabled = useRef(!historyDisabled);
   useEffect(() => {
     historyEnabled.current = !historyDisabled;
@@ -183,6 +185,7 @@ export function useObjectEditing({
     if (!viewport || !scene) return undefined;
     const view = {
       tool: () => current.current.tool,
+      objectMode: () => current.current.objectMode,
       enabled: () => current.current.enabled && !historyBusy.current && !scene.requiresRecovery,
     };
     const handles = new ObjectGizmo(

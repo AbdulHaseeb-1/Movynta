@@ -19,6 +19,8 @@ import { AGENT_RUNNER } from "../agents/agent.tokens.js";
 import type { AppAgent } from "../agents/definitions/definitions.types.js";
 import type { ApprovalPreview } from "../approvals/approvals.types.js";
 import { ApprovalsService } from "../approvals/approvals.service.js";
+import { EDITOR_BRIDGE } from "../editor-bridge/editor-bridge.tokens.js";
+import type { EditorBridge } from "../editor-bridge/editor-bridge.types.js";
 import { CommandProposalService } from "../editor-bridge/proposals/command-proposal.service.js";
 import { SessionsService } from "../sessions/sessions.service.js";
 import { AgentRunEventsService } from "./agent-run-events.service.js";
@@ -40,7 +42,10 @@ import { RunClock, type RunStop } from "./run-clock.js";
 import {
   continuationPrompt,
   emptyRunProgress,
+  invalidateStaleQualityReview,
   openWorkReasons,
+  qualityCompletionNotice,
+  requiresQualityReview,
   serializeRunProgress,
   type RunProgress,
 } from "./run-progress.js";
@@ -105,6 +110,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
     private readonly events: AgentRunEventsService,
     private readonly approvals: ApprovalsService,
     private readonly proposals: CommandProposalService,
+    @Inject(EDITOR_BRIDGE) private readonly bridge: EditorBridge,
     private readonly providers: ProvidersService,
     private readonly transport: ProviderTransport,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
@@ -112,7 +118,9 @@ export class AgentRunProcessor implements OnModuleDestroy {
 
   /** Starts a run in the background. Failures are recorded on the run, never thrown to the caller. */
   start(run: AgentRunRecord): void {
-    this.launch(run, emptyRunProgress(), (context, signal) =>
+    const progress = emptyRunProgress();
+    progress.quality.required = requiresQualityReview(run.input, run.dimension);
+    this.launch(run, progress, (context, signal) =>
       this.turn(run, context, signal, run.input),
     );
   }
@@ -272,6 +280,17 @@ export class AgentRunProcessor implements OnModuleDestroy {
           return;
         }
 
+        if (context.progress.quality.required && context.progress.quality.outcome === "ready") {
+          // Another editor can change the scene after assessment. Never claim the old review covers it.
+          let revision: number | null = null;
+          try {
+            this.bridge.assertConnection(context.userId, context.projectId, context.clientId);
+            revision = (await this.bridge.getContext(context.clientId)).revision;
+          } catch {
+            // A disconnected editor leaves the review unverified, not a false success.
+          }
+          invalidateStaleQualityReview(context.progress, revision);
+        }
         const reasons = openWorkReasons(context.progress, (proposalId) =>
           this.proposalStatus(run.id, proposalId),
         );
@@ -283,7 +302,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
           continuations >= this.config.agents.continuationLimit ||
           (continuations > 0 && !acted)
         ) {
-          this.complete(run.id, result, totals);
+          this.complete(run.id, result, totals, qualityCompletionNotice(context.progress, context.supportsToolImages));
           return;
         }
 
@@ -385,9 +404,11 @@ export class AgentRunProcessor implements OnModuleDestroy {
     );
   }
 
-  private complete(runId: string, result: RunResult, totals: RunTotals): void {
-    const finalOutput =
-      typeof result.finalOutput === "string" ? result.finalOutput : "";
+  private complete(runId: string, result: RunResult, totals: RunTotals, notice?: string): void {
+    const original = typeof result.finalOutput === "string" ? result.finalOutput : "";
+    const finalOutput = notice ? [original.trimEnd(), notice].filter(Boolean).join("\n\n") : original;
+    // The preceding message-completed event already separates paragraphs in the desktop stream.
+    if (notice) this.events.publish(runId, "agent.message.delta", { delta: notice });
     this.setStatus(runId, "completed", {
       finalOutput,
       usage: {
