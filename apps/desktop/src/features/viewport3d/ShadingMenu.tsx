@@ -1,10 +1,10 @@
-import { Circle, Globe, Layers2 } from "lucide-react";
+import { Circle, Globe, Grid3x3, Layers2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { setShadingMode, setWireframeXray } from "./viewportSlice";
+import { setShadingMode, setShowGrid, toggleXray, xrayActive } from "./viewportSlice";
 
 function MaterialIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true">
@@ -16,40 +16,51 @@ function MaterialIcon() {
 
 interface ShadingButtonProps {
   label: string;
+  /** The key that does the same, shown after the label. */
+  hint?: string;
+  shortcut?: string;
   active: boolean;
   disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
 }
 
-function ShadingButton({ label, active, disabled = false, onClick, children }: ShadingButtonProps) {
+function ShadingButton({ label, hint, shortcut, active, disabled = false, onClick, children }: ShadingButtonProps) {
   return <Tooltip>
     <TooltipTrigger asChild>
-      <Button type="button" variant="ghost" size="icon" aria-label={label} aria-pressed={active} disabled={disabled} onClick={onClick}
+      <Button type="button" variant="ghost" size="icon" aria-label={label} aria-pressed={active} aria-keyshortcuts={shortcut} disabled={disabled} onClick={onClick}
         className={cn("size-7 rounded-full text-muted-foreground hover:text-foreground", active && "bg-accent text-accent-foreground hover:bg-accent")}>
         {children}
       </Button>
     </TooltipTrigger>
-    <TooltipContent side="bottom">{label}</TooltipContent>
+    <TooltipContent side="bottom">
+      {label}
+      {hint && <span className="ml-2 opacity-60">{hint}</span>}
+    </TooltipContent>
   </Tooltip>;
 }
 
+/** How the view draws the scene, as in Blender's header: X-ray, the three shadings, and the grid overlay. */
 export function ShadingMenu() {
   const dispatch = useAppDispatch();
-  const { shadingMode, wireframeXray } = useAppSelector((state) => state.viewport);
+  const display = useAppSelector((state) => state.viewport.display);
+  const { shadingMode, showGrid } = display;
   return <TooltipProvider delayDuration={200}>
     <div role="toolbar" aria-label="Viewport shading" className="flex h-8 shrink-0 items-center gap-0.5 rounded-full border border-border bg-card/95 p-0.5 shadow-xl">
-      <ShadingButton label="Wireframe X-ray" active={shadingMode === "wireframe" && wireframeXray} disabled={shadingMode !== "wireframe"} onClick={() => dispatch(setWireframeXray(!wireframeXray))}>
+      <ShadingButton label="Grid" hint="Show the floor grid" active={showGrid} onClick={() => dispatch(setShowGrid(!showGrid))}>
+        <Grid3x3 className="size-4" />
+      </ShadingButton>
+      <ShadingButton label="X-ray" hint={shadingMode === "default" ? "Alt+Z · switches to Solid" : "Alt+Z"} shortcut="Alt+Z" active={xrayActive(display)} onClick={() => dispatch(toggleXray())}>
         <Layers2 className="size-4" />
       </ShadingButton>
       <div aria-hidden="true" className="mx-0.5 h-4 w-px bg-border" />
-      <ShadingButton label="Wireframe view" active={shadingMode === "wireframe"} onClick={() => dispatch(setShadingMode("wireframe"))}>
+      <ShadingButton label="Wireframe view" hint="Shift+Z" shortcut="Shift+Z" active={shadingMode === "wireframe"} onClick={() => dispatch(setShadingMode("wireframe"))}>
         <Globe className="size-4" />
       </ShadingButton>
       <ShadingButton label="Solid view" active={shadingMode === "solid"} onClick={() => dispatch(setShadingMode("solid"))}>
         <Circle className="size-4 fill-current" />
       </ShadingButton>
-      <ShadingButton label="Default material view" active={shadingMode === "default"} onClick={() => dispatch(setShadingMode("default"))}>
+      <ShadingButton label="Material view" active={shadingMode === "default"} onClick={() => dispatch(setShadingMode("default"))}>
         <MaterialIcon />
       </ShadingButton>
     </div>

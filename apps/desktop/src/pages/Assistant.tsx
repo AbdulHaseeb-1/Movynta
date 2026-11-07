@@ -9,6 +9,7 @@ import {
   CoordinateViewport,
   ShadingMenu,
   OrientationGizmo,
+  useViewportShortcuts,
   ViewportToolbar,
   type Viewport,
 } from "@/features/viewport3d";
@@ -75,7 +76,7 @@ interface WorkspaceProps {
 function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { shadingMode, wireframeXray } = useAppSelector((state) => state.viewport);
+  const { shadingMode, xray, showGrid } = useAppSelector((state) => state.viewport.display);
   const designMode = useAppSelector((state) => state.designWorkspace.mode);
   const [prompt, setPrompt] = useState("");
   const [modifierBusy, setModifierBusy] = useState(false);
@@ -91,7 +92,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     viewport.setShadingModelPredicate((object) => editorScene.idOf(object) !== undefined);
     return () => viewport.setShadingModelPredicate(() => false);
   }, [viewport, editorScene]);
-  useEffect(() => { viewport?.setShadingMode(shadingMode, wireframeXray); }, [viewport, shadingMode, wireframeXray]);
+  useEffect(() => { viewport?.setShadingMode(shadingMode, xray); }, [viewport, shadingMode, xray]);
   const [project, setProject] = useState<Project | undefined>(undefined);
   const [opening, setOpening] = useState<OpeningState>(
     openProjectId ? "loading" : "ready",
@@ -145,6 +146,8 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     const box = editorScene ? boxToFrame(editorScene, scope) : null;
     if (box) viewport?.frameBox(box);
   }, [editorScene, viewport]);
+  // Views, zoom, framing and shading keys work in Object and Edit mode alike.
+  useViewportShortcuts({ viewport, onFrame: frame });
 
   const importer = useModelImport({
     saves,
@@ -273,6 +276,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     <main className="relative h-full overflow-hidden bg-background font-sans text-foreground">
       <CoordinateViewport
         className="absolute inset-0"
+        showGrid={showGrid}
         onReady={(ready) => {
           const created = new EditorScene(
             ready.scene,
