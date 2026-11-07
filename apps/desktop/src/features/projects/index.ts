@@ -47,3 +47,4 @@ export {
 export { ProjectsSection } from "./ProjectsSection";
 export { useProjectActions, type ProjectActions } from "./useProjectActions";
 export { useProjectLibrary } from "./useProjectLibrary";
+export { createdAfterNavigation, projectToOpen } from "./studioRoute";

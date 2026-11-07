@@ -41,6 +41,7 @@ import { useViewCapture } from "@/features/viewCapture";
 import { setShortcutsOpen } from "@/features/documentation/shortcuts";
 import { createSerialQueue } from "@/lib";
 import {
+  createdAfterNavigation,
   createProject,
   getProject,
   getProjectConversation,
@@ -49,6 +50,7 @@ import {
   ProjectDialogs,
   projectChanged,
   projectPath,
+  projectToOpen,
   updateProject,
   useProjectActions,
   type Project,
@@ -476,7 +478,11 @@ export default function Assistant() {
     if (created) void navigate(projectPath({ id: created, category: "design" }), { replace: true });
   }, [created, navigate]);
 
-  const openProjectId = projectId && projectId !== created ? projectId : undefined;
+  // Leaving the created project for another one (a duplicate) must not leave the workspace thinking it still shows it.
+  const remembered = createdAfterNavigation(projectId, created);
+  if (remembered !== created) setCreated(remembered);
+
+  const openProjectId = projectToOpen(projectId, created);
   return (
     <StudioWorkspace
       key={openProjectId ?? instance}
