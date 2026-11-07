@@ -3,8 +3,6 @@ name: model-design-principles
 version: 1.2.0
 description: Applies professional 3D design principles (silhouette, proportion, shape language, big-medium-small, real-world scale and an iterative blockout-to-detail review loop) to plan and judge any model.
 dimensions:
-  - 2d
-  - 2.5d
   - 3d
 tags:
   - design

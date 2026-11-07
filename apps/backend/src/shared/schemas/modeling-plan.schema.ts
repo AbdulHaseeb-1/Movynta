@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const MODELING_DIMENSIONS = ["2d", "2.5d", "3d"] as const;
+export const MODELING_DIMENSIONS = ["3d"] as const;
 
 export const modelingPlanStepSchema = z
   .object({

@@ -264,6 +264,11 @@ export class EditorScene {
     this.measurementAnnotations = annotations;
   }
 
+  /** The project's calibration: how many meters one scene unit is, or null while the scene is unitless. */
+  get calibration(): MeasurementUnits {
+    return this.measurementUnits;
+  }
+
   measure(request: MeasurementRequest) {
     this.beginChange();
     this.scene.updateMatrixWorld(true);

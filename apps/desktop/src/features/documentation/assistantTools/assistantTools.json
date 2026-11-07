@@ -513,7 +513,7 @@
       "when": ["At the start of a multi-step change, before any proposal.", "So the user can see what will happen, and so proposals can name the step they carry out with stepId."],
       "input": { "rows": [
         { "name": "goal", "type": "string 1–500", "required": true, "meaning": "What the user wants." },
-        { "name": "dimension", "type": "2d | 2.5d | 3d", "required": true, "meaning": "The kind of model." },
+        { "name": "dimension", "type": "3d", "required": true, "meaning": "The kind of model." },
         { "name": "steps", "type": "array of 1–30 steps", "required": true, "meaning": "Ordered. Each step is described below." }
       ] },
       "details": [{ "title": "Step fields", "rows": [

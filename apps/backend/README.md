@@ -1,6 +1,6 @@
 # Movynta AI backend
 
-NestJS orchestration layer for Movynta's AI modeling features. It runs OpenAI Agents SDK agents for 2D, 2.5D and 3D work, and brokers every change to the editor through validated, approved commands. The desktop app never receives keys, code, or raw scene access from the agent.
+NestJS orchestration layer for Movynta's AI modeling features. It runs OpenAI Agents SDK agents for 3D work, and brokers every change to the editor through validated, approved commands. The desktop app never receives keys, code, or raw scene access from the agent.
 
 ## Setup (Windows desktop)
 
@@ -49,7 +49,7 @@ src/
   shared/                         Zod schemas for editor commands, context, plans
   testing/                        harness, editor simulator, SSE reader (tests only)
 skills/                           repository skills: character-modeling, mesh-editing,
-                                  2.5d-character-design, model-design-principles,
+                                  model-design-principles,
                                   props-hard-surface, topology-and-subdivision,
                                   pbr-materials-and-color
 ```

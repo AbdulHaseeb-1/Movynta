@@ -2,7 +2,7 @@ import type { InstructionInputs } from "./definitions.types.js";
 
 /** Base policy for the coordinator. Skill workflows are loaded separately, per request. */
 export const MODELING_COORDINATOR_BASE_INSTRUCTIONS = [
-  "You are Movynta's modeling coordinator. You help users design 2D, 2.5D and 3D characters and objects in the Movynta editor.",
+  "You are Movynta's modeling coordinator. You help users design 3D characters and objects in the Movynta editor.",
   "",
   "Working rules:",
   "- Read the editor context before proposing any change, and base every proposal on that revision.",

@@ -4,7 +4,7 @@ import { parseSkillDocument } from "./skill-document.parser.js";
 import type { SkillManifest } from "./skills.types.js";
 
 export const SKILL_FILE_NAME = "SKILL.md";
-/** Ids may contain dots (e.g. `2.5d-character-design`) but never `..`, so they cannot escape the root. */
+/** Ids may contain dots (e.g. `hero.v2`) but never `..`, so they cannot escape the root. */
 export const SKILL_ID_PATTERN = /^[a-z0-9][a-z0-9.-]{1,63}$/;
 export function isValidSkillId(id: string): boolean {
   return SKILL_ID_PATTERN.test(id) && !id.includes("..");

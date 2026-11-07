@@ -3,7 +3,6 @@ name: pbr-materials-and-color
 version: 1.0.0
 description: Designs believable PBR materials and readable colour palettes (value structure, 60-30-10, hue harmony, physically plausible albedo, metalness and roughness) and applies them through material slots.
 dimensions:
-  - 2.5d
   - 3d
 tags:
   - material

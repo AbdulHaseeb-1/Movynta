@@ -124,7 +124,7 @@ describe("quality review completion", () => {
     expect(requiresQualityReview("Improve this sculpture", "3d")).toBe(true);
     expect(requiresQualityReview("Make it better", "3d")).toBe(true);
     expect(requiresQualityReview("Create a detailed model", "3d")).toBe(true);
-    expect(requiresQualityReview("Create a realistic person", "2d")).toBe(false);
+    expect(requiresQualityReview("Create a realistic person", undefined)).toBe(false);
     expect(requiresQualityReview("Just a rough blockout of a realistic person", "3d")).toBe(false);
     expect(requiresQualityReview("Move the cube", "3d")).toBe(false);
     expect(requiresQualityReview("Move the realistic car", "3d")).toBe(false);
@@ -134,7 +134,7 @@ describe("quality review completion", () => {
     expect(requiresQualityReview("Add a cube", "3d")).toBe(false);
     expect(requiresQualityReview("Add a cube", "3d", "quality")).toBe(false);
     expect(requiresQualityReview("Add a cube", "3d", "builds")).toBe(true);
-    expect(requiresQualityReview("Make a chair", "2d", "builds")).toBe(false);
+    expect(requiresQualityReview("Make a chair", undefined, "builds")).toBe(false);
     expect(requiresQualityReview("Move the cube", "3d", "builds")).toBe(false);
     expect(requiresQualityReview("Just a rough blockout of a chair", "3d", "builds")).toBe(false);
     expect(requiresQualityReview("Create a realistic person", "3d", "quality")).toBe(true);

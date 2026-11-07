@@ -147,7 +147,7 @@ describe("platform endpoints", () => {
   it("serves skills to authenticated users", async () => {
     const response = await http<{ id: string }[]>("GET", "/api/v1/skills", { token: server.token("alice") });
     expect(response.body.map((skill) => skill.id)).toEqual(
-      expect.arrayContaining(["character-modeling", "mesh-editing", "2.5d-character-design"]),
+      expect.arrayContaining(["character-modeling", "mesh-editing"]),
     );
   });
 });

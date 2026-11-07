@@ -22,7 +22,7 @@
 | Name | Type | Required | Default | Meaning |
 | --- | --- | --- | --- | --- |
 | `goal` | string 1–500 | Yes | – | What the user wants. |
-| `dimension` | 2d \| 2.5d \| 3d | Yes | – | The kind of model. |
+| `dimension` | 3d | Yes | – | The kind of model. |
 | `steps` | array of 1–30 steps | Yes | – | Ordered. Each step is described below. |
 
 ## Step fields

@@ -3,8 +3,6 @@ name: mesh-editing
 version: 1.9.0
 description: Inspects mesh geometry and edits transforms, bevels, subdivision surfaces, booleans, plane cuts, deletion, shading, bridging, separating parts, replacements, and cleanup through validated proposals with automatic application.
 dimensions:
-  - 2d
-  - 2.5d
   - 3d
 tags:
   - mesh

@@ -74,12 +74,11 @@ describe("parseSkillDocument", () => {
 });
 
 describe("SkillsLoader", () => {
-  it("loads the repository skills, including the dotted 2.5d id", () => {
+  it("loads the repository skills", () => {
     const ids = new SkillsLoader()
       .load(repositorySkills)
       .map((skill) => skill.id);
     expect(ids).toEqual([
-      "2.5d-character-design",
       "character-modeling",
       "mesh-editing",
       "model-design-principles",
@@ -112,11 +111,6 @@ describe("SkillsRegistry.selectRelevant", () => {
   it("selects character modeling for a 3D humanoid request", () => {
     const ids = registry.selectRelevant({ message: "Create a 3D humanoid character", dimension: "3d" }).map((s) => s.id);
     expect(ids).toContain("character-modeling");
-  });
-
-  it("selects the 2.5D skill for layered sprite requests", () => {
-    const ids = registry.selectRelevant({ message: "Make a layered sprite with parallax", dimension: "2.5d" }).map((s) => s.id);
-    expect(ids[0]).toBe("2.5d-character-design");
   });
 
   it("never returns more than two skills", () => {

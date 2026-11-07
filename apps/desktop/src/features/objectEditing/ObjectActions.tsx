@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, FlipHorizontal2 } from "lucide-react";
+import { Copy, FileOutput, FlipHorizontal2 } from "lucide-react";
 import { useAppDispatch } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import type { EditorScene } from "@/features/assistant";
 import { setPanelOpen } from "@/features/designWorkspace/workspaceSlice";
+import { downloadBlob, exportSelectionAsGlb } from "@/features/exporter";
 import { errorMessage, type SerialQueue } from "@/lib";
 import { saveManualCommands } from "./saveManualCommands";
 
@@ -31,6 +32,15 @@ export function ObjectActions({ scene, disabled, saves }: ObjectActionsProps) {
     }, (failure) => setError(errorMessage(failure)));
   };
   const mirror = () => { if (!disabled && scene?.selection) dispatch(setPanelOpen({ id: "modifiers", open: true })); };
+  // Export only reads the scene. It copies the selection at the click, so it does not wait in the save queue.
+  const exportSelected = () => {
+    if (!scene || disabled || busy || scene.requiresRecovery || scene.selectedIds.length === 0) return;
+    setBusy(true); setError("");
+    void exportSelectionAsGlb(scene)
+      .then((model) => downloadBlob(model.blob, model.fileName))
+      .catch((failure: unknown) => setError(errorMessage(failure)))
+      .finally(() => setBusy(false));
+  };
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       const target = event.target;
@@ -44,6 +54,7 @@ export function ObjectActions({ scene, disabled, saves }: ObjectActionsProps) {
   return <div className="relative flex items-center gap-0.5">
     <Button size="icon" variant="ghost" className="size-7 rounded-full text-muted-foreground" disabled={disabled || busy || scene?.selectedIds.length !== 1} onClick={duplicate} aria-label="Duplicate selected object" title="Duplicate selected object · Shift+D"><Copy className="size-4" /></Button>
     <Button size="icon" variant="ghost" className="size-7 rounded-full text-muted-foreground" disabled={disabled || !scene?.selection} onClick={mirror} aria-label="Open mirror controls" title="Open modifiers for mirror · Ctrl+M"><FlipHorizontal2 className="size-4" /></Button>
+    <Button size="icon" variant="ghost" className="size-7 rounded-full text-muted-foreground" disabled={disabled || busy || !scene?.selectedIds.length} onClick={exportSelected} aria-label="Export selected objects for Blender" title="Export selected objects as a GLB file for Blender"><FileOutput className="size-4" /></Button>
     {error && <div role="alert" className="absolute bottom-10 left-0 w-64 rounded-lg border border-border bg-popover p-3 text-xs text-popover-foreground shadow-xl">{error}<Button variant="ghost" size="sm" onClick={() => setError("")}>Dismiss</Button></div>}
   </div>;
 }

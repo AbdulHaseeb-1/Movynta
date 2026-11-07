@@ -67,6 +67,7 @@ export const shortcutGroups: readonly ShortcutGroup[] = [
       { action: "Duplicate object", keys: "Shift+D", detail: "Duplicate the selected object and its registered children in place, then move the selected copy.", guide: "duplicate-object" },
       { action: "Mirror controls", keys: "Ctrl+M", detail: "Open Modifiers, then add Mirror / symmetry and choose its settings.", guide: "mirror-modifier" },
       { action: "Import model", keys: "Import button", detail: "Choose a supported 3D model file to add it to the project.", guide: "import" },
+      { action: "Export for Blender", keys: "Export button", detail: "Save the selected objects as one .glb file for Blender, with their names, placement, materials and size.", guide: "export-selection" },
     ],
   },
   {
