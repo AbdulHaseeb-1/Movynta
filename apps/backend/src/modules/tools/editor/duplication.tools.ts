@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { editorCommandListSchema, identifierSchema, isWithinBranch } from "@movynta/editor-protocol";
 import { defineTool } from "../tool.types.js";
+import { rememberPlannedBatch } from "../../agent-runs/run-progress.js";
+import { ServiceUnavailableError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import type { EditorToolDependencies } from "./editor.types.js";
 
 export function createDuplicationTool({ bridge }: EditorToolDependencies) {
@@ -14,16 +16,18 @@ export function createDuplicationTool({ bridge }: EditorToolDependencies) {
     execute: async (input, context) => {
       bridge.assertConnection(context.userId, context.projectId, context.clientId);
       const scene = await bridge.getContext(context.clientId);
-      if (scene.supportsRepetition !== true) throw new Error("Update the editor for hierarchy duplication");
+      if (scene.supportsRepetition !== true) throw new ServiceUnavailableError("Update the editor for hierarchy duplication");
       const parents = new Map(scene.objects.map((object) => [object.id, object.parentId]));
-      if (!parents.has(input.sourceId)) throw new Error("Source object does not exist");
+      if (!parents.has(input.sourceId)) throw new ValidationFailedError(`Source object "${input.sourceId}" does not exist; use an id from editor.get_context`);
       const descendants = scene.objects.filter((object) => object.id !== input.sourceId && isWithinBranch(object.id, input.sourceId, (id) => parents.get(id)));
-      if (scene.objects.length + (descendants.length + 1) * input.copies > 2000) throw new Error("Copies exceed the 2000-object scene limit");
+      if (scene.objects.length + (descendants.length + 1) * input.copies > 2000) throw new ValidationFailedError("Copies exceed the 2000-object scene limit; make fewer copies");
       const copies = Array.from({ length: input.copies }, () => ({ objectId: `obj_${randomUUID()}`, ...(input.name ? { name: input.name } : {}),
         descendants: descendants.map((object) => ({ sourceId: object.id, objectId: `obj_${randomUUID()}` })),
       }));
-      return { sourceRevision: scene.revision, commands: editorCommandListSchema.parse([{ commandId: "duplicate", type: "scene.duplicate_hierarchy", sourceId: input.sourceId, copies, offset: input.offset, space: input.space }]),
-        nextAction: "Propose these commands with expectedRevision: sourceRevision, then apply and inspect the copies." };
+      const commands = editorCommandListSchema.parse([{ commandId: "duplicate", type: "scene.duplicate_hierarchy", sourceId: input.sourceId, copies, offset: input.offset, space: input.space }]);
+      const planId = rememberPlannedBatch(context.progress, { tool: "editor.plan_duplicates", sourceRevision: scene.revision, commands });
+      return { sourceRevision: scene.revision, planId, commands,
+        nextAction: "Call editor.propose_commands with this planId and apply true (no need to copy the generated ids), then inspect the copies." };
     },
   });
 }

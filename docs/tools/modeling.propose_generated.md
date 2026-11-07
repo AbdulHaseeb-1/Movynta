@@ -24,12 +24,14 @@
 | `summary` | string 1–300 | Yes | – | What the proposal does. |
 | `source` | string 1–16,000 | Yes | – | The function body, as for modeling.generate_commands. |
 | `inspection` | mesh inspection request | No | – | When given, the mesh is passed to the program. Use faceQuery with includeSamples false to target faces by id. |
+| `stepId` | identifier | No | – | A step of the latest plan that this batch carries out. |
+| `apply` | boolean | No | – | true applies the proposal in this call. Leave it out to review it with viewport.capture first. |
 
 ## Result
 
 | Field | Meaning |
 | --- | --- |
-| `proposalId, status, commandCount, baseRevision` | The stored proposal, proposed, with its size and the revision it was checked on. |
+| `proposalId, status, commandCount, baseRevision` | The stored proposal, proposed, with its size and the revision it was checked on. With apply true, also the apply outcome: status, revision, results, message, rebased. |
 | `status: rejected` | A message when the program failed, or issues (each with a commandId) when a command does not fit. |
 
 ## Example

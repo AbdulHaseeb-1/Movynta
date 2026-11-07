@@ -44,7 +44,7 @@
 
 | Field | Meaning |
 | --- | --- |
-| `status: generated` | sourceRevision and commands, parsed by the strict command schema (defaults such as replaceExisting: false are filled in). |
+| `status: generated` | sourceRevision, planId and commands, parsed by the strict command schema (defaults such as replaceExisting: false are filled in). Propose them by planId. |
 | `status: rejected` | sourceRevision and issues (each with a commandId), or a message when the program failed. |
 
 ## Example
@@ -73,6 +73,7 @@ Result:
 {
   "status": "generated",
   "sourceRevision": 12,
+  "planId": "batch_1",
   "commands": [
     {
       "commandId": "post_0",
@@ -165,7 +166,7 @@ flowchart LR
   S0["The assistant writes a function body"]
   S1["The sandbox runs it against a scene snapshot"]
   S2["Commands are parsed and checked against the scene"]
-  S3["The commands go to editor.propose_commands with expectedRevision: sourceRevision"]
+  S3["editor.propose_commands takes them by planId"]
   S0 --> S1
   S1 --> S2
   S2 --> S3
@@ -178,14 +179,17 @@ flowchart LR
 
 ## Limits
 
-- Nothing is proposed or applied. Pass the commands to editor.propose_commands with expectedRevision set to sourceRevision.
+- Nothing is proposed or applied. Pass the planId to editor.propose_commands, which carries sourceRevision as expectedRevision.
 - Material and texture commands cannot be generated. They need a separate proposal after editor.inspect_materials.
 
 ## Errors you may see
 
 | Message | Cause |
 | --- | --- |
-| `Tool input did not match its schema` | The source is empty or longer than 16,000 characters, or the inspection request is invalid. |
+| `The arguments do not match this tool's schema` | The source is empty or longer than 16,000 characters, or the inspection request is invalid. issues names each field. |
+| `TypeError: … (line 2 of your source)` | status rejected: the program threw. The message is the program's own error and the line in the submitted source. |
+| `The returned commands do not match the command schema: commands[1] (commandId "…").transform.scale: …` | status rejected: the program returned a command of the wrong shape, named by position and commandId. |
+| `Scene program stopped: it ran past 250ms, ran out of memory, or has a syntax error` | status rejected: the sandbox stopped the program. |
 
 ## Related
 

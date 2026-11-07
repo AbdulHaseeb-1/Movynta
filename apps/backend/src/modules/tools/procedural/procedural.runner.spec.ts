@@ -42,6 +42,21 @@ describe("isolated procedural runner", () => {
     await expect(generateCommands(program, scene)).resolves.toHaveLength(20);
   });
 
+  it("tells the model what its program threw and on which line of its own source", async () => {
+    await expect(generateCommands("const first = scene.objects[0];\nreturn [{ commandId: 'a', type: 'scene.delete_object', objectId: first.id }];", scene))
+      .rejects.toThrow(/^TypeError: .*\(line 2 of your source\)$/);
+    await expect(generateCommands("throw new RangeError('radius must be positive');", scene)).rejects.toThrow("RangeError: radius must be positive (line 1 of your source)");
+  });
+
+  it("names the returned command that does not fit the schema", async () => {
+    await expect(generateCommands("return [{ commandId: 'ok', type: 'scene.create_object', objectId: 'a', name: 'A' }, { commandId: 'wide', type: 'scene.transform_object', objectId: 'a', transform: { scale: [1, 1] } }];", scene))
+      .rejects.toThrow('commands[1] (commandId "wide").transform.scale');
+  });
+
+  it("still stops a runaway program with its limits named", async () => {
+    await expect(generateCommands("while (true) {}", scene)).rejects.toThrow(/ran past 250ms/);
+  });
+
   it("honors cancellation before starting", async () => {
     const controller = new AbortController();
     controller.abort();

@@ -37,7 +37,7 @@ error_handling:
 1. Call `editor.get_context` and note the existing objects.
 2. Call `modeling.generate_model_plan` with the dimension `2.5d` and one step per layer, ordered from back to front.
 3. Make one collection for the layers with `scene.create_collection` (for example `Layers`, or the character's name followed by `Layers`). For each layer, create a plane with `geometry.create_primitive` (primitive `plane`), `collectionId` set to that collection, a role `name` (`Hair`, `Face`, `Body`), and a `transform` that puts it on its own depth. Step depth is 0.1 scene units. Create them back to front, so the collection lists them in depth order.
-4. Submit with `editor.propose_commands` and apply with `editor.apply_proposal`. Read the names back from the apply result.
+4. Submit with `editor.propose_commands` and `apply: true`, which applies in the same call (or apply later with `editor.apply_proposal` after a preview). Read the names back from the apply result.
 5. Validate with `validation.check_scene` and report the layer order.
 
 The depth is the plane's z position; the collection only keeps the layers together. To hide or show every layer at once, use `scene.set_collection_visibility`; an individual layer is hidden with `scene.set_visibility`.

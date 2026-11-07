@@ -39,7 +39,8 @@
 | `sourceRevision` | Propose the commands with this as expectedRevision. |
 | `commands` | scene.move_object commands, each with a delta in the parent's axes. Empty when nothing needs to move. |
 | `status` | planned, or already_placed. |
-| `nextAction` | The next step: propose, apply, then measure again. |
+| `planId` | Pass it to editor.propose_commands instead of the commands. Left out when nothing needs to move. |
+| `nextAction` | The next step: propose by planId with apply true, then measure again. |
 
 ## Example
 
@@ -67,6 +68,7 @@ Result:
 ```json
 {
   "sourceRevision": 12,
+  "planId": "batch_1",
   "commands": [
     {
       "commandId": "placement_0",
@@ -80,7 +82,7 @@ Result:
     }
   ],
   "status": "planned",
-  "nextAction": "Propose commands with expectedRevision: sourceRevision, then apply. Re-measure the result."
+  "nextAction": "Call editor.propose_commands with this planId and apply true, then re-measure the result."
 }
 ```
 
@@ -91,7 +93,7 @@ flowchart LR
   S0["Read the bounds at sourceRevision"]
   S1["Work out the wanted position for each object"]
   S2["Convert it to each parent's axes"]
-  S3["Propose with expectedRevision, apply, then measure"]
+  S3["Propose by planId with apply true, then measure"]
   S0 --> S1
   S1 --> S2
   S2 --> S3

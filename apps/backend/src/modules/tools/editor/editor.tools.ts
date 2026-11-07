@@ -7,6 +7,10 @@ import { defineTool, type ToolDefinition } from "../tool.types.js";
 import type { EditorToolDependencies } from "./editor.types.js";
 import { createPlacementTool } from "./placement.tools.js";
 import { createDuplicationTool } from "./duplication.tools.js";
+import { applyProposal, afterApply, proposalRun, recordProposal, resolvePlanStep } from "./proposal-flow.js";
+import { findPlannedBatch } from "../../agent-runs/run-progress.js";
+import { AppError } from "../../../common/errors/app-error.js";
+import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
 
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const noInput = z.object({}).strict();
@@ -14,6 +18,38 @@ const noInput = z.object({}).strict();
 /** Every editor tool first confirms the run's editor connection is still live for this user. */
 function assertConnection(bridge: EditorBridge, context: AgentRunContext): void {
   bridge.assertConnection(context.userId, context.projectId, context.clientId);
+}
+
+/** The commands a proposal is made of: given directly, or a batch a planning tool kept under its planId. */
+type BatchLookup =
+  | { readonly ok: true; readonly commands: EditorCommand[]; readonly expectedRevision: number | undefined }
+  | { readonly ok: false; readonly rejection: Readonly<Record<string, unknown>> };
+
+function resolveBatch(
+  context: AgentRunContext,
+  input: { readonly commands?: EditorCommand[] | undefined; readonly planId?: string | undefined; readonly expectedRevision?: number | undefined },
+): BatchLookup {
+  if ((input.commands === undefined) === (input.planId === undefined)) {
+    return { ok: false, rejection: { status: "rejected", reason: "Give either commands or the planId a planning tool returned, not both and not neither." } };
+  }
+  if (input.commands !== undefined) return { ok: true, commands: input.commands, expectedRevision: input.expectedRevision };
+  const planned = input.planId === undefined ? undefined : findPlannedBatch(context.progress, input.planId);
+  if (!planned) {
+    return {
+      ok: false,
+      rejection: {
+        status: "rejected",
+        reason: "No planned batch has this planId in this run; plan it again, or pass the commands.",
+        availablePlanIds: context.progress.plannedBatches.map((batch) => batch.id),
+      },
+    };
+  }
+  if (input.expectedRevision !== undefined && input.expectedRevision !== planned.sourceRevision) {
+    return { ok: false, rejection: { status: "rejected", reason: `This batch was planned at revision ${planned.sourceRevision}; leave expectedRevision out or plan again.` } };
+  }
+  const commands = editorCommandListSchema.safeParse(planned.commands);
+  if (!commands.success) return { ok: false, rejection: { status: "rejected", reason: "The planned batch could not be read; plan it again." } };
+  return { ok: true, commands: commands.data, expectedRevision: planned.sourceRevision };
 }
 
 export function createEditorTools(dependencies: EditorToolDependencies): ToolDefinition[] {
@@ -90,7 +126,8 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
     defineTool({
       name: "editor.propose_commands",
       description: [
-        "Submit a batch of structured scene commands for preview. A proposal alone does not request approval or show an approval card. After a successful proposal, call editor.apply_proposal with the returned proposalId. Proposals apply automatically without a user approval prompt. Nothing changes until the apply call.",
+        "Submit a batch of structured scene commands. Set apply true to validate and apply it in this one call, which is the usual way to make a change: the result then has the applied revision and each command's result. Leave apply out only to look at the proposal first with viewport.capture proposalId; then call editor.apply_proposal with the returned proposalId. Proposals apply without a user approval prompt; nothing changes until they are applied.",
+        "Commands from editor.plan_placement, editor.plan_duplicates or modeling.generate_commands: pass their planId instead of commands (it carries their sourceRevision as expectedRevision), so the commands and their generated ids are not copied by hand.",
         "Commands run in order, and later commands may use objects created earlier in the same batch.",
         "Change existing objects with scene.rename_object, scene.set_visibility and scene.set_parent instead of recreating them.",
         "Use editor.plan_duplicates to create independent hierarchy copies or linear object arrays with fresh root and descendant IDs. Propose its scene.duplicate_hierarchy command at expectedRevision: sourceRevision in its own proposal. Each copy retains the source parent and collection memberships, with offset multiplied by its 1-based copy index in parent or world space. Geometry, material instances, modifier base cages and skeletons are independent; texture assets remain shared. Copied internal Boolean operands remap to the same copy; external operands remain linked and cuts reevaluate. Limits: 63 additional copies, 2000 scene objects and the 128 MiB geometry budget.",
@@ -127,48 +164,49 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
       parameters: z
         .object({
           summary: z.string().min(1).max(300),
-          commands: editorCommandListSchema,
+          commands: editorCommandListSchema.optional(),
+          planId: identifier.optional(),
           expectedRevision: z.number().int().nonnegative().optional(),
           supersedes: identifier.optional(),
           stepId: identifier.optional(),
+          apply: z.boolean().optional(),
         })
         .strict(),
       execute: async (input, context) => {
         assertConnection(bridge, context);
-        const latestPlan = context.progress.plans.at(-1);
-        const steps = latestPlan?.steps ?? [];
-        const planStep = input.stepId === undefined ? undefined : steps.find((step) => step.id === input.stepId);
-        if (input.stepId !== undefined && !planStep) {
-          return {
-            status: "rejected",
-            reason: "stepId does not match a step of the latest plan. Record a plan first, or leave stepId out.",
-            availableStepIds: steps.map((step) => step.id),
-          };
-        }
-        const proposal = await proposals.propose(
-          { id: context.runId, userId: context.userId, projectId: context.projectId, clientId: context.clientId },
-          { summary: input.summary, commands: input.commands, supersedes: input.supersedes, expectedRevision: input.expectedRevision },
-        );
-        context.progress.proposals.push({ id: proposal.id, ...(planStep ? { stepId: planStep.id } : {}) });
-        context.events.emit("editor.proposal.created", {
-          proposalId: proposal.id,
-          summary: proposal.summary,
-          requiresApproval: proposal.requiresApproval,
-          commandCount: proposal.commands.length,
-          baseRevision: proposal.baseRevision,
-          supersedes: input.supersedes ?? null,
-          planStepId: planStep?.id ?? null,
+        const step = resolvePlanStep(context, input.stepId);
+        if (!step.ok) return step.rejection;
+        const batch = resolveBatch(context, input);
+        if (!batch.ok) return batch.rejection;
+        const proposal = await proposals.propose(proposalRun(context), {
+          summary: input.summary,
+          commands: batch.commands,
+          supersedes: input.supersedes,
+          expectedRevision: batch.expectedRevision,
         });
-        return {
+        recordProposal(context, proposal, { stepId: step.step?.id, supersedes: input.supersedes });
+        const proposed = {
           proposalId: proposal.id,
           status: proposal.status,
           requiresApproval: proposal.requiresApproval,
           commandCount: proposal.commands.length,
           baseRevision: proposal.baseRevision,
           supersedes: input.supersedes ?? null,
-          planStep: planStep ? { id: planStep.id, title: planStep.title } : null,
-          nextAction: "Call editor.apply_proposal with this proposalId to apply automatically.",
+          planStep: step.step ?? null,
         };
+        // A proposal the policy holds for the user is never applied from here; it waits for editor.apply_proposal.
+        if (input.apply !== true || proposal.requiresApproval) {
+          return { ...proposed, nextAction: "Call editor.apply_proposal with this proposalId to apply automatically." };
+        }
+        let applied;
+        try {
+          applied = await applyProposal(proposals, context, proposal.id);
+        } catch (error) {
+          // The proposal exists, so the model needs its id to try the apply again.
+          if (!(error instanceof AppError)) throw error;
+          return { ...proposed, applyError: error.message, nextAction: "The proposal was made but not applied. Call editor.apply_proposal with this proposalId to try again." };
+        }
+        return { ...proposed, ...applied, nextAction: afterApply(applied) };
       },
     }),
 
@@ -179,6 +217,7 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
         "If the scene changed since the proposal was made, the batch runs again on the new scene when every command still fits;",
         "the result then has rebased true. Otherwise the result is failed and the batch must be proposed again.",
         "Each entry of results may carry name, the name an object received from a command that created, renamed or re-parented it; a name already used by a sibling gets a number.",
+        "editor.propose_commands with apply true does the same in one call.",
       ].join(" "),
       permission: "apply",
       parameters: z.object({ proposalId: identifier }).strict(),
@@ -186,29 +225,8 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
       requiresApproval: () => false,
       execute: async (input, context) => {
         assertConnection(bridge, context);
-        const result = await proposals.apply(
-          { id: context.runId, userId: context.userId, projectId: context.projectId, clientId: context.clientId },
-          input.proposalId,
-        );
         // The scene now differs from the last check, so the run must check it again before it can finish.
-        if (result.status === "applied") {
-          context.progress.unverifiedChanges = true;
-          context.progress.brief.stale = true;
-          const quality = context.progress.quality;
-          quality.changes += 1;
-          quality.captureRevision = null;
-          quality.viewpoints = [];
-          quality.outcome = null;
-          quality.summary = "";
-        }
-        return {
-          proposalId: result.proposalId,
-          status: result.status,
-          revision: result.revision ?? null,
-          results: result.results,
-          message: result.message ?? null,
-          rebased: result.rebased ?? false,
-        };
+        return applyProposal(proposals, context, input.proposalId);
       },
     }),
   ];

@@ -8,9 +8,11 @@ The backend test `apps/backend/src/modules/tools/tool-docs.spec.ts` runs the too
 
 ## Rules
 
-1. Only editor.apply_proposal changes the scene. Every other tool reads, calculates, plans or stores.
+1. Only applying a proposal changes the scene: editor.apply_proposal, or editor.propose_commands and modeling.propose_generated with apply true, which run the same apply step in the same call. Every other tool reads, calculates, plans or stores.
 2. A calculated batch is strict. Pass expectedRevision; if the scene changes first, the proposal fails and must be made again rather than moved onto the new scene.
 3. A failed tool returns { "error": "...", "details": ... } to the model, so it can correct the call. The run keeps going.
+4. Arguments that do not match a tool's schema come back as { "error", "issues" }: each issue has a path such as commands[1] (commandId "lid").transform.scale and what is wrong there, and an unknown command type lists the closest valid ones.
+5. editor.plan_placement, editor.plan_duplicates and modeling.generate_commands return a planId. editor.propose_commands accepts it in place of commands, so generated commands and ids are never copied by hand.
 
 ## Tool types
 
@@ -70,12 +72,12 @@ Every example uses this scene, at revision 12, with `crate` selected.
 
 ### Propose
 
-- [`editor.propose_commands`](editor.propose_commands.md): Stores a batch of scene commands for review. The batch is checked against the scene and kept waiting. Nothing changes until editor.apply_proposal runs.
+- [`editor.propose_commands`](editor.propose_commands.md): Checks a batch of scene commands against the scene and stores it. With apply true it also applies the batch in the same call, the usual way to make a change; without it the batch waits for editor.apply_proposal.
 - [`modeling.propose_generated`](modeling.propose_generated.md): Runs the same sandbox program as modeling.generate_commands, then stores the result as a proposal. The commands are not echoed back to the model.
 
 ### Apply
 
-- [`editor.apply_proposal`](editor.apply_proposal.md): Applies a stored proposal to the editor. It is the only assistant tool that changes the scene. The commands join the project history, so the user can undo them.
+- [`editor.apply_proposal`](editor.apply_proposal.md): Applies a stored proposal to the editor. editor.propose_commands and modeling.propose_generated with apply true run this same step in one call. The commands join the project history, so the user can undo them.
 
 ### Skill
 

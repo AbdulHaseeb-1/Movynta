@@ -320,6 +320,65 @@ describe("agent run: propose, approve-free apply, and streaming", () => {
     editor.close();
   }, 30_000);
 
+  it("proposes and applies in one call, and finishes once the change is checked", async () => {
+    const token = server.token("alice");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-one-call");
+    const toolOutputs: string[] = [];
+    server.model.enqueue(
+      [functionCall("editor__propose_commands", {
+        summary: "Add a crate",
+        apply: true,
+        commands: [{ commandId: "crate", type: "geometry.create_primitive", objectId: "crate", primitive: "box", size: 1, replaceExisting: false }],
+      }, { callId: "propose-apply" })],
+      modelResponder((call) => {
+        toolOutputs.push(JSON.stringify(call.request.input));
+        return [functionCall("validation__check_scene", {}, { callId: "check-one-call" })];
+      }),
+      [assistantMessage("The crate is in the scene.")],
+    );
+    const run = await createRun(token, { projectId: "proj-one-call", editorClientId: editor.clientId, message: "Add a crate", dimension: "3d" });
+    const stream = streamFor(run, token);
+    const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+    stream.stop();
+    expect(terminal.envelope).toMatchObject({ type: "run.completed" });
+    // One model call reached the editor, and the model was told the batch applied.
+    expect(editor.executions).toHaveLength(1);
+    expect(toolOutputs[0]).toContain('\\"status\\":\\"applied\\"');
+    const types = stream.events.map((event: StreamedEvent) => event.envelope.type);
+    expect(types).not.toContain("agent.continued");
+    editor.close();
+  }, 30_000);
+
+  it("answers a malformed command with the field to fix, and the run goes on", async () => {
+    const token = server.token("alice");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-bad-args");
+    const toolOutputs: string[] = [];
+    server.model.enqueue(
+      [functionCall("editor__propose_commands", {
+        summary: "Scale the crate",
+        apply: true,
+        commands: [{ commandId: "wide", type: "scene.transform_object", objectId: "crate", transform: { scale: [2, 1] } }],
+      }, { callId: "bad-args" })],
+      modelResponder((call) => {
+        toolOutputs.push(JSON.stringify(call.request.input));
+        return [assistantMessage("I need to fix the scale.")];
+      }),
+    );
+    const run = await createRun(token, { projectId: "proj-bad-args", editorClientId: editor.clientId, message: "Make the crate wider", dimension: "3d" });
+    const stream = streamFor(run, token);
+    // Before, the SDK's own refusal reached the model as a bare "try again"; a copy check on approval input must not fail the run either.
+    const end = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+    stream.stop();
+    expect(end.envelope.type).toBe("run.completed");
+    expect(editor.executions).toHaveLength(0);
+    expect(toolOutputs[0]).toContain("do not match this tool's schema");
+    expect(toolOutputs[0]).toContain(".transform.scale");
+    expect(toolOutputs[0]).toContain("expected array to have exactly 3 items");
+    const failed = stream.events.find((event: StreamedEvent) => event.envelope.type === "tool.failed");
+    expect(failed?.envelope.payload["message"]).toEqual(expect.stringContaining("transform.scale"));
+    editor.close();
+  }, 30_000);
+
   it("resumes from Last-Event-ID without duplicating or skipping events", async () => {
     const token = server.token("alice");
     const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-resume");

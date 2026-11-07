@@ -33,6 +33,7 @@
 | --- | --- |
 | `sourceRevision` | Propose with this as expectedRevision. |
 | `commands` | One scene.duplicate_hierarchy command with a new objectId for each root and each registered descendant. |
+| `planId` | Pass it to editor.propose_commands instead of the commands, so the generated ids are not copied by hand. |
 | `nextAction` | The next step. |
 
 ## Example
@@ -58,6 +59,7 @@ Result:
 ```json
 {
   "sourceRevision": 12,
+  "planId": "batch_1",
   "commands": [
     {
       "commandId": "duplicate",
@@ -109,7 +111,7 @@ Result:
       ]
     }
   ],
-  "nextAction": "Propose these commands with expectedRevision: sourceRevision, then apply and inspect the copies."
+  "nextAction": "Call editor.propose_commands with this planId and apply true (no need to copy the generated ids), then inspect the copies."
 }
 ```
 
@@ -119,8 +121,8 @@ Result:
 flowchart LR
   S0["Read the hierarchy at the current revision"]
   S1["Generate fresh ids for each copy root and descendant"]
-  S2["Propose one scene.duplicate_hierarchy command"]
-  S3["Apply it, then inspect a copy"]
+  S2["Propose it by planId with apply true"]
+  S3["Inspect a copy"]
   S0 --> S1
   S1 --> S2
   S2 --> S3
@@ -141,8 +143,8 @@ flowchart LR
 | Message | Cause |
 | --- | --- |
 | `Update the editor for hierarchy duplication` | The connected editor does not report supportsRepetition. |
-| `Source object does not exist` | sourceId is not in the scene. |
-| `Copies exceed the 2000-object scene limit` | The copies would take the scene past 2000 objects. |
+| `Source object "…" does not exist; use an id from editor.get_context` | sourceId is not in the scene. |
+| `Copies exceed the 2000-object scene limit; make fewer copies` | The copies would take the scene past 2000 objects. |
 
 ## Related
 

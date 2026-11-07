@@ -82,6 +82,11 @@ describe("openWorkReasons", () => {
     expect(openWorkReasons(progress, (id) => (id === "prp_1" ? "superseded" : "proposed"))).toEqual(["1 proposed batch is not applied"]);
   });
 
+  it("counts a batch whose apply started and never finished as unfinished work", () => {
+    const progress = withProgress({ proposals: [{ id: "prp_1" }, { id: "prp_2" }] });
+    expect(openWorkReasons(progress, (id) => (id === "prp_1" ? "applying" : "applied"))).toEqual(["1 proposed batch is not applied"]);
+  });
+
   it("asks for a scene check after a change and reports the errors of the last check", () => {
     expect(openWorkReasons(withProgress({ unverifiedChanges: true }), () => undefined)).toEqual([
       "the scene changed after its last check, so run validation.check_scene",
