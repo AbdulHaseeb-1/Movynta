@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isShortcutBlocked } from "@/lib/dom";
 import { ChevronDown, Combine, Eraser, FlipHorizontal2, Link2, LoaderCircle, PanelTopClose, Scissors, SunMedium, Split, Trash2, Triangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -16,7 +17,6 @@ import { CutPlaneDialog, type CutChoice } from "./CutPlaneDialog";
 import { ShadingDialog, type ShadingChoice } from "./ShadingDialog";
 import { applyMeshTool, type MeshToolAction } from "./meshToolActions";
 import { meshEdgeDiagnostics } from "./meshDiagnostics";
-import { shortcutsBlocked } from "./shortcutGuard";
 import { requestDiagnosticSelection, setComponentError } from "./workspaceSlice";
 
 interface MeshCleanupMenuProps { scene: EditorScene | null; saves: SerialQueue; disabled: boolean }
@@ -85,7 +85,7 @@ export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || locked || open || extrudeIsActive()) return;
       // A focused button (the Mesh button, once a dialog or menu has handed the focus back) does not use letter keys.
-      if (shortcutsBlocked(event)) return;
+      if (isShortcutBlocked(event.target)) return;
       if (event.key.toLowerCase() === "m" && merge) { event.preventDefault(); setOpen(true); }
       if (event.key.toLowerCase() === "f" && edges && count >= 3 && count <= 256) { event.preventDefault(); run("fill"); }
     };

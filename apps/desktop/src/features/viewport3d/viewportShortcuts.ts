@@ -31,7 +31,8 @@ export function viewportShortcut(event: ShortcutKey): ViewportShortcut | undefin
   const key = event.key.toLowerCase();
   if (key === "=" || key === "+") return { kind: "zoom", direction: "in" };
   if (key === "-" || key === "_") return { kind: "zoom", direction: "out" };
-  if (key === "0") return { kind: "reset" };
+  // The top-row zero is a shifted key on AZERTY layouts, so it is matched by its position as well as by its character.
+  if (key === "0" || event.code === "Digit0") return { kind: "reset" };
   if (key === ".") return { kind: "frame", scope: "selection" };
   if (event.key === "Home") return { kind: "frame", scope: "all" };
   return undefined;

@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import type { EditorScene } from "@/features/assistant";
 import { setPanelOpen } from "@/features/designWorkspace/workspaceSlice";
 import { exportSelectionAsGlb, fileNameOf, GLB_SAVE_OPTIONS, saveFile } from "@/features/exporter";
-import { isOverlayTarget } from "@/features/viewport3d";
-import { errorMessage, type SerialQueue } from "@/lib";
+import { errorMessage, isShortcutBlocked, type SerialQueue } from "@/lib";
 import { saveManualCommands } from "./saveManualCommands";
 
 interface ObjectActionsProps { scene: EditorScene | null; disabled: boolean; saves: SerialQueue }
@@ -55,8 +54,7 @@ export function ObjectActions({ scene, disabled, saves }: ObjectActionsProps) {
   };
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      const target = event.target;
-      if (event.defaultPrevented || event.repeat || event.altKey || (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName))) || isOverlayTarget(target)) return;
+      if (event.defaultPrevented || event.repeat || event.altKey || isShortcutBlocked(event.target)) return;
       if (event.shiftKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === "d" && !disabled && scene?.selectedIds.length === 1) { event.preventDefault(); duplicate(); }
       else if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "m" && !disabled && scene?.selection) { event.preventDefault(); mirror(); }
     };

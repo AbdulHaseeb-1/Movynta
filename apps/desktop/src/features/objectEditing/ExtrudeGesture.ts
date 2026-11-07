@@ -12,7 +12,7 @@ import {
 } from "three";
 import { MAX_SELECTED_BEVEL_SEGMENTS } from "@movynta/editor-protocol";
 import type { EditorScene } from "@/features/assistant";
-import { isOverlayTarget, type Viewport } from "@/features/viewport3d";
+import { type Viewport } from "@/features/viewport3d";
 import { meshAtPath, modifierStack } from "@/features/meshGeometry";
 import {
   parseFaces,
@@ -37,7 +37,7 @@ import { ExtrudeFacePreview } from "@/features/meshGeometry/extrudeFacePreview";
 import { FaceTransformPreview } from "@/features/meshGeometry/faceTransformPreview";
 import { ExtrudePreviewOverlay } from "./ExtrudePreviewOverlay";
 import { rotationSign } from "./transformMath";
-import { isTypingTarget } from "@/lib/dom";
+import { isOverlayTarget, isTypingTarget } from "@/lib/dom";
 
 type Axis = "x" | "y" | "z";
 type ExtrudeMode = "move" | "scale" | "rotate";
@@ -677,7 +677,7 @@ export class ExtrudeGesture {
         return;
       const key = event.key.toLowerCase();
       const session = this.session;
-      if (!session && (isOverlayTarget(event.target) || (event.target instanceof HTMLElement && event.target.closest("button")))) return;
+      if (!session && isOverlayTarget(event.target)) return;
       if (session) {
         if (session.bevel && key !== "escape" && key !== "enter") {
           if (!/^[0-9.]$/.test(key) && key !== "backspace") return;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type { EditorScene, ObjectTransform } from "@/features/assistant";
-import { isOverlayTarget, type Viewport, type ViewportTool } from "@/features/viewport3d";
+import { type Viewport, type ViewportTool } from "@/features/viewport3d";
 import { errorMessage, type SerialQueue } from "@/lib";
 import { applyAndRecord, SAVE_FIRST } from "./applyAndRecord";
 import { inBatches } from "./batches";
@@ -11,7 +11,7 @@ import { SelectionTools } from "./SelectionTools";
 import { changeSceneHistory } from "./sceneHistory";
 import { KeyboardTransform } from "./KeyboardTransform";
 import { NumericTransformPreview } from "./NumericTransformPreview";
-import { isTypingTarget } from "@/lib/dom";
+import { isShortcutBlocked } from "@/lib/dom";
 
 /** The active object, as the panel shows it, and how many objects are selected with it. */
 export interface SelectedObject {
@@ -239,7 +239,7 @@ export function useObjectEditing({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // A menu, list or dialog that Escape just closed has already claimed the key.
-      if (isTypingTarget(event.target) || isOverlayTarget(event.target) || event.altKey) return;
+      if (isShortcutBlocked(event.target) || event.altKey) return;
       if (event.ctrlKey || event.metaKey) {
         const key = event.key.toLowerCase();
         if (key === "z") {

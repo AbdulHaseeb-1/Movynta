@@ -33,8 +33,7 @@ import { cn } from "@/lib/utils";
 import type { Viewport } from "./viewport";
 import { VIEW_PRESETS } from "./viewPresets";
 import { ZOOM_STEP } from "./useViewportShortcuts";
-import { isTypingTarget } from "@/lib/dom";
-import { isOverlayTarget } from "./overlayTarget";
+import { isShortcutBlocked } from "@/lib/dom";
 import { setViewportTool, type ViewportTool } from "./viewportSlice";
 
 const SHORTCUTS: Readonly<Record<string, ViewportTool>> = {
@@ -144,7 +143,7 @@ export function ViewportToolbar({
   useEffect(() => {
     // Moving around and shading have keys of their own, in useViewportShortcuts, that work in every mode.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target) || isOverlayTarget(event.target)) return;
+      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || isShortcutBlocked(event.target)) return;
       const key = event.key.toLowerCase();
       const next = SHORTCUTS[key];
       if (next) {

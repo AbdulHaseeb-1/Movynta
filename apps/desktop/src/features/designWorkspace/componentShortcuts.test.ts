@@ -22,6 +22,7 @@ describe("edit mode keys", () => {
       constructor(tagName: string, inDialog: boolean) { super(); this.tagName = tagName; this.inDialog = inDialog; }
       closest(selector: string) { return this.inDialog && selector.includes('[role="dialog"]') ? this : null; }
     }
+    vi.stubGlobal("Element", FakeElement);
     vi.stubGlobal("HTMLElement", FakeElement);
     vi.stubGlobal("window", new EventTarget());
     vi.stubGlobal("document", { createElement: () => ({ style: {}, remove() {} }), body: { appendChild() {} } });

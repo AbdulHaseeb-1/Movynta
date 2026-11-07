@@ -1,10 +1,10 @@
 import type { EditorScene } from "@/features/assistant";
-import { isOverlayTarget, type Viewport } from "@/features/viewport3d";
+import { type Viewport } from "@/features/viewport3d";
 import { combineSelection, selectionOperation } from "@/features/viewport3d/selectionOperation";
 import { idsInRect, rectBetween } from "./boxSelect";
 import type { GizmoView } from "./ObjectGizmo";
 import { pickObjectId, toNdc } from "./picking";
-import { isTypingTarget } from "@/lib/dom";
+import { isShortcutBlocked, isTypingTarget } from "@/lib/dom";
 
 /** A drag shorter than this, in pixels, is a click that missed, not a rectangle. */
 const MIN_BOX_PX = 4;
@@ -36,7 +36,7 @@ export class SelectionTools {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === " " && !isTypingTarget(event.target)) this.navigationHeld = true;
-      if (isTypingTarget(event.target) || isOverlayTarget(event.target) || event.ctrlKey || event.metaKey || event.repeat) return;
+      if (isShortcutBlocked(event.target) || event.ctrlKey || event.metaKey || event.repeat) return;
       if (event.key === "Escape" && this.armed) {
         // The first Escape puts the rectangle away; it must not also clear the selection.
         event.stopImmediatePropagation();

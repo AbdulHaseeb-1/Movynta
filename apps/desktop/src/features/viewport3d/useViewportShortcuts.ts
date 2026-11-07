@@ -1,8 +1,7 @@
 import { useEffect } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import type { Viewport } from "./viewport";
-import { isTypingTarget } from "@/lib/dom";
-import { isOverlayTarget } from "./overlayTarget";
+import { isShortcutBlocked } from "@/lib/dom";
 import { viewportShortcut } from "./viewportShortcuts";
 import { toggleWireframe, toggleXray } from "./viewportSlice";
 
@@ -23,7 +22,7 @@ export function useViewportShortcuts({ viewport, onFrame }: ViewportShortcutOpti
   const dispatch = useAppDispatch();
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isTypingTarget(event.target) || isOverlayTarget(event.target)) return;
+      if (event.defaultPrevented || isShortcutBlocked(event.target)) return;
       const shortcut = viewportShortcut(event);
       if (!shortcut) return;
       switch (shortcut.kind) {

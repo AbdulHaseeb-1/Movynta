@@ -1,10 +1,10 @@
 import { Object3D, Vector2, Vector3 } from "three";
 import type { EditorScene, ObjectTransform } from "@/features/assistant";
-import { isOverlayTarget, type Viewport } from "@/features/viewport3d";
+import { type Viewport } from "@/features/viewport3d";
 import { GroupTransform, medianPosition, topLevel } from "./groupTransform";
 import type { GizmoView, ObjectChange } from "./ObjectGizmo";
 import { rotationSign, sameTransform } from "./transformMath";
-import { isTypingTarget } from "@/lib/dom";
+import { isOverlayTarget, isTypingTarget } from "@/lib/dom";
 
 type Operation = "move" | "rotate" | "scale";
 type Axis = "x" | "y" | "z";
@@ -174,7 +174,7 @@ export class KeyboardTransform {
         return;
       const key = event.key.toLowerCase();
       const session = this.session;
-      if (!session && (isOverlayTarget(event.target) || (event.target instanceof HTMLElement && event.target.closest("button")))) return;
+      if (!session && isOverlayTarget(event.target)) return;
       if (session) {
         if (/^[0-9.-]$/.test(key) || key === "backspace") {
           event.preventDefault(); event.stopImmediatePropagation(); pendingMove = false;

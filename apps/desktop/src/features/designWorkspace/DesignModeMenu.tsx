@@ -1,4 +1,5 @@
 import { Box, ChevronDown, MousePointer2, PencilRuler } from "lucide-react";
+import { isShortcutBlocked } from "@/lib/dom";
 import { useEffect, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,6 @@ import {
 } from "@/components/ui/tooltip";
 import { setDesignMode } from "./workspaceSlice";
 import { knifeIsActive } from "./knifeActivity";
-import { shortcutsBlocked } from "./shortcutGuard";
 import { extrudeIsActive } from "@/features/objectEditing/ExtrudeGesture";
 
 export function DesignModeMenu() {
@@ -29,7 +29,7 @@ export function DesignModeMenu() {
   const menuIsOpen = useRef(false);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || menuOpen || knifeIsActive() || extrudeIsActive() || shortcutsBlocked(event)) return;
+      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || menuOpen || knifeIsActive() || extrudeIsActive() || isShortcutBlocked(event.target)) return;
       const key = event.key.toLowerCase();
       if ((mode === "object" && key === "e") || (mode === "edit" && key === "o")) {
         event.preventDefault(); dispatch(setDesignMode(mode === "object" ? "edit" : "object"));

@@ -15,6 +15,7 @@ import {
   Vector3,
   type Object3D,
 } from "three";
+import { isShortcutBlocked } from "@/lib/dom";
 import { setCameraRay } from "@/features/viewport3d/cameraRay";
 import type { Viewport } from "@/features/viewport3d";
 import { combineSelection, selectionOperation } from "@/features/viewport3d/selectionOperation";
@@ -35,7 +36,6 @@ import type { ComponentKind } from "./workspaceSlice";
 import { changeComponentSelection, type ComponentSelectionOperation } from "./componentNeighbors";
 import { selectEdgeFlow } from "./edgeFlowSelection";
 import { knifeIsActive } from "./knifeActivity";
-import { shortcutsBlocked } from "./shortcutGuard";
 import { ComponentBoxSelection } from "./ComponentBoxSelection";
 
 interface Target {
@@ -245,7 +245,7 @@ export class ComponentSelection {
     this.stopFrame = viewport.addFrameListener(() => this.sync());
     const onKeyDown = (event: KeyboardEvent) => {
       if (knifeIsActive()) return;
-      if (shortcutsBlocked(event)) return;
+      if (isShortcutBlocked(event.target)) return;
       if (!extrudeIsActive() && !event.ctrlKey && !event.metaKey && !event.repeat && (event.key.toLowerCase() === "a" || (event.altKey && event.code === "KeyA"))) {
         event.preventDefault(); event.stopImmediatePropagation();
         if (event.altKey) { this.selected = null; this.highlight(tint); this.onSelect(null); return; }

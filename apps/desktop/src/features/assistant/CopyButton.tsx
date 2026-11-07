@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -14,26 +14,30 @@ interface CopyButtonProps {
   className?: string;
 }
 
-/** Copies text to the clipboard and confirms briefly with a check mark. */
+/** Copies text to the clipboard and confirms briefly with a check mark, or with a cross if the clipboard refused it. */
 export function CopyButton({
   text,
   label = "Copy",
   className,
 }: CopyButtonProps) {
-  const [copied, setCopied] = useState(false);
+  const [result, setResult] = useState<"copied" | "failed" | null>(null);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
   async function copy() {
+    let outcome: "copied" | "failed" = "copied";
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      setCopied(false);
+      // The webview refuses clipboard access when it is not focused or the permission is denied.
+      outcome = "failed";
     }
+    setResult(outcome);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setResult(null), 1500);
   }
+
+  const message = result === "copied" ? "Copied" : result === "failed" ? "Could not copy" : undefined;
 
   return (
     <Tooltip>
@@ -47,16 +51,14 @@ export function CopyButton({
             className,
           )}
           onClick={() => void copy()}
-          aria-label={copied ? "Copied" : label}
+          aria-label={message ?? label}
         >
-          {copied ? (
-            <Check className="size-3.5 text-success" />
-          ) : (
-            <Copy className="size-3.5" />
-          )}
+          {result === "copied" && <Check className="size-3.5 text-success" />}
+          {result === "failed" && <X className="size-3.5 text-destructive" />}
+          {result === null && <Copy className="size-3.5" />}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{copied ? "Copied" : label}</TooltipContent>
+      <TooltipContent>{message ?? label}</TooltipContent>
     </Tooltip>
   );
 }
