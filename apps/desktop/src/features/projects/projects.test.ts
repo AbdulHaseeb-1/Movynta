@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Scene } from "three";
 import { EditorScene } from "../assistant/EditorScene";
 import { formatRelativeTime } from "./formatRelativeTime";
+import { libraryToggleVisible } from "./libraryToggle";
 import { projectPath, PROJECT_CATEGORY_CATALOG } from "./projectCategories";
 import { displayName, isUntitled } from "./projectName";
 import { listQuery } from "./projectsApi";
@@ -135,5 +136,18 @@ describe("restoring a saved scene", () => {
     editor.bindProject("prj_9");
     expect(editor.projectId).toBe("prj_9");
     expect(editor.context().projectId).toBe("prj_9");
+  });
+});
+
+describe("the View all button", () => {
+  it("stays while a list is loading, so a filter change does not take keyboard focus away", () => {
+    expect(libraryToggleVisible(true, "ready")).toBe(true);
+    expect(libraryToggleVisible(true, "loading")).toBe(true);
+  });
+
+  it("is hidden until there is a list to show", () => {
+    expect(libraryToggleVisible(true, "idle")).toBe(false);
+    expect(libraryToggleVisible(true, "error")).toBe(false);
+    expect(libraryToggleVisible(false, "ready")).toBe(false);
   });
 });

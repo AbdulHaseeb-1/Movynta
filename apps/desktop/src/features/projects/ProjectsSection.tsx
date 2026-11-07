@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Folder, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { libraryToggleVisible } from "./libraryToggle";
 import { NewProjectButton } from "./NewProjectButton";
 import { ProjectCard } from "./ProjectCard";
 import { ProjectDialogs } from "./ProjectDialogs";
@@ -91,7 +92,7 @@ export function ProjectsSection() {
           <Folder className="size-5 text-muted-foreground" aria-hidden="true" />
           Projects
         </h2>
-        {connected && status === "ready" && (
+        {libraryToggleVisible(connected, status) && (
           <button
             type="button"
             onClick={() => setExpanded((current) => !current)}

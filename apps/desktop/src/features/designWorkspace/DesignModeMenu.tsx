@@ -29,7 +29,7 @@ export function DesignModeMenu() {
   const menuIsOpen = useRef(false);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || menuOpen || knifeIsActive() || extrudeIsActive() || shortcutsBlocked(event) || (event.target instanceof HTMLElement && event.target.tagName === "BUTTON")) return;
+      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || menuOpen || knifeIsActive() || extrudeIsActive() || shortcutsBlocked(event)) return;
       const key = event.key.toLowerCase();
       if ((mode === "object" && key === "e") || (mode === "edit" && key === "o")) {
         event.preventDefault(); dispatch(setDesignMode(mode === "object" ? "edit" : "object"));

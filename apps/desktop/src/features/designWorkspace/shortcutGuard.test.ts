@@ -20,6 +20,8 @@ describe("shortcutsBlocked", () => {
   it("lets a key through when nothing in particular has the focus", () => {
     expect(shortcutsBlocked({ target: null })).toBe(false);
     expect(shortcutsBlocked({ target: fakeElement("DIV", null) })).toBe(false);
+    // A button on the page uses Space and Enter, not letters: the mode menu's button keeps the focus after a choice.
+    expect(shortcutsBlocked({ target: fakeElement("BUTTON", null) })).toBe(false);
   });
 
   it("leaves text fields alone", () => {

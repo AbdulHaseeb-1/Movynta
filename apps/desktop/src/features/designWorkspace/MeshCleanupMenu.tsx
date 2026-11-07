@@ -84,7 +84,8 @@ export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || locked || open || extrudeIsActive()) return;
-      if (shortcutsBlocked(event) || (event.target instanceof HTMLElement && event.target.tagName === "BUTTON")) return;
+      // A focused button (the Mesh button, once a dialog or menu has handed the focus back) does not use letter keys.
+      if (shortcutsBlocked(event)) return;
       if (event.key.toLowerCase() === "m" && merge) { event.preventDefault(); setOpen(true); }
       if (event.key.toLowerCase() === "f" && edges && count >= 3 && count <= 256) { event.preventDefault(); run("fill"); }
     };
