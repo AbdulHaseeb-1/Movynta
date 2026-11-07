@@ -58,16 +58,16 @@
       "request": {}, "response": "$scene",
       "flow": ["Assistant calls editor.get_context", "Editor sends a snapshot for this client", "Assistant uses the ids and revision in its next call"],
       "visual": { "kind": "tree", "caption": "The sample scene at revision 12. Indentation is the parent relation." },
-      "tips": ["Use editor.get_scene_summary when only counts are needed; this result can be large.", "worldBounds includes descendants and hidden geometry. It uses geometry bounding boxes, not evaluated shapes."],
+      "tips": ["Use editor.get_scene_summary when only counts are needed; this result can be large. On a large scene read by branch with editor.read_branch, or select with editor.query_objects, and keep this for the exact transforms of objects already chosen.", "worldBounds includes descendants and hidden geometry. It uses geometry bounding boxes, not evaluated shapes."],
       "limits": ["A snapshot holds up to 2000 objects.", "It does not evaluate geometry. Use editor.measure or editor.inspect_mesh for shape."],
-      "related": ["editor.get_scene_summary", "validation.check_scene", "editor.propose_commands"]
+      "related": ["editor.get_scene_summary", "editor.read_branch", "validation.check_scene", "editor.propose_commands"]
     },
     {
       "name": "editor.get_scene_summary", "type": "read", "group": "Inspect",
       "provider": "editor__get_scene_summary", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "code",
       "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.get_scene_summary.md",
       "summary": "Counts the objects by type and reports what is selected. A quick orientation before a larger read.",
-      "when": ["When the assistant needs the size and shape of the scene without the full object list."],
+      "when": ["When the assistant needs the size and shape of the scene without the full object list.", "Before choosing how to read a large scene: with more than about 60 objects, continue with editor.read_branch."],
       "input": { "note": "No input. Send an empty object.", "rows": [] },
       "result": { "rows": [
         { "field": "revision", "meaning": "The scene revision." },
@@ -81,7 +81,574 @@
       "visual": { "kind": "counts", "caption": "Counts by type for the sample scene.", "counts": [{ "label": "empty", "value": 2 }, { "label": "mesh", "value": 4 }], "selected": ["crate"] },
       "tips": ["It reports counts and selection only. For parents, transforms or names, use editor.get_context."],
       "limits": ["No positions, names or parents in the result."],
-      "related": ["editor.get_context"]
+      "related": ["editor.read_branch", "editor.get_context"]
+    },
+    {
+      "type": "read",
+      "group": "Inspect",
+      "permission": "read",
+      "approval": "Never",
+      "needsEditor": true,
+      "verify": "code",
+      "source": "apps/backend/src/modules/tools/scene/scene.tools.ts",
+      "name": "editor.read_branch",
+      "provider": "editor__read_branch",
+      "doc": "editor.read_branch.md",
+      "summary": "Reads the scene as a tree, one branch at a time. Each entry carries a summary, and runs of look-alike siblings fold into one entry, so the answer grows with what the scene contains, not with its object count.",
+      "when": [
+        "First, on any scene with more than about 60 objects, instead of reading the whole flat list.",
+        "To find the id of a part by its place in the hierarchy.",
+        "To see how big a group is and what it holds before deciding to open it."
+      ],
+      "input": {
+        "note": "Every field is optional. Send {} for the top level.",
+        "rows": [
+          {
+            "name": "rootId",
+            "type": "identifier",
+            "required": false,
+            "meaning": "The object to open. Leave out for the top of the scene."
+          },
+          {
+            "name": "depth",
+            "type": "integer 1–4",
+            "required": false,
+            "default": "1",
+            "meaning": "How many levels to open below the root. A level that stays closed shows only counts."
+          },
+          {
+            "name": "childLimit",
+            "type": "integer 1–100",
+            "required": false,
+            "default": "30",
+            "meaning": "Entries listed per level."
+          },
+          {
+            "name": "childOffset",
+            "type": "integer ≥ 0",
+            "required": false,
+            "default": "0",
+            "meaning": "Entries to skip at the opened level, for paging. Use the nextOffset a result gives."
+          },
+          {
+            "name": "foldRepeats",
+            "type": "boolean",
+            "required": false,
+            "default": "true",
+            "meaning": "Shows 4 or more look-alike siblings as one entry. Set false to list every sibling."
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "field": "revision, objectCount",
+            "meaning": "The scene revision, and the number of objects in the whole scene."
+          },
+          {
+            "field": "countsByType",
+            "meaning": "Objects by type, for the whole scene. Only when no rootId is given."
+          },
+          {
+            "field": "node",
+            "meaning": "The opened object: id, name, type, visible, size and center in world axes, childCount, descendantCount and descendants by type. Not present at the top level."
+          },
+          {
+            "field": "path",
+            "meaning": "The id and name of each object from the top of the scene down to the opened one."
+          },
+          {
+            "field": "children",
+            "meaning": "The entries of the level, each with the same summary and, when depth allows, its own children and childrenOmitted. A folded run is { repeat: true, name, type, count, templateId, exampleIds, size, descendantsEach }."
+          },
+          {
+            "field": "childrenOmitted, nextOffset",
+            "meaning": "Entries not returned at the opened level, and the childOffset that continues the listing."
+          },
+          {
+            "field": "truncated",
+            "meaning": "True when the read stopped opening branches at its limit of 300 entries."
+          },
+          {
+            "field": "unreachable",
+            "meaning": "Objects left out because their parents form a cycle. Present only when there are some."
+          }
+        ]
+      },
+      "request": {
+        "rootId": "figure"
+      },
+      "response": {
+        "revision": 12,
+        "objectCount": 6,
+        "children": [
+          {
+            "id": "torso",
+            "name": "Torso",
+            "type": "mesh",
+            "visible": true,
+            "size": [
+              1,
+              1.5,
+              0.6
+            ],
+            "center": [
+              0,
+              1,
+              0
+            ],
+            "childCount": 0,
+            "descendantCount": 0
+          },
+          {
+            "id": "arm_left",
+            "name": "Arm",
+            "type": "mesh",
+            "visible": true,
+            "size": [
+              0.3,
+              1.2,
+              0.3
+            ],
+            "center": [
+              -0.9,
+              1.2,
+              0
+            ],
+            "childCount": 0,
+            "descendantCount": 0
+          },
+          {
+            "id": "arm_right",
+            "name": "Arm",
+            "type": "mesh",
+            "visible": true,
+            "size": [
+              0.3,
+              1.2,
+              0.3
+            ],
+            "center": [
+              0.9,
+              1.2,
+              0
+            ],
+            "childCount": 0,
+            "descendantCount": 0
+          }
+        ],
+        "childrenOmitted": 0,
+        "truncated": false,
+        "node": {
+          "id": "figure",
+          "name": "Figure",
+          "type": "empty",
+          "visible": true,
+          "size": [
+            2.1,
+            1.55,
+            0.6
+          ],
+          "center": [
+            0,
+            1.025,
+            0
+          ],
+          "childCount": 3,
+          "descendantCount": 3,
+          "descendants": {
+            "mesh": 3
+          }
+        },
+        "path": [
+          {
+            "id": "figure",
+            "name": "Figure"
+          }
+        ]
+      },
+      "visual": {
+        "kind": "tree",
+        "caption": "The sample scene's hierarchy. Reading Figure lists Torso and the two Arms with sizes and counts."
+      },
+      "tips": [
+        "Open a branch only when you need it. A folded entry stands for many objects; its templateId is one of them.",
+        "size and center are world-space and include what is inside the object, so a group's size is the size of the whole assembly.",
+        "Use editor.get_context for exact transforms of objects you have already chosen, not to find them."
+      ],
+      "limits": [
+        "One read returns at most 300 entries, and a level at most childLimit.",
+        "Folding compares type, name (ignoring numbering), size and contents, not geometry."
+      ],
+      "errors": [
+        {
+          "message": "rootId \"…\" is not in the scene; read the scene with editor.read_branch to find the id",
+          "cause": "rootId names no object, or an object caught in a parent cycle."
+        }
+      ],
+      "related": [
+        "editor.find_repeats",
+        "editor.query_objects",
+        "editor.get_context",
+        "editor.get_scene_summary"
+      ]
+    },
+    {
+      "type": "read",
+      "group": "Inspect",
+      "permission": "read",
+      "approval": "Never",
+      "needsEditor": true,
+      "verify": "code",
+      "source": "apps/backend/src/modules/tools/scene/scene.tools.ts",
+      "name": "editor.find_repeats",
+      "provider": "editor__find_repeats",
+      "doc": "editor.find_repeats.md",
+      "summary": "Finds objects that look like copies of one another and says how they are laid out, so a repeated part is one idea to change instead of many objects.",
+      "when": [
+        "Before editing a scene with many similar parts, such as windows, posts, tiles or rivets.",
+        "To learn the spacing of an array so it can be reproduced with editor.plan_duplicates.",
+        "To spot copies that were piled in one place by mistake."
+      ],
+      "input": {
+        "note": "Every field is optional.",
+        "rows": [
+          {
+            "name": "rootId",
+            "type": "identifier",
+            "required": false,
+            "meaning": "Search only below this object. Leave out to search the whole scene."
+          },
+          {
+            "name": "minCount",
+            "type": "integer 2–500",
+            "required": false,
+            "default": "3",
+            "meaning": "The smallest number of look-alikes that counts as a group."
+          },
+          {
+            "name": "limit",
+            "type": "integer 1–20",
+            "required": false,
+            "default": "10",
+            "meaning": "Groups returned, the ones standing for most of the scene first."
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "field": "revision",
+            "meaning": "The scene revision."
+          },
+          {
+            "field": "scanned, covered",
+            "meaning": "Objects looked at, and objects inside the groups returned, members and what they hold."
+          },
+          {
+            "field": "groups[].name, type, count",
+            "meaning": "The shared name without its numbering, the type, and the number of members."
+          },
+          {
+            "field": "groups[].templateId, memberIds",
+            "meaning": "The member to treat as the original, and the first 50 member ids. memberIdsOmitted counts the rest."
+          },
+          {
+            "field": "groups[].size, descendantsEach",
+            "meaning": "World size of one member, and how many objects each holds."
+          },
+          {
+            "field": "groups[].parentIds, parentCount",
+            "meaning": "Up to five distinct parents, and how many there are."
+          },
+          {
+            "field": "groups[].arrangement",
+            "meaning": "line { axis, count, step }, grid { axes, counts, steps }, coincident (all in one place) or scattered, from the members' world centers."
+          },
+          {
+            "field": "omittedGroups",
+            "meaning": "Groups that matched but are past the limit."
+          },
+          {
+            "field": "confidence",
+            "meaning": "A reminder that matching used names, sizes and structure, not geometry."
+          }
+        ]
+      },
+      "request": {
+        "minCount": 2
+      },
+      "response": {
+        "revision": 12,
+        "scanned": 6,
+        "covered": 2,
+        "groups": [
+          {
+            "name": "Arm",
+            "type": "mesh",
+            "count": 2,
+            "templateId": "arm_left",
+            "memberIds": [
+              "arm_left",
+              "arm_right"
+            ],
+            "memberIdsOmitted": 0,
+            "size": [
+              0.3,
+              1.2,
+              0.3
+            ],
+            "descendantsEach": 0,
+            "parentIds": [
+              "figure"
+            ],
+            "parentCount": 1,
+            "arrangement": {
+              "kind": "line",
+              "axis": "x",
+              "count": 2,
+              "step": 1.8
+            }
+          }
+        ],
+        "omittedGroups": 0,
+        "confidence": "Matched by type, name, size and contents; geometry is not compared."
+      },
+      "visual": {
+        "kind": "top-view",
+        "caption": "Top view. The two Arms match: the same size, name and kind, 1.8 apart along x.",
+        "boxes": [
+          {
+            "label": "Arm",
+            "x0": -1.05,
+            "x1": -0.75,
+            "z0": -0.15,
+            "z1": 0.15,
+            "tone": "solid"
+          },
+          {
+            "label": "Arm",
+            "x0": 0.75,
+            "x1": 1.05,
+            "z0": -0.15,
+            "z1": 0.15,
+            "tone": "solid"
+          }
+        ],
+        "gap": {
+          "x0": -0.75,
+          "x1": 0.75,
+          "label": "1.8 between centers"
+        }
+      },
+      "tips": [
+        "A repeated group is reported once; the frames and panes inside repeated windows are not listed again.",
+        "A line or grid maps onto editor.plan_duplicates: sourceId is templateId, offset is the step on the axis.",
+        "Confirm with editor.inspect_mesh on templateId and one other member before treating them as identical."
+      ],
+      "limits": [
+        "Matches by type, name (ignoring trailing numbers and \"copy\"), world size to about 3 significant digits and contents. Geometry and materials are not compared.",
+        "Copies turned by other than a quarter turn, or scaled differently, are not matched.",
+        "Objects with no bounds cannot be compared and are skipped."
+      ],
+      "errors": [
+        {
+          "message": "rootId \"…\" is not in the scene; read the scene with editor.read_branch to find the id",
+          "cause": "rootId names no object."
+        }
+      ],
+      "related": [
+        "editor.read_branch",
+        "editor.plan_duplicates",
+        "editor.inspect_mesh"
+      ]
+    },
+    {
+      "type": "read",
+      "group": "Inspect",
+      "permission": "read",
+      "approval": "Never",
+      "needsEditor": true,
+      "verify": "code",
+      "source": "apps/backend/src/modules/tools/scene/scene.tools.ts",
+      "name": "editor.query_objects",
+      "provider": "editor__query_objects",
+      "doc": "editor.query_objects.md",
+      "summary": "Selects objects by rule, such as name, type, parent, size or position, so a group of objects can be named by what they are instead of by id.",
+      "when": [
+        "To find every object of a kind, for example all windows above the second floor.",
+        "To count objects before and after an edit.",
+        "To get the ids for one batch of commands without reading the whole scene."
+      ],
+      "input": {
+        "note": "Every field is optional, and every filter given must hold.",
+        "rows": [
+          {
+            "name": "nameMatches",
+            "type": "string 1–80",
+            "required": false,
+            "meaning": "A pattern for the object's own name. * is any run of characters, ? is one; case is ignored."
+          },
+          {
+            "name": "type",
+            "type": "list of mesh | empty | collection | camera | light",
+            "required": false,
+            "meaning": "Keep only these types."
+          },
+          {
+            "name": "parentId",
+            "type": "identifier | null",
+            "required": false,
+            "meaning": "Direct children of this object. null selects the top level."
+          },
+          {
+            "name": "withinId",
+            "type": "identifier",
+            "required": false,
+            "meaning": "Everything below this object, at any depth."
+          },
+          {
+            "name": "visible, selected",
+            "type": "boolean",
+            "required": false,
+            "meaning": "Filter on the object's own visibility flag, or on whether it is selected."
+          },
+          {
+            "name": "size",
+            "type": "{ x?, y?, z? } of { min?, max? }",
+            "required": false,
+            "meaning": "Ranges on the world extents, including what is inside. Objects with no geometry never match."
+          },
+          {
+            "name": "position",
+            "type": "{ x?, y?, z? } of { min?, max? }",
+            "required": false,
+            "meaning": "Ranges on the world center of the object's bounds. Objects with no geometry never match."
+          },
+          {
+            "name": "sortBy",
+            "type": "scene | name | size | x | y | z",
+            "required": false,
+            "default": "scene",
+            "meaning": "size orders by volume; x, y and z by the center on that axis."
+          },
+          {
+            "name": "descending",
+            "type": "boolean",
+            "required": false,
+            "default": "false",
+            "meaning": "Reverse the order."
+          },
+          {
+            "name": "limit, offset",
+            "type": "integer 1–200, integer ≥ 0",
+            "required": false,
+            "default": "50, 0",
+            "meaning": "Page the matches."
+          },
+          {
+            "name": "countOnly",
+            "type": "boolean",
+            "required": false,
+            "default": "false",
+            "meaning": "Return only the total."
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "field": "revision",
+            "meaning": "The scene revision the matches belong to."
+          },
+          {
+            "field": "total",
+            "meaning": "Every object that matched, whatever the limit."
+          },
+          {
+            "field": "matches",
+            "meaning": "The page of matches: id, name, type, parentId, size and center (world axes)."
+          },
+          {
+            "field": "hasMore, nextOffset",
+            "meaning": "Whether more matches follow, and the offset that continues."
+          }
+        ]
+      },
+      "request": {
+        "nameMatches": "arm*",
+        "position": {
+          "x": {
+            "max": 0
+          }
+        }
+      },
+      "response": {
+        "revision": 12,
+        "total": 1,
+        "matches": [
+          {
+            "id": "arm_left",
+            "name": "Arm",
+            "type": "mesh",
+            "parentId": "figure",
+            "size": [
+              0.3,
+              1.2,
+              0.3
+            ],
+            "center": [
+              -0.9,
+              1.2,
+              0
+            ]
+          }
+        ],
+        "hasMore": false
+      },
+      "visual": {
+        "kind": "lists",
+        "caption": "Objects of the sample scene against nameMatches \"arm*\" and a center at x ≤ 0.",
+        "groups": [
+          {
+            "title": "Matches",
+            "items": [
+              "arm_left · Arm"
+            ],
+            "tone": "ok"
+          },
+          {
+            "title": "Left out",
+            "items": [
+              "arm_right · Arm (x = 0.9)",
+              "torso · Torso (name)",
+              "crate · Crate (name)",
+              "figure · Figure (name)"
+            ],
+            "tone": "neutral"
+          }
+        ]
+      },
+      "tips": [
+        "Matches describe the scene at the revision returned. After an edit, query again.",
+        "Combine withinId with a name pattern to select one kind of part inside one branch.",
+        "Use countOnly to check an edit worked without reading the objects."
+      ],
+      "limits": [
+        "At most 200 matches per call; page with offset.",
+        "size and position use the editor's world bounds, which include descendants."
+      ],
+      "errors": [
+        {
+          "message": "withinId \"…\" is not in the scene; read the scene with editor.read_branch to find the id",
+          "cause": "withinId or parentId names no object."
+        }
+      ],
+      "related": [
+        "editor.read_branch",
+        "editor.find_repeats",
+        "editor.plan_placement"
+      ]
     },
     {
       "name": "editor.describe_commands", "type": "read", "group": "Inspect",
@@ -725,15 +1292,15 @@
       ] },
       "request": { "skillId": "mesh-editing" },
       "response": {
-        "status": "loaded", "skillId": "mesh-editing", "version": "1.9.0",
+        "status": "loaded", "skillId": "mesh-editing", "version": "1.10.0",
         "instructions": "# Mesh editing workflow\n\n1. Call `editor.get_context` and confirm every target object exists.\n2. Describe the change in plain language, then build the smallest set of commands that achieves it.\n… (the rest of the workflow is in skills/mesh-editing/SKILL.md)",
-        "toolNames": ["editor.get_context", "editor.inspect_mesh", "editor.inspect_materials", "editor.measure", "editor.plan_placement", "editor.plan_duplicates", "viewport.capture", "modeling.generate_commands", "modeling.propose_generated", "editor.propose_commands", "editor.apply_proposal", "validation.check_scene"],
+        "toolNames": ["editor.get_context", "editor.read_branch", "editor.find_repeats", "editor.query_objects", "editor.inspect_mesh", "editor.inspect_materials", "editor.measure", "editor.plan_placement", "editor.plan_duplicates", "viewport.capture", "modeling.generate_commands", "modeling.propose_generated", "editor.propose_commands", "editor.apply_proposal", "validation.check_scene"],
         "validation": ["Each target object id exists in the latest editor context.", "Transforms use finite numbers, and scale values are positive.", "Replacing geometry is an explicit destructive command and applies automatically through a proposal."],
         "errorHandling": ["If a target object is missing, stop and ask the user which object to change.", "If the user rejects a destructive proposal, do not retry it. Propose a non-destructive alternative instead.", "Report revision conflicts, read the current context, and recalculate before proposing corrected commands."]
       },
       "flow": ["The request matches a skill's when_to_use", "The skill is selected for the run", "The assistant calls load_skill", "The workflow comes back and the assistant follows it"],
-      "visual": { "kind": "lists", "caption": "mesh-editing, version 1.9.0, status loaded.", "groups": [
-        { "title": "Tools the workflow names", "items": ["editor.get_context", "editor.inspect_mesh", "editor.inspect_materials", "editor.measure", "editor.plan_placement", "editor.plan_duplicates", "viewport.capture", "modeling.generate_commands", "modeling.propose_generated", "editor.propose_commands", "editor.apply_proposal", "validation.check_scene"], "tone": "neutral" },
+      "visual": { "kind": "lists", "caption": "mesh-editing, version 1.10.0, status loaded.", "groups": [
+        { "title": "Tools the workflow names", "items": ["editor.get_context", "editor.read_branch", "editor.find_repeats", "editor.query_objects", "editor.inspect_mesh", "editor.inspect_materials", "editor.measure", "editor.plan_placement", "editor.plan_duplicates", "viewport.capture", "modeling.generate_commands", "modeling.propose_generated", "editor.propose_commands", "editor.apply_proposal", "validation.check_scene"], "tone": "neutral" },
         { "title": "Validation", "items": ["Each target object id exists in the latest editor context.", "Transforms use finite numbers, and scale values are positive."], "tone": "ok" },
         { "title": "Error handling", "items": ["If a target object is missing, stop and ask the user which object to change.", "Report revision conflicts, read the current context, and recalculate before proposing corrected commands."], "tone": "warn" }
       ] },

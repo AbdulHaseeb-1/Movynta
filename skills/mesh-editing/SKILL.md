@@ -1,6 +1,6 @@
 ---
 name: mesh-editing
-version: 1.9.0
+version: 1.10.0
 description: Inspects mesh geometry and edits transforms, bevels, subdivision surfaces, booleans, plane cuts, deletion, shading, bridging, separating parts, replacements, and cleanup through validated proposals with automatic application.
 dimensions:
   - 3d
@@ -22,6 +22,9 @@ required_inputs:
   - The intended change (for example: scale by 1.2, replace with a sphere).
 tools:
   - editor.get_context
+  - editor.read_branch
+  - editor.find_repeats
+  - editor.query_objects
   - editor.inspect_mesh
   - editor.inspect_materials
   - editor.measure
@@ -45,7 +48,7 @@ error_handling:
 
 # Mesh editing workflow
 
-1. Call `editor.get_context` and confirm every target object exists.
+1. Call `editor.get_context` and confirm every target object exists. On a scene with more than about 60 objects, read it by branch with `editor.read_branch` instead, select the targets with `editor.query_objects` (name, type, parent, size or position), and call `editor.find_repeats` before editing a repeated part so it is changed as one idea. Matching is by name, size and structure, so confirm copies with `editor.inspect_mesh` first.
 2. Describe the change in plain language, then build the smallest set of commands that achieves it.
 3. Use `scene.transform_object` to set position, rotation, or scale, and `scene.move_object` to move an object by a distance from where it is now. Use `geometry.create_primitive` with `replaceExisting` only when the user asked to replace geometry.
 4. Submit with `editor.propose_commands` and `apply: true`; for batches from `editor.plan_placement`, `editor.plan_duplicates` or `modeling.generate_commands`, pass their `planId` instead of the commands. To preview a geometry candidate first, leave `apply` out, capture it, then call `editor.apply_proposal`.

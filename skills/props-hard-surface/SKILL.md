@@ -1,6 +1,6 @@
 ---
 name: props-hard-surface
-version: 1.1.0
+version: 1.2.0
 description: Builds hard-surface props, furniture, products, vehicles and machines from blockout to detail with consistent bevels, booleans, insets, mirror and array modifiers in the right stack order.
 dimensions:
   - 3d
@@ -32,6 +32,9 @@ required_inputs:
   - The style (realistic, stylized, low-poly) and how close it will be seen.
 tools:
   - editor.get_context
+  - editor.read_branch
+  - editor.find_repeats
+  - editor.query_objects
   - editor.inspect_mesh
   - editor.measure
   - editor.plan_placement

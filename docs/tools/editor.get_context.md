@@ -280,7 +280,7 @@ flowchart LR
 
 ## Tips
 
-- Use editor.get_scene_summary when only counts are needed; this result can be large.
+- Use editor.get_scene_summary when only counts are needed; this result can be large. On a large scene read by branch with editor.read_branch, or select with editor.query_objects, and keep this for the exact transforms of objects already chosen.
 - worldBounds includes descendants and hidden geometry. It uses geometry bounding boxes, not evaluated shapes.
 
 ## Limits
@@ -291,5 +291,6 @@ flowchart LR
 ## Related
 
 - [`editor.get_scene_summary`](editor.get_scene_summary.md)
+- [`editor.read_branch`](editor.read_branch.md)
 - [`validation.check_scene`](validation.check_scene.md)
 - [`editor.propose_commands`](editor.propose_commands.md)

@@ -7,6 +7,7 @@ import { defineTool, type ToolDefinition } from "../tool.types.js";
 import type { EditorToolDependencies } from "./editor.types.js";
 import { createPlacementTool } from "./placement.tools.js";
 import { createDuplicationTool } from "./duplication.tools.js";
+import { createSceneTools } from "../scene/scene.tools.js";
 import { COMMAND_REFERENCE, COMMAND_TYPES, isCommandType, proposeCommandsDescription } from "./command-reference.js";
 import { closestValues } from "../tool-input-issues.js";
 import { applyProposal, afterApply, proposalRun, recordProposal, resolvePlanStep } from "./proposal-flow.js";
@@ -59,6 +60,7 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
   return [
     createPlacementTool(dependencies),
     createDuplicationTool(dependencies),
+    ...createSceneTools(dependencies),
     defineTool({
       name: "editor.describe_commands", permission: "read",
       description: "The full rules of editor commands: what each field does, its limits, how it batches, and what it refuses. editor.propose_commands lists every command in one line; call this with the types you are about to use (1–12), before the first geometry or material command of a kind in a run. Reads nothing from the scene.",
