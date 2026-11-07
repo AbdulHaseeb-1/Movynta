@@ -92,6 +92,30 @@ AGENT_REVIEW_MODE=builds AUTH_SECRET=<secret> pnpm dev:backend   # then: QUALITY
 
 The headless editor has no viewport, so the reviewer works from measurements: it can find fault and send the work back (up to `AGENT_REVIEW_LIMIT` times), but it can never approve, and every reviewed run ends with a "not visually verified" notice. That is enough to show whether the review catches defects the builder missed; it does not show what a reviewer who can see would add. A reviewed run costs noticeably more tokens and time, and the scorecard shows both.
 
+### Without the desktop app (any operating system)
+
+The steps above use the app's own provider settings, which are stored with Windows DPAPI. On another system, or to point a sweep at any OpenAI-compatible endpoint without touching the app's settings, `apps/backend/src/testing/quality-sweep.spec.ts` boots the real backend in-process with the key held in memory only, and runs the sweep against it. It does nothing unless `SWEEP_API_KEY` and `SWEEP_MODEL` are set.
+
+```bash
+SWEEP_API_KEY=<key> SWEEP_BASE_URL=https://openrouter.ai/api/v1 SWEEP_MODEL=vendor/model:free SWEEP_MODEL_SUFFIX=:free \
+  SWEEP_REVIEW_MODE=builds SWEEP_TRIALS=2 SWEEP_LABEL=review SWEEP_LOG=sweep.log \
+  pnpm --filter movynta-backend test --runInBand src/testing/quality-sweep.spec.ts
+```
+
+`SWEEP_MODEL_SUFFIX` makes it refuse any model id that does not end with the suffix, a guard against spending money by accident. `SWEEP_SCENARIOS`, `SWEEP_TIMEOUT_MS` and `SWEEP_REVIEW_MODE` work as the `QUALITY_*` and `AGENT_REVIEW_MODE` settings do.
+
+### What a run costs
+
+Measured with `nvidia/nemotron-3-ultra-550b-a55b:free` on OpenRouter, with the review off unless noted:
+
+| Scenario | Model requests | Input and output tokens | Time |
+| --- | --- | --- | --- |
+| `halve-block` | 13–14 | about 0.5 million | about 1 minute |
+| `figure` | 57–82 | 2.9–4.4 million | 7–8 minutes |
+| `chair`, review on | 85–88 | 3.2–3.8 million | 6–9 minutes |
+
+A building request takes dozens of model calls, and every call carries the tool definitions and instructions (about 25,000 tokens) plus the conversation so far, which is why a single chair is millions of tokens. This decides what a sweep can use: OpenRouter's free models allow **1,000 requests a day for the whole account**, shared by every free model, so one sweep of ten scenarios with two trials each needs most of a day's allowance and a second sweep does not fit. When the allowance runs out every run fails within seconds with "The provider is rate limiting requests or the account is out of quota"; those runs are scored on an untouched scene, so discard them and run again after the reset. A paid model has no such cap, but at this volume it is a real cost.
+
 Runs happen one at a time. Each uses a throwaway project named `quality-<scenario>-<trial>-<id>`, which is deleted once the run is scored. **A sweep calls the model and costs money**: six scenarios with three trials is eighteen full assistant runs.
 
 The scorecard is printed and saved to `results/quality/<time>-<label>.json` with the commit, the settings and every run's score. Compare two sweeps:
