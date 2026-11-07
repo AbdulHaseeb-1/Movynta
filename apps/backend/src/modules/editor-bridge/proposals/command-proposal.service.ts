@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { isCageEditCommand, usesBaseIds, validateAgainstContext } from "@movynta/editor-protocol";
+import { isCageEditCommand, usesBaseIds, validateAgainstContext, withAssistantDefaults } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import { ApprovalPolicy } from "../../approvals/approval.policy.js";
 import type { EditorContext } from "../../../shared/types/editor-context.types.js";
@@ -38,7 +38,9 @@ export class CommandProposalService {
    */
   async propose(run: ProposalRun, input: ProposalInput): Promise<CommandProposalRecord> {
     this.bridge.assertConnection(run.userId, run.projectId, run.clientId);
-    if (input.expectedRevision === undefined && input.commands.some(
+    // Stored explicitly, so that replaying the saved project never depends on a default.
+    const commands = withAssistantDefaults(input.commands);
+    if (input.expectedRevision === undefined && commands.some(
       (command) => command.type === "scene.duplicate_hierarchy" || command.type === "material.add_slot" || command.type === "material.replace_slot" || command.type === "material.set_properties" || usesBaseIds(command) ||
         (command.type === "geometry.set_modifiers" && command.modifiers.some((modifier) => modifier.kind === "extrusion")),
     )) {
@@ -52,7 +54,7 @@ export class CommandProposalService {
     if (input.expectedRevision !== undefined && input.expectedRevision !== context.revision) {
       throw new ConflictError("Scene changed since these commands were calculated. Read the scene and regenerate the commands.");
     }
-    const issues = validateAgainstContext(input.commands, context);
+    const issues = validateAgainstContext(commands, context);
     if (issues.length > 0) {
       throw new ValidationFailedError("Proposal conflicts with the current scene", { issues });
     }
@@ -63,10 +65,10 @@ export class CommandProposalService {
       projectId: run.projectId,
       clientId: run.clientId,
       baseRevision: context.revision,
-      strictRevision: input.expectedRevision !== undefined || input.commands.some((command) => command.type === "scene.duplicate_hierarchy" || command.type.startsWith("material.") || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || isCageEditCommand(command)),
+      strictRevision: input.expectedRevision !== undefined || commands.some((command) => command.type === "scene.duplicate_hierarchy" || command.type.startsWith("material.") || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || isCageEditCommand(command)),
       summary: input.summary,
-      commands: input.commands,
-      requiresApproval: this.policy.requiresApproval(input.commands),
+      commands,
+      requiresApproval: this.policy.requiresApproval(commands),
       now: new Date().toISOString(),
     };
     this.repository.insert(proposal);

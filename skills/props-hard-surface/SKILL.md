@@ -1,6 +1,6 @@
 ---
 name: props-hard-surface
-version: 1.1.1
+version: 1.1.0
 description: Builds hard-surface props, furniture, products, vehicles and machines from blockout to detail with consistent bevels, booleans, insets, mirror and array modifiers in the right stack order.
 dimensions:
   - 3d
@@ -101,7 +101,7 @@ Set the full stack at once with `geometry.set_modifiers` when you know it; prese
    - Extensions: `geometry.extrude` with `normalDistance` on queried faces; use `capScale` below 1 for tapered shapes and `steps` for stepped profiles.
    - Holes and slots: create a closed cutter primitive named `Cutter.<Purpose>` under the part, position it so it passes fully through (no coplanar faces with the target), then `geometry.boolean` (`difference`). Hide the cutter with `scene.set_visibility` once the result looks right.
    - Repeated cut-outs (vents, grilles): one cutter plus an `array` entry on the cutter, or `modeling.generate_commands` to lay out many exact positions.
-5. **Bevels.** Add `geometry.bevel` after any boolean, with the size from the table. For selected edges only on the base cage, use `geometry.bevel_edges` alone in its own proposal, with `trimEndFaces` true unless the edges form a closed loop.
+5. **Bevels.** Add `geometry.bevel` after any boolean, with the size from the table. For selected edges only on the base cage, use `geometry.bevel_edges` alone in its own proposal.
 6. **Tertiary detail.** Fasteners (small cylinders or low-detail spheres), seams (thin insets), feet and pads, labels as shallow insets. Cluster them at the focal point and at joints where they make construction believable. Keep repetitions on an exact grid.
 7. **Check.** Before applying a geometric proposal, `viewport.capture` with its `proposalId`. After applying, capture in `normals` mode to catch flipped or faceted faces and in `wireframe` to check density. `editor.measure` (`clearance` or `distance`) checks gaps between moving parts and that parts touch where they should.
 8. **Materials.** Follow `pbr-materials-and-color`: separate material slots for distinct materials (painted metal, rubber, glass, bare metal), not colour variations on one slot.

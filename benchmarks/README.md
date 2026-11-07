@@ -51,7 +51,7 @@ Performance benchmarks say how fast the editor is. These say how good the assist
 | `quarter-block` | Cut a block into a quarter with two cuts, the second across the first | Half as wide and deep, same height, the right-front quarter kept, a quarter of the volume, still closed |
 | `open-tube` | Remove the top cap of a tube | One opening, at the top, 17 faces left, same height and width |
 | `inside-out` | Fix a crate whose faces point inward | Positive volume, same height, still closed |
-| `chamfer-edge` | Chamfer one vertical edge of a block | Cut at the right corner, 0.1 deep, exactly 7 faces (a bevel left at its default doubles the end faces), still closed |
+| `chamfer-edge` | Chamfer one vertical edge of a block | Cut at the right corner, 0.1 deep, exactly 7 faces (a bevel with end trimming turned off doubles the end faces), still closed |
 
 For a scene the assistant builds, the checks measure everything it added as one group (`SUBJECT_ID`), so they hold whatever it names its parts. For an edit they name the objects the scene started with. Edits are also scored on the mesh itself, which bounds cannot show: whether it is a closed solid, the volume it encloses (negative when its faces point inward), how many holes it has and where, and how many faces are left. Mesh measurements are taken on the base cage, so a scenario keeps its objects unscaled and unturned. Checks are the same ones the assistant can write for itself with `modeling.record_brief`, evaluated by `evaluateBrief` in `packages/editor-protocol`.
 

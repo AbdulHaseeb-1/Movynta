@@ -1,6 +1,7 @@
 export * from "./brief-checks.js";
 export * from "./brief.schema.js";
 export * from "./collection-graph.js";
+export * from "./command-defaults.js";
 export * from "./command-traits.js";
 export * from "./editor-command.schema.js";
 export * from "./editor-context.schema.js";

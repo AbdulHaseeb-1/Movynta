@@ -142,8 +142,9 @@ export const INSIDE_OUT: QualityScenario = {
 };
 
 /**
- * Beveling one edge of a box. Left to its default, the faces at the ends of the edge keep their sharp corner and a second set
- * of faces covers the same patch, which bounds, volume and closedness do not show but a face count does.
+ * Beveling one edge of a box. With end trimming turned off, the faces at the ends of the edge keep their sharp corner and a
+ * second set of faces covers the same patch, which bounds, volume and closedness do not show but a face count does. An
+ * assistant proposal that leaves the option out gets it turned on, so this guards that default as well as the bevel.
  */
 export const CHAMFER_EDGE: QualityScenario = {
   id: "chamfer-edge",
@@ -160,7 +161,7 @@ export const CHAMFER_EDGE: QualityScenario = {
     { kind: "closed", objectId: "block" },
   ],
   defects: [
-    { id: "no-trim", description: "The bevel left the top and bottom with their sharp corner and a second patch over it.", fails: ["Clean faces, nothing doubled"] },
+    { id: "no-trim", description: "The bevel was sent with end trimming turned off, leaving the top and bottom with their sharp corner and a second patch over it.", fails: ["Clean faces, nothing doubled"] },
     { id: "wrong-corner", description: "The opposite vertical edge was chamfered.", fails: ["Cut at the right-front corner"] },
     { id: "too-deep", description: "The corner was cut 0.2 deep.", fails: ["Cut at the right-front corner", "Corner cut 0.1 deep"] },
     { id: "untouched", description: "Nothing was done.", fails: ["Cut at the right-front corner", "Corner cut 0.1 deep", "Clean faces, nothing doubled"] },
