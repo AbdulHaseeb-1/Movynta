@@ -12,7 +12,13 @@ const EXAMPLES: Readonly<Record<ExampleId, LazyExoticComponent<ComponentType>>> 
 export function ToolExample({ id }: { readonly id: ExampleId }) {
   const Example = EXAMPLES[id];
   return (
-    <Suspense fallback={<div className="grid h-80 place-items-center rounded-xl border border-border bg-card text-xs text-muted-foreground">Loading example…</div>}>
+    <Suspense
+      fallback={
+        <div className="grid h-80 place-items-center rounded-xl border border-border bg-card text-xs text-muted-foreground">
+          Loading example…
+        </div>
+      }
+    >
       <Example />
     </Suspense>
   );

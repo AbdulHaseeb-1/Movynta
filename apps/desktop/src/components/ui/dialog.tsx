@@ -8,11 +8,7 @@ const DialogTrigger = DialogPrimitive.Trigger;
 const DialogTitle = DialogPrimitive.Title;
 const DialogDescription = DialogPrimitive.Description;
 
-function DialogContent({
-  className,
-  children,
-  ...props
-}: ComponentProps<typeof DialogPrimitive.Content>) {
+function DialogContent({ className, children, ...props }: ComponentProps<typeof DialogPrimitive.Content>) {
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60" />

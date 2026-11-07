@@ -35,7 +35,10 @@ const viewportSlice = createSlice({
     },
     /** Shift+Z: into Wireframe, or back to the shading used before it. */
     toggleWireframe(state) {
-      applyShadingMode(state.display, state.display.shadingMode === "wireframe" ? state.display.lastShadedMode : "wireframe");
+      applyShadingMode(
+        state.display,
+        state.display.shadingMode === "wireframe" ? state.display.lastShadedMode : "wireframe",
+      );
     },
     setXray(state, action: PayloadAction<boolean>) {
       state.display.xray = action.payload;
@@ -58,5 +61,6 @@ const viewportSlice = createSlice({
   },
 });
 
-export const { setShowGrid, setViewportTool, setShadingMode, setXray, toggleWireframe, toggleXray } = viewportSlice.actions;
+export const { setShowGrid, setViewportTool, setShadingMode, setXray, toggleWireframe, toggleXray } =
+  viewportSlice.actions;
 export const viewportReducer = viewportSlice.reducer;

@@ -3,13 +3,14 @@ import { DatabaseService } from "../persistence/database.service.js";
 import { optionalTextColumn, textColumn } from "../persistence/row.js";
 import type { SessionRecord } from "./sessions.types.js";
 
+/** Stores chat sessions in the database. */
 @Injectable()
 export class SessionsRepository {
   constructor(private readonly database: DatabaseService) {}
 
   insert(record: Omit<SessionRecord, "deletedAt">): void {
-    this.database
-      .db.prepare("INSERT INTO sessions (id, user_id, project_id, created_at) VALUES (?, ?, ?, ?)")
+    this.database.db
+      .prepare("INSERT INTO sessions (id, user_id, project_id, created_at) VALUES (?, ?, ?, ?)")
       .run(record.id, record.userId, record.projectId, record.createdAt);
   }
 

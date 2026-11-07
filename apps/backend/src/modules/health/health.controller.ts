@@ -4,6 +4,7 @@ import { Public } from "../../common/decorators/public.decorator.js";
 import { ServiceUnavailableError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../persistence/database.service.js";
 
+/** Liveness and readiness endpoints, for the process supervisor and the desktop app. */
 @ApiTags("health")
 @Controller({ path: "health", version: VERSION_NEUTRAL })
 export class HealthController {

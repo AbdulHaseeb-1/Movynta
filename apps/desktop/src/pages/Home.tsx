@@ -7,6 +7,7 @@ import { ProjectsSection } from "@/features/projects";
 import { SHORTCUTS_PATH } from "@/features/documentation/guideLinks";
 import { KeyCombo } from "@/features/documentation/components";
 
+/** The home page: the project library. */
 export default function Home() {
   const navigate = useNavigate();
 
@@ -14,12 +15,8 @@ export default function Home() {
     <main className="relative min-h-full overflow-hidden bg-background font-sans text-foreground">
       <div className="relative mx-auto grid w-[min(960px,calc(100%_-_80px))] grid-cols-2 gap-x-5 gap-y-7 pt-[clamp(48px,7vh,68px)] pb-[60px] max-[640px]:w-[calc(100%_-_40px)] max-[640px]:grid-cols-[1fr] max-[640px]:gap-y-6 max-[640px]:pt-12">
         <header className="col-span-full">
-          <h1 className="text-[clamp(24px,3vw,30px)] leading-[1.12] font-bold tracking-[-0.045em]">
-            Home
-          </h1>
-          <p className="mt-[7px] text-[12px] leading-[1.4] text-muted-foreground">
-            Your next idea starts here.
-          </p>
+          <h1 className="text-[clamp(24px,3vw,30px)] leading-[1.12] font-bold tracking-[-0.045em]">Home</h1>
+          <p className="mt-[7px] text-[12px] leading-[1.4] text-muted-foreground">Your next idea starts here.</p>
         </header>
         <Card className="border-0 bg-transparent p-0 text-inherit shadow-none">
           <Button
@@ -33,9 +30,7 @@ export default function Home() {
                 <Sparkles size={20} strokeWidth={1.7} />
               </span>
               <span className="flex max-w-[190px] flex-col items-start">
-                <span className="text-[18px] leading-[1.2] font-bold tracking-[-0.025em]">
-                  AI Design Studio
-                </span>
+                <span className="text-[18px] leading-[1.2] font-bold tracking-[-0.025em]">AI Design Studio</span>
                 <span className="mt-[7px] text-[12px] leading-[1.45] text-foreground/80">
                   Create characters and objects in 3D with {ASSISTANT_NAME}.
                 </span>
@@ -59,22 +54,33 @@ export default function Home() {
               </span>
               <span className="absolute top-[29px] left-[39px] size-1.5 rounded-full bg-foreground shadow-[0_0_14px_var(--foreground)]" />
             </span>
-            <ArrowUpRight
-              className="absolute top-5 right-[21px] text-foreground/70"
-              size={17}
-              aria-hidden="true"
-            />
+            <ArrowUpRight className="absolute top-5 right-[21px] text-foreground/70" size={17} aria-hidden="true" />
           </Button>
         </Card>
         <Card className="w-[min(100%,420px)] justify-center gap-0 border-border bg-card p-6 shadow-none">
           <div className="flex items-start gap-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-muted text-foreground"><BookOpen size={19} /></span>
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-muted text-foreground">
+              <BookOpen size={19} />
+            </span>
             <div>
               <h2 className="text-base font-semibold tracking-tight">Tool documentation</h2>
-              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">Learn the workspace tools and shortcuts, and try the basics in live examples. Press <KeyCombo keys="?" className="align-middle" /> anywhere for the shortcut list.</p>
+              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                Learn the workspace tools and shortcuts, and try the basics in live examples. Press{" "}
+                <KeyCombo keys="?" className="align-middle" /> anywhere for the shortcut list.
+              </p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-                <Link to="/documentation" className="inline-flex items-center gap-1 rounded-sm text-xs font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">Explore the guide <ArrowUpRight className="size-3.5" /></Link>
-                <Link to={SHORTCUTS_PATH} className="inline-flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">Look up a key <ArrowUpRight className="size-3.5" /></Link>
+                <Link
+                  to="/documentation"
+                  className="inline-flex items-center gap-1 rounded-sm text-xs font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+                >
+                  Explore the guide <ArrowUpRight className="size-3.5" />
+                </Link>
+                <Link
+                  to={SHORTCUTS_PATH}
+                  className="inline-flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+                >
+                  Look up a key <ArrowUpRight className="size-3.5" />
+                </Link>
               </div>
             </div>
           </div>

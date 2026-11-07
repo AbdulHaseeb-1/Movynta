@@ -35,11 +35,13 @@ const commandSchema = z.looseObject({
   visible: z.boolean().optional(),
   includeChildren: z.boolean().optional(),
   space: z.enum(["local", "world"]).optional(),
-  transform: z.object({
-    position: z.array(z.number()).length(3).optional(),
-    rotation: z.array(z.number()).length(3).optional(),
-    scale: z.array(z.number()).length(3).optional(),
-  }).optional(),
+  transform: z
+    .object({
+      position: z.array(z.number()).length(3).optional(),
+      rotation: z.array(z.number()).length(3).optional(),
+      scale: z.array(z.number()).length(3).optional(),
+    })
+    .optional(),
   capScale: z.number().optional(),
   capScaleXY: z.array(z.number()).length(2).optional(),
   capRotationDegrees: z.array(z.number()).length(3).optional(),
@@ -51,12 +53,14 @@ const commandSchema = z.looseObject({
   modifiers: z.array(z.unknown()).optional(),
   vertices: z.array(z.unknown()).optional(),
   faces: z.array(z.unknown()).optional(),
-  plane: z.looseObject({
-    point: z.array(z.number()).length(3).optional(),
-    normal: z.array(z.number()).length(3).optional(),
-    axis: z.enum(["x", "y", "z"]).optional(),
-    offset: z.number().optional(),
-  }).optional(),
+  plane: z
+    .looseObject({
+      point: z.array(z.number()).length(3).optional(),
+      normal: z.array(z.number()).length(3).optional(),
+      axis: z.enum(["x", "y", "z"]).optional(),
+      offset: z.number().optional(),
+    })
+    .optional(),
   keep: z.enum(["both", "positive", "negative"]).optional(),
   angle: z.number().optional(),
   twist: z.number().optional(),
@@ -104,7 +108,9 @@ function describeCommand(command: Command): string {
     case "scene.set_collection_visibility":
       return `${command.visible === false ? "Hide" : "Show"} collection ${command.collectionId ?? ""}`;
     case "scene.move_collection":
-      return command.parentCollectionId ? `Move collection ${command.collectionId ?? ""} into ${command.parentCollectionId}` : `Move collection ${command.collectionId ?? ""} to the top`;
+      return command.parentCollectionId
+        ? `Move collection ${command.collectionId ?? ""} into ${command.parentCollectionId}`
+        : `Move collection ${command.collectionId ?? ""} to the top`;
     case "scene.delete_collection":
       return `Delete the empty collection ${command.collectionId ?? ""}`;
     case "scene.move_to_collection":
@@ -146,7 +152,7 @@ function describeCommand(command: Command): string {
         transform?.rotation ? `rotate [${transform.rotation.join(", ")}] radians` : "",
         transform?.scale ? `scale [${transform.scale.join(", ")}]` : "",
       ].filter(Boolean);
-      return `Transform ${command.type === "geometry.transform_components" ? command.kind === "edge" ? "edges" : "vertices" : "faces"} of ${target}${command.ids ? ` (${command.ids.length})` : ""}${details.length ? ` · ${command.space ?? "local"} · ${details.join(", ")}` : ""}`;
+      return `Transform ${command.type === "geometry.transform_components" ? (command.kind === "edge" ? "edges" : "vertices") : "faces"} of ${target}${command.ids ? ` (${command.ids.length})` : ""}${details.length ? ` · ${command.space ?? "local"} · ${details.join(", ")}` : ""}`;
     }
     case "geometry.knife_path":
       return `Cut a sequence of faces on ${target}`;
@@ -154,14 +160,24 @@ function describeCommand(command: Command): string {
       return `Cut one face of ${target} between two edge points`;
     case "geometry.bisect": {
       const plane = command.plane;
-      const where = plane?.axis !== undefined ? `at ${plane.axis} = ${plane.offset ?? 0}` : plane?.point && plane.normal ? `along the plane through [${plane.point.join(", ")}] facing [${plane.normal.join(", ")}]` : "along a plane";
-      const sides = command.keep === "positive" || command.keep === "negative" ? `, keep the ${command.keep} side${command.fill ? " and cap the opening" : ""}` : "";
+      const where =
+        plane?.axis !== undefined
+          ? `at ${plane.axis} = ${plane.offset ?? 0}`
+          : plane?.point && plane.normal
+            ? `along the plane through [${plane.point.join(", ")}] facing [${plane.normal.join(", ")}]`
+            : "along a plane";
+      const sides =
+        command.keep === "positive" || command.keep === "negative"
+          ? `, keep the ${command.keep} side${command.fill ? " and cap the opening" : ""}`
+          : "";
       return `Cut ${target} ${where} (${command.space ?? "local"} space)${sides}${command.ids ? ` · ${command.ids.length} faces only` : ""}`;
     }
     case "geometry.delete_components":
       return `Delete ${command.ids?.length ?? 0} ${command.kind ?? "component"}${(command.ids?.length ?? 0) === 1 ? "" : "s"} of ${target}`;
     case "geometry.flip_normals":
-      return command.ids ? `Flip the surfaces of ${target} that contain ${command.ids.length} chosen face${command.ids.length === 1 ? "" : "s"}` : `Flip every surface of ${target} to face the other way`;
+      return command.ids
+        ? `Flip the surfaces of ${target} that contain ${command.ids.length} chosen face${command.ids.length === 1 ? "" : "s"}`
+        : `Flip every surface of ${target} to face the other way`;
     case "geometry.separate_faces":
       return `Move ${command.ids?.length ?? 0} face${command.ids?.length === 1 ? "" : "s"} of ${target} into a new object “${command.name ?? command.newObjectId ?? "part"}”`;
     case "geometry.bridge_edge_loops":
@@ -169,7 +185,9 @@ function describeCommand(command: Command): string {
     case "geometry.set_shading":
       return `Shade ${target} ${command.mode === "flat" ? "flat" : command.angle === undefined ? "smooth" : `smooth with edges sharper than ${command.angle}° kept crisp`}`;
     case "geometry.triangulate_faces":
-      return command.ids ? `Triangulate ${command.ids.length} face${command.ids.length === 1 ? "" : "s"} of ${target}` : `Triangulate every face of ${target}`;
+      return command.ids
+        ? `Triangulate ${command.ids.length} face${command.ids.length === 1 ? "" : "s"} of ${target}`
+        : `Triangulate every face of ${target}`;
     case "geometry.correct_normals":
       return `Correct face winding and rebuild normals on ${target} (${command.mode ?? "consistent"})`;
     case "geometry.remove_duplicate_faces":
@@ -202,12 +220,9 @@ function describeCommand(command: Command): string {
 }
 
 /** Turns the backend's approval preview into text a person can review at a glance. */
-export function describeApproval(
-  preview: Record<string, unknown>,
-): ApprovalView {
+export function describeApproval(preview: Record<string, unknown>): ApprovalView {
   const parsed = previewSchema.safeParse(preview);
-  if (!parsed.success)
-    return { summary: "Approve the proposed scene changes?", commands: [] };
+  if (!parsed.success) return { summary: "Approve the proposed scene changes?", commands: [] };
   return {
     summary: parsed.data.summary ?? "Approve the proposed scene changes?",
     commands: (parsed.data.commands ?? []).map((command) => ({

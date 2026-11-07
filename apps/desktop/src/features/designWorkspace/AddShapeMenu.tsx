@@ -32,14 +32,8 @@ interface AddShapeMenuProps {
   onBusyChange: (busy: boolean) => void;
   onAdded: () => void;
 }
-export function AddShapeMenu({
-  scene,
-  ensureProject,
-  saves,
-  disabled,
-  onBusyChange,
-  onAdded,
-}: AddShapeMenuProps) {
+/** The Add menu: creates a basic shape in the scene and saves it to the project. */
+export function AddShapeMenu({ scene, ensureProject, saves, disabled, onBusyChange, onAdded }: AddShapeMenuProps) {
   const dispatch = useAppDispatch();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -68,11 +62,7 @@ export function AddShapeMenu({
               type: "scene.transform_object",
               objectId,
               transform: {
-                position: [
-                  (count % 3) * 3,
-                  primitive === "plane" ? 0 : 1,
-                  Math.floor(count / 3) * 3,
-                ],
+                position: [(count % 3) * 3, primitive === "plane" ? 0 : 1, Math.floor(count / 3) * 3],
                 rotation: [primitive === "plane" ? -Math.PI / 2 : 0, 0, 0],
               },
             },

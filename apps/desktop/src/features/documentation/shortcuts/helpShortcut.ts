@@ -15,5 +15,13 @@ export function isHelpShortcut(event: HelpKey, typing: boolean): boolean {
 
 /** Whether a key press asks to move to the documentation search: "/" outside a text field. */
 export function isSearchShortcut(event: HelpKey, typing: boolean): boolean {
-  return !typing && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && event.key === "/";
+  return (
+    !typing &&
+    !event.repeat &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    !event.shiftKey &&
+    event.key === "/"
+  );
 }

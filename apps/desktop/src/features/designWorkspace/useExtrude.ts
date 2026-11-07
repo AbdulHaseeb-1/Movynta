@@ -35,36 +35,108 @@ export function useExtrude(
       () => {
         const selected = current.current.componentSelection;
         if (!selected || selected.ids.length === 0) return null;
-        return { objectId: selected.objectId, meshPath: selected.meshPath, kind: current.current.componentKind, ids: selected.ids };
+        return {
+          objectId: selected.objectId,
+          meshPath: selected.meshPath,
+          kind: current.current.componentKind,
+          ids: selected.ids,
+        };
       },
       (commit, preview) => {
         dispatch(setComponentError(""));
-        saves.run(async () => { try { await saveExtrude(scene, commit, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
+        saves.run(
+          async () => {
+            try {
+              await saveExtrude(scene, commit, preview);
+            } finally {
+              preview?.dispose();
+            }
+          },
+          (failure) => dispatch(setComponentError(errorMessage(failure))),
+        );
       },
       (error) => dispatch(setComponentError(errorMessage(error))),
       setHint,
       (commit, preview) => {
         dispatch(setComponentError(""));
-        saves.run(async () => { try { await saveCageEdit(scene, {
-          ...commit,
-          edit: commit.kind === "face"
-            ? { type: "geometry.transform_faces", ids: commit.ids, space: "world", transform: commit.transform }
-            : { type: "geometry.transform_components", kind: commit.kind, ids: commit.ids, space: "world", transform: commit.transform },
-        }, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
+        saves.run(
+          async () => {
+            try {
+              await saveCageEdit(
+                scene,
+                {
+                  ...commit,
+                  edit:
+                    commit.kind === "face"
+                      ? {
+                          type: "geometry.transform_faces",
+                          ids: commit.ids,
+                          space: "world",
+                          transform: commit.transform,
+                        }
+                      : {
+                          type: "geometry.transform_components",
+                          kind: commit.kind,
+                          ids: commit.ids,
+                          space: "world",
+                          transform: commit.transform,
+                        },
+                },
+                preview,
+              );
+            } finally {
+              preview?.dispose();
+            }
+          },
+          (failure) => dispatch(setComponentError(errorMessage(failure))),
+        );
       },
       (commit, preview) => {
         dispatch(setComponentError(""));
-        saves.run(async () => { try { await saveCageEdit(scene, {
-          ...commit,
-          edit: { type: "geometry.inset_faces", ids: commit.ids, ...commit.options },
-        }, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
+        saves.run(
+          async () => {
+            try {
+              await saveCageEdit(
+                scene,
+                {
+                  ...commit,
+                  edit: { type: "geometry.inset_faces", ids: commit.ids, ...commit.options },
+                },
+                preview,
+              );
+            } finally {
+              preview?.dispose();
+            }
+          },
+          (failure) => dispatch(setComponentError(errorMessage(failure))),
+        );
       },
       (commit, preview) => {
         dispatch(setComponentError(""));
-        saves.run(async () => { try { await saveCageEdit(scene, {
-          ...commit,
-          edit: { type: "geometry.bevel_edges", ids: commit.ids, width: commit.width, segments: commit.segments, profile: "circular", trimEndFaces: true },
-        }, preview); } finally { preview?.dispose(); } }, (failure) => dispatch(setComponentError(errorMessage(failure))));
+        saves.run(
+          async () => {
+            try {
+              await saveCageEdit(
+                scene,
+                {
+                  ...commit,
+                  edit: {
+                    type: "geometry.bevel_edges",
+                    ids: commit.ids,
+                    width: commit.width,
+                    segments: commit.segments,
+                    profile: "circular",
+                    trimEndFaces: true,
+                  },
+                },
+                preview,
+              );
+            } finally {
+              preview?.dispose();
+            }
+          },
+          (failure) => dispatch(setComponentError(errorMessage(failure))),
+        );
       },
       true,
     );

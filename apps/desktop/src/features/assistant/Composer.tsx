@@ -31,15 +31,7 @@ interface ComposerProps {
 }
 
 /** Send turns into Stop while the agent works; the two icons cross-fade in place. */
-function SendButton({
-  busy,
-  canSend,
-  onStop,
-}: {
-  busy: boolean;
-  canSend: boolean;
-  onStop: () => void;
-}) {
+function SendButton({ busy, canSend, onStop }: { busy: boolean; canSend: boolean; onStop: () => void }) {
   return (
     <Button
       type={busy ? "button" : "submit"}
@@ -124,12 +116,18 @@ export function Composer({
           className={cn(
             "pointer-events-none absolute inset-0 z-10 grid place-items-center border-2 border-dashed backdrop-blur-sm",
             hero ? "rounded-3xl" : "rounded-2xl",
-            attachable ? "border-brand/60 bg-background/70 text-foreground" : "border-border bg-background/70 text-muted-foreground",
+            attachable
+              ? "border-brand/60 bg-background/70 text-foreground"
+              : "border-border bg-background/70 text-muted-foreground",
           )}
         >
           <span className="flex items-center gap-2 text-sm">
             <ImagePlus className="size-4" />
-            {!picturesAllowed ? "This model connection does not take pictures" : attachments.full ? "No room for more images" : "Drop images to attach"}
+            {!picturesAllowed
+              ? "This model connection does not take pictures"
+              : attachments.full
+                ? "No room for more images"
+                : "Drop images to attach"}
           </span>
         </div>
       )}
@@ -140,10 +138,7 @@ export function Composer({
         id="design-prompt"
         rows={1}
         maxLength={4000}
-        className={cn(
-          "max-h-40 px-1 py-1 leading-relaxed",
-          hero ? "min-h-11 text-[15px]" : "text-[13.5px]",
-        )}
+        className={cn("max-h-40 px-1 py-1 leading-relaxed", hero ? "min-h-11 text-[15px]" : "text-[13.5px]")}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onPaste={handlePaste}
@@ -158,11 +153,7 @@ export function Composer({
             if (canSend) onSubmit();
           }
         }}
-        placeholder={
-          hero
-            ? `Ask ${ASSISTANT_NAME} to design a friendly robot…`
-            : `Message ${ASSISTANT_NAME}…`
-        }
+        placeholder={hero ? `Ask ${ASSISTANT_NAME} to design a friendly robot…` : `Message ${ASSISTANT_NAME}…`}
       />
       <AttachmentTray
         images={attachments.images}

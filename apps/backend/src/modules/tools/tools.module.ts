@@ -25,8 +25,17 @@ import { createViewportTools } from "./viewport/index.js";
     {
       provide: TOOL_DEFINITIONS,
       inject: [EDITOR_BRIDGE, CommandProposalService, SkillsRegistry, ProjectsService],
-      useFactory: (bridge: EditorBridge, proposals: CommandProposalService, skills: SkillsRegistry, projects: ProjectsService): ToolDefinition[] => {
-        const editorTools = createEditorTools({ bridge, proposals, getUnits: (userId, projectId) => projects.measurements(userId, projectId).value.units });
+      useFactory: (
+        bridge: EditorBridge,
+        proposals: CommandProposalService,
+        skills: SkillsRegistry,
+        projects: ProjectsService,
+      ): ToolDefinition[] => {
+        const editorTools = createEditorTools({
+          bridge,
+          proposals,
+          getUnits: (userId, projectId) => projects.measurements(userId, projectId).value.units,
+        });
         const validationTools = createValidationTools({ bridge });
         const skillTools = createSkillTools({ skills });
         const proceduralTools = createProceduralTools({ bridge, proposals });
@@ -39,15 +48,26 @@ import { createViewportTools } from "./viewport/index.js";
           ...proceduralTools,
           ...viewportTools,
           ...qualityTools,
-        ].map((definition) => definition.name).filter((name) => !REVIEWER_ONLY_TOOL_NAMES.has(name));
+        ]
+          .map((definition) => definition.name)
+          .filter((name) => !REVIEWER_ONLY_TOOL_NAMES.has(name));
         const modelingTools = createModelingTools({
           knownToolNames: [...knownToolNames, MODELING_PLAN_TOOL_NAME],
         });
-        return [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools, ...qualityTools, ...modelingTools];
+        return [
+          ...editorTools,
+          ...validationTools,
+          ...skillTools,
+          ...proceduralTools,
+          ...viewportTools,
+          ...qualityTools,
+          ...modelingTools,
+        ];
       },
     },
     ToolRegistry,
   ],
   exports: [ToolRegistry],
+/** Registers every assistant tool with the registry the agent uses. */
 })
 export class ToolsModule {}

@@ -10,7 +10,10 @@ export type ViewportShortcut =
   | { kind: "toggle-xray" };
 
 /** The parts of a key press the mapping reads, so it can be tested without a DOM event. */
-export type ShortcutKey = Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "repeat">;
+export type ShortcutKey = Pick<
+  KeyboardEvent,
+  "key" | "code" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "repeat"
+>;
 
 /**
  * The viewport action a key press stands for, or undefined. The keys follow Blender: numpad 1, 3 and 7

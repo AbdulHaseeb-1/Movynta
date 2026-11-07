@@ -24,7 +24,10 @@ function average(values: readonly Vector3[]): Vector3 {
  * Triangulates only the selected faces that are concave, because their centre point can lie outside them.
  * Every other face is kept as it is. Returns the mesh and which of its faces came from the selection.
  */
-function splitConcaveSelection(mesh: PolygonMesh, selected: ReadonlySet<number>): { mesh: PolygonMesh; selected: Set<number> } {
+function splitConcaveSelection(
+  mesh: PolygonMesh,
+  selected: ReadonlySet<number>,
+): { mesh: PolygonMesh; selected: Set<number> } {
   const data = channels(mesh);
   const faces: number[][] = [];
   const corners: Weights[][] = [];
@@ -115,7 +118,12 @@ export function subdivideFaces(input: PolygonMesh, ids: readonly string[]): Extr
         const sample = at(samples, corner);
         quads.push(faces.length);
         faces.push([vertex, midpointOf(vertex, next), center, midpointOf(previous, vertex)]);
-        corners.push([sample, mean([sample, at(samples, corner + 1)]), faceAverage, mean([at(samples, corner - 1), sample])]);
+        corners.push([
+          sample,
+          mean([sample, at(samples, corner + 1)]),
+          faceAverage,
+          mean([at(samples, corner - 1), sample]),
+        ]);
         materials.push(material);
       });
       return;
@@ -138,7 +146,8 @@ export function subdivideFaces(input: PolygonMesh, ids: readonly string[]): Extr
   });
 
   const triangles = faces.reduce((count, face) => count + face.length - 2, 0);
-  if (triangles > MAX_MESH_OUTPUT_TRIANGLES) throw new Error(`Result exceeds the ${MAX_MESH_OUTPUT_TRIANGLES}-triangle geometry limit`);
+  if (triangles > MAX_MESH_OUTPUT_TRIANGLES)
+    throw new Error(`Result exceeds the ${MAX_MESH_OUTPUT_TRIANGLES}-triangle geometry limit`);
   return {
     mesh: { positions, faces, channels: { positions: positionWeights, corners, materials } },
     selection: quads.map(String),

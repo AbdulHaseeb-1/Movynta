@@ -32,11 +32,10 @@ export function scrubValue(
 ): number {
   const next = initial + (pixels * step) / (fine ? 50 : 5);
   const rounded = Number(next.toFixed(6));
-  const stepped = Number.isInteger(step)
-    ? Math.round(rounded / step) * step
-    : rounded;
+  const stepped = Number.isInteger(step) ? Math.round(rounded / step) * step : rounded;
   return Math.min(max, Math.max(min, stepped));
 }
+/** Lets a number value change while its label is dragged. Holding Shift changes the speed, and the value is rebased where Shift changes. */
 export function useNumberScrub(options: ScrubOptions) {
   const gesture = useRef<Gesture | null>(null);
   const suppressClick = useRef(false);
@@ -55,30 +54,21 @@ export function useNumberScrub(options: ScrubOptions) {
     if (gesture.current?.moved) preview.current(gesture.current.current);
   }
   function clearEscapeListener() {
-    if (escapeListener.current)
-      window.removeEventListener("keydown", escapeListener.current, true);
+    if (escapeListener.current) window.removeEventListener("keydown", escapeListener.current, true);
     escapeListener.current = null;
-    if (blurListener.current)
-      window.removeEventListener("blur", blurListener.current);
+    if (blurListener.current) window.removeEventListener("blur", blurListener.current);
     blurListener.current = null;
   }
   useEffect(
     () => () => {
-      if (escapeListener.current)
-        window.removeEventListener("keydown", escapeListener.current, true);
-      if (blurListener.current)
-        window.removeEventListener("blur", blurListener.current);
+      if (escapeListener.current) window.removeEventListener("keydown", escapeListener.current, true);
+      if (blurListener.current) window.removeEventListener("blur", blurListener.current);
       if (frame.current !== null) window.cancelAnimationFrame(frame.current);
     },
     [],
   );
   function onPointerDown(event: PointerEvent<HTMLElement>) {
-    if (
-      options.disabled ||
-      event.button !== 0 ||
-      !Number.isFinite(options.value)
-    )
-      return;
+    if (options.disabled || event.button !== 0 || !Number.isFinite(options.value)) return;
     event.preventDefault();
     suppressClick.current = false;
     clearEscapeListener();

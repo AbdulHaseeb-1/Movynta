@@ -1,9 +1,28 @@
-import { Euler, Quaternion, Vector3, type BufferAttribute, type BufferGeometry, type InterleavedBufferAttribute } from "three";
+import {
+  Euler,
+  Quaternion,
+  Vector3,
+  type BufferAttribute,
+  type BufferGeometry,
+  type InterleavedBufferAttribute,
+} from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import { writeShadedGeometry, type CornerUvPatch } from "./meshOutput";
 import { shadeGeometry, type ShadingChoice } from "./meshShading";
 import { basis, type Weights } from "./meshWeights";
-import { assertManifold, channels, edgeKey, faceAreaNormal, faceNormal, point, topology, type HalfEdge, type PolygonMesh, type SurfaceChannels, type Topology } from "./meshTopology";
+import {
+  assertManifold,
+  channels,
+  edgeKey,
+  faceAreaNormal,
+  faceNormal,
+  point,
+  topology,
+  type HalfEdge,
+  type PolygonMesh,
+  type SurfaceChannels,
+  type Topology,
+} from "./meshTopology";
 
 export type ExtrudeKind = "vertex" | "edge" | "face";
 export interface ExtrudeCapShape {
@@ -69,7 +88,8 @@ function requireOffset(offset: Vector3): void {
 
 function budget(faces: readonly (readonly number[])[]): void {
   const triangles = faces.reduce((count, face) => count + face.length - 2, 0);
-  if (triangles > MAX_MESH_OUTPUT_TRIANGLES) throw new Error(`Result exceeds the ${MAX_MESH_OUTPUT_TRIANGLES}-triangle geometry limit`);
+  if (triangles > MAX_MESH_OUTPUT_TRIANGLES)
+    throw new Error(`Result exceeds the ${MAX_MESH_OUTPUT_TRIANGLES}-triangle geometry limit`);
 }
 
 function draftFrom(mesh: PolygonMesh, data: SurfaceChannels): Draft {
@@ -198,14 +218,33 @@ function orientWall(draft: Draft, preferred: Vector3, center: Vector3): void {
  * traverses the edge the opposite way. An interior edge has two faces and no winding agrees with both, so its wall
  * points away from the solid instead.
  */
-function growWall(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, center: Vector3, edge: HalfEdge, incident: readonly HalfEdge[]): void {
+function growWall(
+  draft: Draft,
+  mesh: PolygonMesh,
+  data: SurfaceChannels,
+  center: Vector3,
+  edge: HalfEdge,
+  incident: readonly HalfEdge[],
+): void {
   const start = copyOf(draft, edge.from);
   const end = copyOf(draft, edge.to);
   if (incident.length === 1) {
-    addWall(draft, mesh, data, { faceIndex: edge.face, from: edge.to, to: edge.from, bottom: [edge.to, edge.from], top: [end, start] });
+    addWall(draft, mesh, data, {
+      faceIndex: edge.face,
+      from: edge.to,
+      to: edge.from,
+      bottom: [edge.to, edge.from],
+      top: [end, start],
+    });
     return;
   }
-  addWall(draft, mesh, data, { faceIndex: edge.face, from: edge.from, to: edge.to, bottom: [edge.from, edge.to], top: [start, end] });
+  addWall(draft, mesh, data, {
+    faceIndex: edge.face,
+    from: edge.from,
+    to: edge.to,
+    bottom: [edge.from, edge.to],
+    top: [start, end],
+  });
   orientWall(draft, adjacentNormal(mesh, incident), center);
 }
 
@@ -214,7 +253,11 @@ function growWall(draft: Draft, mesh: PolygonMesh, data: SurfaceChannels, center
  * that vertex. A vertex where the selection touches itself twice gets one moved copy per run, so the cap stays in pieces
  * that do not share a vertex. The unselected side keeps its vertices; the walls between the two sides close around them.
  */
-function fansOf(mesh: PolygonMesh, graph: Topology, selected: ReadonlySet<number>): { fans: Fan[]; fanAt: Map<string, number> } {
+function fansOf(
+  mesh: PolygonMesh,
+  graph: Topology,
+  selected: ReadonlySet<number>,
+): { fans: Fan[]; fanAt: Map<string, number> } {
   const nodes = new Map<string, number>();
   const parent: number[] = [];
   const node = (face: number, vertex: number): number => {
@@ -281,10 +324,12 @@ function cageTopology(mesh: PolygonMesh): Topology {
 }
 
 function uniqueIds(ids: readonly string[], label: string): void {
-  if (ids.length === 0 || ids.length > MAX_COMPONENTS) throw new Error(`Extrude needs one ${label} and at most ${MAX_COMPONENTS} components`);
+  if (ids.length === 0 || ids.length > MAX_COMPONENTS)
+    throw new Error(`Extrude needs one ${label} and at most ${MAX_COMPONENTS} components`);
   if (new Set(ids).size !== ids.length) throw new Error("The selection repeats a component");
 }
 
+/** Checks that face ids are distinct and in range, and returns them as face indices. Throws if one is not. */
 export function parseFaces(mesh: PolygonMesh, ids: readonly string[]): number[] {
   uniqueIds(ids, "face");
   return ids.map((id) => {
@@ -338,7 +383,8 @@ function assertCovered(vertices: readonly number[], spans: readonly Span[]): voi
     covered.add(half.from);
     covered.add(half.to);
   }
-  if (vertices.some((vertex) => !covered.has(vertex))) throw new Error("Select both vertices of an edge. A lone vertex has no face to grow.");
+  if (vertices.some((vertex) => !covered.has(vertex)))
+    throw new Error("Select both vertices of an edge. A lone vertex has no face to grow.");
 }
 
 function finish(draft: Draft, kind: ExtrudeKind, selection: readonly string[]): ExtrudeResult {
@@ -372,11 +418,12 @@ function finish(draft: Draft, kind: ExtrudeKind, selection: readonly string[]): 
 
 function remap(kind: ExtrudeKind, selection: readonly string[], map: Map<number, number>): string[] {
   if (kind === "face") return [...selection];
-  if (kind === "vertex") return selection.map((id) => {
-    const next = map.get(Number(id));
-    if (next === undefined) throw new Error("Extrude lost a selected vertex");
-    return String(next);
-  });
+  if (kind === "vertex")
+    return selection.map((id) => {
+      const next = map.get(Number(id));
+      if (next === undefined) throw new Error("Extrude lost a selected vertex");
+      return String(next);
+    });
   return selection.map((id) => {
     const [left, right] = id.split("_");
     const from = map.get(Number(left));
@@ -405,7 +452,13 @@ export function checkExtrudeSelection(mesh: PolygonMesh, kind: ExtrudeKind, ids:
  * itself gets a copy for each run of faces, so the cap stays in pieces that do not share a vertex.
  * Edges grow a quad. Vertices joined by an edge grow that same quad. One offset moves the whole region.
  */
-export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonly string[], offset: Vector3, shape?: ExtrudeCapShape): ExtrudeResult {
+export function extrudeRegion(
+  mesh: PolygonMesh,
+  kind: ExtrudeKind,
+  ids: readonly string[],
+  offset: Vector3,
+  shape?: ExtrudeCapShape,
+): ExtrudeResult {
   requireOffset(offset);
   if (mesh.faces.length === 0) throw new Error("Mesh has no faces");
   const data = channels(mesh);
@@ -419,9 +472,10 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
       reverseSolid = checkSolidSheet(mesh, graph, selected, offset);
     }
     const { fans, fanAt } = fansOf(mesh, graph, selected);
-    const normals = shape?.normalMode === "vertex"
-      ? new Map(faces.map((face) => [face, faceAreaNormal(mesh, mesh.faces[face] ?? [])]))
-      : null;
+    const normals =
+      shape?.normalMode === "vertex"
+        ? new Map(faces.map((face) => [face, faceAreaNormal(mesh, mesh.faces[face] ?? [])]))
+        : null;
     // One moved vertex per fan. Unselected faces keep their vertices, so the walls close around them.
     const moved = fans.map((fan) => {
       let direction = offset;
@@ -436,7 +490,15 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
       }
       return addVertex(draft, mesh, data, fan.vertex, direction);
     });
-    if (shape) shapeCap(draft, mesh, moved, fans.map(({ vertex }) => vertex), offset, shape);
+    if (shape)
+      shapeCap(
+        draft,
+        mesh,
+        moved,
+        fans.map(({ vertex }) => vertex),
+        offset,
+        shape,
+      );
     const movedAt = (face: number, vertex: number): number => {
       const fan = fanAt.get(`${face}:${vertex}`);
       const id = fan === undefined ? undefined : moved[fan];
@@ -506,7 +568,14 @@ export function extrudeRegion(mesh: PolygonMesh, kind: ExtrudeKind, ids: readonl
   return finish(draft, kind, selection);
 }
 
-function shapeCap(draft: Draft, mesh: PolygonMesh, moved: readonly number[], originals: readonly number[], offset: Vector3, shape?: ExtrudeCapShape): void {
+function shapeCap(
+  draft: Draft,
+  mesh: PolygonMesh,
+  moved: readonly number[],
+  originals: readonly number[],
+  offset: Vector3,
+  shape?: ExtrudeCapShape,
+): void {
   const scale = shape?.capScale ?? 1;
   const xy = shape?.capScaleXY;
   const rotation = shape?.capRotationDegrees;
@@ -522,10 +591,13 @@ function shapeCap(draft: Draft, mesh: PolygonMesh, moved: readonly number[], ori
   x.addScaledVector(axis, -x.dot(axis)).normalize();
   const y = new Vector3().crossVectors(axis, x);
   const radians = Math.PI / 180;
-  const orientation = new Quaternion().setFromAxisAngle(axis, twist * radians)
-    .multiply(new Quaternion().setFromEuler(new Euler(
-      (rotation?.[0] ?? 0) * radians, (rotation?.[1] ?? 0) * radians, (rotation?.[2] ?? 0) * radians,
-    )));
+  const orientation = new Quaternion()
+    .setFromAxisAngle(axis, twist * radians)
+    .multiply(
+      new Quaternion().setFromEuler(
+        new Euler((rotation?.[0] ?? 0) * radians, (rotation?.[1] ?? 0) * radians, (rotation?.[2] ?? 0) * radians),
+      ),
+    );
   for (const id of moved) {
     const position = draft.positions[id];
     if (!position) continue;
@@ -541,7 +613,12 @@ function shapeCap(draft: Draft, mesh: PolygonMesh, moved: readonly number[], ori
   }
 }
 
-function extrudeIndividualFaces(mesh: PolygonMesh, ids: readonly string[], distance: number, shape?: ExtrudeCapShape): ExtrudeResult {
+function extrudeIndividualFaces(
+  mesh: PolygonMesh,
+  ids: readonly string[],
+  distance: number,
+  shape?: ExtrudeCapShape,
+): ExtrudeResult {
   const faces = [...new Set(parseFaces(mesh, ids))];
   const graph = cageTopology(mesh);
   assertManifold(mesh, graph);
@@ -550,7 +627,9 @@ function extrudeIndividualFaces(mesh: PolygonMesh, ids: readonly string[], dista
     const first = a && normals.get(a.face);
     const second = b && normals.get(b.face);
     if (first && second && first.dot(second) > 1 - 1e-8) {
-      throw new Error("Adjacent coplanar faces would create overlapping extrusion walls. Use region normals or select non-adjacent faces.");
+      throw new Error(
+        "Adjacent coplanar faces would create overlapping extrusion walls. Use region normals or select non-adjacent faces.",
+      );
     }
   }
   const data = channels(mesh);
@@ -588,14 +667,17 @@ function checkSolidSheet(mesh: PolygonMesh, graph: Topology, selected: ReadonlyS
   const normal = faceNormal(mesh, first);
   const tolerance = Math.max(...offset.toArray().map(Math.abs), 1) * 1e-6;
   const delta = new Vector3();
-  if (mesh.faces.some((face) => faceNormal(mesh, face).dot(normal) < 1 - 1e-6) ||
-      mesh.positions.some((position) => Math.abs(delta.subVectors(position, origin).dot(normal)) > tolerance) ||
-      Math.abs(offset.dot(normal)) < offset.length() * (1 - 1e-6)) {
+  if (
+    mesh.faces.some((face) => faceNormal(mesh, face).dot(normal) < 1 - 1e-6) ||
+    mesh.positions.some((position) => Math.abs(delta.subVectors(position, origin).dot(normal)) > tolerance) ||
+    Math.abs(offset.dot(normal)) < offset.length() * (1 - 1e-6)
+  ) {
     throw new Error("Closing an extrusion requires a planar sheet and an offset perpendicular to it");
   }
   return offset.dot(normal) < 0;
 }
 
+/** The area-weighted average direction of the given faces, used as the extrusion direction. */
 export function regionNormal(mesh: PolygonMesh, ids: readonly string[]): Vector3 {
   const direction = new Vector3();
   let totalArea = 0;
@@ -607,20 +689,32 @@ export function regionNormal(mesh: PolygonMesh, ids: readonly string[]): Vector3
     totalArea += normal.length();
   }
   if (!(totalArea > 0) || direction.length() <= totalArea * 1e-6) {
-    throw new Error("The selected faces have no stable region normal. Choose faces that point in a similar direction or use an explicit offset.");
+    throw new Error(
+      "The selected faces have no stable region normal. Choose faces that point in a similar direction or use an explicit offset.",
+    );
   }
   return direction.normalize();
 }
 
 /** Extrude faces by a signed distance in mesh-local units. */
-export function extrudeAlongRegionNormal(mesh: PolygonMesh, ids: readonly string[], distance: number, shape?: ExtrudeCapShape): ExtrudeResult {
+export function extrudeAlongRegionNormal(
+  mesh: PolygonMesh,
+  ids: readonly string[],
+  distance: number,
+  shape?: ExtrudeCapShape,
+): ExtrudeResult {
   if (shape?.normalMode === "individual") return extrudeIndividualFaces(mesh, ids, distance, shape);
-  return extrudeRegion(mesh, "face", ids, regionNormal(mesh, ids).multiplyScalar(distance), { ...shape, normalDistance: distance });
+  return extrudeRegion(mesh, "face", ids, regionNormal(mesh, ids).multiplyScalar(distance), {
+    ...shape,
+    normalDistance: distance,
+  });
 }
 
 /** Writes an extruded cage. Each new wall gets texture area, so its UVs do not collapse onto the edge it grew from. */
 export function writeExtrudedGeometry(source: BufferGeometry, result: ExtrudeResult): BufferGeometry {
-  const patch: CornerUvPatch = (uv, renderCorner) => { for (const wall of result.walls) stretchWall(result.mesh, uv, wall, renderCorner); };
+  const patch: CornerUvPatch = (uv, renderCorner) => {
+    for (const wall of result.walls) stretchWall(result.mesh, uv, wall, renderCorner);
+  };
   if (result.shading) return shadeGeometry(source, result.mesh, result.shading, patch);
   return writeShadedGeometry(source, result.mesh, patch);
 }
@@ -631,7 +725,10 @@ export function updateExtrudedWallUvs(geometry: BufferGeometry, result: ExtrudeR
   if (!uv) return;
   const first: number[] = [];
   let index = 0;
-  for (const face of result.mesh.faces) { first.push(index); index += face.length; }
+  for (const face of result.mesh.faces) {
+    first.push(index);
+    index += face.length;
+  }
   for (const wall of result.walls) stretchWall(result.mesh, uv, wall, (face, corner) => (first[face] ?? 0) + corner);
   uv.needsUpdate = true;
 }
@@ -655,7 +752,10 @@ function stretchWall(
   if (!(width > 0)) return;
   const along = b.clone().sub(a).divideScalar(width);
   const rise = top.clone().sub(a);
-  const height = rise.clone().sub(along.clone().multiplyScalar(rise.dot(along))).length();
+  const height = rise
+    .clone()
+    .sub(along.clone().multiplyScalar(rise.dot(along)))
+    .length();
   const bottomA = renderCorner(wall, 0);
   const bottomB = renderCorner(wall, 1);
   const topB = renderCorner(wall, 2);

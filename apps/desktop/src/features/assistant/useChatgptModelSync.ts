@@ -11,10 +11,7 @@ const modelsSchema = z.object({ models: z.array(z.string()) });
  * ChatGPT accounts only offer certain models, and the list changes with the plan. When ChatGPT becomes
  * the selected provider, a remembered model the account no longer offers is replaced by its first one.
  */
-export function useChatgptModelSync(
-  providerId: ProviderId | undefined,
-  connected: boolean,
-) {
+export function useChatgptModelSync(providerId: ProviderId | undefined, connected: boolean) {
   const dispatch = useAppDispatch();
   useEffect(() => {
     if (!connected || providerId !== "chatgpt") return undefined;

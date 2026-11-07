@@ -12,11 +12,7 @@ export interface ThreeViewportProps {
 
 // Hosts a Three.js viewport above which `children` are rendered. `onReady` runs once per mount with the viewport
 // so the parent can add objects to `viewport.scene`. A function it returns runs on unmount, before disposal.
-export function ThreeViewport({
-  className,
-  children,
-  onReady,
-}: ThreeViewportProps) {
+export function ThreeViewport({ className, children, onReady }: ThreeViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onReadyRef = useRef(onReady);
 
@@ -37,13 +33,7 @@ export function ThreeViewport({
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "relative h-full w-full overflow-hidden [&>canvas]:block",
-        className,
-      )}
-    >
+    <div ref={containerRef} className={cn("relative h-full w-full overflow-hidden [&>canvas]:block", className)}>
       {children}
     </div>
   );

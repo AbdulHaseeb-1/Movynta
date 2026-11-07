@@ -50,18 +50,13 @@ export function useChatgptSignIn(): ChatgptSignIn {
   const polling = useRef(false);
 
   const loadSession = useCallback(async () => {
-    const next = await backendRequest(
-      "/providers/chatgpt/session",
-      chatgptSessionSchema,
-    );
+    const next = await backendRequest("/providers/chatgpt/session", chatgptSessionSchema);
     dispatch(chatgptSessionLoaded(next));
     return next;
   }, [dispatch]);
 
   const reloadProviders = useCallback(async () => {
-    dispatch(
-      providersLoaded(await backendRequest("/providers", providersSchema)),
-    );
+    dispatch(providersLoaded(await backendRequest("/providers", providersSchema)));
   }, [dispatch]);
 
   const pending = session?.state === "pending";
@@ -82,18 +77,21 @@ export function useChatgptSignIn(): ChatgptSignIn {
     return () => window.clearInterval(timer);
   }, [pending, loadSession, reloadProviders]);
 
-  const run = useCallback(async (action: () => Promise<void>) => {
-    setBusy(true);
-    setActionError("");
-    dispatch(chatgptErrorDismissed());
-    try {
-      await action();
-    } catch (error) {
-      setActionError(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  }, [dispatch]);
+  const run = useCallback(
+    async (action: () => Promise<void>) => {
+      setBusy(true);
+      setActionError("");
+      dispatch(chatgptErrorDismissed());
+      try {
+        await action();
+      } catch (error) {
+        setActionError(errorMessage(error));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [dispatch],
+  );
 
   return {
     session,
@@ -101,11 +99,7 @@ export function useChatgptSignIn(): ChatgptSignIn {
     message: actionError || sessionError || "",
     signIn: () =>
       run(async () => {
-        const started = await backendRequest(
-          "/providers/chatgpt/login",
-          chatgptLoginStartSchema,
-          "POST",
-        );
+        const started = await backendRequest("/providers/chatgpt/login", chatgptLoginStartSchema, "POST");
         dispatch(chatgptLoginStarted(started.authorizationUrl));
         await loadSession();
         await openInBrowser(started.authorizationUrl);
@@ -119,26 +113,12 @@ export function useChatgptSignIn(): ChatgptSignIn {
     cancel: () =>
       run(async () => {
         dispatch(
-          chatgptSessionLoaded(
-            await backendRequest(
-              "/providers/chatgpt/login",
-              chatgptSessionSchema,
-              "DELETE",
-            ),
-          ),
+          chatgptSessionLoaded(await backendRequest("/providers/chatgpt/login", chatgptSessionSchema, "DELETE")),
         );
       }),
     signOut: () =>
       run(async () => {
-        dispatch(
-          providersLoaded(
-            await backendRequest(
-              "/providers/chatgpt",
-              providersSchema,
-              "DELETE",
-            ),
-          ),
-        );
+        dispatch(providersLoaded(await backendRequest("/providers/chatgpt", providersSchema, "DELETE")));
         await loadSession();
       }),
   };

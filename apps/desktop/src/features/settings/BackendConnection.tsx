@@ -5,15 +5,14 @@ import { providersLoaded, providersSchema } from "@/features/providers";
 import { backendRequest, errorMessage } from "@/lib/backend";
 import { settingsButtonClass } from "./styles";
 
+/** The Settings section that shows whether the local backend is connected, and lets the user retry. */
 export function BackendConnection() {
   const connected = useAppSelector((state) => state.providers.connected);
   const dispatch = useAppDispatch();
   const [message, setMessage] = useState("");
   async function reconnect() {
     try {
-      dispatch(
-        providersLoaded(await backendRequest("/providers", providersSchema)),
-      );
+      dispatch(providersLoaded(await backendRequest("/providers", providersSchema)));
       setMessage("Connected");
     } catch (error) {
       setMessage(errorMessage(error));
@@ -32,11 +31,7 @@ export function BackendConnection() {
             : "Waiting for your local backend. Start it to connect automatically."}
         </p>
       </div>
-      <Button
-        variant="outline"
-        onClick={() => void reconnect()}
-        className={`${settingsButtonClass} self-start`}
-      >
+      <Button variant="outline" onClick={() => void reconnect()} className={`${settingsButtonClass} self-start`}>
         Reconnect
       </Button>
       <output className="text-xs text-muted-foreground">{message}</output>

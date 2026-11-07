@@ -13,7 +13,10 @@ const range = z
   .object({ min: z.number().finite().optional(), max: z.number().finite().optional() })
   .strict()
   .refine((value) => value.min !== undefined || value.max !== undefined, "Give min, max or both")
-  .refine((value) => value.min === undefined || value.max === undefined || value.min <= value.max, "min must not be above max");
+  .refine(
+    (value) => value.min === undefined || value.max === undefined || value.min <= value.max,
+    "min must not be above max",
+  );
 const axisRanges = z.object({ x: range.optional(), y: range.optional(), z: range.optional() }).strict();
 
 export const readBranchParameters = z
@@ -37,7 +40,11 @@ export const findRepeatsParameters = z
 export const queryObjectsParameters = z
   .object({
     nameMatches: z.string().trim().min(1).max(80).optional(),
-    type: z.array(z.enum(["mesh", "empty", "collection", "camera", "light"])).min(1).max(5).optional(),
+    type: z
+      .array(z.enum(["mesh", "empty", "collection", "camera", "light"]))
+      .min(1)
+      .max(5)
+      .optional(),
     parentId: identifierSchema.nullable().optional(),
     withinId: identifierSchema.optional(),
     visible: z.boolean().optional(),
@@ -54,7 +61,9 @@ export const queryObjectsParameters = z
 
 function requireObject(index: SceneIndex, id: string, field: string): void {
   if (!index.has(id)) {
-    throw new ValidationFailedError(`${field} "${id}" is not in the scene; read the scene with editor.read_branch to find the id`);
+    throw new ValidationFailedError(
+      `${field} "${id}" is not in the scene; read the scene with editor.read_branch to find the id`,
+    );
   }
 }
 
@@ -82,7 +91,8 @@ export function createSceneTools({ bridge }: EditorToolDependencies): ToolDefini
           foldFrom: input.foldRepeats ? DEFAULT_FOLD_FROM : 0,
         });
         const countsByType: Record<string, number> = {};
-        if (input.rootId === undefined) for (const object of scene.objects) countsByType[object.type] = (countsByType[object.type] ?? 0) + 1;
+        if (input.rootId === undefined)
+          for (const object of scene.objects) countsByType[object.type] = (countsByType[object.type] ?? 0) + 1;
         return {
           revision: index.revision,
           objectCount: index.total,
@@ -103,7 +113,11 @@ export function createSceneTools({ bridge }: EditorToolDependencies): ToolDefini
         const scene = await bridge.getContext(context.clientId);
         const index = new SceneIndex(scene);
         if (input.rootId !== undefined) requireObject(index, input.rootId, "rootId");
-        const report = findRepeats(index, new SignatureBook(index), { rootId: input.rootId, minCount: input.minCount, limit: input.limit });
+        const report = findRepeats(index, new SignatureBook(index), {
+          rootId: input.rootId,
+          minCount: input.minCount,
+          limit: input.limit,
+        });
         return {
           revision: index.revision,
           ...report,

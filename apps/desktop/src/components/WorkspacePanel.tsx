@@ -5,12 +5,7 @@ import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setPanelOpen } from "@/features/designWorkspace/workspaceSlice";
 import type { PanelId } from "@/features/designWorkspace/panelStorage";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface WorkspacePanelProps {
   label: string;
@@ -22,13 +17,7 @@ interface WorkspacePanelProps {
 }
 
 /** A compact launcher that keeps its panel mounted while collapsed. */
-export function WorkspacePanel({
-  label,
-  panelId,
-  icon: Icon,
-  children,
-  forceOpen = false,
-}: WorkspacePanelProps) {
+export function WorkspacePanel({ label, panelId, icon: Icon, children, forceOpen = false }: WorkspacePanelProps) {
   const dispatch = useAppDispatch();
   const open = useAppSelector((state) => state.designWorkspace.panels[panelId]);
   const id = useId();

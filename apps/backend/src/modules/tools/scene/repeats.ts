@@ -76,20 +76,28 @@ function evenSpan(starts: readonly number[], tolerance: number): number | undefi
   const steps = starts.slice(1).map((value, at) => value - (starts[at] ?? value));
   const first = steps[0];
   if (first === undefined) return undefined;
-  return steps.every((step) => Math.abs(step - first) <= tolerance) ? (starts[starts.length - 1] ?? 0) - (starts[0] ?? 0) : undefined;
+  return steps.every((step) => Math.abs(step - first) <= tolerance)
+    ? (starts[starts.length - 1] ?? 0) - (starts[0] ?? 0)
+    : undefined;
 }
 
 /** Tells whether the centers form a line, a grid, one pile, or no pattern. */
 export function arrangementOf(centers: readonly Vec3[], size: Vec3 | null): Arrangement {
   const tolerance = POSITION_TOLERANCE * Math.max(1e-6, ...(size ?? [1, 1, 1]));
-  const perAxis = AXES.map((_, axis) => clusterIndexes(centers.map((center) => center[axis] ?? 0), tolerance));
+  const perAxis = AXES.map((_, axis) =>
+    clusterIndexes(
+      centers.map((center) => center[axis] ?? 0),
+      tolerance,
+    ),
+  );
   const varying = perAxis.flatMap((clusters, axis) => (clusters.starts.length > 1 ? [axis] : []));
   if (varying.length === 0) return { kind: "coincident" };
 
   const counts = varying.map((axis) => perAxis[axis]?.starts.length ?? 1);
   const cells = new Set(centers.map((_, member) => varying.map((axis) => perAxis[axis]?.index[member] ?? 0).join(",")));
   // Every cell of the lattice holds exactly one member, or the layout is not a regular array.
-  if (cells.size !== centers.length || counts.reduce((product, count) => product * count, 1) !== centers.length) return { kind: "scattered" };
+  if (cells.size !== centers.length || counts.reduce((product, count) => product * count, 1) !== centers.length)
+    return { kind: "scattered" };
 
   const steps: number[] = [];
   for (const axis of varying) {
@@ -138,7 +146,11 @@ export function findRepeats(index: SceneIndex, book: SignatureBook, options: Rep
   }
   const ranked = [...buckets.values()]
     .filter((members) => members.length >= options.minCount)
-    .sort((a, b) => b.length * (1 + (b[0]?.descendantCount ?? 0)) - a.length * (1 + (a[0]?.descendantCount ?? 0)) || (a[0]?.object.name ?? "").localeCompare(b[0]?.object.name ?? ""));
+    .sort(
+      (a, b) =>
+        b.length * (1 + (b[0]?.descendantCount ?? 0)) - a.length * (1 + (a[0]?.descendantCount ?? 0)) ||
+        (a[0]?.object.name ?? "").localeCompare(b[0]?.object.name ?? ""),
+    );
 
   const covered = new Set<string>();
   const chosen: IndexedObject[][] = [];

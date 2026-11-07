@@ -63,7 +63,11 @@ export class PlacementTracker {
     const before = this.places.get(id) ?? IDENTITY_TRS;
     this.places.set(id, {
       ...before,
-      position: [before.position[0] + (delta[0] ?? 0), before.position[1] + (delta[1] ?? 0), before.position[2] + (delta[2] ?? 0)],
+      position: [
+        before.position[0] + (delta[0] ?? 0),
+        before.position[1] + (delta[1] ?? 0),
+        before.position[2] + (delta[2] ?? 0),
+      ],
     });
   }
 
@@ -97,14 +101,21 @@ export class PlacementTracker {
   private world(id: string): Mat4 {
     const chain: string[] = [];
     const seen = new Set<string>();
-    for (let current: string | null | undefined = id; current !== null && current !== undefined && !seen.has(current); current = this.parentOf(current)) {
+    for (
+      let current: string | null | undefined = id;
+      current !== null && current !== undefined && !seen.has(current);
+      current = this.parentOf(current)
+    ) {
       seen.add(current);
       chain.push(current);
     }
     let matrix: Mat4 = IDENTITY_MATRIX;
     for (let i = chain.length - 1; i >= 0; i -= 1) {
       const link = chain[i];
-      matrix = multiplyMat4(matrix, composeTrs((link === undefined ? undefined : this.places.get(link)) ?? IDENTITY_TRS));
+      matrix = multiplyMat4(
+        matrix,
+        composeTrs((link === undefined ? undefined : this.places.get(link)) ?? IDENTITY_TRS),
+      );
     }
     return matrix;
   }

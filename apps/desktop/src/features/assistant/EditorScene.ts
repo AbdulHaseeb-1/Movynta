@@ -13,7 +13,20 @@ import {
   type Quaternion,
   type Scene,
 } from "three";
-import { CollectionModel, editorCommandListSchema, isCageEditCommand as isCageEditType, isTopologyEditCommand, isWithinBranch, resolveMeshPath, resolveSiblingName, SiblingNames, stableMeshPath, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
+import {
+  CollectionModel,
+  editorCommandListSchema,
+  isCageEditCommand as isCageEditType,
+  isTopologyEditCommand,
+  isWithinBranch,
+  resolveMeshPath,
+  resolveSiblingName,
+  SiblingNames,
+  stableMeshPath,
+  type CollectionEntry,
+  type designFocusSchema,
+  type MeshModifierSpec,
+} from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { measureScene } from "./measureScene";
@@ -21,7 +34,12 @@ import type { MeasurementAnnotation, MeasurementRequest, MeasurementUnits } from
 import { Scene as ThreeScene } from "three";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { duplicateHierarchy, hierarchyBytes } from "../objectEditing/duplicateHierarchy";
-import { extrudeAlongRegionNormal, extrudeRegion, writeExtrudedGeometry, type ExtrudeResult } from "../meshGeometry/meshExtrude";
+import {
+  extrudeAlongRegionNormal,
+  extrudeRegion,
+  writeExtrudedGeometry,
+  type ExtrudeResult,
+} from "../meshGeometry/meshExtrude";
 import { KnifeSession } from "../meshGeometry/meshKnifeSession";
 import { knifeChord } from "../meshGeometry/meshKnifeChord";
 import { correctNormals } from "../meshGeometry/meshCorrectNormals";
@@ -50,8 +68,24 @@ import { transformComponents } from "../meshGeometry/meshComponentTransform";
 import { transformFaces } from "../meshGeometry/meshFaceTransform";
 import { cageKey, copyTopology, readTopology, retainsFaces, type PolygonMesh } from "../meshGeometry/meshTopology";
 import { assignLocalMatrix, settleShear } from "../objectEditing/shearFit";
-import { assertEditableMesh, inspectMesh, meshAtPath, evaluateStack, evaluateBase, modifierStack, commitStack, copyModifierStack, disposeModifierStack, type ModifierStackState } from "../meshGeometry";
-import { evaluateAffected, needsBooleanEvaluation, sceneMeshes, type MeshChange } from "../meshGeometry/booleanEvaluation";
+import {
+  assertEditableMesh,
+  inspectMesh,
+  meshAtPath,
+  evaluateStack,
+  evaluateBase,
+  modifierStack,
+  commitStack,
+  copyModifierStack,
+  disposeModifierStack,
+  type ModifierStackState,
+} from "../meshGeometry";
+import {
+  evaluateAffected,
+  needsBooleanEvaluation,
+  sceneMeshes,
+  type MeshChange,
+} from "../meshGeometry/booleanEvaluation";
 import { ensureManifold } from "../meshGeometry/meshBoolean";
 import type { MeshInspectionRequest } from "@movynta/editor-protocol";
 import { isMesh } from "@/lib/three";
@@ -62,11 +96,47 @@ export type { CollectionEntry };
 export type DesignFocus = z.infer<typeof designFocusSchema>;
 
 type Command = z.infer<typeof editorCommandListSchema>[number];
-type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" | "geometry.boolean" }>;
+type GeometryCommand = Extract<
+  Command,
+  { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" | "geometry.boolean" }
+>;
 /** Commands that rewrite the base cage of one mesh part. They share a batch and the same rules about modifiers. */
-type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.inset_faces" | "geometry.bevel_edges" | "geometry.subdivide_faces" | "geometry.fill_hole" | "material.assign" | "geometry.merge_vertices" | "geometry.merge_by_distance" | "geometry.remove_duplicate_faces" | "geometry.correct_normals" | "geometry.knife_chord" | "geometry.knife_path" | "geometry.dissolve_edges" | "geometry.slide_edges" | "geometry.loop_cut" | "geometry.transform_components" | "geometry.transform_faces" | "geometry.bisect" | "geometry.delete_components" | "geometry.flip_normals" | "geometry.triangulate_faces" | "geometry.set_shading" | "geometry.bridge_edge_loops" }>;
+type CageEditCommand = Extract<
+  Command,
+  {
+    type:
+      | "geometry.extrude"
+      | "geometry.inset_faces"
+      | "geometry.bevel_edges"
+      | "geometry.subdivide_faces"
+      | "geometry.fill_hole"
+      | "material.assign"
+      | "geometry.merge_vertices"
+      | "geometry.merge_by_distance"
+      | "geometry.remove_duplicate_faces"
+      | "geometry.correct_normals"
+      | "geometry.knife_chord"
+      | "geometry.knife_path"
+      | "geometry.dissolve_edges"
+      | "geometry.slide_edges"
+      | "geometry.loop_cut"
+      | "geometry.transform_components"
+      | "geometry.transform_faces"
+      | "geometry.bisect"
+      | "geometry.delete_components"
+      | "geometry.flip_normals"
+      | "geometry.triangulate_faces"
+      | "geometry.set_shading"
+      | "geometry.bridge_edge_loops";
+  }
+>;
 function isGeometryCommand(command: Command): command is GeometryCommand {
-  return command.type === "geometry.bevel" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || command.type === "geometry.boolean";
+  return (
+    command.type === "geometry.bevel" ||
+    command.type === "geometry.subdivide" ||
+    command.type === "geometry.set_modifiers" ||
+    command.type === "geometry.boolean"
+  );
 }
 /** The protocol's list of cage edits decides; the type above only narrows it for the compiler. */
 function isCageEditCommand(command: Command): command is CageEditCommand {
@@ -74,7 +144,20 @@ function isCageEditCommand(command: Command): command is CageEditCommand {
 }
 /** Rewrites the base cage for one command: extrude moves a region, subdivide-faces splits only the selected faces. */
 function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, source: BufferGeometry): ExtrudeResult {
-  if (command.type === "geometry.bevel_edges") return { mesh: bevelSurface(cage, command.width, command.segments, command.profile, 0, command.ids, command.trimEndFaces === true), selection: [], walls: [] };
+  if (command.type === "geometry.bevel_edges")
+    return {
+      mesh: bevelSurface(
+        cage,
+        command.width,
+        command.segments,
+        command.profile,
+        0,
+        command.ids,
+        command.trimEndFaces === true,
+      ),
+      selection: [],
+      walls: [],
+    };
   if (command.type === "material.assign") {
     if (!materialSlots(mesh)[command.slot]) throw new Error("Material slot does not exist; inspect materials first");
     return assignMaterial(cage, command.ids, command.slot);
@@ -82,27 +165,39 @@ function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, sourc
   if (command.type === "geometry.knife_path") {
     const session = new KnifeSession(cage, source, { deferValidation: true });
     command.segments.forEach((segment, index) => {
-      try { session.append({ ...segment, face: Number(segment.face) }); }
-      catch (error) {
+      try {
+        session.append({ ...segment, face: Number(segment.face) });
+      } catch (error) {
         // Say which cut failed; the same error goes on, so its stack and cause are kept.
-        if (error instanceof Error) error.message = `Segment ${index + 1} of ${command.segments.length}: ${error.message}`;
+        if (error instanceof Error)
+          error.message = `Segment ${index + 1} of ${command.segments.length}: ${error.message}`;
         throw error;
       }
     });
     return session.finish();
   }
-  if (command.type === "geometry.knife_chord") return knifeChord(cage, Number(command.face), command.start, command.end, source);
+  if (command.type === "geometry.knife_chord")
+    return knifeChord(cage, Number(command.face), command.start, command.end, source);
   if (command.type === "geometry.bisect") {
     mesh.updateWorldMatrix(true, false);
     const plane = resolveBisectPlane(command.plane, command.space, mesh.matrixWorld);
-    return bisectMesh(cage, source, plane, { keep: command.keep, fill: command.fill,
+    return bisectMesh(cage, source, plane, {
+      keep: command.keep,
+      fill: command.fill,
       ...(command.ids ? { faces: new Set(command.ids.map(Number)) } : {}),
-      ...(command.snapDistance === undefined ? {} : { snapDistance: command.snapDistance }) });
+      ...(command.snapDistance === undefined ? {} : { snapDistance: command.snapDistance }),
+    });
   }
   if (command.type === "geometry.delete_components") return deleteComponents(cage, command.kind, command.ids);
   if (command.type === "geometry.flip_normals") return flipNormals(cage, command.ids);
   if (command.type === "geometry.bridge_edge_loops") return bridgeEdgeLoops(cage, command.ids, command.twist);
-  if (command.type === "geometry.set_shading") return { mesh: cage, selection: [], walls: [], shading: { mode: command.mode, ...(command.angle === undefined ? {} : { angle: command.angle }) } };
+  if (command.type === "geometry.set_shading")
+    return {
+      mesh: cage,
+      selection: [],
+      walls: [],
+      shading: { mode: command.mode, ...(command.angle === undefined ? {} : { angle: command.angle }) },
+    };
   if (command.type === "geometry.triangulate_faces") return triangulateFaces(cage, command.ids);
   if (command.type === "geometry.correct_normals") return correctNormals(cage, command.mode);
   if (command.type === "geometry.remove_duplicate_faces") return removeDuplicateFaces(cage, source);
@@ -116,16 +211,28 @@ function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, sourc
   if (command.type === "geometry.fill_hole") return fillHole(cage, command.ids);
   if (command.type === "geometry.transform_components") {
     mesh.updateWorldMatrix(true, false);
-    return transformComponents(cage, command.kind, command.ids, command.transform,
-      command.space === "world" ? mesh.matrixWorld : undefined, command.pivot);
+    return transformComponents(
+      cage,
+      command.kind,
+      command.ids,
+      command.transform,
+      command.space === "world" ? mesh.matrixWorld : undefined,
+      command.pivot,
+    );
   }
   if (command.type === "geometry.transform_faces") {
     mesh.updateWorldMatrix(true, false);
-    return transformFaces(cage, command.ids, command.transform, command.space === "world" ? mesh.matrixWorld : undefined);
+    return transformFaces(
+      cage,
+      command.ids,
+      command.transform,
+      command.space === "world" ? mesh.matrixWorld : undefined,
+    );
   }
-  const step = (surface: PolygonMesh, ids: string[]) => command.normalDistance !== undefined
-    ? extrudeAlongRegionNormal(surface, ids, command.normalDistance, command)
-    : extrudeRegion(surface, command.kind, ids, new Vector3().fromArray(command.offset ?? []), command);
+  const step = (surface: PolygonMesh, ids: string[]) =>
+    command.normalDistance !== undefined
+      ? extrudeAlongRegionNormal(surface, ids, command.normalDistance, command)
+      : extrudeRegion(surface, command.kind, ids, new Vector3().fromArray(command.offset ?? []), command);
   let result = step(cage, command.ids);
   const walls = [...result.walls];
   for (let i = 1; i < (command.steps ?? 1); i += 1) {
@@ -188,16 +295,24 @@ export interface ImportedModelStep {
   format: string;
 }
 /** One saved change to the scene, in the order it happened. */
-export type SceneStep =
-  | { kind: "commands"; proposalId: string; commands?: unknown }
-  | ImportedModelStep;
+export type SceneStep = { kind: "commands"; proposalId: string; commands?: unknown } | ImportedModelStep;
 /** The commands that change objects that already exist, which is most of what the user does by hand. */
 type InPlaceCommand = Extract<
   Command,
-  { type: "scene.transform_object" | "scene.move_object" | "scene.delete_object" | "scene.rename_object" | "scene.set_visibility" }
+  {
+    type:
+      | "scene.transform_object"
+      | "scene.move_object"
+      | "scene.delete_object"
+      | "scene.rename_object"
+      | "scene.set_visibility";
+  }
 >;
 /** The commands that change one existing object's own properties, without touching the hierarchy. */
-type ObjectChange = Extract<Command, { type: "scene.transform_object" | "scene.move_object" | "scene.rename_object" | "scene.set_visibility" }>;
+type ObjectChange = Extract<
+  Command,
+  { type: "scene.transform_object" | "scene.move_object" | "scene.rename_object" | "scene.set_visibility" }
+>;
 /** A command the batch applied. `name` is the name an object ended up with, which can differ from the one asked for. */
 interface AppliedResult {
   commandId: string;
@@ -216,7 +331,15 @@ function isInPlace(command: Command): command is InPlaceCommand {
 /** The commands that change collections, or which collection an object is in. They never change where anything is. */
 type CollectionCommand = Extract<
   Command,
-  { type: "scene.create_collection" | "scene.rename_collection" | "scene.set_collection_visibility" | "scene.move_collection" | "scene.delete_collection" | "scene.move_to_collection" }
+  {
+    type:
+      | "scene.create_collection"
+      | "scene.rename_collection"
+      | "scene.set_collection_visibility"
+      | "scene.move_collection"
+      | "scene.delete_collection"
+      | "scene.move_to_collection";
+  }
 >;
 function isCollectionCommand(command: Command): command is CollectionCommand {
   return (
@@ -240,7 +363,8 @@ const SHADING_CHOICE = "shadingChoice";
 function storedShading(mesh: Mesh): ShadingChoice | undefined {
   const value: unknown = mesh.userData[SHADING_CHOICE];
   if (typeof value !== "object" || value === null || !("mode" in value)) return undefined;
-  const mode = value.mode, angle = "angle" in value ? value.angle : undefined;
+  const mode = value.mode,
+    angle = "angle" in value ? value.angle : undefined;
   if (mode !== "flat" && mode !== "smooth") return undefined;
   return typeof angle === "number" ? { mode, angle } : { mode };
 }
@@ -287,8 +411,12 @@ export class EditorScene {
   private collectionModel = new CollectionModel();
   private prepared: { id: string; revision: number; candidate: EditorScene } | undefined;
   private recoveryNeeded = false;
-  get requiresRecovery(): boolean { return this.recoveryNeeded; }
-  requireRecovery(): void { this.recoveryNeeded = true; }
+  get requiresRecovery(): boolean {
+    return this.recoveryNeeded;
+  }
+  requireRecovery(): void {
+    this.recoveryNeeded = true;
+  }
   private readonly scene: Scene;
   private boundProjectId: string;
   /** The selected objects in the order they were chosen; the last one is the active object. */
@@ -443,9 +571,7 @@ export class EditorScene {
    * the same path as the assistant's changes and can be recorded and replayed.
    */
   applyUserTransform(id: string, transform: ObjectTransform): UserEdit {
-    const commands = [
-      { commandId: "edit", type: "scene.transform_object", objectId: id, transform },
-    ];
+    const commands = [{ commandId: "edit", type: "scene.transform_object", objectId: id, transform }];
     return { applied: this.applyUserEdit(commands), commands };
   }
 
@@ -527,43 +653,60 @@ export class EditorScene {
   private fork(): EditorScene {
     let bytes = 0;
     const measured = new Set<Object3D>();
-    for (const root of this.objects.values()) root.traverse((node) => {
-      if (measured.has(node)) return;
-      measured.add(node);
-      if (isMesh(node)) {
-        for (const attribute of Object.values(node.geometry.attributes)) bytes += attribute.count * attribute.itemSize * 8;
-        for (const attribute of Object.values(node.geometry.morphAttributes).flatMap((targets) => targets ?? [])) bytes += attribute.count * attribute.itemSize * 8;
-        bytes += (node.geometry.index?.count ?? 0) * 4;
-      }
-    });
-    if (bytes > 128 * 1024 * 1024) throw new Error("This scene exceeds the 128 MiB prepared-geometry budget; simplify it before assistant editing");
+    for (const root of this.objects.values())
+      root.traverse((node) => {
+        if (measured.has(node)) return;
+        measured.add(node);
+        if (isMesh(node)) {
+          for (const attribute of Object.values(node.geometry.attributes))
+            bytes += attribute.count * attribute.itemSize * 8;
+          for (const attribute of Object.values(node.geometry.morphAttributes).flatMap((targets) => targets ?? []))
+            bytes += attribute.count * attribute.itemSize * 8;
+          bytes += (node.geometry.index?.count ?? 0) * 4;
+        }
+      });
+    if (bytes > 128 * 1024 * 1024)
+      throw new Error("This scene exceeds the 128 MiB prepared-geometry budget; simplify it before assistant editing");
     const candidate = new EditorScene(new ThreeScene(), this.projectId);
     const copied = new Map<Object3D, Object3D>();
     const registered = new Set(this.objects.values());
     for (const object of this.objects.values()) {
       let nested = false;
-      for (let p = object.parent; p; p = p.parent) if (registered.has(p)) { nested = true; break; }
+      for (let p = object.parent; p; p = p.parent)
+        if (registered.has(p)) {
+          nested = true;
+          break;
+        }
       if (nested) continue;
       const copy = cloneSkeleton(object);
-      const originals: Object3D[] = []; const clones: Object3D[] = [];
-      object.traverse((node) => originals.push(node)); copy.traverse((node) => clones.push(node));
+      const originals: Object3D[] = [];
+      const clones: Object3D[] = [];
+      object.traverse((node) => originals.push(node));
+      copy.traverse((node) => clones.push(node));
       originals.forEach((node, i) => {
-        const cloned = clones[i]; if (!cloned) throw new Error("Could not clone scene");
+        const cloned = clones[i];
+        if (!cloned) throw new Error("Could not clone scene");
         copied.set(node, cloned);
         if (isMesh(node) && isMesh(cloned)) {
-          cloned.geometry = node.geometry.clone(); copyTopology(node.geometry, cloned.geometry);
-          cloned.material = Array.isArray(node.material) ? node.material.map((material) => material.clone()) : node.material.clone();
+          cloned.geometry = node.geometry.clone();
+          copyTopology(node.geometry, cloned.geometry);
+          cloned.material = Array.isArray(node.material)
+            ? node.material.map((material) => material.clone())
+            : node.material.clone();
           copyModifierStack(node, cloned);
         }
       });
       candidate.scene.add(copy);
     }
     for (const [id, original] of this.objects) {
-      const copy = copied.get(original); if (!copy) throw new Error("Could not clone scene object");
-      candidate.objects.set(id, copy); candidate.ids.set(copy, id);
+      const copy = copied.get(original);
+      if (!copy) throw new Error("Could not clone scene object");
+      candidate.objects.set(id, copy);
+      candidate.ids.set(copy, id);
     }
     candidate.collectionModel = this.collectionModel.clone();
-    candidate.selected = [...this.selected]; candidate.revision = this.revision;
+    candidate.selected = [...this.selected];
+    candidate.revision = this.revision;
     for (const id of this.applied) candidate.applied.add(id);
     return candidate;
   }
@@ -575,8 +718,10 @@ export class EditorScene {
     commands: unknown,
     read: (scene: Scene, candidate: EditorScene) => T,
   ): T {
-    if (this.prepared || this.requiresRecovery) throw new Error("Finish the pending scene change before previewing a proposal");
-    if (revision !== this.revision) throw new Error("Scene changed since this proposal was created. Inspect it and propose again.");
+    if (this.prepared || this.requiresRecovery)
+      throw new Error("Finish the pending scene change before previewing a proposal");
+    if (revision !== this.revision)
+      throw new Error("Scene changed since this proposal was created. Inspect it and propose again.");
     this.beginChange();
     const candidate = this.fork();
     try {
@@ -590,26 +735,45 @@ export class EditorScene {
     }
   }
 
-  executePrepared(proposalId: string, expectedRevision: number, input: unknown, phase: "prepare" | "commit" | "discard") {
+  executePrepared(
+    proposalId: string,
+    expectedRevision: number,
+    input: unknown,
+    phase: "prepare" | "commit" | "discard",
+  ) {
     const commands = editorCommandListSchema.parse(input);
-    const applied = () => ({ status: "applied", revision: this.revision, results: commands.map((command) => ({ commandId: command.commandId, status: "applied" as const })) });
+    const applied = () => ({
+      status: "applied",
+      revision: this.revision,
+      results: commands.map((command) => ({ commandId: command.commandId, status: "applied" as const })),
+    });
     if (phase === "discard") {
-      if (this.prepared?.id === proposalId) { this.prepared.candidate.reset(); this.prepared = undefined; }
+      if (this.prepared?.id === proposalId) {
+        this.prepared.candidate.reset();
+        this.prepared = undefined;
+      }
       return applied();
     }
     if (this.applied.has(proposalId)) return applied();
     if (phase === "commit") {
       const pending = this.prepared;
-      if (!pending || pending.id !== proposalId || pending.revision !== this.revision) throw new Error("Prepared scene is unavailable; reload the saved project");
-      this.prepared = undefined; this.replaceFrom(pending.candidate); return applied();
+      if (!pending || pending.id !== proposalId || pending.revision !== this.revision)
+        throw new Error("Prepared scene is unavailable; reload the saved project");
+      this.prepared = undefined;
+      this.replaceFrom(pending.candidate);
+      return applied();
     }
     if (this.prepared?.id === proposalId) return { ...applied(), revision: this.prepared.candidate.currentRevision };
     if (this.prepared) throw new Error("Another scene change is being prepared");
     this.beginChange();
     const candidate = this.fork();
     let result: ReturnType<EditorScene["execute"]>;
-    try { result = candidate.execute(proposalId, expectedRevision, commands); }
-    catch (error) { candidate.reset(); throw error; }
+    try {
+      result = candidate.execute(proposalId, expectedRevision, commands);
+    } catch (error) {
+      candidate.reset();
+      throw error;
+    }
     if (result.status === "applied") this.prepared = { id: proposalId, revision: this.revision, candidate };
     else candidate.reset();
     return result;
@@ -620,16 +784,18 @@ export class EditorScene {
    * model. Fails, leaving the scene as far as it got, if a step cannot be replayed, so a damaged
    * project is reported instead of shown half-empty.
    */
-  async restore(
-    steps: readonly SceneStep[],
-    loadImport: (step: ImportedModelStep) => Promise<Object3D>,
-  ) {
+  async restore(steps: readonly SceneStep[], loadImport: (step: ImportedModelStep) => Promise<Object3D>) {
     const containsBoolean = steps.some((step) => {
       if (step.kind !== "commands") return false;
       const commands = editorCommandListSchema.safeParse(step.commands);
-      return commands.success && commands.data.some((command) =>
-        command.type === "geometry.boolean" ||
-        (command.type === "geometry.set_modifiers" && command.modifiers.some((modifier) => modifier.kind === "boolean" && modifier.enabled)),
+      return (
+        commands.success &&
+        commands.data.some(
+          (command) =>
+            command.type === "geometry.boolean" ||
+            (command.type === "geometry.set_modifiers" &&
+              command.modifiers.some((modifier) => modifier.kind === "boolean" && modifier.enabled)),
+        )
       );
     });
     if (containsBoolean) await ensureManifold();
@@ -641,8 +807,7 @@ export class EditorScene {
         continue;
       }
       const result = this.execute(step.proposalId, this.revision, step.commands);
-      if (result.status !== "applied")
-        throw new Error("This project's scene could not be restored");
+      if (result.status !== "applied") throw new Error("This project's scene could not be restored");
     }
   }
 
@@ -661,7 +826,8 @@ export class EditorScene {
     this.notify();
   }
   discardPrepared(): void {
-    const pending = this.prepared; this.prepared = undefined;
+    const pending = this.prepared;
+    this.prepared = undefined;
     pending?.candidate.reset();
   }
 
@@ -678,8 +844,7 @@ export class EditorScene {
   importObject(objectId: string, object: Object3D) {
     if (this.recoveryNeeded) throw new Error("Reconnect to the saved project before editing");
     if (this.prepared) throw new Error("Wait for the prepared scene change to finish");
-    if (this.objects.has(objectId))
-      throw new Error(`Object "${objectId}" already exists`);
+    if (this.objects.has(objectId)) throw new Error(`Object "${objectId}" already exists`);
     this.beginChange();
     // A model imported twice keeps both, under names that differ. A name that cannot be made unique is left as it is.
     const named = resolveSiblingName(object.name.slice(0, 72), this.siblingNames(this.objects, null));
@@ -709,7 +874,12 @@ export class EditorScene {
       const stack = modifierStack(mesh);
       const modifiersEnabled = stack?.modifiers.some((modifier) => modifier.enabled) ?? false;
       let baseFaceIds: string[] | undefined;
-      if (modifiersEnabled && selection.kind === "face" && selection.ids.length > 0 && mesh.geometry === stack?.geometry) {
+      if (
+        modifiersEnabled &&
+        selection.kind === "face" &&
+        selection.ids.length > 0 &&
+        mesh.geometry === stack?.geometry
+      ) {
         const sources = readTopology(mesh.geometry).faceSources;
         if (sources) {
           const mapped = selection.ids.map((id) => sources[Number(id)] ?? -1);
@@ -720,8 +890,12 @@ export class EditorScene {
         ...this.focus,
         componentSelection: {
           // By part name where parts have one, so the assistant's reference to the picked part survives other parts changing.
-          objectId: selection.objectId, meshPath: stableMeshPath(object, selection.meshPath), kind: selection.kind, ids: selection.ids,
-          modifiersEnabled, ...(baseFaceIds ? { baseFaceIds } : {}),
+          objectId: selection.objectId,
+          meshPath: stableMeshPath(object, selection.meshPath),
+          kind: selection.kind,
+          ids: selection.ids,
+          modifiersEnabled,
+          ...(baseFaceIds ? { baseFaceIds } : {}),
         },
       };
     } catch {
@@ -807,10 +981,14 @@ export class EditorScene {
       this.scene.updateMatrixWorld(true);
       const slots = sceneMeshes(this.objects);
       const selected = new Set(this.selected.map((id) => this.objects.get(id)));
-      const transformed = new Set(slots.filter(({ mesh }) => {
-        for (let node: Object3D | null = mesh; node; node = node.parent) if (selected.has(node)) return true;
-        return false;
-      }).map(({ mesh }) => mesh));
+      const transformed = new Set(
+        slots
+          .filter(({ mesh }) => {
+            for (let node: Object3D | null = mesh; node; node = node.parent) if (selected.has(node)) return true;
+            return false;
+          })
+          .map(({ mesh }) => mesh),
+      );
       evaluated = evaluateAffected(slots, new Map(), "transforms", transformed);
       this.assertTriangleBudget(evaluated);
       this.commitMeshResults(evaluated);
@@ -829,7 +1007,10 @@ export class EditorScene {
    * place among its parents' children. Returns what hands them back exactly as they were, for a batch that fails.
    * When the batch goes through, the parts stay with the copies, which is where they were going.
    */
-  private borrowInnerParts(staged: ReadonlyMap<string, Object3D>, copiedFrom: ReadonlyMap<Object3D, Object3D>): () => void {
+  private borrowInnerParts(
+    staged: ReadonlyMap<string, Object3D>,
+    copiedFrom: ReadonlyMap<Object3D, Object3D>,
+  ): () => void {
     const registered = new Set(this.objects.values());
     const borrowed: { object: Object3D; replacement: Object3D; children: Object3D[]; inner: Object3D[] }[] = [];
     for (const [id, object] of this.objects) {
@@ -860,33 +1041,50 @@ export class EditorScene {
    */
   private pinOperands(modifiers: readonly MeshModifierSpec[]): MeshModifierSpec[] {
     return modifiers.map((modifier) => {
-      if (modifier.kind !== "boolean" || !modifier.operandMeshPath.some((step) => typeof step === "number")) return modifier;
+      if (modifier.kind !== "boolean" || !modifier.operandMeshPath.some((step) => typeof step === "number"))
+        return modifier;
       const root = this.objects.get(modifier.operandObjectId);
       if (!root || resolveMeshPath(root, modifier.operandMeshPath) === undefined) return modifier;
       const pinned = stableMeshPath(root, modifier.operandMeshPath);
-      return pinned.every((step, index) => step === modifier.operandMeshPath[index]) ? modifier : { ...modifier, operandMeshPath: pinned };
+      return pinned.every((step, index) => step === modifier.operandMeshPath[index])
+        ? modifier
+        : { ...modifier, operandMeshPath: pinned };
     });
   }
 
   private hasEnabledBoolean(objects: ReadonlyMap<string, Object3D> = this.objects): boolean {
-    return sceneMeshes(objects).some((slot) => (modifierStack(slot.mesh)?.modifiers ?? []).some((modifier) => modifier.enabled && modifier.kind === "boolean"));
+    return sceneMeshes(objects).some((slot) =>
+      (modifierStack(slot.mesh)?.modifiers ?? []).some((modifier) => modifier.enabled && modifier.kind === "boolean"),
+    );
   }
 
   private operandReferenced(objectId: string): boolean {
     for (const slot of sceneMeshes(this.objects)) {
       if (slot.objectId === objectId) continue;
-      if ((modifierStack(slot.mesh)?.modifiers ?? []).some((modifier) => modifier.kind === "boolean" && modifier.operandObjectId === objectId)) return true;
+      if (
+        (modifierStack(slot.mesh)?.modifiers ?? []).some(
+          (modifier) => modifier.kind === "boolean" && modifier.operandObjectId === objectId,
+        )
+      )
+        return true;
     }
     return false;
   }
 
   private captureTransforms(): Map<Object3D, { position: Vector3; quaternion: Quaternion; scale: Vector3 }> {
     const snapshot = new Map<Object3D, { position: Vector3; quaternion: Quaternion; scale: Vector3 }>();
-    for (const object of this.objects.values()) snapshot.set(object, { position: object.position.clone(), quaternion: object.quaternion.clone(), scale: object.scale.clone() });
+    for (const object of this.objects.values())
+      snapshot.set(object, {
+        position: object.position.clone(),
+        quaternion: object.quaternion.clone(),
+        scale: object.scale.clone(),
+      });
     return snapshot;
   }
 
-  private restoreTransforms(snapshot: ReadonlyMap<Object3D, { position: Vector3; quaternion: Quaternion; scale: Vector3 }>): void {
+  private restoreTransforms(
+    snapshot: ReadonlyMap<Object3D, { position: Vector3; quaternion: Quaternion; scale: Vector3 }>,
+  ): void {
     for (const [object, transform] of snapshot) {
       object.position.copy(transform.position);
       object.quaternion.copy(transform.quaternion);
@@ -897,7 +1095,8 @@ export class EditorScene {
   private assertTriangleBudget(evaluated: ReadonlyMap<Mesh, ModifierStackState>): void {
     let total = 0;
     for (const state of evaluated.values()) total += triangleCount(state.geometry);
-    if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
+    if (total > 200_000)
+      throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
   }
 
   private commitMeshResults(evaluated: ReadonlyMap<Mesh, ModifierStackState>): void {
@@ -920,13 +1119,16 @@ export class EditorScene {
     if (!evaluated) return;
     for (const [mesh, state] of evaluated) {
       const live = modifierStack(mesh);
-      if (state.geometry !== mesh.geometry && state.geometry !== live?.geometry && state.geometry !== state.base) state.geometry.dispose();
+      if (state.geometry !== mesh.geometry && state.geometry !== live?.geometry && state.geometry !== state.base)
+        state.geometry.dispose();
     }
   }
 
   private disposeUnused(replaced: ReadonlySet<BufferGeometry>): void {
     const used = new Set<BufferGeometry>();
-    this.scene.traverse((node) => { if (isMesh(node)) used.add(node.geometry); });
+    this.scene.traverse((node) => {
+      if (isMesh(node)) used.add(node.geometry);
+    });
     for (const geometry of replaced) if (!used.has(geometry)) geometry.dispose();
   }
 
@@ -952,8 +1154,7 @@ export class EditorScene {
       commandId: command.commandId,
       status: "applied" as const,
     }));
-    if (this.applied.has(proposalId))
-      return { status: "applied", revision: this.revision, results };
+    if (this.applied.has(proposalId)) return { status: "applied", revision: this.revision, results };
     if (expectedRevision !== this.revision)
       return {
         status: "revision_conflict",
@@ -975,10 +1176,12 @@ export class EditorScene {
         })),
       };
     }
-    if (commands.some((command) => command.type === "scene.duplicate_hierarchy")) return this.applyDuplication(proposalId, commands, results);
+    if (commands.some((command) => command.type === "scene.duplicate_hierarchy"))
+      return this.applyDuplication(proposalId, commands, results);
     if (commands.some(isMaterialEdit)) return this.applyMaterialBatch(proposalId, commands, results);
     if (commands.some(isGeometryCommand)) return this.applyGeometryBatch(proposalId, commands, results);
-    if (commands.some((command) => command.type === "geometry.separate_faces")) return this.applySeparation(proposalId, commands, results);
+    if (commands.some((command) => command.type === "geometry.separate_faces"))
+      return this.applySeparation(proposalId, commands, results);
     if (commands.some(isCageEditCommand)) return this.applyCageEditBatch(proposalId, commands, results);
     // Moving, turning, resizing and deleting are the common edits, and need no copy of the scene to be safe.
     if (commands.every(isInPlace)) return this.applyInPlace(proposalId, commands, results);
@@ -1016,7 +1219,15 @@ export class EditorScene {
         const result = results[index];
         if (name !== undefined && result) result.name = name;
       });
-      if (commands.some((command) => command.type === "scene.set_parent" || command.type === "scene.transform_object" || command.type === "scene.move_object" || (command.type === "geometry.create_primitive" && command.replaceExisting))) {
+      if (
+        commands.some(
+          (command) =>
+            command.type === "scene.set_parent" ||
+            command.type === "scene.transform_object" ||
+            command.type === "scene.move_object" ||
+            (command.type === "geometry.create_primitive" && command.replaceExisting),
+        )
+      ) {
         // A Boolean can use a part inside an imported model, and the copies have none of those parts, so they are
         // lent to the copies while the cuts are worked out. Whether there is a Boolean is asked of the scene as it
         // is, since a batch like this cannot make one.
@@ -1028,12 +1239,7 @@ export class EditorScene {
       const reason = error instanceof Error ? error.message : "Command failed";
       for (const [id, object] of staged) {
         const original = this.objects.get(id);
-        if (
-          !original ||
-          (isMesh(object) &&
-            isMesh(original) &&
-            object.geometry !== original.geometry)
-        )
+        if (!original || (isMesh(object) && isMesh(original) && object.geometry !== original.geometry))
           this.dispose(object);
       }
       return {
@@ -1042,10 +1248,7 @@ export class EditorScene {
         results: commands.map((command) => ({
           commandId: command.commandId,
           status: "failed" as const,
-          message:
-            command === current
-              ? reason
-              : "Not applied: the batch was rolled back",
+          message: command === current ? reason : "Not applied: the batch was rolled back",
         })),
         message: `The batch was rolled back: command ${current?.commandId ?? "?"} failed. ${reason}`,
       };
@@ -1066,9 +1269,7 @@ export class EditorScene {
       object.removeFromParent();
       if (
         !replacement ||
-        (replacement instanceof Mesh &&
-          object instanceof Mesh &&
-          replacement.geometry !== object.geometry)
+        (replacement instanceof Mesh && object instanceof Mesh && replacement.geometry !== object.geometry)
       )
         this.dispose(object);
     }
@@ -1078,8 +1279,7 @@ export class EditorScene {
     for (const [id, object] of staged) this.ids.set(object, id);
     const stagedObjects = new Set(staged.values());
     for (const object of staged.values())
-      if (!object.parent || !stagedObjects.has(object.parent))
-        this.scene.add(object);
+      if (!object.parent || !stagedObjects.has(object.parent)) this.scene.add(object);
     // Reparent may have left an exact matrix that position, rotation and scale cannot store.
     settleShear(staged.values());
     this.refreshVisibility(hadCollections);
@@ -1095,46 +1295,73 @@ export class EditorScene {
     let candidate: EditorScene | undefined;
     try {
       const command = commands[0];
-      if (commands.length !== 1 || command?.type !== "scene.duplicate_hierarchy") throw new Error("Duplicate one hierarchy per proposal");
+      if (commands.length !== 1 || command?.type !== "scene.duplicate_hierarchy")
+        throw new Error("Duplicate one hierarchy per proposal");
       const source = this.objects.get(command.sourceId);
       if (!source) throw new Error("Source object does not exist");
-      if (hierarchyBytes(this.scene) + hierarchyBytes(source) * command.copies.length > 128 * 1024 * 1024) throw new Error("Copies exceed the 128 MiB geometry budget");
+      if (hierarchyBytes(this.scene) + hierarchyBytes(source) * command.copies.length > 128 * 1024 * 1024)
+        throw new Error("Copies exceed the 128 MiB geometry budget");
       const ids = command.copies.flatMap((copy) => [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]);
-      if (this.objects.size + ids.length > 2000 || ids.some((id) => this.objects.has(id))) throw new Error("Use fresh object IDs and stay within 2000 scene objects");
+      if (this.objects.size + ids.length > 2000 || ids.some((id) => this.objects.has(id)))
+        throw new Error("Use fresh object IDs and stay within 2000 scene objects");
       candidate = this.fork();
       const original = candidate.objects.get(command.sourceId);
       if (!original) throw new Error("Source disappeared");
       original.updateWorldMatrix(true, false);
       const delta = new Vector3().fromArray(command.offset);
       if (command.space === "world" && original.parent) {
-        if (Math.abs(original.parent.matrixWorld.determinant()) < 1e-12) throw new Error("Cannot convert a world offset through a singular parent");
+        if (Math.abs(original.parent.matrixWorld.determinant()) < 1e-12)
+          throw new Error("Cannot convert a world offset through a singular parent");
         const inverse = original.parent.matrixWorld.clone().invert();
         delta.applyMatrix4(inverse).sub(new Vector3().setFromMatrixPosition(inverse));
       }
       for (let index = 0; index < command.copies.length; index++) {
-        const spec = command.copies[index]; if (!spec) continue;
+        const spec = command.copies[index];
+        if (!spec) continue;
         const copy = duplicateHierarchy(original, candidate.objects, command.sourceId, spec);
         (original.parent ?? candidate.scene).add(copy.root);
-        for (const [id, object] of copy.objects) { candidate.objects.set(id, object); candidate.ids.set(object, id); }
-        const resolved = resolveSiblingName(spec.name ?? (original.name.trim() ? original.name : command.sourceId), candidate.siblingNames(candidate.objects, copy.root.parent, copy.root));
+        for (const [id, object] of copy.objects) {
+          candidate.objects.set(id, object);
+          candidate.ids.set(object, id);
+        }
+        const resolved = resolveSiblingName(
+          spec.name ?? (original.name.trim() ? original.name : command.sourceId),
+          candidate.siblingNames(candidate.objects, copy.root.parent, copy.root),
+        );
         if (!resolved.ok) throw new Error(resolved.message);
         copy.root.name = resolved.name;
         const offset = delta.clone().multiplyScalar(index + 1);
         copy.root.position.add(offset);
         if (copy.root.matrixAutoUpdate) copy.root.updateMatrix();
-        else { copy.root.matrix.elements[12] = (copy.root.matrix.elements[12] ?? 0) + offset.x; copy.root.matrix.elements[13] = (copy.root.matrix.elements[13] ?? 0) + offset.y; copy.root.matrix.elements[14] = (copy.root.matrix.elements[14] ?? 0) + offset.z; copy.root.matrixWorldNeedsUpdate = true; }
-        const collectionSources = new Map([[spec.objectId, command.sourceId], ...spec.descendants.map((entry) => [entry.objectId, entry.sourceId] as [string, string])]);
+        else {
+          copy.root.matrix.elements[12] = (copy.root.matrix.elements[12] ?? 0) + offset.x;
+          copy.root.matrix.elements[13] = (copy.root.matrix.elements[13] ?? 0) + offset.y;
+          copy.root.matrix.elements[14] = (copy.root.matrix.elements[14] ?? 0) + offset.z;
+          copy.root.matrixWorldNeedsUpdate = true;
+        }
+        const collectionSources = new Map([
+          [spec.objectId, command.sourceId],
+          ...spec.descendants.map((entry) => [entry.objectId, entry.sourceId] as [string, string]),
+        ]);
         for (const [id, from] of collectionSources) {
           const refused = candidate.collectionModel.assign(id, candidate.collectionModel.collectionOf(from));
           if (refused) throw new Error(refused);
         }
       }
-      candidate.refreshVisibility(); candidate.refreshStagedBooleans(candidate.objects);
-      candidate.applied.add(proposalId); this.replaceFrom(candidate);
+      candidate.refreshVisibility();
+      candidate.refreshStagedBooleans(candidate.objects);
+      candidate.applied.add(proposalId);
+      this.replaceFrom(candidate);
       return { status: "applied", revision: this.revision, results };
     } catch (error) {
-      candidate?.reset(); const message = error instanceof Error ? error.message : "Duplication failed";
-      return { status: "failed", revision: this.revision, message, results: results.map((result) => ({ ...result, status: "failed" as const, message })) };
+      candidate?.reset();
+      const message = error instanceof Error ? error.message : "Duplication failed";
+      return {
+        status: "failed",
+        revision: this.revision,
+        message,
+        results: results.map((result) => ({ ...result, status: "failed" as const, message })),
+      };
     }
   }
 
@@ -1143,7 +1370,8 @@ export class EditorScene {
     let candidate: EditorScene | undefined;
     let current: Command | undefined;
     try {
-      if (commands.length > 20 || !commands.every(isMaterialEdit)) throw new Error("Use a separate batch of at most 20 material property/slot edits");
+      if (commands.length > 20 || !commands.every(isMaterialEdit))
+        throw new Error("Use a separate batch of at most 20 material property/slot edits");
       candidate = this.fork();
       for (const command of commands) {
         current = command;
@@ -1155,9 +1383,16 @@ export class EditorScene {
     } catch (error) {
       candidate?.reset();
       const reason = error instanceof Error ? error.message : "Material edit failed";
-      return { status: "failed", revision: this.revision, message: reason,
-        results: commands.map((command) => ({ commandId: command.commandId, status: "failed" as const,
-          message: command === current ? reason : "Not applied: the batch was rolled back" })) };
+      return {
+        status: "failed",
+        revision: this.revision,
+        message: reason,
+        results: commands.map((command) => ({
+          commandId: command.commandId,
+          status: "failed" as const,
+          message: command === current ? reason : "Not applied: the batch was rolled back",
+        })),
+      };
     }
   }
 
@@ -1170,23 +1405,28 @@ export class EditorScene {
     let candidate: EditorScene | undefined;
     const command = commands[0];
     try {
-      if (commands.length !== 1 || command?.type !== "geometry.separate_faces") throw new Error("Separate faces in a proposal of their own");
-      if (this.objects.has(command.newObjectId)) throw new Error(`Object "${command.newObjectId}" already exists; use a fresh newObjectId`);
+      if (commands.length !== 1 || command?.type !== "geometry.separate_faces")
+        throw new Error("Separate faces in a proposal of their own");
+      if (this.objects.has(command.newObjectId))
+        throw new Error(`Object "${command.newObjectId}" already exists; use a fresh newObjectId`);
       candidate = this.fork();
       const mesh = candidate.objects.get(command.objectId);
       if (!mesh) throw new Error(`Object "${command.objectId}" does not exist`);
       if (!isMesh(mesh)) throw new Error("Only a mesh object can be split into parts");
       assertEditableMesh(mesh);
       if (mesh instanceof SkinnedMesh) throw new Error("Component edits on skinned meshes are not supported yet.");
-      if ((modifierStack(mesh)?.modifiers.length ?? 0) > 0) throw new Error("Clear the modifier stack first: separating renumbers the faces its modifiers refer to");
-      const source = mesh.geometry, cage = readTopology(source);
+      if ((modifierStack(mesh)?.modifiers.length ?? 0) > 0)
+        throw new Error("Clear the modifier stack first: separating renumbers the faces its modifiers refer to");
+      const source = mesh.geometry,
+        cage = readTopology(source);
       const chosen = new Set<number>();
       for (const id of command.ids) {
         const face = Number(id);
         if (!cage.faces[face]) throw new Error(`Face ${id} does not exist; inspect the base cage for current face IDs`);
         chosen.add(face);
       }
-      if (chosen.size === cage.faces.length) throw new Error("Every face is chosen, so nothing would stay behind; rename the object instead");
+      if (chosen.size === cage.faces.length)
+        throw new Error("Every face is chosen, so nothing would stay behind; rename the object instead");
       const everyOther = cage.faces.flatMap((_, face) => (chosen.has(face) ? [] : [String(face)]));
       let stays, leaves;
       try {
@@ -1194,39 +1434,73 @@ export class EditorScene {
         leaves = deleteComponents(cage, "face", everyOther).mesh;
       } catch (error) {
         // The same error goes on, with a message that says what to change.
-        if (error instanceof Error) error.message = `These faces cannot be separated into two clean meshes (${error.message}). Choose a region whose faces share edges and whose removal leaves one connected piece.`;
+        if (error instanceof Error)
+          error.message = `These faces cannot be separated into two clean meshes (${error.message}). Choose a region whose faces share edges and whose removal leaves one connected piece.`;
         throw error;
       }
-      const keptGeometry = writeShadedGeometry(source, stays), partGeometry = writeShadedGeometry(source, leaves);
+      const keptGeometry = writeShadedGeometry(source, stays),
+        partGeometry = writeShadedGeometry(source, leaves);
       source.dispose();
       mesh.geometry = keptGeometry;
-      const part = new Mesh(partGeometry, Array.isArray(mesh.material) ? mesh.material.map((material) => material.clone()) : mesh.material.clone());
-      part.position.copy(mesh.position); part.quaternion.copy(mesh.quaternion); part.scale.copy(mesh.scale);
-      part.visible = mesh.visible; part.castShadow = mesh.castShadow; part.receiveShadow = mesh.receiveShadow;
+      const part = new Mesh(
+        partGeometry,
+        Array.isArray(mesh.material) ? mesh.material.map((material) => material.clone()) : mesh.material.clone(),
+      );
+      part.position.copy(mesh.position);
+      part.quaternion.copy(mesh.quaternion);
+      part.scale.copy(mesh.scale);
+      part.visible = mesh.visible;
+      part.castShadow = mesh.castShadow;
+      part.receiveShadow = mesh.receiveShadow;
       const own = storedOwnVisible(mesh);
       if (typeof own === "boolean") part.userData[OWN_VISIBLE] = own;
       const parentObject = mesh.parent;
       const registeredParent = parentObject ? candidate.ids.get(parentObject) : undefined;
-      part.name = candidate.uniqueName(candidate.objects, registeredParent && parentObject ? parentObject : null, command.name ?? `${mesh.name || command.objectId} part`);
+      part.name = candidate.uniqueName(
+        candidate.objects,
+        registeredParent && parentObject ? parentObject : null,
+        command.name ?? `${mesh.name || command.objectId} part`,
+      );
       parentObject?.add(part);
       candidate.objects.set(command.newObjectId, part);
       candidate.ids.set(part, command.newObjectId);
-      const refused = candidate.collectionModel.assign(command.newObjectId, candidate.collectionModel.collectionOf(command.objectId));
+      const refused = candidate.collectionModel.assign(
+        command.newObjectId,
+        candidate.collectionModel.collectionOf(command.objectId),
+      );
       if (refused) throw new Error(refused);
       candidate.applied.add(proposalId);
       this.replaceFrom(candidate);
-      return { status: "applied" as const, revision: this.revision, results: results.map((entry) => ({ ...entry, name: part.name })) };
+      return {
+        status: "applied" as const,
+        revision: this.revision,
+        results: results.map((entry) => ({ ...entry, name: part.name })),
+      };
     } catch (error) {
       candidate?.reset();
       const reason = error instanceof Error ? error.message : "Separating faces failed";
-      return { status: "failed" as const, revision: this.revision, message: reason.slice(0, 400),
-        results: commands.map((entry) => ({ commandId: entry.commandId, status: "failed" as const, message: entry === command ? reason.slice(0, 400) : "Not applied: the batch was rolled back" })) };
+      return {
+        status: "failed" as const,
+        revision: this.revision,
+        message: reason.slice(0, 400),
+        results: commands.map((entry) => ({
+          commandId: entry.commandId,
+          status: "failed" as const,
+          message: entry === command ? reason.slice(0, 400) : "Not applied: the batch was rolled back",
+        })),
+      };
     }
   }
 
   /** Rewrites the base cage, then evaluates the same modifier list. A failure leaves the live mesh untouched. */
   private applyCageEditBatch(proposalId: string, commands: Command[], results: AppliedResult[]) {
-    interface Staged { base: BufferGeometry; display: BufferGeometry; modifiers: ModifierStackState["modifiers"]; reveal: boolean; shading?: ShadingChoice | undefined }
+    interface Staged {
+      base: BufferGeometry;
+      display: BufferGeometry;
+      modifiers: ModifierStackState["modifiers"];
+      reveal: boolean;
+      shading?: ShadingChoice | undefined;
+    }
     const staged = new Map<Mesh, Staged>();
     let current: Command | undefined;
     let dependent: Map<Mesh, ModifierStackState> | undefined;
@@ -1234,13 +1508,17 @@ export class EditorScene {
       for (const [mesh, state] of staged) {
         const live = modifierStack(mesh);
         const keep = new Set<BufferGeometry>([mesh.geometry]);
-        if (live) { keep.add(live.base); keep.add(live.geometry); }
+        if (live) {
+          keep.add(live.base);
+          keep.add(live.geometry);
+        }
         if (!keep.has(state.base)) state.base.dispose();
         if (state.display !== state.base && !keep.has(state.display)) state.display.dispose();
       }
     };
     try {
-      if (commands.length > 20 || !commands.every(isCageEditCommand)) throw new Error("Use at most 20 component edits per batch; create or transform objects in a separate proposal");
+      if (commands.length > 20 || !commands.every(isCageEditCommand))
+        throw new Error("Use at most 20 component edits per batch; create or transform objects in a separate proposal");
       const refreshDependents = this.hasEnabledBoolean();
       for (const command of commands) {
         current = command;
@@ -1251,10 +1529,19 @@ export class EditorScene {
         const previous = staged.get(mesh);
         const modifiers = previous?.modifiers ?? live?.modifiers ?? [];
         const topologyChange = isTopologyEditCommand(command);
-        if (topologyChange && (commands.length !== 1 || modifiers.some((modifier) => modifier.enabled))) throw new Error("Use one topology edit per proposal and disable modifiers first");
+        if (topologyChange && (commands.length !== 1 || modifiers.some((modifier) => modifier.enabled)))
+          throw new Error("Use one topology edit per proposal and disable modifiers first");
         const liveExtrusion = modifiers.find((modifier) => modifier.kind === "extrusion");
-        if (liveExtrusion && command.type !== "geometry.fill_hole" && command.type !== "material.assign" &&
-          ((command.type !== "geometry.extrude" && command.type !== "geometry.transform_faces" && command.type !== "geometry.transform_components" && command.type !== "geometry.slide_edges") || (liveExtrusion.componentKind ?? "face") !== "face")) {
+        if (
+          liveExtrusion &&
+          command.type !== "geometry.fill_hole" &&
+          command.type !== "material.assign" &&
+          ((command.type !== "geometry.extrude" &&
+            command.type !== "geometry.transform_faces" &&
+            command.type !== "geometry.transform_components" &&
+            command.type !== "geometry.slide_edges") ||
+            (liveExtrusion.componentKind ?? "face") !== "face")
+        ) {
           throw new Error("Remove the live extrusion before rewriting its base cage");
         }
         const usesBaseIds = "componentView" in command && command.componentView === "base";
@@ -1267,7 +1554,14 @@ export class EditorScene {
           throw new Error("The live extrusion's base cage changed. Inspect the base and choose its components again.");
         }
         const extruded = cageEdit(command, cage, mesh, source);
-        if (liveExtrusion && (command.type === "geometry.extrude" || command.type === "geometry.transform_faces" || command.type === "geometry.transform_components" || command.type === "geometry.slide_edges") && !retainsFaces(cage, extruded.mesh, liveExtrusion.ids)) {
+        if (
+          liveExtrusion &&
+          (command.type === "geometry.extrude" ||
+            command.type === "geometry.transform_faces" ||
+            command.type === "geometry.transform_components" ||
+            command.type === "geometry.slide_edges") &&
+          !retainsFaces(cage, extruded.mesh, liveExtrusion.ids)
+        ) {
           throw new Error("This edit changes a face used by the live extrusion. Adjust or remove that modifier first.");
         }
         // An edit keeps how the mesh was shaded last: set_shading chooses, every other edit repeats the choice.
@@ -1290,13 +1584,25 @@ export class EditorScene {
         }
         if (previous) {
           if (previous.base !== live?.base && previous.base !== mesh.geometry) previous.base.dispose();
-          if (previous.display !== previous.base && previous.display !== mesh.geometry && previous.display !== live?.geometry) previous.display.dispose();
+          if (
+            previous.display !== previous.base &&
+            previous.display !== mesh.geometry &&
+            previous.display !== live?.geometry
+          )
+            previous.display.dispose();
         }
-        staged.set(mesh, { base, display, modifiers: nextModifiers, shading, reveal: (previous?.reveal ?? false) || (command.type === "geometry.extrude" && command.kind !== "face") });
+        staged.set(mesh, {
+          base,
+          display,
+          modifiers: nextModifiers,
+          shading,
+          reveal: (previous?.reveal ?? false) || (command.type === "geometry.extrude" && command.kind !== "face"),
+        });
         if (!refreshDependents) {
           let total = 0;
           for (const state of staged.values()) total += triangleCount(state.display);
-          if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
+          if (total > 200_000)
+            throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
         }
       }
       if (refreshDependents) {
@@ -1313,16 +1619,27 @@ export class EditorScene {
       release();
       this.discardGeometries(dependent);
       const reason = (error instanceof Error ? error.message : "Geometry operation failed").slice(0, 400);
-      return { status: "failed" as const, revision: this.revision, message: reason, results: commands.map((command) => ({
-        commandId: command.commandId, status: "failed" as const, message: command === current ? reason : "Not applied: the batch was rolled back",
-      })) };
+      return {
+        status: "failed" as const,
+        revision: this.revision,
+        message: reason,
+        results: commands.map((command) => ({
+          commandId: command.commandId,
+          status: "failed" as const,
+          message: command === current ? reason : "Not applied: the batch was rolled back",
+        })),
+      };
     }
     const replaced = new Set<BufferGeometry>();
     for (const [mesh, state] of staged) {
       const live = modifierStack(mesh);
       replaced.add(mesh.geometry);
-      if (live) { replaced.add(live.base); replaced.add(live.geometry); }
-      if (live || state.modifiers.length > 0) commitStack(mesh, { base: state.base, modifiers: state.modifiers, geometry: state.display });
+      if (live) {
+        replaced.add(live.base);
+        replaced.add(live.geometry);
+      }
+      if (live || state.modifiers.length > 0)
+        commitStack(mesh, { base: state.base, modifiers: state.modifiers, geometry: state.display });
       else mesh.geometry = state.base;
       if (state.reveal) revealExtrudeBackfaces(mesh);
       if (state.shading) mesh.userData[SHADING_CHOICE] = { ...state.shading };
@@ -1341,7 +1658,9 @@ export class EditorScene {
       }
     }
     const used = new Set<BufferGeometry>();
-    this.scene.traverse((node) => { if (isMesh(node)) used.add(node.geometry); });
+    this.scene.traverse((node) => {
+      if (isMesh(node)) used.add(node.geometry);
+    });
     for (const geometry of replaced) if (!used.has(geometry)) geometry.dispose();
     this.revision += 1;
     this.applied.add(proposalId);
@@ -1355,7 +1674,10 @@ export class EditorScene {
     let current: Command | undefined;
     let dependent: Map<Mesh, ModifierStackState> | undefined;
     try {
-      if (commands.length > 20 || !commands.every(isGeometryCommand)) throw new Error("Use at most 20 modifier commands per batch; create or transform objects in a separate proposal");
+      if (commands.length > 20 || !commands.every(isGeometryCommand))
+        throw new Error(
+          "Use at most 20 modifier commands per batch; create or transform objects in a separate proposal",
+        );
       const planned = new Map<Mesh, MeshModifierSpec[]>();
       const touched = new Map<Mesh, Command>();
       for (const command of commands) {
@@ -1364,14 +1686,43 @@ export class EditorScene {
         assertEditableMesh(mesh);
         const entries = planned.get(mesh) ?? modifierStack(mesh)?.modifiers ?? [];
         let id = command.commandId;
-        for (let suffix = 1; entries.some((entry) => entry.id === id); suffix += 1) id = `${command.commandId.slice(0, 50)}_${suffix}`;
-        const modifiers = command.type === "geometry.set_modifiers" ? command.modifiers : [...entries, command.type === "geometry.bevel"
-          ? { id, kind: "bevel" as const, enabled: true, width: command.width, segments: command.segments ?? 1, ...(command.profile ? { profile: command.profile } : {}), ...(command.angle === undefined ? {} : { angle: command.angle }) }
-          : command.type === "geometry.boolean"
-            ? { id, kind: "boolean" as const, enabled: true, operation: command.operation,
-              operandObjectId: command.operandObjectId, operandMeshPath: command.operandMeshPath,
-              ...(command.cutMaterialIndex === undefined ? {} : { cutMaterialIndex: command.cutMaterialIndex }) }
-            : { id, kind: "subdivision" as const, enabled: true, levels: command.levels, ...(command.method ? { method: command.method } : {}) }];
+        for (let suffix = 1; entries.some((entry) => entry.id === id); suffix += 1)
+          id = `${command.commandId.slice(0, 50)}_${suffix}`;
+        const modifiers =
+          command.type === "geometry.set_modifiers"
+            ? command.modifiers
+            : [
+                ...entries,
+                command.type === "geometry.bevel"
+                  ? {
+                      id,
+                      kind: "bevel" as const,
+                      enabled: true,
+                      width: command.width,
+                      segments: command.segments ?? 1,
+                      ...(command.profile ? { profile: command.profile } : {}),
+                      ...(command.angle === undefined ? {} : { angle: command.angle }),
+                    }
+                  : command.type === "geometry.boolean"
+                    ? {
+                        id,
+                        kind: "boolean" as const,
+                        enabled: true,
+                        operation: command.operation,
+                        operandObjectId: command.operandObjectId,
+                        operandMeshPath: command.operandMeshPath,
+                        ...(command.cutMaterialIndex === undefined
+                          ? {}
+                          : { cutMaterialIndex: command.cutMaterialIndex }),
+                      }
+                    : {
+                        id,
+                        kind: "subdivision" as const,
+                        enabled: true,
+                        levels: command.levels,
+                        ...(command.method ? { method: command.method } : {}),
+                      },
+              ];
         if (modifiers.length > 8) throw new Error("A mesh supports at most eight modifiers");
         planned.set(mesh, this.pinOperands(modifiers));
         touched.set(mesh, command);
@@ -1388,24 +1739,40 @@ export class EditorScene {
           staged.set(mesh, next);
           let total = 0;
           for (const state of staged.values()) total += triangleCount(state.geometry);
-          if (total > 200_000) throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
+          if (total > 200_000)
+            throw new Error("Geometry batch exceeds the 200000-triangle limit; split it into smaller proposals");
         }
       }
     } catch (error) {
-      for (const [mesh, state] of staged) { state.geometry.dispose(); if (state.base !== modifierStack(mesh)?.base) state.base.dispose(); }
+      for (const [mesh, state] of staged) {
+        state.geometry.dispose();
+        if (state.base !== modifierStack(mesh)?.base) state.base.dispose();
+      }
       this.discardGeometries(dependent);
       const reason = (error instanceof Error ? error.message : "Geometry operation failed").slice(0, 400);
-      return { status: "failed", revision: this.revision, message: reason, results: commands.map((command) => ({
-        commandId: command.commandId, status: "failed" as const, message: command === current ? reason : "Not applied: the batch was rolled back",
-      })) };
+      return {
+        status: "failed",
+        revision: this.revision,
+        message: reason,
+        results: commands.map((command) => ({
+          commandId: command.commandId,
+          status: "failed" as const,
+          message: command === current ? reason : "Not applied: the batch was rolled back",
+        })),
+      };
     }
     if (dependent) this.commitMeshResults(dependent);
     else {
       const replaced = new Set<BufferGeometry>();
-      for (const [mesh, state] of staged) { replaced.add(mesh.geometry); commitStack(mesh, state); }
+      for (const [mesh, state] of staged) {
+        replaced.add(mesh.geometry);
+        commitStack(mesh, state);
+      }
       this.disposeUnused(replaced);
     }
-    this.revision += 1; this.applied.add(proposalId); this.notify();
+    this.revision += 1;
+    this.applied.add(proposalId);
+    this.notify();
     return { status: "applied", revision: this.revision, results };
   }
 
@@ -1415,11 +1782,7 @@ export class EditorScene {
    * runs, so the batch is applied whole or not at all without staging a copy of the scene. The cost
    * follows the batch, not the scene.
    */
-  private applyInPlace(
-    proposalId: string,
-    commands: readonly InPlaceCommand[],
-    results: AppliedResult[],
-  ) {
+  private applyInPlace(proposalId: string, commands: readonly InPlaceCommand[], results: AppliedResult[]) {
     const gone = new Set<string>();
     /** The objects deleted so far in the batch, and the names chosen so far, so each rename sees the batch as it goes. */
     const removed = new Set<Object3D>();
@@ -1437,8 +1800,7 @@ export class EditorScene {
     });
     for (const command of commands) {
       const object = this.objects.get(command.objectId);
-      if (!object || gone.has(command.objectId))
-        return fail(command, `Object "${command.objectId}" does not exist`);
+      if (!object || gone.has(command.objectId)) return fail(command, `Object "${command.objectId}" does not exist`);
       if (command.type === "scene.rename_object") {
         const taken = this.siblingNames(this.objects, object.parent, object, removed, renamed);
         const resolved = resolveSiblingName(command.name, taken);
@@ -1456,12 +1818,16 @@ export class EditorScene {
       gone.add(command.objectId);
       removed.add(object);
     }
-    const snapshot = commands.some((command) => command.type === "scene.transform_object" || command.type === "scene.move_object") && this.hasEnabledBoolean()
-      ? this.captureTransforms()
-      : undefined;
+    const snapshot =
+      commands.some((command) => command.type === "scene.transform_object" || command.type === "scene.move_object") &&
+      this.hasEnabledBoolean()
+        ? this.captureTransforms()
+        : undefined;
     const names = snapshot ? new Map([...this.objects.values()].map((object) => [object, object.name])) : undefined;
     const shown = snapshot ? new Map([...this.objects.values()].map((object) => [object, object.visible])) : undefined;
-    const owns = snapshot ? new Map<Object3D, unknown>([...this.objects.values()].map((object) => [object, storedOwnVisible(object)])) : undefined;
+    const owns = snapshot
+      ? new Map<Object3D, unknown>([...this.objects.values()].map((object) => [object, storedOwnVisible(object)]))
+      : undefined;
     for (const command of commands) {
       const object = this.objects.get(command.objectId);
       if (!object) continue;
@@ -1491,7 +1857,9 @@ export class EditorScene {
           else object.userData[OWN_VISIBLE] = own;
         }
         this.scene.updateMatrixWorld(true);
-        const failed = [...commands].reverse().find((command) => command.type === "scene.transform_object" || command.type === "scene.move_object");
+        const failed = [...commands]
+          .reverse()
+          .find((command) => command.type === "scene.transform_object" || command.type === "scene.move_object");
         const reason = (error instanceof Error ? error.message : "Boolean operation failed").slice(0, 400);
         if (failed) return fail(failed, reason);
       }
@@ -1542,7 +1910,12 @@ export class EditorScene {
     if (isCollectionCommand(command)) return this.applyCollectionCommand(objects, model, command);
     const existing = objects.get(command.objectId);
     // Deleting, renaming and re-parenting can free or change a name, which the index only adding names cannot follow.
-    if (command.type === "scene.delete_object" || command.type === "scene.rename_object" || command.type === "scene.set_parent") claims.clear();
+    if (
+      command.type === "scene.delete_object" ||
+      command.type === "scene.rename_object" ||
+      command.type === "scene.set_parent"
+    )
+      claims.clear();
     if (command.type === "scene.delete_object") {
       if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
       for (const child of existing.children) {
@@ -1559,7 +1932,11 @@ export class EditorScene {
       existing.name = this.uniqueName(objects, existing.parent, command.name, existing);
       return existing.name;
     }
-    if (command.type === "scene.transform_object" || command.type === "scene.move_object" || command.type === "scene.set_visibility") {
+    if (
+      command.type === "scene.transform_object" ||
+      command.type === "scene.move_object" ||
+      command.type === "scene.set_visibility"
+    ) {
       if (!existing) throw new Error(`Object "${command.objectId}" does not exist`);
       this.change(existing, command);
       return undefined;
@@ -1573,28 +1950,32 @@ export class EditorScene {
       if (existing.name.length > 0) existing.name = this.uniqueName(objects, existing.parent, existing.name, existing);
       return existing.name;
     }
-    if (
-      existing &&
-      !(command.type === "geometry.create_primitive" && command.replaceExisting)
-    )
-      throw new Error(
-        `Object "${command.objectId}" already exists; use another objectId or set replaceExisting`,
-      );
+    if (existing && !(command.type === "geometry.create_primitive" && command.replaceExisting))
+      throw new Error(`Object "${command.objectId}" already exists; use another objectId or set replaceExisting`);
     // Whatever a new object is created under has to be there, so a missing parent fails before anything is built.
     const parent = command.parentId === undefined ? undefined : objects.get(command.parentId);
     if (command.parentId !== undefined && !parent) throw new Error(`Parent "${command.parentId}" does not exist`);
     if (command.collectionId !== undefined && !model.has(command.collectionId)) {
-      throw new Error(`Collection "${command.collectionId}" does not exist; create it earlier in the batch or use an id from editor.get_context`);
+      throw new Error(
+        `Collection "${command.collectionId}" does not exist; create it earlier in the batch or use an id from editor.get_context`,
+      );
     }
     let object: Object3D;
     let base: string;
     if (command.type === "geometry.create_primitive" || command.type === "geometry.create_mesh") {
-      const geometry = command.type === "geometry.create_primitive" ? createPrimitive(command) : createPolygonMesh(command.vertices, command.faces, command.shading);
+      const geometry =
+        command.type === "geometry.create_primitive"
+          ? createPrimitive(command)
+          : createPolygonMesh(command.vertices, command.faces, command.shading);
       object = new Mesh(
         geometry,
-        new MeshStandardMaterial({ color: "#b6aaa4", roughness: 0.65, side: command.type === "geometry.create_mesh" || command.primitive === "plane" ? DoubleSide : FrontSide }),
+        new MeshStandardMaterial({
+          color: "#b6aaa4",
+          roughness: 0.65,
+          side: command.type === "geometry.create_mesh" || command.primitive === "plane" ? DoubleSide : FrontSide,
+        }),
       );
-      base = command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.name ?? command.primitive;
+      base = command.type === "geometry.create_mesh" ? (command.name ?? "Mesh") : (command.name ?? command.primitive);
     } else {
       object = new Group();
       base = command.name;
@@ -1627,7 +2008,8 @@ export class EditorScene {
     parent?.add(object);
     // A new object joins the collection it was given, else the one its parent is in, else the scene itself.
     if (!existing) {
-      const joined = command.collectionId ?? (command.parentId === undefined ? null : model.collectionOf(command.parentId));
+      const joined =
+        command.collectionId ?? (command.parentId === undefined ? null : model.collectionOf(command.parentId));
       const refused = model.assign(command.objectId, joined);
       if (refused) throw new Error(refused);
     }
@@ -1635,7 +2017,11 @@ export class EditorScene {
   }
 
   /** Applies one collection command to `model`, which is the staged copy. Returns the name a collection ended up with. */
-  private applyCollectionCommand(objects: ReadonlyMap<string, Object3D>, model: CollectionModel, command: CollectionCommand): string | undefined {
+  private applyCollectionCommand(
+    objects: ReadonlyMap<string, Object3D>,
+    model: CollectionModel,
+    command: CollectionCommand,
+  ): string | undefined {
     const check = (result: { ok: true; name: string } | { ok: false; message: string }): string => {
       if (!result.ok) throw new Error(result.message);
       return result.name;
@@ -1663,7 +2049,9 @@ export class EditorScene {
       case "scene.move_to_collection": {
         if (!objects.has(command.objectId)) throw new Error(`Object "${command.objectId}" does not exist`);
         if (command.collectionId !== null && !model.has(command.collectionId)) {
-          throw new Error(`Collection "${command.collectionId}" does not exist; create it first or use an id from editor.get_context`);
+          throw new Error(
+            `Collection "${command.collectionId}" does not exist; create it first or use an id from editor.get_context`,
+          );
         }
         for (const id of command.includeChildren ? this.subtree(objects, command.objectId) : [command.objectId]) {
           refuse(model.assign(id, command.collectionId));
@@ -1771,7 +2159,12 @@ export class EditorScene {
   }
 
   /** `base` made unique among the objects under `parent`, or an error saying why it cannot be. */
-  private uniqueName(objects: ReadonlyMap<string, Object3D>, parent: Object3D | null, base: string, except?: Object3D): string {
+  private uniqueName(
+    objects: ReadonlyMap<string, Object3D>,
+    parent: Object3D | null,
+    base: string,
+    except?: Object3D,
+  ): string {
     const resolved = resolveSiblingName(base, this.siblingNames(objects, parent, except));
     if (!resolved.ok) throw new Error(resolved.message);
     return resolved.name;
@@ -1856,9 +2249,7 @@ export class EditorScene {
       const geometry: BufferGeometry = object.geometry;
       geometry.dispose();
       const material: Material | Material[] = object.material;
-      const materials = Array.isArray(material)
-        ? material
-        : [material];
+      const materials = Array.isArray(material) ? material : [material];
       materials.forEach((entry) => entry.dispose());
       if (object instanceof SkinnedMesh) object.skeleton.dispose();
     }

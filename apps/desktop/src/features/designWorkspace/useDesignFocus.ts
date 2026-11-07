@@ -14,7 +14,15 @@ export function useDesignFocus(scene: EditorScene | null): void {
     scene.setDesignFocus({
       mode,
       componentKind: mode === "edit" ? componentKind : null,
-      componentSelection: picked ? { objectId: picked.objectId, meshPath: [...picked.meshPath], kind: componentKind, ids: [...picked.ids], modifiersEnabled: false } : null,
+      componentSelection: picked
+        ? {
+            objectId: picked.objectId,
+            meshPath: [...picked.meshPath],
+            kind: componentKind,
+            ids: [...picked.ids],
+            modifiersEnabled: false,
+          }
+        : null,
     });
   }, [scene, mode, componentKind, componentSelection]);
 }

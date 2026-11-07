@@ -41,7 +41,9 @@ const eventPayloadSchemas: { readonly [K in AgentRunEventType]: z.ZodType<AgentR
   }),
   "viewport.captured": z.object({
     captureId: z.string(),
-    views: z.array(z.object({ label: z.string(), width: z.number().int().positive(), height: z.number().int().positive() })),
+    views: z.array(
+      z.object({ label: z.string(), width: z.number().int().positive(), height: z.number().int().positive() }),
+    ),
     imagesSent: z.boolean(),
   }),
   "approval.required": z.object({

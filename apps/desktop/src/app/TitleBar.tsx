@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 const controlClassName =
   "grid h-9 w-[46px] cursor-pointer place-items-center hover:bg-accent focus-visible:-outline-offset-[3px] focus-visible:outline-2 focus-visible:outline-ring";
 
+/** The custom title bar, with the window controls. It replaces the native window frame. */
 export function TitleBar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Settings has links to other pages, such as "Learn more" in the shortcut list; the dialog must not stay over them.
@@ -23,26 +24,13 @@ export function TitleBar() {
       className="relative z-10 flex h-9 shrink-0 bg-card font-sans text-[13px] text-foreground"
       aria-label="Window title bar"
     >
-      <div
-        className="flex min-w-0 flex-1 select-none items-center gap-2 pl-3"
-        data-tauri-drag-region
-      >
-        <img
-          src="/logo/movynta-silver.svg"
-          alt=""
-          className="h-5 w-5 object-contain"
-          data-tauri-drag-region
-        />
+      <div className="flex min-w-0 flex-1 select-none items-center gap-2 pl-3" data-tauri-drag-region>
+        <img src="/logo/movynta-silver.svg" alt="" className="h-5 w-5 object-contain" data-tauri-drag-region />
       </div>
       <div className="flex">
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
           <DialogTrigger asChild>
-            <button
-              type="button"
-              className={controlClassName}
-              aria-label="Settings"
-              title="Settings"
-            >
+            <button type="button" className={controlClassName} aria-label="Settings" title="Settings">
               <Settings size={16} strokeWidth={1.5} />
             </button>
           </DialogTrigger>
@@ -68,10 +56,7 @@ export function TitleBar() {
         </button>
         <button
           type="button"
-          className={cn(
-            controlClassName,
-            "hover:bg-destructive hover:text-background",
-          )}
+          className={cn(controlClassName, "hover:bg-destructive hover:text-background")}
           aria-label="Close"
           title="Close"
           onClick={() => void window.close()}

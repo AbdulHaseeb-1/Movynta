@@ -107,7 +107,12 @@ function copyForExport(object: Object3D, meters: number): Object3D {
  * faces of a mirrored mesh are turned so they still face outward. Names, the hierarchy and each object's origin
  * are kept, and the object looks in Blender as it does in the workspace.
  */
-function bakeMirror(originals: readonly Object3D[], copies: readonly Object3D[], placement: Matrix4, toMeters: Matrix4): void {
+function bakeMirror(
+  originals: readonly Object3D[],
+  copies: readonly Object3D[],
+  placement: Matrix4,
+  toMeters: Matrix4,
+): void {
   const [root] = copies;
   if (!root) return;
   const position = new Vector3();
@@ -122,7 +127,10 @@ function bakeMirror(originals: readonly Object3D[], copies: readonly Object3D[],
   // Where each original node sits in the copy's frame: its matrix there, and so its origin and linear part.
   const frames = new Map<Object3D, Matrix4>();
   originals.forEach((original) => {
-    frames.set(original, new Matrix4().multiplyMatrices(toFrame, new Matrix4().multiplyMatrices(toMeters, original.matrixWorld)));
+    frames.set(
+      original,
+      new Matrix4().multiplyMatrices(toFrame, new Matrix4().multiplyMatrices(toMeters, original.matrixWorld)),
+    );
   });
   originals.forEach((original, index) => {
     const copy = copies[index];
@@ -138,7 +146,8 @@ function bakeMirror(originals: readonly Object3D[], copies: readonly Object3D[],
       copy.scale.set(1, 1, 1);
     }
     if (!isMesh(copy)) return;
-    if (copy instanceof SkinnedMesh) throw new Error("A mirrored object with a skinned mesh cannot be exported for Blender yet.");
+    if (copy instanceof SkinnedMesh)
+      throw new Error("A mirrored object with a skinned mesh cannot be exported for Blender yet.");
     // The rotation, scale and mirror, without the translation the node already carries.
     const linear = frame.clone().setPosition(0, 0, 0);
     copy.geometry = placedGeometry(copy.geometry, linear);

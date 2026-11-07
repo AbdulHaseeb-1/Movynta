@@ -18,5 +18,6 @@ import { CommandProposalService } from "./proposals/command-proposal.service.js"
     CommandProposalService,
   ],
   exports: [EDITOR_BRIDGE, CommandProposalService],
+/** Connects the backend to the desktop editor over a WebSocket. */
 })
 export class EditorBridgeModule {}

@@ -5,28 +5,15 @@ import { useAppDispatch } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SettingsDialog } from "@/features/settings";
 import { ProviderIcon, providerNames } from "@/features/providers";
 import { backendRequest, errorMessage } from "@/lib/backend";
 import { formatModelName } from "./modelNames";
 import { useAssistantSelection } from "./useAssistantSelection";
 import { useChatgptModelSync } from "./useChatgptModelSync";
-import {
-  selectAssistantModel,
-  selectAssistantProvider,
-} from "./selectionSlice";
+import { selectAssistantModel, selectAssistantProvider } from "./selectionSlice";
 
 interface LoadedModels {
   providerId: string;
@@ -36,6 +23,7 @@ interface LoadedModels {
 
 const NO_MODELS: string[] = [];
 
+/** The composer control that picks the provider and model for the next request. */
 export function ModelProviderSelector({ disabled }: { disabled: boolean }) {
   return <SelectorControls disabled={disabled} />;
 }
@@ -55,16 +43,18 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
     if (!provider) return;
     const id = provider.id;
     setLoadingFor(id);
-    setLoaded((before) => (before.providerId === id ? { ...before, message: "" } : { providerId: id, models: NO_MODELS, message: "" }));
+    setLoaded((before) =>
+      before.providerId === id ? { ...before, message: "" } : { providerId: id, models: NO_MODELS, message: "" },
+    );
     try {
-      const result = await backendRequest(
-        `/providers/${id}/models`,
-        z.object({ models: z.array(z.string()) }),
-        "POST",
-      );
+      const result = await backendRequest(`/providers/${id}/models`, z.object({ models: z.array(z.string()) }), "POST");
       setLoaded({ providerId: id, models: result.models, message: `${result.models.length} models loaded` });
     } catch (error) {
-      setLoaded((before) => ({ providerId: id, models: before.providerId === id ? before.models : NO_MODELS, message: errorMessage(error) }));
+      setLoaded((before) => ({
+        providerId: id,
+        models: before.providerId === id ? before.models : NO_MODELS,
+        message: errorMessage(error),
+      }));
     } finally {
       setLoadingFor((now) => (now === id ? "" : now));
     }
@@ -77,14 +67,8 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
     dispatch(selectAssistantModel({ id: provider.id, model: value.trim() }));
     setOpen(false);
   }
-  const options = [
-    ...new Set([model, provider?.model ?? "", ...models]),
-  ].filter(
-    (value) =>
-      value &&
-      `${value} ${formatModelName(value)}`
-        .toLowerCase()
-        .includes(query.trim().toLowerCase()),
+  const options = [...new Set([model, provider?.model ?? "", ...models])].filter(
+    (value) => value && `${value} ${formatModelName(value)}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
   return (
     <>
@@ -92,8 +76,7 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
-          if (next && !models.length && !loading && connected && provider)
-            void loadModels();
+          if (next && !models.length && !loading && connected && provider) void loadModels();
         }}
         modal={false}
       >
@@ -106,9 +89,7 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
             title={model || undefined}
             className="min-w-0 max-w-[min(200px,45vw)] gap-1.5 px-2 text-xs font-medium text-foreground/90 hover:bg-foreground/10 hover:text-foreground"
           >
-            <span className="truncate">
-              {model ? formatModelName(model) : "Select a model"}
-            </span>
+            <span className="truncate">{model ? formatModelName(model) : "Select a model"}</span>
             <ChevronDown className="size-3 shrink-0 opacity-60" />
           </Button>
         </DropdownMenuTrigger>
@@ -119,22 +100,15 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
           className="flex max-h-[var(--radix-dropdown-menu-content-available-height)] w-[min(320px,calc(100vw-40px))] flex-col gap-3 overflow-hidden"
           onInteractOutside={(event) => {
             // The provider list renders in its own portal; picking from it is not an outside click.
-            if (
-              event.target instanceof Element &&
-              event.target.closest('[data-slot="select-content"]')
-            )
+            if (event.target instanceof Element && event.target.closest('[data-slot="select-content"]'))
               event.preventDefault();
           }}
           onCloseAutoFocus={(event) => {
-            if (document.querySelector('[role="dialog"][data-state="open"]'))
-              event.preventDefault();
+            if (document.querySelector('[role="dialog"][data-state="open"]')) event.preventDefault();
           }}
         >
           <div className="flex flex-col gap-1.5">
-            <label
-              className="text-[11px] font-medium text-muted-foreground"
-              htmlFor="assistant-provider"
-            >
+            <label className="text-[11px] font-medium text-muted-foreground" htmlFor="assistant-provider">
               Provider
             </label>
             <div className="flex gap-2">
@@ -154,10 +128,7 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
                   }
                 }}
               >
-                <SelectTrigger
-                  id="assistant-provider"
-                  className="min-w-0 flex-1"
-                >
+                <SelectTrigger id="assistant-provider" className="min-w-0 flex-1">
                   <SelectValue placeholder="No provider configured" />
                 </SelectTrigger>
                 <SelectContent>
@@ -180,9 +151,7 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
                 onClick={() => void loadModels()}
                 aria-label="Refresh models"
               >
-                <RefreshCw
-                  className={loading ? "size-3.5 animate-spin" : "size-3.5"}
-                />
+                <RefreshCw className={loading ? "size-3.5 animate-spin" : "size-3.5"} />
               </Button>
               <Button
                 type="button"
@@ -201,10 +170,7 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label
-              className="text-[11px] font-medium text-muted-foreground"
-              htmlFor="assistant-model-search"
-            >
+            <label className="text-[11px] font-medium text-muted-foreground" htmlFor="assistant-model-search">
               Model
             </label>
             <Input
@@ -234,13 +200,9 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
                 className="h-auto justify-between gap-2 px-2 py-1.5 text-left text-xs font-normal"
               >
                 <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="truncate text-[13px]">
-                    {formatModelName(id)}
-                  </span>
+                  <span className="truncate text-[13px]">{formatModelName(id)}</span>
                   {formatModelName(id) !== id && (
-                    <span className="truncate text-[11px] text-muted-foreground">
-                      {id}
-                    </span>
+                    <span className="truncate text-[11px] text-muted-foreground">{id}</span>
                   )}
                 </span>
                 {model === id && <Check className="size-3.5 shrink-0" />}
@@ -258,11 +220,7 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
             )}
           </div>
           <output className="min-h-4 text-[11px] text-muted-foreground">
-            {!connected
-              ? "Waiting for local backend…"
-              : !provider
-                ? "Configure a provider to start."
-                : message}
+            {!connected ? "Waiting for local backend…" : !provider ? "Configure a provider to start." : message}
           </output>
         </DropdownMenuContent>
       </DropdownMenu>

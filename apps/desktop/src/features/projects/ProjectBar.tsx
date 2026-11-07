@@ -17,18 +17,10 @@ interface ProjectBarProps {
   className?: string;
 }
 
-const surface =
-  "bg-black/60 shadow-2xl backdrop-blur-2xl backdrop-saturate-150";
+const surface = "bg-black/60 shadow-2xl backdrop-blur-2xl backdrop-saturate-150";
 
 /** The strip over the workspace: a way back, the project's name, and its controls. */
-export function ProjectBar({
-  project,
-  onAction,
-  onRename,
-  error = "",
-  onDismissError,
-  className,
-}: ProjectBarProps) {
+export function ProjectBar({ project, onAction, onRename, error = "", onDismissError, className }: ProjectBarProps) {
   return (
     <div className={cn("relative flex items-center gap-1.5", className)}>
       {error && (
@@ -61,20 +53,12 @@ export function ProjectBar({
       >
         <ArrowLeft className="size-4" />
       </Link>
-      <div
-        className={cn("flex h-8 items-center gap-1 rounded-full pr-1 pl-2", surface)}
-      >
+      <div className={cn("flex h-8 items-center gap-1 rounded-full pr-1 pl-2", surface)}>
         {project ? (
           <>
-            <ProjectTitle
-              name={project.name}
-              onRename={(name) => onRename(project, name)}
-            />
+            <ProjectTitle name={project.name} onRename={(name) => onRename(project, name)} />
             {project.starred && (
-              <Star
-                className="size-3.5 shrink-0 fill-current text-foreground"
-                aria-label="Starred"
-              />
+              <Star className="size-3.5 shrink-0 fill-current text-foreground" aria-label="Starred" />
             )}
             {project.archived && (
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-foreground/10 px-2 py-1 text-[11px] leading-none text-muted-foreground">
@@ -82,12 +66,7 @@ export function ProjectBar({
                 Archived
               </span>
             )}
-            <ProjectActionsMenu
-              project={project}
-              onAction={onAction}
-              align="start"
-              hideOpen
-            >
+            <ProjectActionsMenu project={project} onAction={onAction} align="start" hideOpen>
               <Button
                 type="button"
                 variant="ghost"
@@ -102,9 +81,7 @@ export function ProjectBar({
         ) : (
           <>
             <ProjectTitle name="" readOnly onRename={() => Promise.resolve()} />
-            <span className="mr-2 text-[11px] text-muted-foreground/80">
-              Saved with your first prompt
-            </span>
+            <span className="mr-2 text-[11px] text-muted-foreground/80">Saved with your first prompt</span>
           </>
         )}
       </div>

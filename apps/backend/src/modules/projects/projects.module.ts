@@ -9,5 +9,6 @@ import { ProjectsService } from "./projects.service.js";
   controllers: [ProjectsController],
   providers: [ProjectAccessService, ProjectsRepository, ProjectsService, ProjectScenesService],
   exports: [ProjectAccessService, ProjectScenesService, ProjectsService],
+/** The projects feature: the project library, scenes and history. */
 })
 export class ProjectsModule {}

@@ -72,12 +72,17 @@ export function useImageAttachments(): ImageAttachments {
         // eslint-disable-next-line no-await-in-loop -- One picture at a time keeps memory use flat.
         const image = await prepareImage(file, position);
         if (isCurrent() && !fitsTotal(taken.current, image.bytes)) {
-          throw new AttachmentError(`"${image.name}" would take the images past ${MAX_ATTACHMENT_TOTAL_BYTES / (1024 * 1024)} MB together. Remove one or choose a smaller picture.`);
+          throw new AttachmentError(
+            `"${image.name}" would take the images past ${MAX_ATTACHMENT_TOTAL_BYTES / (1024 * 1024)} MB together. Remove one or choose a smaller picture.`,
+          );
         }
         if (isCurrent()) {
           // Pictures pasted from the clipboard are numbered by how many were there when they arrived, so two
           // that arrive together, or one after another's removal, would otherwise share a name.
-          const name = uniqueName(image.name, taken.current.map((other) => other.name));
+          const name = uniqueName(
+            image.name,
+            taken.current.map((other) => other.name),
+          );
           taken.current = [...taken.current, { ...image, name }];
           setImages(taken.current);
         }
@@ -111,7 +116,17 @@ export function useImageAttachments(): ImageAttachments {
   const dismissError = useCallback(() => setError(""), []);
 
   return useMemo(
-    () => ({ images, preparing: pending > 0, pending, error, full: images.length + pending >= MAX_ATTACHMENTS, add, remove, clear, dismissError }),
+    () => ({
+      images,
+      preparing: pending > 0,
+      pending,
+      error,
+      full: images.length + pending >= MAX_ATTACHMENTS,
+      add,
+      remove,
+      clear,
+      dismissError,
+    }),
     [images, pending, error, add, remove, clear, dismissError],
   );
 }

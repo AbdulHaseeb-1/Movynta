@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { editorCommandListSchema, identifierSchema, measurementRequestSchema, meshInspectionRequestSchema, viewCaptureRequestSchema } from "@movynta/editor-protocol";
 import {
-  BACKEND_URL,
-  backendToken,
-  ensureBackendConnection,
-} from "@/lib/backend";
+  editorCommandListSchema,
+  identifierSchema,
+  measurementRequestSchema,
+  meshInspectionRequestSchema,
+  viewCaptureRequestSchema,
+} from "@movynta/editor-protocol";
+import { BACKEND_URL, backendToken, ensureBackendConnection } from "@/lib/backend";
 import { rememberCapture, type ViewCaptureHandler } from "@/features/viewCapture";
 import type { EditorScene } from "./EditorScene";
 import { executionSchema, executeSafely } from "./commandExecution";
@@ -19,11 +21,14 @@ const messageSchema = z.object({
  * Answers a request to look at the scene. A view that cannot be drawn is an answer, not a reason to drop the
  * connection, so the assistant is told why and can ask differently.
  */
-const viewCandidateSchema = z.object({
-  proposalId: identifierSchema,
-  revision: z.number().int().nonnegative(),
-  commands: editorCommandListSchema,
-}).strict().optional();
+const viewCandidateSchema = z
+  .object({
+    proposalId: identifierSchema,
+    revision: z.number().int().nonnegative(),
+    commands: editorCommandListSchema,
+  })
+  .strict()
+  .optional();
 
 function answerViewRequest(
   data: Record<string, unknown>,
@@ -36,14 +41,21 @@ function answerViewRequest(
     if (!capture) throw new Error("The viewport is not available");
     const request = viewCaptureRequestSchema.parse(data["request"]);
     const candidate = viewCandidateSchema.parse(data["candidate"]);
-    if (request.proposalId !== candidate?.proposalId) throw new Error("The proposal preview was not supplied by the backend");
+    if (request.proposalId !== candidate?.proposalId)
+      throw new Error("The proposal preview was not supplied by the backend");
     const result = capture(request, { withImages: data["withImages"] === true, ...(candidate ? { candidate } : {}) });
     // The chat shows the user what the assistant is about to see, found again by the id the backend gave this capture.
     const captureId = data["captureId"];
     if (typeof captureId === "string") rememberCapture(captureId, result.images);
     send("view.response", { requestId, result });
   } catch (error) {
-    send("view.error", { requestId, message: error instanceof z.ZodError ? "The view request was not valid" : failureReason(error, "The view could not be drawn") });
+    send("view.error", {
+      requestId,
+      message:
+        error instanceof z.ZodError
+          ? "The view request was not valid"
+          : failureReason(error, "The view could not be drawn"),
+    });
   }
 }
 
@@ -94,7 +106,12 @@ function answerCommands(
   }
   const requestId = data["requestId"];
   if (typeof requestId === "string")
-    send("commands.result", { requestId, status: "failed", results: [], message: "The editor could not read this command batch" });
+    send("commands.result", {
+      requestId,
+      status: "failed",
+      results: [],
+      message: "The editor could not read this command batch",
+    });
 }
 
 export interface EditorConnection {
@@ -113,9 +130,7 @@ export async function connectEditor(
   await waitForAbortable(signal, ensureBackendConnection);
   signal.throwIfAborted();
   return new Promise((resolve, reject) => {
-    const socket = new WebSocket(
-      `${BACKEND_URL.replace("http:", "ws:")}/api/v1/editor/ws`,
-    );
+    const socket = new WebSocket(`${BACKEND_URL.replace("http:", "ws:")}/api/v1/editor/ws`);
     const timer = window.setTimeout(() => {
       socket.close();
       reject(new Error("Editor connection timed out"));
@@ -165,15 +180,17 @@ export async function connectEditor(
       const send = (name: string, data: unknown) => {
         if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ event: name, data }));
       };
-      if (
-        message.event === "auth.ok" &&
-        typeof message.data["clientId"] === "string"
-      ) {
+      if (message.event === "auth.ok" && typeof message.data["clientId"] === "string") {
         authenticated = true;
         clearTimeout(timer);
         const clientId = message.data["clientId"];
         if (message.data["recoveryRequired"] === true || editor.requiresRecovery) {
-          void recoverSavedScene(editor).then(() => resolve({ clientId, close })).catch((error: unknown) => { close(); reject(error); });
+          void recoverSavedScene(editor)
+            .then(() => resolve({ clientId, close }))
+            .catch((error: unknown) => {
+              close();
+              reject(error);
+            });
         } else resolve({ clientId, close });
         return;
       }

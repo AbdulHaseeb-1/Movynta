@@ -22,7 +22,12 @@ export function MessageAttachments({ attachments }: { attachments: readonly Mess
                 aria-label={`Open ${attachment.name}`}
                 className="block overflow-hidden rounded-xl border border-border bg-card outline-none transition-colors hover:border-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <img src={attachment.src} alt={attachment.name} className="block size-20 object-cover" draggable={false} />
+                <img
+                  src={attachment.src}
+                  alt={attachment.name}
+                  className="block size-20 object-cover"
+                  draggable={false}
+                />
               </button>
             ) : (
               <span
@@ -40,7 +45,9 @@ export function MessageAttachments({ attachments }: { attachments: readonly Mess
         <DialogContent className="z-[100] w-[min(880px,calc(100vw-32px))] gap-3 p-4">
           <DialogTitle className="pr-6 text-sm font-semibold break-all">{open?.name}</DialogTitle>
           <DialogDescription className="sr-only">The picture you sent with this message.</DialogDescription>
-          {open?.src && <img src={open.src} alt={open.name} className="max-h-[70vh] w-full rounded-md object-contain" />}
+          {open?.src && (
+            <img src={open.src} alt={open.name} className="max-h-[70vh] w-full rounded-md object-contain" />
+          )}
         </DialogContent>
       </Dialog>
     </>

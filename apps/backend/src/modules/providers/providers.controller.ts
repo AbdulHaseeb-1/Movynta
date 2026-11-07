@@ -12,6 +12,7 @@ function providerId(value: string): ProviderId {
   if (!id) throw new ValidationFailedError("Unknown provider");
   return id;
 }
+/** HTTP endpoints for the model providers: save, select, test, list models, and the ChatGPT sign-in. */
 @Controller({ path: "providers", version: "1" })
 export class ProvidersController {
   constructor(private readonly providers: ProvidersService) {}
@@ -19,38 +20,18 @@ export class ProvidersController {
     return this.providers.list(user.id);
   }
   /** What a model supports, so clients only offer settings that will be accepted. */
-  @Get(":id/capabilities") capabilities(
-    @Param("id") id: string,
-    @Query("model") model?: string,
-  ) {
+  @Get(":id/capabilities") capabilities(@Param("id") id: string, @Query("model") model?: string) {
     if (!model || model.length > 160 || !/^[A-Za-z0-9._:/-]+$/.test(model))
       throw new ValidationFailedError("A valid model is required");
     return { efforts: reasoningEffortsFor(providerId(id), model) };
   }
-  @Post("active") activate(
-    @CurrentUser() user: AuthUser,
-    @Body() body: SelectProviderDto,
-  ) {
+  @Post("active") activate(@CurrentUser() user: AuthUser, @Body() body: SelectProviderDto) {
     return this.providers.activate(user.id, body.id);
   }
-  @Post(":id") save(
-    @CurrentUser() user: AuthUser,
-    @Param("id") id: string,
-    @Body() body: SaveProviderDto,
-  ) {
-    return this.providers.save(
-      user.id,
-      providerId(id),
-      body.model,
-      body.apiKey,
-      body.baseUrl,
-      body.acceptsImages,
-    );
+  @Post(":id") save(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: SaveProviderDto) {
+    return this.providers.save(user.id, providerId(id), body.model, body.apiKey, body.baseUrl, body.acceptsImages);
   }
-  @Delete(":id") remove(
-    @CurrentUser() user: AuthUser,
-    @Param("id") id: string,
-  ) {
+  @Delete(":id") remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.providers.remove(user.id, providerId(id));
   }
   @Post(":id/models") models(
@@ -58,19 +39,10 @@ export class ProvidersController {
     @Param("id") id: string,
     @Body() body: ProbeProviderDto = {},
   ) {
-    return this.providers.models(
-      user.id,
-      providerId(id),
-      body.apiKey,
-      body.baseUrl,
-    );
+    return this.providers.models(user.id, providerId(id), body.apiKey, body.baseUrl);
   }
   @Post(":id/test")
-  test(
-    @CurrentUser() user: AuthUser,
-    @Param("id") id: string,
-    @Body() body: ProbeProviderDto = {},
-  ) {
+  test(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: ProbeProviderDto = {}) {
     return this.providers.testConnection(user.id, providerId(id), body);
   }
 }

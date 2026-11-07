@@ -1,4 +1,8 @@
-import { combineSelection, selectionOperation, type SelectionOperation } from "@/features/viewport3d/selectionOperation";
+import {
+  combineSelection,
+  selectionOperation,
+  type SelectionOperation,
+} from "@/features/viewport3d/selectionOperation";
 import type { Point } from "./transformPlayground";
 
 /** One selectable item in the flat example, standing in for an object or a mesh component. */
@@ -28,7 +32,10 @@ export function rectFrom(a: Point, b: Point): Rect {
 /** The items whose centers lie in the rectangle, as box selection in the workspace counts them. */
 export function itemsInRect(items: readonly PlaygroundItem[], rect: Rect): string[] {
   return items
-    .filter(({ center }) => center.x >= rect.left && center.x <= rect.right && center.y >= rect.top && center.y <= rect.bottom)
+    .filter(
+      ({ center }) =>
+        center.x >= rect.left && center.x <= rect.right && center.y >= rect.top && center.y <= rect.bottom,
+    )
     .map(({ id }) => id);
 }
 

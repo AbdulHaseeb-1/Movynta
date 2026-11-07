@@ -9,7 +9,6 @@ import { isShortcutBlocked, isTypingTarget } from "@/lib/dom";
 /** A drag shorter than this, in pixels, is a click that missed, not a rectangle. */
 const MIN_BOX_PX = 4;
 
-
 /**
  * Selecting many objects at once, with the keys Blender uses: A selects everything, Alt+A selects
  * nothing, and B lets you drag a rectangle round the objects to select. In Select mode, dragging
@@ -60,7 +59,10 @@ export class SelectionTools {
 
     // Also in the capture phase, so the press that starts a rectangle never reaches the camera or the handles.
     const onPointerDown = (event: PointerEvent) => {
-      if (!this.view.enabled()) { if (this.armed || this.start) this.cancel(); return; }
+      if (!this.view.enabled()) {
+        if (this.armed || this.start) this.cancel();
+        return;
+      }
       if (!this.armed) {
         if (event.button !== 0 || this.navigationHeld || !this.view.enabled() || this.view.tool() !== "select") return;
         const point = toNdc(event.clientX, event.clientY, dom.getBoundingClientRect());
@@ -77,12 +79,19 @@ export class SelectionTools {
       dom.setPointerCapture(event.pointerId);
     };
     const onPointerMove = (event: PointerEvent) => {
-      if (this.start && (Math.abs(event.clientX - this.start.x) >= MIN_BOX_PX || Math.abs(event.clientY - this.start.y) >= MIN_BOX_PX)) this.draw(event.clientX, event.clientY, event);
+      if (
+        this.start &&
+        (Math.abs(event.clientX - this.start.x) >= MIN_BOX_PX || Math.abs(event.clientY - this.start.y) >= MIN_BOX_PX)
+      )
+        this.draw(event.clientX, event.clientY, event);
     };
     const onPointerUp = (event: PointerEvent) => {
       const start = this.start;
       if (!start) return;
-      if (!this.view.enabled()) { this.cancel(); return; }
+      if (!this.view.enabled()) {
+        this.cancel();
+        return;
+      }
       event.stopImmediatePropagation();
       if (dom.hasPointerCapture(event.pointerId)) dom.releasePointerCapture(event.pointerId);
       const wide = Math.abs(event.clientX - start.x) >= MIN_BOX_PX || Math.abs(event.clientY - start.y) >= MIN_BOX_PX;
@@ -91,8 +100,13 @@ export class SelectionTools {
       this.cancel();
     };
     const onPointerCancel = () => this.cancel();
-    const onKeyUp = (event: KeyboardEvent) => { if (event.key === " ") this.navigationHeld = false; };
-    const onBlur = () => { this.navigationHeld = false; this.cancel(); };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === " ") this.navigationHeld = false;
+    };
+    const onBlur = () => {
+      this.navigationHeld = false;
+      this.cancel();
+    };
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
     dom.addEventListener("pointerdown", onPointerDown, true);

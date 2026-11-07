@@ -90,13 +90,7 @@ export interface StoredAsset {
   readonly content: Uint8Array;
 }
 
-export type ProjectMessageStatus =
-  | "created"
-  | "running"
-  | "waiting_approval"
-  | "completed"
-  | "failed"
-  | "cancelled";
+export type ProjectMessageStatus = "created" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled";
 
 /** One request and its reply, which is how a project's chat is restored. */
 export interface ProjectMessage {

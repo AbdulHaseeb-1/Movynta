@@ -23,27 +23,22 @@ export function listQuery(filters: ProjectFilters): string {
   return params.toString();
 }
 
-export function listProjects(
-  filters: ProjectFilters,
-  signal?: AbortSignal,
-): Promise<Project[]> {
-  return backendRequest(
-    `/projects?${listQuery(filters)}`,
-    projectsSchema,
-    "GET",
-    undefined,
-    signal,
-  );
+/** Lists the projects that match the filters. The request can be cancelled with the signal. */
+export function listProjects(filters: ProjectFilters, signal?: AbortSignal): Promise<Project[]> {
+  return backendRequest(`/projects?${listQuery(filters)}`, projectsSchema, "GET", undefined, signal);
 }
 
+/** Reads one project by id. */
 export function getProject(id: string): Promise<Project> {
   return backendRequest(`/projects/${id}`, projectSchema);
 }
 
+/** Creates a project in a category, and returns it. */
 export function createProject(category: ProjectCategoryId): Promise<Project> {
   return backendRequest("/projects", projectSchema, "POST", { category });
 }
 
+/** Changes a project's name, star or archive state, and returns it. */
 export function updateProject(
   id: string,
   patch: { name?: string; starred?: boolean; archived?: boolean },
@@ -51,23 +46,22 @@ export function updateProject(
   return backendRequest(`/projects/${id}`, projectSchema, "PATCH", patch);
 }
 
+/** Copies a project with its scene, and returns the copy. */
 export function duplicateProject(id: string): Promise<Project> {
   return backendRequest(`/projects/${id}/duplicate`, projectSchema, "POST");
 }
 
+/** Deletes a project. */
 export function deleteProject(id: string): Promise<void> {
   return backendRequest(`/projects/${id}`, z.void(), "DELETE");
 }
 
+/** Reads a project's saved scene. */
 export function getProjectScene(id: string) {
   return backendRequest(`/projects/${id}/scene`, projectSceneSchema);
 }
 
-export function getProjectConversation(
-  id: string,
-): Promise<ProjectConversation> {
-  return backendRequest(
-    `/projects/${id}/conversation`,
-    projectConversationSchema,
-  );
+/** Reads the saved chat of a project. */
+export function getProjectConversation(id: string): Promise<ProjectConversation> {
+  return backendRequest(`/projects/${id}/conversation`, projectConversationSchema);
 }

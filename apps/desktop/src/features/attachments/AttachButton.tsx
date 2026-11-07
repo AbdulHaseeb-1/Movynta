@@ -25,7 +25,16 @@ export function AttachButton({ disabled = false, disabledReason, onFiles }: Atta
 
   return (
     <>
-      <input ref={input} type="file" accept={ACCEPT} multiple hidden tabIndex={-1} aria-hidden onChange={handleChange} />
+      <input
+        ref={input}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        hidden
+        tabIndex={-1}
+        aria-hidden
+        onChange={handleChange}
+      />
       <Tooltip>
         <TooltipTrigger asChild>
           {/* A disabled button swallows hover, so the span carries the tooltip. */}
@@ -43,7 +52,9 @@ export function AttachButton({ disabled = false, disabledReason, onFiles }: Atta
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent>{disabledReason ?? `Attach images (up to ${MAX_ATTACHMENTS}) · or paste or drop them`}</TooltipContent>
+        <TooltipContent>
+          {disabledReason ?? `Attach images (up to ${MAX_ATTACHMENTS}) · or paste or drop them`}
+        </TooltipContent>
       </Tooltip>
     </>
   );

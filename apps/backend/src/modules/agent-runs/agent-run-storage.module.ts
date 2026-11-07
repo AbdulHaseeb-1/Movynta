@@ -6,5 +6,6 @@ import { AgentRunRepository } from "./agent-run.repository.js";
 @Module({
   providers: [AgentRunRepository, AgentRunEventsService],
   exports: [AgentRunRepository, AgentRunEventsService],
+/** Provides the storage for agent runs, their events and their state. */
 })
 export class AgentRunStorageModule {}

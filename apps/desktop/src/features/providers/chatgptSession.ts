@@ -72,10 +72,7 @@ export function describeChatgptSession(session: ChatgptSession | null): string {
   if (session?.state === "expired") return "Sign-in expired";
   if (session?.state !== "connected") return "";
   const days = session.expiresAt ? daysUntil(session.expiresAt) : null;
-  return [
-    session.email,
-    days === null ? null : `${days} ${days === 1 ? "day" : "days"} left`,
-  ]
+  return [session.email, days === null ? null : `${days} ${days === 1 ? "day" : "days"} left`]
     .filter(Boolean)
     .join(" · ");
 }

@@ -122,10 +122,7 @@ export interface AgentRunEvent {
 
 /** Narrow sink given to tools so they can report progress without knowing about storage. */
 export interface AgentRunEventSink {
-  emit<T extends AgentRunEventType>(
-    type: T,
-    payload: AgentRunEventPayloads[T],
-  ): void;
+  emit<T extends AgentRunEventType>(type: T, payload: AgentRunEventPayloads[T]): void;
 }
 
 export interface AgentRunRecord {
@@ -197,8 +194,7 @@ export interface AgentRunView {
   readonly agentId: string;
   readonly status: AgentRunStatus;
   readonly finalOutput: string | undefined;
-  readonly error:
-    { readonly code: string; readonly message: string } | undefined;
+  readonly error: { readonly code: string; readonly message: string } | undefined;
   readonly usage: Readonly<Record<string, number>> | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;

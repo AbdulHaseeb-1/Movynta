@@ -29,7 +29,5 @@ export function formatRelativeTime(iso: string, now = Date.now()): string {
   if (elapsed < DAY) return relative.format(-Math.floor(elapsed / HOUR), "hour");
   if (elapsed < 7 * DAY) return relative.format(-Math.floor(elapsed / DAY), "day");
   const date = new Date(time);
-  return (
-    date.getFullYear() === new Date(now).getFullYear() ? calendar : calendarWithYear
-  ).format(date);
+  return (date.getFullYear() === new Date(now).getFullYear() ? calendar : calendarWithYear).format(date);
 }

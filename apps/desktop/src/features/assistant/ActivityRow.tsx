@@ -1,18 +1,12 @@
 import { useState } from "react";
 import { Check, ChevronRight, CircleAlert, LoaderCircle } from "lucide-react";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { CaptureGallery } from "@/features/viewCapture";
 import type { ActivityStep } from "./types";
 
 function formatDuration(durationMs: number): string {
-  return durationMs < 1000
-    ? `${Math.round(durationMs)} ms`
-    : `${(durationMs / 1000).toFixed(1)} s`;
+  return durationMs < 1000 ? `${Math.round(durationMs)} ms` : `${(durationMs / 1000).toFixed(1)} s`;
 }
 
 function StatusGlyph({ status }: { status: ActivityStep["status"] }) {
@@ -22,10 +16,7 @@ function StatusGlyph({ status }: { status: ActivityStep["status"] }) {
       className="grid size-4 shrink-0 animate-in place-items-center duration-200 fade-in zoom-in-50 motion-reduce:animate-none"
     >
       {status === "running" ? (
-        <LoaderCircle
-          className="size-3.5 animate-spin motion-reduce:animate-none"
-          aria-label="In progress"
-        />
+        <LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" aria-label="In progress" />
       ) : status === "failed" ? (
         <CircleAlert className="size-3.5 text-foreground" aria-label="Failed" />
       ) : (
@@ -52,14 +43,7 @@ export function StepRow({ step }: { step: ActivityStep }) {
         className="group flex w-full items-center gap-2 rounded-md py-1 text-left text-[12.5px] text-muted-foreground transition-colors outline-none focus-visible:text-foreground enabled:hover:text-foreground disabled:cursor-default"
       >
         <StatusGlyph status={step.status} />
-        <span
-          className={cn(
-            "min-w-0 truncate",
-            step.status === "running" && "text-shimmer",
-          )}
-        >
-          {step.label}
-        </span>
+        <span className={cn("min-w-0 truncate", step.status === "running" && "text-shimmer")}>{step.label}</span>
         {step.durationMs !== undefined && (
           <span className="shrink-0 text-[11px] text-muted-foreground/60 tabular-nums">
             {formatDuration(step.durationMs)}
@@ -75,9 +59,7 @@ export function StepRow({ step }: { step: ActivityStep }) {
         )}
       </CollapsibleTrigger>
       <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down motion-reduce:animate-none">
-        <p className="pb-1.5 pl-6 text-xs leading-relaxed break-words text-muted-foreground">
-          {step.detail}
-        </p>
+        <p className="pb-1.5 pl-6 text-xs leading-relaxed break-words text-muted-foreground">{step.detail}</p>
       </CollapsibleContent>
       {step.captureId && <CaptureGallery captureId={step.captureId} />}
     </Collapsible>

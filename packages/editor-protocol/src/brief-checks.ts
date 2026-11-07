@@ -3,8 +3,13 @@ import type { EditorContext } from "./editor-context.schema.js";
 
 type Axis = "x" | "y" | "z";
 type SceneObject = EditorContext["objects"][number];
-interface Box { readonly min: readonly [number, number, number]; readonly max: readonly [number, number, number] }
-type Resolved = { readonly found: true; readonly object: SceneObject; readonly box: Box } | { readonly found: false; readonly why: string };
+interface Box {
+  readonly min: readonly [number, number, number];
+  readonly max: readonly [number, number, number];
+}
+type Resolved =
+  | { readonly found: true; readonly object: SceneObject; readonly box: Box }
+  | { readonly found: false; readonly why: string };
 
 const AXIS_INDEX: Record<Axis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 /** Absorbs floating-point noise so a part resting exactly on the floor does not fail by 1e-16. */
@@ -36,8 +41,14 @@ function resolve(scene: EditorContext, selector: BriefSelector): Resolved {
   const [object] = found;
   if (object === undefined) return { found: false, why: `no object ${describe(selector)} exists` };
   if (found.length > 1) {
-    const ids = found.slice(0, 4).map((item) => item.id).join(", ");
-    return { found: false, why: `${found.length} objects are ${describe(selector)} (${ids}${found.length > 4 ? ", …" : ""}); use the id of the one meant` };
+    const ids = found
+      .slice(0, 4)
+      .map((item) => item.id)
+      .join(", ");
+    return {
+      found: false,
+      why: `${found.length} objects are ${describe(selector)} (${ids}${found.length > 4 ? ", …" : ""}); use the id of the one meant`,
+    };
   }
   if (!object.worldBounds) return { found: false, why: `"${object.name}" has no geometry bounds yet` };
   return { found: true, object, box: object.worldBounds };
@@ -66,7 +77,14 @@ function defaultTolerance(boxes: readonly Box[], fraction: number): number {
   return Math.max(largest * fraction, EPSILON);
 }
 
-function result(index: number, check: BriefCheck, label: string, status: BriefCheckStatus, measured: string, expected: string): BriefCheckResult {
+function result(
+  index: number,
+  check: BriefCheck,
+  label: string,
+  status: BriefCheckStatus,
+  measured: string,
+  expected: string,
+): BriefCheckResult {
   return { index, label: check.label ?? label, kind: check.kind, status, measured, expected };
 }
 
@@ -100,7 +118,10 @@ function partsUnder(scene: EditorContext, rootId: string): { readonly object: Sc
 }
 
 function touching(a: Box, b: Box, tolerance: number): boolean {
-  return [0, 1, 2].every((axis) => (a.min[axis] ?? 0) <= (b.max[axis] ?? 0) + tolerance && (b.min[axis] ?? 0) <= (a.max[axis] ?? 0) + tolerance);
+  return [0, 1, 2].every(
+    (axis) =>
+      (a.min[axis] ?? 0) <= (b.max[axis] ?? 0) + tolerance && (b.min[axis] ?? 0) <= (a.max[axis] ?? 0) + tolerance,
+  );
 }
 
 function evaluateCheck(scene: EditorContext, check: BriefCheck, index: number): BriefCheckResult {
@@ -108,23 +129,50 @@ function evaluateCheck(scene: EditorContext, check: BriefCheck, index: number): 
     case "count": {
       const found = matching(scene, check.selector).length;
       const min = check.min ?? 1;
-      const expected = check.max === undefined ? `at least ${min}` : min === check.max ? `exactly ${min}` : `${min} to ${check.max}`;
-      return result(index, check, `count of objects ${describe(check.selector)}`, verdict(found >= min && (check.max === undefined || found <= check.max)), `${found} found`, expected);
+      const expected =
+        check.max === undefined ? `at least ${min}` : min === check.max ? `exactly ${min}` : `${min} to ${check.max}`;
+      return result(
+        index,
+        check,
+        `count of objects ${describe(check.selector)}`,
+        verdict(found >= min && (check.max === undefined || found <= check.max)),
+        `${found} found`,
+        expected,
+      );
     }
     case "size": {
       const target = resolve(scene, check.target);
       const label = `size ${check.axis} of ${describe(check.target)}`;
       if (!target.found) return unresolved(index, check, label, target.why);
       const value = extent(target.box, check.axis);
-      return result(index, check, label, verdict(within(value, check.min, check.max)), format(value), range(check.min, check.max));
+      return result(
+        index,
+        check,
+        label,
+        verdict(within(value, check.min, check.max)),
+        format(value),
+        range(check.min, check.max),
+      );
     }
     case "position": {
       const target = resolve(scene, check.target);
       const label = `${check.anchor} ${check.axis} of ${describe(check.target)}`;
       if (!target.found) return unresolved(index, check, label, target.why);
       const at = AXIS_INDEX[check.axis];
-      const value = check.anchor === "min" ? target.box.min[at] : check.anchor === "max" ? target.box.max[at] : (target.box.min[at] + target.box.max[at]) / 2;
-      return result(index, check, label, verdict(within(value, check.min, check.max)), format(value), range(check.min, check.max));
+      const value =
+        check.anchor === "min"
+          ? target.box.min[at]
+          : check.anchor === "max"
+            ? target.box.max[at]
+            : (target.box.min[at] + target.box.max[at]) / 2;
+      return result(
+        index,
+        check,
+        label,
+        verdict(within(value, check.min, check.max)),
+        format(value),
+        range(check.min, check.max),
+      );
     }
     case "gap": {
       const first = resolve(scene, check.first);
@@ -134,7 +182,14 @@ function evaluateCheck(scene: EditorContext, check: BriefCheck, index: number): 
       if (!second.found) return unresolved(index, check, label, second.why);
       const at = AXIS_INDEX[check.axis];
       const value = second.box.min[at] - first.box.max[at];
-      return result(index, check, label, verdict(within(value, check.min, check.max)), format(value), range(check.min, check.max));
+      return result(
+        index,
+        check,
+        label,
+        verdict(within(value, check.min, check.max)),
+        format(value),
+        range(check.min, check.max),
+      );
     }
     case "symmetric": {
       const first = resolve(scene, check.first);
@@ -153,9 +208,19 @@ function evaluateCheck(scene: EditorContext, check: BriefCheck, index: number): 
         const expectedMin = at === mirrored ? 2 * plane - first.box.max[at] : first.box.min[at];
         const expectedMax = at === mirrored ? 2 * plane - first.box.min[at] : first.box.max[at];
         const off = Math.max(Math.abs(second.box.min[at] - expectedMin), Math.abs(second.box.max[at] - expectedMax));
-        if (off > worst) { worst = off; worstAxis = axis; }
+        if (off > worst) {
+          worst = off;
+          worstAxis = axis;
+        }
       }
-      return result(index, check, label, verdict(worst <= tolerance + EPSILON), worst <= EPSILON ? "exact mirror" : `off by ${format(worst)} on ${worstAxis}`, `within ${format(tolerance)}`);
+      return result(
+        index,
+        check,
+        label,
+        verdict(worst <= tolerance + EPSILON),
+        worst <= EPSILON ? "exact mirror" : `off by ${format(worst)} on ${worstAxis}`,
+        `within ${format(tolerance)}`,
+      );
     }
     case "aligned": {
       const first = resolve(scene, check.first);
@@ -166,20 +231,38 @@ function evaluateCheck(scene: EditorContext, check: BriefCheck, index: number): 
       const at = AXIS_INDEX[check.axis];
       const off = Math.abs((first.box.min[at] + first.box.max[at]) / 2 - (second.box.min[at] + second.box.max[at]) / 2);
       const tolerance = check.tolerance ?? defaultTolerance([first.box, second.box], 0.02);
-      return result(index, check, label, verdict(off <= tolerance + EPSILON), `centers differ by ${format(off)}`, `within ${format(tolerance)}`);
+      return result(
+        index,
+        check,
+        label,
+        verdict(off <= tolerance + EPSILON),
+        `centers differ by ${format(off)}`,
+        `within ${format(tolerance)}`,
+      );
     }
     case "connected": {
       const group = resolve(scene, check.group);
       const label = `parts of ${describe(check.group)} form one piece`;
       if (!group.found) return unresolved(index, check, label, group.why);
       const parts = partsUnder(scene, group.object.id);
-      if (parts.length < 2) return result(index, check, label, "pass", `${parts.length} part, nothing to join`, "every part touching the rest");
+      if (parts.length < 2)
+        return result(
+          index,
+          check,
+          label,
+          "pass",
+          `${parts.length} part, nothing to join`,
+          "every part touching the rest",
+        );
       const tolerance = check.tolerance ?? defaultTolerance([group.box], 0.01);
       // Parts are joined into pieces wherever their bounds touch; the largest piece is the body, the rest are loose.
       const piece = parts.map((_, position) => position);
       const root = (position: number): number => {
         let at = position;
-        while (piece[at] !== at) { piece[at] = piece[piece[at] ?? at] ?? at; at = piece[at] ?? at; }
+        while (piece[at] !== at) {
+          piece[at] = piece[piece[at] ?? at] ?? at;
+          at = piece[at] ?? at;
+        }
         return at;
       };
       for (let a = 0; a < parts.length; a += 1) {
@@ -190,12 +273,24 @@ function evaluateCheck(scene: EditorContext, check: BriefCheck, index: number): 
         }
       }
       const sizes = new Map<number, number>();
-      for (let position = 0; position < parts.length; position += 1) sizes.set(root(position), (sizes.get(root(position)) ?? 0) + 1);
+      for (let position = 0; position < parts.length; position += 1)
+        sizes.set(root(position), (sizes.get(root(position)) ?? 0) + 1);
       let body = root(0);
       for (const [key, size] of sizes) if (size > (sizes.get(body) ?? 0)) body = key;
-      const loose = parts.filter((_, position) => root(position) !== body).map((part) => part.object.name || part.object.id);
+      const loose = parts
+        .filter((_, position) => root(position) !== body)
+        .map((part) => part.object.name || part.object.id);
       const shown = loose.slice(0, 5).join(", ") + (loose.length > 5 ? ", …" : "");
-      return result(index, check, label, verdict(loose.length === 0), loose.length === 0 ? `${parts.length} parts form one piece` : `${loose.length} of ${parts.length} parts are detached: ${shown}`, "every part touching the rest");
+      return result(
+        index,
+        check,
+        label,
+        verdict(loose.length === 0),
+        loose.length === 0
+          ? `${parts.length} parts form one piece`
+          : `${loose.length} of ${parts.length} parts are detached: ${shown}`,
+        "every part touching the rest",
+      );
     }
     case "contained": {
       const inner = resolve(scene, check.inner);
@@ -210,10 +305,23 @@ function evaluateCheck(scene: EditorContext, check: BriefCheck, index: number): 
         const at = AXIS_INDEX[axis];
         const below = outer.box.min[at] - inner.box.min[at];
         const above = inner.box.max[at] - outer.box.max[at];
-        if (below > worst) { worst = below; where = `-${axis}`; }
-        if (above > worst) { worst = above; where = `+${axis}`; }
+        if (below > worst) {
+          worst = below;
+          where = `-${axis}`;
+        }
+        if (above > worst) {
+          worst = above;
+          where = `+${axis}`;
+        }
       }
-      return result(index, check, label, verdict(worst <= tolerance + EPSILON), worst <= EPSILON ? "inside" : `sticks out by ${format(worst)} toward ${where}`, `within ${format(tolerance)} of the outside`);
+      return result(
+        index,
+        check,
+        label,
+        verdict(worst <= tolerance + EPSILON),
+        worst <= EPSILON ? "inside" : `sticks out by ${format(worst)} toward ${where}`,
+        `within ${format(tolerance)} of the outside`,
+      );
     }
   }
 }
@@ -222,7 +330,10 @@ function evaluateCheck(scene: EditorContext, check: BriefCheck, index: number): 
  * Measures every check of a brief against a scene snapshot. Pure and synchronous, so the assistant's own checks,
  * the run's completion rules and the quality benchmarks all judge a scene the same way.
  */
-export function evaluateBrief(scene: EditorContext, brief: { readonly checks: readonly BriefCheck[] }): BriefEvaluation {
+export function evaluateBrief(
+  scene: EditorContext,
+  brief: { readonly checks: readonly BriefCheck[] },
+): BriefEvaluation {
   const results = brief.checks.map((check, index) => evaluateCheck(scene, check, index));
   const count = (status: BriefCheckStatus) => results.filter((entry) => entry.status === status).length;
   return {

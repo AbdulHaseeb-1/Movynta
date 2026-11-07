@@ -105,8 +105,7 @@ export function prepareModel(content: Object3D, name: string): PreparedModel {
   const bounds = new Box3().setFromObject(root);
   const size = bounds.getSize(new Vector3());
   const largest = Math.max(size.x, size.y, size.z);
-  if (!Number.isFinite(largest) || largest === 0)
-    throw new Error("This model has no size, so it cannot be shown");
+  if (!Number.isFinite(largest) || largest === 0) throw new Error("This model has no size, so it cannot be shown");
 
   // Scaling the content scales everything about the content's own origin, so the measured box
   // scales the same way and needs no second measurement.

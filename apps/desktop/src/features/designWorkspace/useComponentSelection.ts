@@ -16,24 +16,28 @@ import { takeComponentSelection } from "./componentRestore";
 import { setComponentError, setComponentSelection } from "./workspaceSlice";
 import { watchEditObjectSelection } from "./watchEditObjectSelection";
 
-export function useComponentSelection(
-  viewport: Viewport | null,
-  scene: EditorScene | null,
-  disabled: boolean,
-) {
+/** Connects the component selection to the viewport and the scene: picks components and shows them. */
+export function useComponentSelection(viewport: Viewport | null, scene: EditorScene | null, disabled: boolean) {
   const dispatch = useAppDispatch();
   // Read when a click or drag needs it, so changing the shading does not rebuild the selection.
   const seeThrough = useAppSelector((state) => xrayActive(state.viewport.display));
   const seeThroughRef = useRef(seeThrough);
-  useEffect(() => { seeThroughRef.current = seeThrough; }, [seeThrough]);
-  const { mode, componentKind } = useAppSelector(
-    (state) => state.designWorkspace,
-  );
+  useEffect(() => {
+    seeThroughRef.current = seeThrough;
+  }, [seeThrough]);
+  const { mode, componentKind } = useAppSelector((state) => state.designWorkspace);
   const controllerRef = useRef<ComponentSelection | undefined>(undefined);
   const lastDiagnosticSequence = useRef(0);
   const diagnosticSelection = useAppSelector((state) => state.designWorkspace.diagnosticSelection);
   const selectionRequest = useAppSelector((state) => state.designWorkspace.selectionRequest);
-  const remembered = useRef<{ scene: EditorScene; objectId: string; kind: typeof componentKind; path: number[]; ids: string[]; key: string } | null>(null);
+  const remembered = useRef<{
+    scene: EditorScene;
+    objectId: string;
+    kind: typeof componentKind;
+    path: number[];
+    ids: string[];
+    key: string;
+  } | null>(null);
   const keys = useRef(new WeakMap<ReturnType<typeof readTopology>, string>());
   const loadedScene = useRef<EditorScene | null>(null);
   useEffect(() => {
@@ -82,10 +86,22 @@ export function useComponentSelection(
           (selection) => {
             if (selection) {
               const mesh = meshAtPath(root, selection.path);
-              remembered.current = { scene, objectId: id, kind: componentKind, path: selection.path, ids: selection.ids, key: keyOf(readTopology(mesh.geometry)) };
-              if (scene.hasProject) saveComponentSelection(scene.projectId, {
-                objectId: id, kind: componentKind, path: selection.path, ids: selection.ids, key: remembered.current.key,
-              });
+              remembered.current = {
+                scene,
+                objectId: id,
+                kind: componentKind,
+                path: selection.path,
+                ids: selection.ids,
+                key: keyOf(readTopology(mesh.geometry)),
+              };
+              if (scene.hasProject)
+                saveComponentSelection(scene.projectId, {
+                  objectId: id,
+                  kind: componentKind,
+                  path: selection.path,
+                  ids: selection.ids,
+                  key: remembered.current.key,
+                });
             } else {
               remembered.current = null;
               if (scene.hasProject) saveComponentSelection(scene.projectId, null);
@@ -126,8 +142,7 @@ export function useComponentSelection(
               const ids = convertComponentSelection(cage, previous.kind, componentKind, previous.ids);
               if (ids.length) controller.select(previous.path, ids);
               else remembered.current = null;
-            }
-            else remembered.current = null;
+            } else remembered.current = null;
           }
         }
       } catch (error) {
@@ -147,7 +162,15 @@ export function useComponentSelection(
   useEffect(() => {
     if (!diagnosticSelection || diagnosticSelection.sequence === lastDiagnosticSequence.current) return;
     lastDiagnosticSequence.current = diagnosticSelection.sequence;
-    if (scene && mode === "edit" && componentKind === "edge" && scene.selection === diagnosticSelection.objectId && scene.currentRevision === diagnosticSelection.revision && !extrudeIsActive() && !knifeIsActive()) {
+    if (
+      scene &&
+      mode === "edit" &&
+      componentKind === "edge" &&
+      scene.selection === diagnosticSelection.objectId &&
+      scene.currentRevision === diagnosticSelection.revision &&
+      !extrudeIsActive() &&
+      !knifeIsActive()
+    ) {
       controllerRef.current?.select(diagnosticSelection.meshPath, diagnosticSelection.ids);
     }
   }, [diagnosticSelection, scene, mode, componentKind]);

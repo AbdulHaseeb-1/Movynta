@@ -32,10 +32,7 @@ interface PromptSuggestionsProps {
 /** Starter prompts shown under the empty prompt box. */
 export function PromptSuggestions({ onPick }: PromptSuggestionsProps) {
   return (
-    <ul
-      className="pointer-events-auto flex flex-wrap items-center justify-center gap-2"
-      aria-label="Prompt ideas"
-    >
+    <ul className="pointer-events-auto flex flex-wrap items-center justify-center gap-2" aria-label="Prompt ideas">
       {SUGGESTIONS.map(({ label, prompt, icon: Icon }) => (
         <li key={label}>
           <Button

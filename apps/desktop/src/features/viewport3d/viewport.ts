@@ -77,7 +77,6 @@ const ORBIT_DAMPING = 0.08;
 const EASE_SECONDS = 0.35;
 const ASSISTANT_PANEL_SHIFT_FRACTION = 0.12;
 
-
 interface SpacePanCallbacks {
   // Called when Space is pressed or released outside a text field.
   onHeldChange: (held: boolean) => void;
@@ -87,10 +86,7 @@ interface SpacePanCallbacks {
 
 // Holding Space temporarily switches dragging from orbit to pan, so the view can be moved in every direction.
 // Space is ignored while typing in a field. Returns a function that removes the listeners.
-function enableSpacePan(
-  element: HTMLElement,
-  { onHeldChange, onDragChange }: SpacePanCallbacks,
-): () => void {
+function enableSpacePan(element: HTMLElement, { onHeldChange, onDragChange }: SpacePanCallbacks): () => void {
   let held = false;
 
   const release = () => {
@@ -100,8 +96,7 @@ function enableSpacePan(
   };
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.code !== "Space" || isTypingTarget(event.target)) return;
-    if (event.target === document.body || event.target === element)
-      event.preventDefault();
+    if (event.target === document.body || event.target === element) event.preventDefault();
     if (held) return;
     held = true;
     onHeldChange(true);
@@ -131,17 +126,12 @@ type GeometryObject = Mesh | Line | Points;
 
 // `instanceof` narrows generic classes to `Mesh<any>`, so a typed predicate keeps the types strict.
 function hasGeometry(object: Object3D): object is GeometryObject {
-  return (
-    object instanceof Mesh || object instanceof Line || object instanceof Points
-  );
+  return object instanceof Mesh || object instanceof Line || object instanceof Points;
 }
 
 // Creates a Three.js renderer, scene, camera, lights, and orbit controls inside `container`,
 // and keeps the canvas sized to the container. Call `dispose` to stop the loop and release GPU resources.
-export function createViewport(
-  container: HTMLElement,
-  options: ViewportOptions = {},
-): Viewport {
+export function createViewport(container: HTMLElement, options: ViewportOptions = {}): Viewport {
   const { background, maxPixelRatio = DEFAULT_MAX_PIXEL_RATIO } = options;
 
   const renderer = new WebGLRenderer({ antialias: true, alpha: true });
@@ -178,11 +168,7 @@ export function createViewport(
     controls.enableZoom = fullNavigation;
     const panning = fullNavigation && (tool === "pan" || spaceHeld);
     controls.mouseButtons.LEFT = panning ? MOUSE.PAN : MOUSE.ROTATE;
-    renderer.domElement.style.cursor = panning
-      ? dragging
-        ? "grabbing"
-        : "grab"
-      : "";
+    renderer.domElement.style.cursor = panning ? (dragging ? "grabbing" : "grab") : "";
   };
   const disableSpacePan = enableSpacePan(renderer.domElement, {
     onHeldChange: (held) => {
@@ -234,11 +220,7 @@ export function createViewport(
     // From where an earlier step is heading, so quick steps add up instead of each starting half way.
     const rest = ease.restPose();
     const offset = rest.position.clone().sub(rest.target);
-    const distance = MathUtils.clamp(
-      offset.length() / factor,
-      ORBIT_MIN_DISTANCE,
-      ORBIT_MAX_DISTANCE,
-    );
+    const distance = MathUtils.clamp(offset.length() / factor, ORBIT_MIN_DISTANCE, ORBIT_MAX_DISTANCE);
     easeTo(rest.target.clone().add(offset.setLength(distance)), rest.target);
   };
   const resetView = () => {
@@ -274,17 +256,9 @@ export function createViewport(
       camera.updateMatrixWorld();
       const right = new Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
       const viewWidth =
-        2 *
-        rest.position.distanceTo(rest.target) *
-        Math.tan(MathUtils.degToRad(camera.fov / 2)) *
-        camera.aspect;
-      assistantPanelOffset = right.multiplyScalar(
-        -viewWidth * ASSISTANT_PANEL_SHIFT_FRACTION,
-      );
-      easeTo(
-        rest.position.clone().add(assistantPanelOffset),
-        rest.target.clone().add(assistantPanelOffset),
-      );
+        2 * rest.position.distanceTo(rest.target) * Math.tan(MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+      assistantPanelOffset = right.multiplyScalar(-viewWidth * ASSISTANT_PANEL_SHIFT_FRACTION);
+      easeTo(rest.position.clone().add(assistantPanelOffset), rest.target.clone().add(assistantPanelOffset));
       return;
     }
     if (!assistantPanelOffset) return;
@@ -335,9 +309,7 @@ export function createViewport(
     scene.traverse((object) => {
       if (!hasGeometry(object)) return;
       object.geometry.dispose();
-      const materials = Array.isArray(object.material)
-        ? object.material
-        : [object.material];
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
       materials.forEach((material) => material.dispose());
     });
 
@@ -354,7 +326,9 @@ export function createViewport(
     renderer,
     controls,
     setNavigationTool,
-    setEditNavigation: (enabled) => { controls.mouseButtons.RIGHT = enabled ? MOUSE.ROTATE : MOUSE.PAN; },
+    setEditNavigation: (enabled) => {
+      controls.mouseButtons.RIGHT = enabled ? MOUSE.ROTATE : MOUSE.PAN;
+    },
     setNavigationScope,
     zoomBy,
     resetView,

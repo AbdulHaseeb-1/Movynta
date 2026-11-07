@@ -25,5 +25,6 @@ import { DisabledBlenderWorker } from "./disabled-blender-worker.js";
     },
   ],
   exports: [BLENDER_WORKER],
+/** The Blender worker interface. Its implementation is disabled. */
 })
 export class BlenderModule {}

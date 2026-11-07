@@ -14,8 +14,4 @@ export {
 export { makeObjectId } from "./objectId";
 export { parseModel } from "./parseModel";
 export { disposeModel, prepareModel, scaleNotice, type PreparedModel } from "./prepareModel";
-export {
-  useModelImport,
-  type ImportedModelSummary,
-  type ModelImport,
-} from "./useModelImport";
+export { useModelImport, type ImportedModelSummary, type ModelImport } from "./useModelImport";

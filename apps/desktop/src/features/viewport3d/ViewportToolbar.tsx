@@ -23,12 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Viewport } from "./viewport";
 import { VIEW_PRESETS } from "./viewPresets";
@@ -57,6 +52,7 @@ export interface ToolButtonProps {
   children: ReactNode;
 }
 
+/** One button on the viewport toolbar: a tool or a view action, with its label and shortcut. */
 export function ToolButton({
   label,
   tooltipSide,
@@ -143,7 +139,15 @@ export function ViewportToolbar({
   useEffect(() => {
     // Moving around and shading have keys of their own, in useViewportShortcuts, that work in every mode.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || isShortcutBlocked(event.target)) return;
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        isShortcutBlocked(event.target)
+      )
+        return;
       const key = event.key.toLowerCase();
       const next = SHORTCUTS[key];
       if (next) {
@@ -232,7 +236,13 @@ export function ViewportToolbar({
         >
           <Hand className="size-[15px]" />
         </ToolButton>
-        <ToolButton tooltipSide={tooltipSide} label="Zoom in" hint="= / +" shortcut="=" onClick={() => viewport?.zoomBy(ZOOM_STEP)}>
+        <ToolButton
+          tooltipSide={tooltipSide}
+          label="Zoom in"
+          hint="= / +"
+          shortcut="="
+          onClick={() => viewport?.zoomBy(ZOOM_STEP)}
+        >
           <ZoomIn className="size-[15px]" />
         </ToolButton>
         <ToolButton
@@ -259,7 +269,13 @@ export function ViewportToolbar({
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="size-7 rounded-full text-muted-foreground hover:text-foreground" aria-label="View from">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 rounded-full text-muted-foreground hover:text-foreground"
+                  aria-label="View from"
+                >
                   <Video className="size-[15px]" />
                 </Button>
               </DropdownMenuTrigger>
@@ -282,7 +298,13 @@ export function ViewportToolbar({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        <ToolButton tooltipSide={tooltipSide} label="Reset view" hint="0" shortcut="0" onClick={() => viewport?.resetView()}>
+        <ToolButton
+          tooltipSide={tooltipSide}
+          label="Reset view"
+          hint="0"
+          shortcut="0"
+          onClick={() => viewport?.resetView()}
+        >
           <Maximize className="size-[15px]" />
         </ToolButton>
         <Separator
@@ -290,12 +312,26 @@ export function ViewportToolbar({
           className={cn("bg-foreground/10", horizontal ? "mx-0.5 h-[17px]" : "my-0.5 w-[17px]")}
         />
         {onUndo && (
-          <ToolButton tooltipSide={tooltipSide} label="Undo" hint="Ctrl+Z" shortcut="Control+Z" disabled={disabled} onClick={onUndo}>
+          <ToolButton
+            tooltipSide={tooltipSide}
+            label="Undo"
+            hint="Ctrl+Z"
+            shortcut="Control+Z"
+            disabled={disabled}
+            onClick={onUndo}
+          >
             <Undo2 className="size-[15px]" />
           </ToolButton>
         )}
         {onRedo && (
-          <ToolButton tooltipSide={tooltipSide} label="Redo" hint="Ctrl+Shift+Z · Ctrl+Y" shortcut="Control+Shift+Z Control+Y" disabled={disabled} onClick={onRedo}>
+          <ToolButton
+            tooltipSide={tooltipSide}
+            label="Redo"
+            hint="Ctrl+Shift+Z · Ctrl+Y"
+            shortcut="Control+Shift+Z Control+Y"
+            disabled={disabled}
+            onClick={onRedo}
+          >
             <Redo2 className="size-[15px]" />
           </ToolButton>
         )}

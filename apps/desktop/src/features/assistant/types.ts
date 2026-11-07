@@ -40,11 +40,4 @@ export interface ChatMessage {
   thinkingMs?: number;
 }
 
-export type RunPhase =
-  | "idle"
-  | "connecting"
-  | "running"
-  | "waiting_approval"
-  | "completed"
-  | "failed"
-  | "cancelled";
+export type RunPhase = "idle" | "connecting" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled";

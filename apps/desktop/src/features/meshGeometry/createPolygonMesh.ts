@@ -3,7 +3,11 @@ import { assertManifold, faceAreaNormal, topology, type PolygonMesh } from "./me
 import { writeGeometry } from "./meshOutput";
 
 /** Validates and writes a bounded polygon cage from a structured editor command. */
-export function createPolygonMesh(vertices: readonly (readonly number[])[], faces: readonly (readonly number[])[], shading: "flat" | "smooth" = "flat"): BufferGeometry {
+export function createPolygonMesh(
+  vertices: readonly (readonly number[])[],
+  faces: readonly (readonly number[])[],
+  shading: "flat" | "smooth" = "flat",
+): BufferGeometry {
   const distinct = new Set<string>();
   for (const vertex of vertices) {
     const key = vertex.map((value) => Math.fround(value)).join(",");

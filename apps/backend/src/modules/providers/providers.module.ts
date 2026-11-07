@@ -7,10 +7,7 @@ import { ChatgptLoginRepository } from "./chatgpt/chatgpt-login.repository.js";
 import { ChatgptModelCatalog } from "./chatgpt/chatgpt-model-catalog.js";
 import { ChatgptOAuthClient } from "./chatgpt/chatgpt-oauth.client.js";
 import { ProviderTransport } from "./provider-transport.js";
-import {
-  SECRET_PROTECTOR,
-  WindowsSecretProtector,
-} from "./secret-protector.js";
+import { SECRET_PROTECTOR, WindowsSecretProtector } from "./secret-protector.js";
 @Module({
   controllers: [ProvidersController, ChatgptAuthController],
   providers: [
@@ -23,5 +20,6 @@ import {
     { provide: SECRET_PROTECTOR, useClass: WindowsSecretProtector },
   ],
   exports: [ProvidersService, ProviderTransport],
+/** The providers feature: model provider settings and their credentials. */
 })
 export class ProvidersModule {}

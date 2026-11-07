@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { editorContextSchema, MAX_COMMANDS_PER_PROPOSAL, viewCaptureResultSchema } from "@movynta/editor-protocol";
 
-
 /**
  * Messages exchanged with the editor over WebSocket. Format: `{ event, data }`.
  * Every inbound message is validated before it reaches the bridge.

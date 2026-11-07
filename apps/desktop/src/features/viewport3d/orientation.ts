@@ -27,7 +27,14 @@ export function projectOrientation(cameraRotation: Quaternion) {
 }
 
 /** Orbit around the existing target without changing its distance. */
-export function orbitFromDrag(position: Vector3, target: Vector3, dx: number, dy: number, minPolar: number, maxPolar: number): Vector3 {
+export function orbitFromDrag(
+  position: Vector3,
+  target: Vector3,
+  dx: number,
+  dy: number,
+  minPolar: number,
+  maxPolar: number,
+): Vector3 {
   const orbit = new Spherical().setFromVector3(position.clone().sub(target));
   orbit.theta -= dx * 0.012;
   orbit.phi = MathUtils.clamp(orbit.phi - dy * 0.012, Math.max(0.0001, minPolar), Math.min(Math.PI - 0.0001, maxPolar));

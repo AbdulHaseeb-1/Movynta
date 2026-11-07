@@ -4,16 +4,19 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 export let BACKEND_URL = "http://127.0.0.1:3001";
 let accessToken = "";
 let connecting: Promise<void> | undefined;
+/** The backend answered with an error status. It carries that status. */
 export class BackendResponseError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) { super(message); this.name = "BackendResponseError"; this.status = status; }
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "BackendResponseError";
+    this.status = status;
+  }
 }
+/** Makes sure the app has the token it needs to reach the local backend. It runs once; later calls wait for the same request. */
 export async function ensureBackendConnection(): Promise<void> {
   if (accessToken) return;
-  if (!isTauri())
-    throw new Error(
-      "Open the desktop app to connect automatically to the local backend.",
-    );
+  if (!isTauri()) throw new Error("Open the desktop app to connect automatically to the local backend.");
   connecting ??= invoke<string>("backend_access")
     .then((token) => {
       accessToken = token.trim();
@@ -26,16 +29,17 @@ export async function ensureBackendConnection(): Promise<void> {
 // Tests use a separate loopback port so they never interrupt the user's running backend.
 export function setBackendToken(token: string, port?: number) {
   if (port !== undefined) {
-    if (!Number.isInteger(port) || port < 1 || port > 65535)
-      throw new Error("Invalid loopback port");
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid loopback port");
     BACKEND_URL = `http://127.0.0.1:${port}`;
   }
   accessToken = token.trim();
 }
+/** The current bearer token, or an empty string before the app has connected. */
 export function backendToken() {
   return accessToken;
 }
 
+/** Sends a request to the local backend with the bearer token, checks the reply, and parses it with the given schema. */
 export async function backendRequest<T>(
   path: string,
   schema: z.ZodType<T>,
@@ -114,12 +118,8 @@ function networkFailure(failure: unknown): Error {
 }
 
 function failureMessage(data: unknown): string {
-  const parsed = z
-    .object({ error: z.object({ message: z.string() }) })
-    .safeParse(data);
-  return parsed.success
-    ? parsed.data.error.message
-    : "The backend request failed.";
+  const parsed = z.object({ error: z.object({ message: z.string() }) }).safeParse(data);
+  return parsed.success ? parsed.data.error.message : "The backend request failed.";
 }
 
 /** Sends a file as the request body, for example a model being imported. */
@@ -144,19 +144,13 @@ export async function backendUpload<T>(
 }
 
 /** Fetches a file the backend keeps, such as an imported model. */
-export async function backendDownload(
-  path: string,
-  signal?: AbortSignal,
-): Promise<ArrayBuffer> {
-  const response = await authorizedFetch(
-    path,
-    { method: "GET", signal: signal ?? AbortSignal.timeout(120000) },
-    {},
-  );
+export async function backendDownload(path: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+  const response = await authorizedFetch(path, { method: "GET", signal: signal ?? AbortSignal.timeout(120000) }, {});
   if (!response.ok) throw new BackendResponseError(failureMessage(await readJson(response)), response.status);
   return response.arrayBuffer();
 }
 
+/** A short message for an error, safe to show to the user. */
 export function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
 }

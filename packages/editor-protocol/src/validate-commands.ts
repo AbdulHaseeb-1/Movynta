@@ -42,33 +42,72 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
     ? new PlacementTracker(context.objects, (id) => parents.get(id))
     : undefined;
   /** Collections are followed only by a batch that touches them, since nothing else depends on them. */
-  const usesCollections = commands.some((command) => command.type.endsWith("_collection") || command.type === "scene.move_to_collection" || ("collectionId" in command && command.collectionId !== undefined && command.collectionId !== null));
+  const usesCollections = commands.some(
+    (command) =>
+      command.type.endsWith("_collection") ||
+      command.type === "scene.move_to_collection" ||
+      ("collectionId" in command && command.collectionId !== undefined && command.collectionId !== null),
+  );
   const collections = usesCollections
-    ? new CollectionModel(context.collections ?? [], context.objects.map((object) => [object.id, object.collectionId ?? null] as const))
+    ? new CollectionModel(
+        context.collections ?? [],
+        context.objects.map((object) => [object.id, object.collectionId ?? null] as const),
+      )
     : undefined;
   const createdInBatch = new Set<string>();
   const seenCommandIds = new Set<string>();
   const issues: ProposalIssue[] = [];
-  if (commands.some((command) => command.type === "scene.duplicate_hierarchy") && commands.length !== 1) return [{ commandId: commands[0]?.commandId ?? "batch", message: "Duplicate one hierarchy per proposal" }];
-  const materialEdits = commands.filter((command) => command.type === "material.set_properties" || command.type === "material.add_slot" || command.type === "material.replace_slot");
+  if (commands.some((command) => command.type === "scene.duplicate_hierarchy") && commands.length !== 1)
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Duplicate one hierarchy per proposal" }];
+  const materialEdits = commands.filter(
+    (command) =>
+      command.type === "material.set_properties" ||
+      command.type === "material.add_slot" ||
+      command.type === "material.replace_slot",
+  );
   if (materialEdits.length && (materialEdits.length !== commands.length || commands.length > 20)) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use a separate batch of at most 20 material property/slot commands; assign faces in a following proposal" }];
+    return [
+      {
+        commandId: commands[0]?.commandId ?? "batch",
+        message:
+          "Use a separate batch of at most 20 material property/slot commands; assign faces in a following proposal",
+      },
+    ];
   }
   if (commands.length !== 1 && commands.some(isTopologyEditCommand)) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use one topology-changing edit (bevel_edges, merge, dissolve, loop cut, knife, bisect, delete, triangulate and similar) per proposal; inspect the resulting IDs before the next edit" }];
+    return [
+      {
+        commandId: commands[0]?.commandId ?? "batch",
+        message:
+          "Use one topology-changing edit (bevel_edges, merge, dissolve, loop cut, knife, bisect, delete, triangulate and similar) per proposal; inspect the resulting IDs before the next edit",
+      },
+    ];
   }
   const modifiers = commands.filter(isModifierCommand);
   const cageEdits = commands.filter(isCageEditCommand);
   if (modifiers.length > 0 && (modifiers.length !== commands.length || commands.length > 20)) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Geometry batches accept only bevel/subdivision and Boolean modifier commands, at most 20; create/transform in separate proposals" }];
+    return [
+      {
+        commandId: commands[0]?.commandId ?? "batch",
+        message:
+          "Geometry batches accept only bevel/subdivision and Boolean modifier commands, at most 20; create/transform in separate proposals",
+      },
+    ];
   }
   if (cageEdits.length > 0 && (cageEdits.length !== commands.length || commands.length > 20)) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Component edit batches accept only extrude, inset_faces, bevel_edges, transform_components, transform_faces, fill_hole, subdivide_faces and the other base-cage edits (knife, bisect, delete, flip, triangulate, merge, dissolve, slide, loop cut, material.assign), at most 20; a topology-changing edit runs alone. Create or transform objects in a separate proposal." }];
+    return [
+      {
+        commandId: commands[0]?.commandId ?? "batch",
+        message:
+          "Component edit batches accept only extrude, inset_faces, bevel_edges, transform_components, transform_faces, fill_hole, subdivide_faces and the other base-cage edits (knife, bisect, delete, flip, triangulate, merge, dissolve, slide, loop cut, material.assign), at most 20; a topology-changing edit runs alone. Create or transform objects in a separate proposal.",
+      },
+    ];
   }
   const issue = (commandId: string, message: string) => issues.push({ commandId, message });
   /** A zero or negative scale collapses or mirrors an object and breaks parenting and bounds, so it is refused. */
   const checkScale = (commandId: string, transform: { readonly scale?: readonly number[] | undefined } | undefined) => {
-    if (transform?.scale?.some((value) => !(value > 0))) issue(commandId, "scale must be positive on every axis; zero or negative scale is not allowed");
+    if (transform?.scale?.some((value) => !(value > 0)))
+      issue(commandId, "scale must be positive on every axis; zero or negative scale is not allowed");
   };
   const missing = (commandId: string, objectId: string) =>
     issue(commandId, `objectId "${objectId}" does not exist; create it first or use an id from editor.get_context`);
@@ -79,15 +118,30 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
    */
   const collectionsSupported = (commandId: string): boolean => {
     if (context.supportsCollections === true) return true;
-    issue(commandId, "This editor is too old for collections; update the editor, or leave collections out of this proposal");
+    issue(
+      commandId,
+      "This editor is too old for collections; update the editor, or leave collections out of this proposal",
+    );
     return false;
   };
-  const placeCreated = (commandId: string, objectId: string, parentId: string | undefined, gated: boolean, collectionId?: string) => {
+  const placeCreated = (
+    commandId: string,
+    objectId: string,
+    parentId: string | undefined,
+    gated: boolean,
+    collectionId?: string,
+  ) => {
     if (collectionId !== undefined && collectionsSupported(commandId) && !collections?.has(collectionId)) {
-      issue(commandId, `collectionId "${collectionId}" does not exist; create it in an earlier command or use an id from editor.get_context`);
+      issue(
+        commandId,
+        `collectionId "${collectionId}" does not exist; create it in an earlier command or use an id from editor.get_context`,
+      );
     }
     if (gated && context.supportsSceneGraph !== true) {
-      issue(commandId, "This editor is too old for name, parentId and transform on shapes and meshes; update the editor, or create the object and then use scene.rename_object, scene.set_parent and scene.transform_object");
+      issue(
+        commandId,
+        "This editor is too old for name, parentId and transform on shapes and meshes; update the editor, or create the object and then use scene.rename_object, scene.set_parent and scene.transform_object",
+      );
     }
     if (parentId !== undefined && !parents.has(parentId)) {
       issue(
@@ -99,7 +153,14 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
     link(objectId, parentId);
     createdInBatch.add(objectId);
     // A new object joins the collection it is given, else its parent's, else the scene itself.
-    collections?.assign(objectId, collectionId !== undefined && collections.has(collectionId) ? collectionId : parentId === undefined ? null : collections.collectionOf(parentId));
+    collections?.assign(
+      objectId,
+      collectionId !== undefined && collections.has(collectionId)
+        ? collectionId
+        : parentId === undefined
+          ? null
+          : collections.collectionOf(parentId),
+    );
   };
 
   for (const command of commands) {
@@ -111,22 +172,40 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
     switch (command.type) {
       case "scene.duplicate_hierarchy": {
         if (!parents.has(command.sourceId)) missing(command.commandId, command.sourceId);
-        if (context.supportsRepetition !== true) issue(command.commandId, "Update the editor for hierarchy duplication");
-        const descendantIds = new Set(context.objects.filter((object) => object.id !== command.sourceId && isWithinBranch(object.id, command.sourceId, (id) => parents.get(id))).map((object) => object.id));
+        if (context.supportsRepetition !== true)
+          issue(command.commandId, "Update the editor for hierarchy duplication");
+        const descendantIds = new Set(
+          context.objects
+            .filter(
+              (object) =>
+                object.id !== command.sourceId && isWithinBranch(object.id, command.sourceId, (id) => parents.get(id)),
+            )
+            .map((object) => object.id),
+        );
         let added = 0;
         for (const copy of command.copies) {
-          if (copy.descendants.length !== descendantIds.size || copy.descendants.some((entry) => !descendantIds.has(entry.sourceId))) issue(command.commandId, "Map every registered descendant exactly once");
+          if (
+            copy.descendants.length !== descendantIds.size ||
+            copy.descendants.some((entry) => !descendantIds.has(entry.sourceId))
+          )
+            issue(command.commandId, "Map every registered descendant exactly once");
           for (const id of [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]) {
             if (parents.has(id)) issue(command.commandId, `Copy objectId "${id}" already exists`);
-            parents.set(id, null); added++;
+            parents.set(id, null);
+            added++;
           }
         }
-        if (context.objects.length + added > 2000) issue(command.commandId, "Copies exceed the 2000-object scene limit");
+        if (context.objects.length + added > 2000)
+          issue(command.commandId, "Copies exceed the 2000-object scene limit");
         break;
       }
       case "geometry.separate_faces": {
-        if (!parents.has(command.objectId)) { missing(command.commandId, command.objectId); break; }
-        if (parents.has(command.newObjectId)) issue(command.commandId, existsMessage(command.newObjectId, createdInBatch, "geometry.separate_faces"));
+        if (!parents.has(command.objectId)) {
+          missing(command.commandId, command.objectId);
+          break;
+        }
+        if (parents.has(command.newObjectId))
+          issue(command.commandId, existsMessage(command.newObjectId, createdInBatch, "geometry.separate_faces"));
         // The new object is a sibling of the one it is split from.
         placeCreated(command.commandId, command.newObjectId, parents.get(command.objectId) ?? undefined, false);
         break;
@@ -151,7 +230,13 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           if (parents.has(command.objectId)) {
             issue(command.commandId, existsMessage(command.objectId, createdInBatch, "geometry.create_primitive"));
           }
-          placeCreated(command.commandId, command.objectId, command.parentId, command.parentId !== undefined || command.name !== undefined || command.transform !== undefined, command.collectionId);
+          placeCreated(
+            command.commandId,
+            command.objectId,
+            command.parentId,
+            command.parentId !== undefined || command.name !== undefined || command.transform !== undefined,
+            command.collectionId,
+          );
           checkScale(command.commandId, command.transform);
           placement?.created(command.objectId, command.transform);
         }
@@ -160,7 +245,13 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
         if (parents.has(command.objectId)) {
           issue(command.commandId, `objectId "${command.objectId}" already exists; use a fresh id for the mesh`);
         }
-        placeCreated(command.commandId, command.objectId, command.parentId, command.parentId !== undefined || command.transform !== undefined, command.collectionId);
+        placeCreated(
+          command.commandId,
+          command.objectId,
+          command.parentId,
+          command.parentId !== undefined || command.transform !== undefined,
+          command.collectionId,
+        );
         checkScale(command.commandId, command.transform);
         placement?.created(command.objectId, command.transform);
         break;
@@ -171,11 +262,15 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       case "scene.delete_collection": {
         if (!collectionsSupported(command.commandId) || !collections) break;
         const outcome =
-          command.type === "scene.create_collection" ? collections.create(command.collectionId, command.name, command.parentCollectionId ?? null)
-          : command.type === "scene.rename_collection" ? collections.rename(command.collectionId, command.name)
-          : command.type === "scene.move_collection" ? collections.move(command.collectionId, command.parentCollectionId)
-          : command.type === "scene.set_collection_visibility" ? collections.setVisible(command.collectionId, command.visible)
-          : collections.remove(command.collectionId);
+          command.type === "scene.create_collection"
+            ? collections.create(command.collectionId, command.name, command.parentCollectionId ?? null)
+            : command.type === "scene.rename_collection"
+              ? collections.rename(command.collectionId, command.name)
+              : command.type === "scene.move_collection"
+                ? collections.move(command.collectionId, command.parentCollectionId)
+                : command.type === "scene.set_collection_visibility"
+                  ? collections.setVisible(command.collectionId, command.visible)
+                  : collections.remove(command.collectionId);
         const message = typeof outcome === "string" ? outcome : outcome && !outcome.ok ? outcome.message : undefined;
         if (message) issue(command.commandId, message);
         break;
@@ -187,7 +282,10 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           break;
         }
         if (command.collectionId !== null && !collections.has(command.collectionId)) {
-          issue(command.commandId, `collectionId "${command.collectionId}" does not exist; create it in an earlier command or use an id from editor.get_context`);
+          issue(
+            command.commandId,
+            `collectionId "${command.collectionId}" does not exist; create it in an earlier command or use an id from editor.get_context`,
+          );
           break;
         }
         // The object and, unless asked not to, everything that hangs below it.
@@ -236,13 +334,22 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       case "scene.set_visibility":
         if (!parents.has(command.objectId)) missing(command.commandId, command.objectId);
         if (command.type === "scene.move_object" && context.supportsSceneGraph !== true) {
-          issue(command.commandId, "This editor is too old for scene.move_object; use scene.transform_object with the new position");
+          issue(
+            command.commandId,
+            "This editor is too old for scene.move_object; use scene.transform_object with the new position",
+          );
         }
         if (command.type === "scene.transform_object") checkScale(command.commandId, command.transform);
         if (command.type === "scene.transform_object") placement?.transformed(command.objectId, command.transform);
         if (command.type === "scene.move_object") placement?.moved(command.objectId, command.delta);
-        if (command.type === "geometry.set_modifiers" || command.type === "geometry.boolean") booleanOperandIssues(command, parents, issue);
-        if (command.type === "geometry.set_modifiers" && command.modifiers.some((entry) => entry.kind === "array" || entry.kind === "mirror") && context.supportsRepetition !== true) issue(command.commandId, "Update the editor for array/mirror modifiers");
+        if (command.type === "geometry.set_modifiers" || command.type === "geometry.boolean")
+          booleanOperandIssues(command, parents, issue);
+        if (
+          command.type === "geometry.set_modifiers" &&
+          command.modifiers.some((entry) => entry.kind === "array" || entry.kind === "mirror") &&
+          context.supportsRepetition !== true
+        )
+          issue(command.commandId, "Update the editor for array/mirror modifiers");
         break;
       case "scene.set_parent": {
         if (!parents.has(command.objectId)) {
@@ -310,15 +417,21 @@ function booleanOperandIssues(
   parents: ReadonlyMap<string, string | null>,
   issue: (commandId: string, message: string) => void,
 ): void {
-  const operands = command.type === "geometry.boolean"
-    ? [command]
-    : command.modifiers.filter((modifier) => modifier.kind === "boolean");
+  const operands =
+    command.type === "geometry.boolean"
+      ? [command]
+      : command.modifiers.filter((modifier) => modifier.kind === "boolean");
   for (const modifier of operands) {
-    const sameMesh = modifier.operandObjectId === command.objectId
-      && modifier.operandMeshPath.length === command.meshPath.length
-      && modifier.operandMeshPath.every((part, index) => part === command.meshPath[index]);
+    const sameMesh =
+      modifier.operandObjectId === command.objectId &&
+      modifier.operandMeshPath.length === command.meshPath.length &&
+      modifier.operandMeshPath.every((part, index) => part === command.meshPath[index]);
     if (sameMesh) issue(command.commandId, "A boolean modifier cannot use its own mesh");
-    else if (!parents.has(modifier.operandObjectId)) issue(command.commandId, `Boolean operand "${modifier.operandObjectId}" does not exist; create it before the modifier`);
+    else if (!parents.has(modifier.operandObjectId))
+      issue(
+        command.commandId,
+        `Boolean operand "${modifier.operandObjectId}" does not exist; create it before the modifier`,
+      );
   }
 }
 
@@ -331,10 +444,14 @@ function booleanCycles(commands: readonly EditorCommand[]): ProposalIssue[] {
   for (const command of commands) {
     if (command.type !== "geometry.set_modifiers" && command.type !== "geometry.boolean") continue;
     const id = key(command.objectId, command.meshPath);
-    const operands = command.type === "geometry.boolean"
-      ? [...(edges.get(id)?.operands ?? []), key(command.operandObjectId, command.operandMeshPath)]
-      : command.modifiers.flatMap((modifier) => modifier.kind === "boolean" && modifier.enabled
-        ? [key(modifier.operandObjectId, modifier.operandMeshPath)] : []);
+    const operands =
+      command.type === "geometry.boolean"
+        ? [...(edges.get(id)?.operands ?? []), key(command.operandObjectId, command.operandMeshPath)]
+        : command.modifiers.flatMap((modifier) =>
+            modifier.kind === "boolean" && modifier.enabled
+              ? [key(modifier.operandObjectId, modifier.operandMeshPath)]
+              : [],
+          );
     edges.set(id, { commandId: command.commandId, operands });
   }
   const issues: ProposalIssue[] = [];
@@ -359,7 +476,11 @@ function booleanCycles(commands: readonly EditorCommand[]): ProposalIssue[] {
 }
 
 /** The fix depends on whether the id was taken by this same batch (a common mix-up) or already in the scene. */
-function existsMessage(objectId: string, createdInBatch: ReadonlySet<string>, commandType: EditorCommand["type"]): string {
+function existsMessage(
+  objectId: string,
+  createdInBatch: ReadonlySet<string>,
+  commandType: EditorCommand["type"],
+): string {
   if (createdInBatch.has(objectId)) {
     return commandType === "geometry.create_primitive"
       ? `objectId "${objectId}" was already created earlier in this batch. A primitive is its own object, so drop the scene.create_object and position it with scene.transform_object, or set replaceExisting to true to give that object the shape`

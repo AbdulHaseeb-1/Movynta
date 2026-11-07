@@ -58,7 +58,8 @@ export class SceneIndex {
     const children = new Map<string, string[]>();
     const roots: string[] = [];
     for (const object of scene.objects) {
-      const parent = object.parentId !== null && byId.has(object.parentId) && object.parentId !== object.id ? object.parentId : null;
+      const parent =
+        object.parentId !== null && byId.has(object.parentId) && object.parentId !== object.id ? object.parentId : null;
       this.parents.set(object.id, parent);
       if (parent === null) roots.push(object.id);
       else children.set(parent, [...(children.get(parent) ?? []), object.id]);
@@ -126,7 +127,11 @@ export class SceneIndex {
   /** Whether `id` is `ancestor` or sits anywhere below it. */
   isWithin(id: string, ancestor: string): boolean {
     if (!this.entries.has(id)) return false;
-    for (let at: string | null = id, steps = 0; at !== null && steps <= this.total; at = this.parentOf(at), steps += 1) {
+    for (
+      let at: string | null = id, steps = 0;
+      at !== null && steps <= this.total;
+      at = this.parentOf(at), steps += 1
+    ) {
       if (at === ancestor) return true;
     }
     return false;
@@ -134,7 +139,8 @@ export class SceneIndex {
 
   /** Every object below `rootId` (or the whole tree, when it is undefined), parents before children. */
   *walk(rootId?: string): Generator<IndexedObject> {
-    const stack = rootId === undefined ? [...this.roots].reverse() : [...(this.entries.get(rootId)?.children ?? [])].reverse();
+    const stack =
+      rootId === undefined ? [...this.roots].reverse() : [...(this.entries.get(rootId)?.children ?? [])].reverse();
     for (let id = stack.pop(); id !== undefined; id = stack.pop()) {
       const entry = this.entries.get(id);
       if (!entry) continue;

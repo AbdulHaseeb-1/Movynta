@@ -59,6 +59,7 @@ export interface BranchRead {
   truncated: boolean;
 }
 
+/** Describes one indexed object for a tree read: its size, its center and what it holds. */
 export function summarize(entry: IndexedObject): ObjectSummary {
   const summary: ObjectSummary = {
     id: entry.object.id,
@@ -75,7 +76,12 @@ export function summarize(entry: IndexedObject): ObjectSummary {
 }
 
 /** Child ids in order, with each run of look-alike siblings replaced by one entry at the place its first member stood. */
-function foldSiblings(index: SceneIndex, book: SignatureBook, ids: readonly string[], foldFrom: number): (string | RepeatEntry)[] {
+function foldSiblings(
+  index: SceneIndex,
+  book: SignatureBook,
+  ids: readonly string[],
+  foldFrom: number,
+): (string | RepeatEntry)[] {
   if (foldFrom <= 0) return [...ids];
   const bySignature = new Map<string, string[]>();
   for (const id of ids) {
@@ -119,7 +125,11 @@ export function readBranch(index: SceneIndex, book: SignatureBook, options: Bran
   let budget = MAX_BRANCH_ENTRIES;
   let truncated = false;
 
-  const open = (ids: readonly string[], levelsLeft: number, offset: number): { entries: BranchEntry[]; omitted: number } => {
+  const open = (
+    ids: readonly string[],
+    levelsLeft: number,
+    offset: number,
+  ): { entries: BranchEntry[]; omitted: number } => {
     const folded = foldSiblings(index, book, ids, options.foldFrom);
     const page = folded.slice(offset, offset + options.childLimit);
     const entries: BranchEntry[] = [];

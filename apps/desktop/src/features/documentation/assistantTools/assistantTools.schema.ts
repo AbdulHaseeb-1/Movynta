@@ -69,24 +69,36 @@ export const assistantToolVisualSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("frames"),
     caption: z.string().optional(),
-    views: z.array(z.object({
-      label: z.string().min(1),
-      projection: z.string().min(1),
-      width: z.number().positive(),
-      height: z.number().positive(),
-      boxes: z.array(z.object({ name: z.string().min(1), x: z.number(), y: z.number(), width: z.number().nonnegative(), height: z.number().nonnegative() })),
-    })),
+    views: z.array(
+      z.object({
+        label: z.string().min(1),
+        projection: z.string().min(1),
+        width: z.number().positive(),
+        height: z.number().positive(),
+        boxes: z.array(
+          z.object({
+            name: z.string().min(1),
+            x: z.number(),
+            y: z.number(),
+            width: z.number().nonnegative(),
+            height: z.number().nonnegative(),
+          }),
+        ),
+      }),
+    ),
   }),
   z.object({
     kind: z.literal("issues"),
     caption: z.string().optional(),
     ok: z.boolean(),
     objectCount: z.number().int().nonnegative(),
-    issues: z.array(z.object({
-      severity: z.enum(["error", "warning", "info"]),
-      objectId: z.string().nullable(),
-      message: z.string().min(1),
-    })),
+    issues: z.array(
+      z.object({
+        severity: z.enum(["error", "warning", "info"]),
+        objectId: z.string().nullable(),
+        message: z.string().min(1),
+      }),
+    ),
   }),
   z.object({
     kind: z.literal("top-view"),
@@ -111,22 +123,30 @@ export const assistantToolVisualSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("batch"),
     caption: z.string().optional(),
-    rows: z.array(z.object({
-      type: z.string().min(1),
-      target: z.string(),
-      detail: z.string(),
-      tone: z.enum(["neutral", "ok"]).optional(),
-    })),
-    stages: z.array(z.object({ label: z.string().min(1), detail: z.string(), state: z.enum(["done", "current", "next"]) })),
+    rows: z.array(
+      z.object({
+        type: z.string().min(1),
+        target: z.string(),
+        detail: z.string(),
+        tone: z.enum(["neutral", "ok"]).optional(),
+      }),
+    ),
+    stages: z.array(
+      z.object({ label: z.string().min(1), detail: z.string(), state: z.enum(["done", "current", "next"]) }),
+    ),
   }),
   z.object({
     kind: z.literal("lists"),
     caption: z.string().optional(),
-    groups: z.array(z.object({
-      title: z.string().min(1),
-      items: z.array(z.string()),
-      tone: z.enum(["neutral", "ok", "warn"]),
-    })).min(1),
+    groups: z
+      .array(
+        z.object({
+          title: z.string().min(1),
+          items: z.array(z.string()),
+          tone: z.enum(["neutral", "ok", "warn"]),
+        }),
+      )
+      .min(1),
   }),
 ]);
 export type AssistantToolVisual = z.infer<typeof assistantToolVisualSchema>;

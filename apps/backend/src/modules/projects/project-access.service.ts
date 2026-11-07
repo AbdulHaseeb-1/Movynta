@@ -32,9 +32,13 @@ export class ProjectAccessService {
 
   /** True while a run of the project is starting, running or waiting for a decision. */
   hasActiveRun(projectId: string): boolean {
-    return this.database.db
-      .prepare("SELECT 1 AS active FROM agent_runs WHERE project_id = ? AND status IN ('created', 'running', 'waiting_approval') LIMIT 1")
-      .get(projectId) !== undefined;
+    return (
+      this.database.db
+        .prepare(
+          "SELECT 1 AS active FROM agent_runs WHERE project_id = ? AND status IN ('created', 'running', 'waiting_approval') LIMIT 1",
+        )
+        .get(projectId) !== undefined
+    );
   }
 
   /** Marks a stored project as just worked on, so it leads the recent list. Other ids are ignored. */

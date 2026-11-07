@@ -31,9 +31,13 @@ export function ToolGuideCard({ tool, exampleOpen, onExampleOpenChange }: ToolGu
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{tool.description}</p>
         <p className="mt-4 text-xs font-semibold">How to use</p>
         <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-6 text-foreground/90">
-          {tool.steps.map((step) => <li key={step}>{step}</li>)}
+          {tool.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
         </ol>
-        {tool.note && <p className="mt-4 rounded-md bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">{tool.note}</p>}
+        {tool.note && (
+          <p className="mt-4 rounded-md bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">{tool.note}</p>
+        )}
         {tool.example && (
           <div className="mt-4">
             <Button

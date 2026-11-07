@@ -4,11 +4,7 @@ import { useAppDispatch } from "@/app/hooks";
 import { errorMessage } from "@/lib/backend";
 import { returnFocus } from "@/lib/dom";
 import { projectPath } from "./projectCategories";
-import {
-  deleteProject,
-  duplicateProject,
-  updateProject,
-} from "./projectsApi";
+import { deleteProject, duplicateProject, updateProject } from "./projectsApi";
 import { projectChanged, projectRemoved } from "./projectsSlice";
 import type { Project, ProjectAction, ProjectActionHandler } from "./projectTypes";
 
@@ -38,9 +34,7 @@ export interface ProjectActions {
  * Everything the user can do to a project, shared by the library and the workspace. Quick actions
  * run at once; renaming and deleting open a dialog, which the caller renders from this state.
  */
-export function useProjectActions(
-  options: ProjectActionsOptions = {},
-): ProjectActions {
+export function useProjectActions(options: ProjectActionsOptions = {}): ProjectActions {
   const { onChanged, onRemoved } = options;
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -89,25 +83,13 @@ export function useProjectActions(
           setDeleting(project);
           return;
         case "star":
-          void attempt(async () =>
-            apply(
-              await updateProject(project.id, { starred: !project.starred }),
-              action,
-            ),
-          );
+          void attempt(async () => apply(await updateProject(project.id, { starred: !project.starred }), action));
           return;
         case "archive":
-          void attempt(async () =>
-            apply(
-              await updateProject(project.id, { archived: !project.archived }),
-              action,
-            ),
-          );
+          void attempt(async () => apply(await updateProject(project.id, { archived: !project.archived }), action));
           return;
         case "duplicate":
-          void attempt(async () =>
-            apply(await duplicateProject(project.id), action),
-          );
+          void attempt(async () => apply(await duplicateProject(project.id), action));
           return;
       }
     },
@@ -118,9 +100,7 @@ export function useProjectActions(
     async (name: string) => {
       if (!renaming) return;
       const target = renaming;
-      const done = await attempt(async () =>
-        apply(await updateProject(target.id, { name }), "rename"),
-      );
+      const done = await attempt(async () => apply(await updateProject(target.id, { name }), "rename"));
       if (done) setRenaming(null);
     },
     [apply, attempt, renaming],

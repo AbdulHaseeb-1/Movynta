@@ -11,5 +11,9 @@ const HEADS: Readonly<Record<AttachmentMediaType, Buffer>> = {
 /** A picture as a client sends it: a file that starts like `mediaType` and is `bytes` long. */
 export function pictureUpload(mediaType: AttachmentMediaType, bytes = 64, name = "ref.png"): AttachmentUpload {
   const head = HEADS[mediaType];
-  return { name, mediaType, data: Buffer.concat([head, Buffer.alloc(Math.max(0, bytes - head.length), 1)]).toString("base64") };
+  return {
+    name,
+    mediaType,
+    data: Buffer.concat([head, Buffer.alloc(Math.max(0, bytes - head.length), 1)]).toString("base64"),
+  };
 }

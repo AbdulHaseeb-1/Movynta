@@ -9,5 +9,6 @@ import { SessionsService } from "./sessions.service.js";
   controllers: [SessionsController],
   providers: [SessionsRepository, SessionsService],
   exports: [SessionsService],
+/** The sessions feature: chat sessions and their stored history. */
 })
 export class SessionsModule {}

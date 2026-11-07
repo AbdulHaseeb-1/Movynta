@@ -1,5 +1,11 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { isCageEditCommand, usesBaseIds, validateAgainstContext, withAssistantDefaults, type EditorContext } from "@movynta/editor-protocol";
+import {
+  isCageEditCommand,
+  usesBaseIds,
+  validateAgainstContext,
+  withAssistantDefaults,
+  type EditorContext,
+} from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import { ApprovalPolicy } from "../../approvals/approval.policy.js";
 
@@ -40,11 +46,22 @@ export class CommandProposalService {
     this.bridge.assertConnection(run.userId, run.projectId, run.clientId);
     // Stored explicitly, so that replaying the saved project never depends on a default.
     const commands = withAssistantDefaults(input.commands);
-    if (input.expectedRevision === undefined && commands.some(
-      (command) => command.type === "scene.duplicate_hierarchy" || command.type === "material.add_slot" || command.type === "material.replace_slot" || command.type === "material.set_properties" || usesBaseIds(command) ||
-        (command.type === "geometry.set_modifiers" && command.modifiers.some((modifier) => modifier.kind === "extrusion")),
-    )) {
-      throw new ValidationFailedError("Base-cage or live geometry edits require expectedRevision from the scene context or mesh inspection.");
+    if (
+      input.expectedRevision === undefined &&
+      commands.some(
+        (command) =>
+          command.type === "scene.duplicate_hierarchy" ||
+          command.type === "material.add_slot" ||
+          command.type === "material.replace_slot" ||
+          command.type === "material.set_properties" ||
+          usesBaseIds(command) ||
+          (command.type === "geometry.set_modifiers" &&
+            command.modifiers.some((modifier) => modifier.kind === "extrusion")),
+      )
+    ) {
+      throw new ValidationFailedError(
+        "Base-cage or live geometry edits require expectedRevision from the scene context or mesh inspection.",
+      );
     }
     const previous = input.supersedes === undefined ? undefined : this.require(run.id, input.supersedes);
     if (previous && previous.status !== "proposed") {
@@ -68,7 +85,18 @@ export class CommandProposalService {
       projectId: run.projectId,
       clientId: run.clientId,
       baseRevision: context.revision,
-      strictRevision: input.expectedRevision !== undefined || commands.some((command) => command.type === "scene.duplicate_hierarchy" || command.type.startsWith("material.") || command.type === "geometry.bevel" || command.type === "geometry.boolean" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || isCageEditCommand(command)),
+      strictRevision:
+        input.expectedRevision !== undefined ||
+        commands.some(
+          (command) =>
+            command.type === "scene.duplicate_hierarchy" ||
+            command.type.startsWith("material.") ||
+            command.type === "geometry.bevel" ||
+            command.type === "geometry.boolean" ||
+            command.type === "geometry.subdivide" ||
+            command.type === "geometry.set_modifiers" ||
+            isCageEditCommand(command),
+        ),
       summary: input.summary,
       commands,
       requiresApproval: this.policy.requiresApproval(commands),
@@ -122,9 +150,14 @@ export class CommandProposalService {
       const { outcome, rebased } = await this.attempt(run, proposal);
       const stored: CommandExecutionResult = rebased ? { ...outcome, rebased: true } : outcome;
       if (outcome.status === "applied") {
-        this.repository.commitApplied(proposal.id, stored, () => this.scenes.appendInTransaction(
-          this.repository.connection, proposal.projectId, proposal.id, proposal.commands,
-        ));
+        this.repository.commitApplied(proposal.id, stored, () =>
+          this.scenes.appendInTransaction(
+            this.repository.connection,
+            proposal.projectId,
+            proposal.id,
+            proposal.commands,
+          ),
+        );
       } else {
         this.repository.transition(proposal.id, ["applying"], "failed", new Date().toISOString(), stored);
       }
@@ -134,15 +167,23 @@ export class CommandProposalService {
     }
   }
 
-  private async applyPrepared(run: ProposalRun, proposal: CommandProposalRecord, context: EditorContext): Promise<CommandExecutionResult> {
+  private async applyPrepared(
+    run: ProposalRun,
+    proposal: CommandProposalRecord,
+    context: EditorContext,
+  ): Promise<CommandExecutionResult> {
     const rebased = context.revision !== proposal.baseRevision;
     const issues = validateAgainstContext(proposal.commands, context);
     if ((rebased && proposal.strictRevision) || issues.length > 0) {
       // Say why, as the other apply path does, so the next proposal can fix the right thing.
-      const reasons = issues.slice(0, 8).map((item) => `${item.commandId}: ${item.message}`).join("; ");
-      const message = issues.length > 0
-        ? `The scene changed after this proposal was made (revision ${proposal.baseRevision} → ${context.revision}), and it no longer fits: ${reasons}. Propose again.`
-        : `The scene changed after this proposal was made (revision ${proposal.baseRevision} → ${context.revision}), and these commands only apply to the revision they were written for. Read the scene and propose again.`;
+      const reasons = issues
+        .slice(0, 8)
+        .map((item) => `${item.commandId}: ${item.message}`)
+        .join("; ");
+      const message =
+        issues.length > 0
+          ? `The scene changed after this proposal was made (revision ${proposal.baseRevision} → ${context.revision}), and it no longer fits: ${reasons}. Propose again.`
+          : `The scene changed after this proposal was made (revision ${proposal.baseRevision} → ${context.revision}), and these commands only apply to the revision they were written for. Read the scene and propose again.`;
       const result = failedOutcome(proposal.id, message.slice(0, 500), context.revision);
       this.repository.transition(proposal.id, ["applying"], "failed", new Date().toISOString(), result);
       return result;
@@ -154,12 +195,24 @@ export class CommandProposalService {
     }
     const stored = { ...prepared, rebased };
     try {
-      this.repository.commitApplied(proposal.id, stored, () => this.scenes.appendInTransaction(
-        this.repository.connection, proposal.projectId, proposal.id, proposal.commands,
-      ), true);
+      this.repository.commitApplied(
+        proposal.id,
+        stored,
+        () =>
+          this.scenes.appendInTransaction(
+            this.repository.connection,
+            proposal.projectId,
+            proposal.id,
+            proposal.commands,
+          ),
+        true,
+      );
     } catch (error) {
-      try { await this.execute(run, proposal, context.revision, "discard"); }
-      catch { /* Connection close discards the uncommitted candidate. */ }
+      try {
+        await this.execute(run, proposal, context.revision, "discard");
+      } catch {
+        /* Connection close discards the uncommitted candidate. */
+      }
       throw error;
     }
     try {
@@ -182,7 +235,13 @@ export class CommandProposalService {
     const outcome = await this.execute(run, proposal, proposal.baseRevision);
     if (outcome.status !== "revision_conflict") return { outcome, rebased: false };
     if (proposal.strictRevision) {
-      return { outcome: failedOutcome(proposal.id, "Scene changed since these commands were calculated. Regenerate and propose again."), rebased: false };
+      return {
+        outcome: failedOutcome(
+          proposal.id,
+          "Scene changed since these commands were calculated. Regenerate and propose again.",
+        ),
+        rebased: false,
+      };
     }
     return this.rebase(run, proposal);
   }
@@ -197,7 +256,10 @@ export class CommandProposalService {
       this.bridge.assertConnection(run.userId, run.projectId, proposal.clientId);
       current = await this.bridge.getContext(proposal.clientId);
     } catch {
-      return { outcome: failedOutcome(proposal.id, "The editor could not be reached to check this proposal again"), rebased: false };
+      return {
+        outcome: failedOutcome(proposal.id, "The editor could not be reached to check this proposal again"),
+        rebased: false,
+      };
     }
 
     const issues = validateAgainstContext(proposal.commands, current);
@@ -212,7 +274,12 @@ export class CommandProposalService {
   }
 
   /** Sends the batch to the editor at `expectedRevision`. A failure to reach the editor becomes a failed outcome. */
-  private async execute(run: ProposalRun, proposal: CommandProposalRecord, expectedRevision: number, phase?: "prepare" | "commit" | "discard"): Promise<CommandExecutionResult> {
+  private async execute(
+    run: ProposalRun,
+    proposal: CommandProposalRecord,
+    expectedRevision: number,
+    phase?: "prepare" | "commit" | "discard",
+  ): Promise<CommandExecutionResult> {
     try {
       this.bridge.assertConnection(run.userId, run.projectId, proposal.clientId);
       return await this.bridge.executeCommands(proposal.clientId, {

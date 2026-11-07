@@ -7,5 +7,6 @@ import { SkillsRegistry } from "./skills.registry.js";
   controllers: [SkillsController],
   providers: [SkillsLoader, SkillsRegistry],
   exports: [SkillsRegistry],
+/** The skills feature: the loader and the registry of SKILL.md files. */
 })
 export class SkillsModule {}

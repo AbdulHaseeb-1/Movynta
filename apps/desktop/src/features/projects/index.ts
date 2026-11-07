@@ -11,12 +11,7 @@ export { ProjectActionsMenu } from "./ProjectActionsMenu";
 export { ProjectBar } from "./ProjectBar";
 export { ProjectCard } from "./ProjectCard";
 export { ProjectDialogs } from "./ProjectDialogs";
-export {
-  displayName,
-  isUntitled,
-  PROJECT_NAME_MAX_LENGTH,
-  UNTITLED_PROJECT,
-} from "./projectName";
+export { displayName, isUntitled, PROJECT_NAME_MAX_LENGTH, UNTITLED_PROJECT } from "./projectName";
 export {
   createProject,
   getProject,
@@ -26,12 +21,7 @@ export {
   updateProject,
 } from "./projectsApi";
 export { ProjectsEmptyState } from "./ProjectsEmptyState";
-export {
-  projectChanged,
-  projectRemoved,
-  projectsLoaded,
-  projectsReducer,
-} from "./projectsSlice";
+export { projectChanged, projectRemoved, projectsLoaded, projectsReducer } from "./projectsSlice";
 export { ProjectsToolbar } from "./ProjectsToolbar";
 export { ProjectThumbnail } from "./ProjectThumbnail";
 export { ProjectTitle } from "./ProjectTitle";

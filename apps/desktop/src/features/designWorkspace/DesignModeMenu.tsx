@@ -10,16 +10,12 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { setDesignMode } from "./workspaceSlice";
 import { knifeIsActive } from "./knifeActivity";
 import { extrudeIsActive } from "@/features/objectEditing/ExtrudeGesture";
 
+/** The menu that switches between Object and Edit mode, showing the shortcut for each. */
 export function DesignModeMenu() {
   const dispatch = useAppDispatch();
   const mode = useAppSelector((state) => state.designWorkspace.mode);
@@ -29,10 +25,23 @@ export function DesignModeMenu() {
   const menuIsOpen = useRef(false);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || menuOpen || knifeIsActive() || extrudeIsActive() || isShortcutBlocked(event.target)) return;
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        event.shiftKey ||
+        menuOpen ||
+        knifeIsActive() ||
+        extrudeIsActive() ||
+        isShortcutBlocked(event.target)
+      )
+        return;
       const key = event.key.toLowerCase();
       if ((mode === "object" && key === "e") || (mode === "edit" && key === "o")) {
-        event.preventDefault(); dispatch(setDesignMode(mode === "object" ? "edit" : "object"));
+        event.preventDefault();
+        dispatch(setDesignMode(mode === "object" ? "edit" : "object"));
       }
     };
     window.addEventListener("keydown", keydown);
@@ -51,9 +60,7 @@ export function DesignModeMenu() {
       >
         <Tooltip
           open={tooltipOpen && !menuOpen}
-          onOpenChange={(open) =>
-            setTooltipOpen(open && !suppressTooltip.current)
-          }
+          onOpenChange={(open) => setTooltipOpen(open && !suppressTooltip.current)}
         >
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
@@ -75,20 +82,14 @@ export function DesignModeMenu() {
             </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            {mode === "object"
-              ? "Select and transform whole objects"
-              : "Select mesh vertices, edges or faces"}
+            {mode === "object" ? "Select and transform whole objects" : "Select mesh vertices, edges or faces"}
           </TooltipContent>
         </Tooltip>
-        <DropdownMenuContent
-          align="start"
-          className="w-44 border border-border bg-popover p-1 shadow-xl"
-        >
+        <DropdownMenuContent align="start" className="w-44 border border-border bg-popover p-1 shadow-xl">
           <DropdownMenuRadioGroup
             value={mode}
             onValueChange={(value) => {
-              if (value === "object" || value === "edit")
-                dispatch(setDesignMode(value));
+              if (value === "object" || value === "edit") dispatch(setDesignMode(value));
             }}
           >
             <DropdownMenuRadioItem

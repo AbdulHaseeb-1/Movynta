@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-export const reasoningEffortSchema = z.enum([
-  "minimal",
-  "low",
-  "medium",
-  "high",
-]);
+export const reasoningEffortSchema = z.enum(["minimal", "low", "medium", "high"]);
 export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
 
 export const EFFORT_LABELS: Readonly<Record<ReasoningEffort, string>> = {

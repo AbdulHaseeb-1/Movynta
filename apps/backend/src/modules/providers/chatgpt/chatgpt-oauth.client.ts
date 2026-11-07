@@ -68,30 +68,20 @@ export class ChatgptOAuthClient {
     return this.toTokens(response, previous);
   }
 
-  private toTokens(
-    response: TokenResponse,
-    previous?: ChatgptTokens,
-  ): ChatgptTokens {
+  private toTokens(response: TokenResponse, previous?: ChatgptTokens): ChatgptTokens {
     const idToken = response.id_token ?? previous?.idToken;
     const refreshToken = response.refresh_token ?? previous?.refreshToken;
     if (!idToken || !refreshToken)
-      throw new ServiceUnavailableError(
-        "ChatGPT sign-in returned an incomplete response. Try again.",
-      );
+      throw new ServiceUnavailableError("ChatGPT sign-in returned an incomplete response. Try again.");
     const accountId =
-      readTokenClaims(idToken).accountId ??
-      readTokenClaims(response.access_token).accountId ??
-      previous?.accountId;
+      readTokenClaims(idToken).accountId ?? readTokenClaims(response.access_token).accountId ?? previous?.accountId;
     if (!accountId)
       throw new ChatgptSignInRequiredError(
         "This sign-in has no ChatGPT account attached. Use an account with a ChatGPT subscription.",
       );
     const accessExpiresAt =
       readTokenClaims(response.access_token).expiresAt ??
-      Date.now() +
-        (response.expires_in !== undefined
-          ? response.expires_in * 1000
-          : FALLBACK_ACCESS_LIFETIME_MS);
+      Date.now() + (response.expires_in !== undefined ? response.expires_in * 1000 : FALLBACK_ACCESS_LIFETIME_MS);
     return {
       accessToken: response.access_token,
       refreshToken,
@@ -101,18 +91,14 @@ export class ChatgptOAuthClient {
     };
   }
 
-  private async post(
-    body: URLSearchParams | Record<string, string>,
-  ): Promise<TokenResponse> {
+  private async post(body: URLSearchParams | Record<string, string>): Promise<TokenResponse> {
     const form = body instanceof URLSearchParams;
     let response: Response;
     try {
       response = await fetch(CHATGPT_TOKEN_URL, {
         method: "POST",
         headers: {
-          "Content-Type": form
-            ? "application/x-www-form-urlencoded"
-            : "application/json",
+          "Content-Type": form ? "application/x-www-form-urlencoded" : "application/json",
           Accept: "application/json",
         },
         body: form ? body.toString() : JSON.stringify(body),
@@ -120,25 +106,15 @@ export class ChatgptOAuthClient {
         signal: AbortSignal.timeout(CHATGPT_REQUEST_TIMEOUT_MS),
       });
     } catch {
-      throw new ServiceUnavailableError(
-        "Could not reach ChatGPT sign-in. Check your network and try again.",
-      );
+      throw new ServiceUnavailableError("Could not reach ChatGPT sign-in. Check your network and try again.");
     }
     if (response.status === 400 || response.status === 401)
-      throw new ChatgptSignInRequiredError(
-        "ChatGPT sign-in is no longer valid. Sign in again.",
-      );
-    if (!response.ok)
-      throw new ServiceUnavailableError(
-        "ChatGPT sign-in is unavailable right now. Try again shortly.",
-      );
+      throw new ChatgptSignInRequiredError("ChatGPT sign-in is no longer valid. Sign in again.");
+    if (!response.ok) throw new ServiceUnavailableError("ChatGPT sign-in is unavailable right now. Try again shortly.");
     // A proxy or captive portal can answer 200 with a page that is not JSON.
     const payload: unknown = await response.json().catch(() => undefined);
     const parsed = tokenResponseSchema.safeParse(payload);
-    if (!parsed.success)
-      throw new ServiceUnavailableError(
-        "ChatGPT sign-in returned an unexpected response.",
-      );
+    if (!parsed.success) throw new ServiceUnavailableError("ChatGPT sign-in returned an unexpected response.");
     return parsed.data;
   }
 }

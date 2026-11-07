@@ -9,20 +9,18 @@ export const SCALE_SNAP = 0.1;
 const EPSILON = 1e-6;
 
 export type TransformField = keyof ObjectTransform;
-export const TRANSFORM_FIELDS: readonly TransformField[] = [
-  "position",
-  "rotation",
-  "scale",
-];
+export const TRANSFORM_FIELDS: readonly TransformField[] = ["position", "rotation", "scale"];
 
 function mapVector(vector: Vec3, convert: (value: number) => number): Vec3 {
   return [convert(vector[0]), convert(vector[1]), convert(vector[2])];
 }
 
+/** Converts a rotation from radians to degrees, axis by axis. */
 export function radiansToDegrees(rotation: Vec3): Vec3 {
   return mapVector(rotation, MathUtils.radToDeg);
 }
 
+/** Converts a rotation from degrees to radians, axis by axis. */
 export function degreesToRadians(rotation: Vec3): Vec3 {
   return mapVector(rotation, MathUtils.degToRad);
 }
@@ -39,12 +37,9 @@ function sameVector(a: Vec3, b: Vec3): boolean {
   return a.every((value, index) => Math.abs(value - (b[index] ?? NaN)) < EPSILON);
 }
 
+/** Whether two transforms have the same position, rotation and scale. */
 export function sameTransform(a: ObjectTransform, b: ObjectTransform): boolean {
-  return (
-    sameVector(a.position, b.position) &&
-    sameVector(a.rotation, b.rotation) &&
-    sameVector(a.scale, b.scale)
-  );
+  return sameVector(a.position, b.position) && sameVector(a.rotation, b.rotation) && sameVector(a.scale, b.scale);
 }
 
 /** A copy of `vector` with one axis changed. */
@@ -88,7 +83,11 @@ export function rotationSign(axis: Vector3, camera: Camera): 1 | -1 {
  * on display was not edited, so the stored value (which may have more decimals) is kept; an Escape or text that is
  * not a number changes nothing; and a `min` keeps the result in range.
  */
-export function fieldCommitValue(draft: string, value: number, options: { min?: number | undefined; cancelled?: boolean | undefined } = {}): number | undefined {
+export function fieldCommitValue(
+  draft: string,
+  value: number,
+  options: { min?: number | undefined; cancelled?: boolean | undefined } = {},
+): number | undefined {
   if (options.cancelled || draft === formatNumber(value)) return undefined;
   const parsed = parseNumber(draft);
   if (parsed === undefined) return undefined;

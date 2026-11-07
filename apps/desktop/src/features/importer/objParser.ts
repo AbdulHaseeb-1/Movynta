@@ -137,7 +137,7 @@ export function parseObj(text: string, material: Material): Group {
   };
 
   const length = text.length;
-  for (let line = 0; line < length; ) {
+  for (let line = 0; line < length;) {
     let newline = text.indexOf("\n", line);
     if (newline === -1) newline = length;
     let end = newline;
@@ -155,7 +155,7 @@ export function parseObj(text: string, material: Material): Group {
       else if (second === 116 /* t */) pushNumbers(uvs, start + 2, end, 2);
     } else if (first === 102 /* f */ && isBlank(second)) {
       addFace(start + 1, end);
-    } else if ((first === 111 /* o */ || first === 103 /* g */) && isBlank(second)) {
+    } else if ((first === 111 /* o */ || first === 103) /* g */ && isBlank(second)) {
       if (part.positions.length > 0) finished.push(part);
       part = newPart(text.substring(start + 1, end).trim());
     }

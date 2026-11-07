@@ -30,7 +30,6 @@ function operandSlot(slots: readonly SceneMesh[], objectId: string, path: MeshPa
   return target === undefined ? undefined : slots.find((entry) => entry.objectId === objectId && entry.mesh === target);
 }
 
-
 /** Every mesh in the scene, including child parts, in child-index order. */
 export function sceneMeshes(objects: ReadonlyMap<string, Object3D>): SceneMesh[] {
   const found: SceneMesh[] = [];
@@ -56,7 +55,10 @@ function enabledBooleans(modifiers: readonly MeshModifierSpec[]): BooleanModifie
  * True when this batch enables a boolean or changes a mesh that an existing boolean uses.
  * Other stacks keep the single-mesh evaluator.
  */
-export function needsBooleanEvaluation(slots: readonly SceneMesh[], planned: ReadonlyMap<Mesh, readonly MeshModifierSpec[]>): boolean {
+export function needsBooleanEvaluation(
+  slots: readonly SceneMesh[],
+  planned: ReadonlyMap<Mesh, readonly MeshModifierSpec[]>,
+): boolean {
   for (const modifiers of planned.values()) if (enabledBooleans(modifiers).length > 0) return true;
   const changed = new Set(planned.keys());
   for (const slot of slots) {
@@ -77,10 +79,22 @@ function findOperand(slots: readonly SceneMesh[], modifier: BooleanModifier, tar
 
 function skinnedBoolean(mesh: Mesh, modifiers: readonly MeshModifierSpec[]): void {
   if (!(mesh instanceof SkinnedMesh)) return;
-  const blocked = modifiers.find((modifier) => modifier.enabled && (modifier.kind === "extrusion" || modifier.kind === "boolean" || modifier.kind === "array" || modifier.kind === "mirror"));
+  const blocked = modifiers.find(
+    (modifier) =>
+      modifier.enabled &&
+      (modifier.kind === "extrusion" ||
+        modifier.kind === "boolean" ||
+        modifier.kind === "array" ||
+        modifier.kind === "mirror"),
+  );
   if (!blocked) return;
-  if (blocked.kind === "array" || blocked.kind === "mirror") throw new Error("Array/mirror modifiers on skinned meshes are not supported; duplicate the hierarchy instead");
-  throw new Error(blocked.kind === "boolean" ? "Boolean modifiers on skinned meshes are not supported" : "Live extrusion on skinned meshes is not supported");
+  if (blocked.kind === "array" || blocked.kind === "mirror")
+    throw new Error("Array/mirror modifiers on skinned meshes are not supported; duplicate the hierarchy instead");
+  throw new Error(
+    blocked.kind === "boolean"
+      ? "Boolean modifiers on skinned meshes are not supported"
+      : "Live extrusion on skinned meshes is not supported",
+  );
 }
 
 /**
@@ -109,11 +123,17 @@ export function evaluateAffected(
           if (must.has(slot.mesh)) continue;
           const booleans = enabledBooleans(modifiersFor(slot.mesh));
           if (!booleans.length) continue;
-          const affected = changed.has(slot.mesh) || booleans.some((modifier) => {
-            const operand = operandSlot(slots, modifier.operandObjectId, modifier.operandMeshPath);
-            return operand !== undefined && changed.has(operand.mesh);
-          });
-          if (affected) { must.add(slot.mesh); changed.add(slot.mesh); grew = true; }
+          const affected =
+            changed.has(slot.mesh) ||
+            booleans.some((modifier) => {
+              const operand = operandSlot(slots, modifier.operandObjectId, modifier.operandMeshPath);
+              return operand !== undefined && changed.has(operand.mesh);
+            });
+          if (affected) {
+            must.add(slot.mesh);
+            changed.add(slot.mesh);
+            grew = true;
+          }
         }
       }
     }
@@ -126,7 +146,10 @@ export function evaluateAffected(
         if (must.has(slot.mesh)) continue;
         for (const modifier of enabledBooleans(modifiersFor(slot.mesh))) {
           const operand = operandSlot(slots, modifier.operandObjectId, modifier.operandMeshPath);
-          if (operand && must.has(operand.mesh)) { must.add(slot.mesh); grew = true; }
+          if (operand && must.has(operand.mesh)) {
+            must.add(slot.mesh);
+            grew = true;
+          }
         }
       }
     }
@@ -134,7 +157,10 @@ export function evaluateAffected(
 
   const incoming = new Map<Mesh, number>();
   const dependents = new Map<Mesh, Mesh[]>();
-  for (const mesh of must) { incoming.set(mesh, 0); dependents.set(mesh, []); }
+  for (const mesh of must) {
+    incoming.set(mesh, 0);
+    dependents.set(mesh, []);
+  }
   for (const mesh of must) {
     const seen = new Set<Mesh>();
     for (const modifier of enabledBooleans(modifiersFor(mesh))) {
@@ -187,7 +213,8 @@ export function evaluateAffected(
   } catch (error) {
     for (const [mesh, state] of results) {
       const live = modifierStack(mesh);
-      if (state.geometry !== mesh.geometry && state.geometry !== live?.geometry && state.geometry !== state.base) state.geometry.dispose();
+      if (state.geometry !== mesh.geometry && state.geometry !== live?.geometry && state.geometry !== state.base)
+        state.geometry.dispose();
     }
     throw error;
   }

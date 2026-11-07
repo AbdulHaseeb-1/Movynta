@@ -7,10 +7,8 @@ export function recordSceneEdit(
   commands: readonly unknown[],
   actionId?: string,
 ): Promise<{ proposalId: string }> {
-  return backendRequest(
-    `/projects/${projectId}/scene/edits`,
-    z.object({ proposalId: z.string() }),
-    "POST",
-    { commands, ...(actionId ? { actionId } : {}) },
-  );
+  return backendRequest(`/projects/${projectId}/scene/edits`, z.object({ proposalId: z.string() }), "POST", {
+    commands,
+    ...(actionId ? { actionId } : {}),
+  });
 }

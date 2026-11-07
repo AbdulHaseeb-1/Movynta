@@ -1,19 +1,9 @@
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { projectCategories } from "./projectCategories";
-import type {
-  ProjectFilters,
-  ProjectSort,
-  ProjectView,
-} from "./projectTypes";
+import type { ProjectFilters, ProjectSort, ProjectView } from "./projectTypes";
 
 const VIEWS: readonly { id: ProjectView; label: string }[] = [
   { id: "all", label: "All" },
@@ -35,15 +25,10 @@ interface ProjectsToolbarProps {
   onFiltersChange: (filters: ProjectFilters) => void;
 }
 
-const selectTriggerClass =
-  "h-9 w-[160px] rounded-lg bg-card text-[13px] shadow-none";
+const selectTriggerClass = "h-9 w-[160px] rounded-lg bg-card text-[13px] shadow-none";
 
-export function ProjectsToolbar({
-  search,
-  onSearchChange,
-  filters,
-  onFiltersChange,
-}: ProjectsToolbarProps) {
+/** The library toolbar: search, the category and view filters, and sorting. */
+export function ProjectsToolbar({ search, onSearchChange, filters, onFiltersChange }: ProjectsToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="relative min-w-[220px] flex-1 basis-64">

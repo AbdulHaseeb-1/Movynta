@@ -43,6 +43,7 @@ import { ProvidersModule } from "./modules/providers/providers.module.js";
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_FILTER, useClass: AppExceptionFilter },
   ],
+/** The root module. It wires configuration, persistence and every feature module, and sets up the request middleware. */
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

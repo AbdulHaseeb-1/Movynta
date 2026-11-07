@@ -10,8 +10,10 @@ type ToolResultItem = Extract<AgentInputItem, { type: "function_call_result" }>;
 type ToolOutputPart = Extract<ToolResultItem["output"], readonly unknown[]>[number];
 type PictureOutputPart = Extract<ToolOutputPart, { type: "input_image" }>;
 
-const REMOVED_PICTURE = "[a picture from an earlier result was removed to save context; capture the view again if you need it]";
-const UNSENDABLE_PICTURE = "[a picture is not shown: only picture URLs or data URLs can be sent through this connection]";
+const REMOVED_PICTURE =
+  "[a picture from an earlier result was removed to save context; capture the view again if you need it]";
+const UNSENDABLE_PICTURE =
+  "[a picture is not shown: only picture URLs or data URLs can be sent through this connection]";
 
 function isToolResult(item: AgentInputItem): item is ToolResultItem {
   return "type" in item && item.type === "function_call_result";
@@ -46,7 +48,10 @@ function moveResultPictures(item: ToolResultItem, keep: boolean, carried: Pictur
 function pictureMessage(pictures: readonly PictureOutputPart[]): UserMessageItem {
   return {
     role: "user",
-    content: [{ type: "input_text", text: "Pictures from the tool results above, in the order of their placeholders:" }, ...pictures],
+    content: [
+      { type: "input_text", text: "Pictures from the tool results above, in the order of their placeholders:" },
+      ...pictures,
+    ],
   };
 }
 

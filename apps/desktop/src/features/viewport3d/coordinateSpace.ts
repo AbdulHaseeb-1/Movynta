@@ -1,13 +1,4 @@
-import {
-  BufferGeometry,
-  Color,
-  Group,
-  LineSegments,
-  ShaderMaterial,
-  Vector3,
-  type Camera,
-  type Scene,
-} from "three";
+import { BufferGeometry, Color, Group, LineSegments, ShaderMaterial, Vector3, type Camera, type Scene } from "three";
 import type { Viewport } from "./viewport";
 
 const GRID_SIZE = 400;
@@ -90,18 +81,8 @@ function createCrossGeometry(size: number): BufferGeometry {
 // Adds the ground grid on the XZ plane, with two highlighted lines crossing at the origin.
 export function addCoordinateSpace(scene: Scene): Group {
   const grid = new Group();
-  grid.add(
-    new LineSegments(
-      createGridGeometry(GRID_SIZE, GRID_DIVISIONS),
-      createFadeMaterial(GRID_COLOR, 1),
-    ),
-  );
-  grid.add(
-    new LineSegments(
-      createCrossGeometry(CROSS_SIZE),
-      createFadeMaterial(HIGHLIGHT_COLOR, HIGHLIGHT_OPACITY),
-    ),
-  );
+  grid.add(new LineSegments(createGridGeometry(GRID_SIZE, GRID_DIVISIONS), createFadeMaterial(GRID_COLOR, 1)));
+  grid.add(new LineSegments(createCrossGeometry(CROSS_SIZE), createFadeMaterial(HIGHLIGHT_COLOR, HIGHLIGHT_OPACITY)));
   scene.add(grid);
   return grid;
 }
@@ -141,10 +122,7 @@ export function originProjection(camera: Camera): { left: number; top: number } 
 
 // Keeps `anchor` at the screen position of the origin, where the highlighted lines cross.
 // Returns a function that stops the tracking.
-export function anchorToOrigin(
-  viewport: Viewport,
-  anchor: HTMLElement,
-): () => void {
+export function anchorToOrigin(viewport: Viewport, anchor: HTMLElement): () => void {
   const { camera } = viewport;
 
   const place = () => {

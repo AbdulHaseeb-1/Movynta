@@ -8,6 +8,7 @@ export interface FaceTransform {
   scale?: readonly number[] | undefined;
 }
 
+/** The vertices of the given faces, so a face move can carry them together. */
 export function faceTransformSelection(mesh: PolygonMesh, ids: readonly string[]) {
   const vertices = new Set<number>();
   for (const id of ids) {
@@ -34,15 +35,22 @@ export function transformFaces(
   const inverse = localToSpace.clone().invert();
   if (!inverse.determinant()) throw new Error("The mesh transform is singular");
   const origin = originOverride?.clone() ?? pivot.clone().applyMatrix4(localToSpace);
-  const rotation = new Quaternion().setFromEuler(new Euler(
-    transform.rotation?.[0] ?? 0, transform.rotation?.[1] ?? 0, transform.rotation?.[2] ?? 0,
-  ));
+  const rotation = new Quaternion().setFromEuler(
+    new Euler(transform.rotation?.[0] ?? 0, transform.rotation?.[1] ?? 0, transform.rotation?.[2] ?? 0),
+  );
   const position = new Vector3().fromArray(transform.position ?? [0, 0, 0]);
   const scale = new Vector3().fromArray(transform.scale ?? [1, 1, 1]);
   const positions = mesh.positions.slice();
   for (const vertex of vertices) {
-    const next = point(mesh, vertex).clone().applyMatrix4(localToSpace).sub(origin)
-      .multiply(scale).applyQuaternion(rotation).add(origin).add(position).applyMatrix4(inverse);
+    const next = point(mesh, vertex)
+      .clone()
+      .applyMatrix4(localToSpace)
+      .sub(origin)
+      .multiply(scale)
+      .applyQuaternion(rotation)
+      .add(origin)
+      .add(position)
+      .applyMatrix4(inverse);
     if (!next.toArray().every(Number.isFinite)) throw new Error("Face transform exceeds the coordinate range");
     positions[vertex] = next;
   }

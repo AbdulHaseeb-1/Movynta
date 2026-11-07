@@ -4,6 +4,7 @@ import { NotFoundError } from "../../common/errors/app-error.js";
 import { SkillsRegistry } from "./skills.registry.js";
 import type { SkillManifest, SkillSummary } from "./skills.types.js";
 
+/** HTTP endpoints for the skills the assistant can load. */
 @ApiTags("skills")
 @ApiBearerAuth()
 @Controller({ path: "skills", version: "1" })

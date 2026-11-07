@@ -1,6 +1,12 @@
 import { z } from "zod";
-import { CollectionModel, viewCaptureRequestSchema, type ViewCaptureRequest, type EditorContext, type EditorObject, editorCommandListSchema } from "@movynta/editor-protocol";
-
+import {
+  CollectionModel,
+  viewCaptureRequestSchema,
+  type ViewCaptureRequest,
+  type EditorContext,
+  type EditorObject,
+  editorCommandListSchema,
+} from "@movynta/editor-protocol";
 
 import type { EditorCommand, EditorCommandList, OutboundMessage } from "./testing.types.js";
 
@@ -17,7 +23,11 @@ export class EditorSimulator {
   readonly received: OutboundMessage[] = [];
   readonly executions: { readonly proposalId: string; readonly commands: readonly EditorCommand[] }[] = [];
   /** Every view request the backend sent, with whether it asked for pixels. */
-  readonly viewRequests: { readonly request: ViewCaptureRequest; readonly withImages: boolean; readonly captureId: string }[] = [];
+  readonly viewRequests: {
+    readonly request: ViewCaptureRequest;
+    readonly withImages: boolean;
+    readonly captureId: string;
+  }[] = [];
   /** When false, the simulator never answers command execution, which exercises timeouts. */
   answerExecutions = true;
   /** Whether the simulated editor advertises the scene-graph commands. Set false to stand in for an older editor. */
@@ -172,16 +182,27 @@ export class EditorSimulator {
   private apply(command: EditorCommand): void {
     switch (command.type) {
       case "scene.duplicate_hierarchy": {
-        const originals = this.objects.slice(), source = originals.find((object) => object.id === command.sourceId);
+        const originals = this.objects.slice(),
+          source = originals.find((object) => object.id === command.sourceId);
         if (!source) throw new Error("Missing duplicate source");
         command.copies.forEach((copy, index) => {
-          const mapping = new Map([[command.sourceId, copy.objectId], ...copy.descendants.map((entry) => [entry.sourceId, entry.objectId] as [string, string])]);
+          const mapping = new Map([
+            [command.sourceId, copy.objectId],
+            ...copy.descendants.map((entry) => [entry.sourceId, entry.objectId] as [string, string]),
+          ]);
           for (const [from, id] of mapping) {
-            const original = originals.find((object) => object.id === from); if (!original) throw new Error("Missing descendant");
-            const translated = (axis: number) => (original.transform.position[axis] ?? 0) + (from === command.sourceId ? (command.offset[axis] ?? 0) * (index + 1) : 0);
-            this.objects.push({ ...original, id, name: from === command.sourceId ? copy.name ?? original.name : original.name,
-              parentId: original.parentId === null ? null : mapping.get(original.parentId) ?? original.parentId,
-              transform: { ...original.transform, position: [translated(0), translated(1), translated(2)] } });
+            const original = originals.find((object) => object.id === from);
+            if (!original) throw new Error("Missing descendant");
+            const translated = (axis: number) =>
+              (original.transform.position[axis] ?? 0) +
+              (from === command.sourceId ? (command.offset[axis] ?? 0) * (index + 1) : 0);
+            this.objects.push({
+              ...original,
+              id,
+              name: from === command.sourceId ? (copy.name ?? original.name) : original.name,
+              parentId: original.parentId === null ? null : (mapping.get(original.parentId) ?? original.parentId),
+              transform: { ...original.transform, position: [translated(0), translated(1), translated(2)] },
+            });
             this.collectionModel.assign(id, this.collectionModel.collectionOf(from));
           }
         });
@@ -198,13 +219,20 @@ export class EditorSimulator {
       case "geometry.create_mesh":
       case "geometry.create_primitive": {
         const id = command.objectId;
-        const name = command.type === "scene.create_object" ? command.name : command.type === "geometry.create_mesh" ? command.name ?? "Mesh" : command.name ?? command.primitive;
+        const name =
+          command.type === "scene.create_object"
+            ? command.name
+            : command.type === "geometry.create_mesh"
+              ? (command.name ?? "Mesh")
+              : (command.name ?? command.primitive);
         this.objects.push({
           id,
           name,
           type: "mesh",
           parentId: command.parentId ?? null,
-          collectionId: command.collectionId ?? (command.parentId === undefined ? null : this.collectionModel.collectionOf(command.parentId)),
+          collectionId:
+            command.collectionId ??
+            (command.parentId === undefined ? null : this.collectionModel.collectionOf(command.parentId)),
           transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
         });
         // Every shape is reported as a cube of edge `size`, placed by its transform and ignoring parents: close enough
@@ -241,7 +269,8 @@ export class EditorSimulator {
         const moving = [command.objectId];
         for (let id = moving.pop(); id !== undefined; id = moving.pop()) {
           this.collectionModel.assign(id, command.collectionId);
-          if (command.includeChildren) moving.push(...this.objects.filter((object) => object.parentId === id).map((object) => object.id));
+          if (command.includeChildren)
+            moving.push(...this.objects.filter((object) => object.parentId === id).map((object) => object.id));
         }
         break;
       }
@@ -297,13 +326,20 @@ export class EditorSimulator {
   }
 
   /** Sets an object's position and scale where given and recomputes the bounds of a shape the simulator knows the size of. */
-  private place(object: EditorObject, position: readonly number[] | undefined, scale: readonly number[] | undefined): void {
+  private place(
+    object: EditorObject,
+    position: readonly number[] | undefined,
+    scale: readonly number[] | undefined,
+  ): void {
     const [px = 0, py = 0, pz = 0] = position ?? object.transform.position;
     const [sx = 1, sy = 1, sz = 1] = scale ?? object.transform.scale;
     object.transform = { ...object.transform, position: [px, py, pz], scale: [sx, sy, sz] };
     const half = this.halfExtent.get(object.id);
     if (half === undefined) return;
-    object.worldBounds = { min: [px - half * sx, py - half * sy, pz - half * sz], max: [px + half * sx, py + half * sy, pz + half * sz] };
+    object.worldBounds = {
+      min: [px - half * sx, py - half * sy, pz - half * sz],
+      max: [px + half * sx, py + half * sy, pz + half * sz],
+    };
   }
 
   private snapshot(): EditorContext {
@@ -312,7 +348,10 @@ export class EditorSimulator {
       revision: this.revision,
       activeSceneName: "Main",
       selectedObjectIds: [],
-      objects: this.objects.map((object) => ({ ...object, collectionId: this.collectionModel.collectionOf(object.id) })),
+      objects: this.objects.map((object) => ({
+        ...object,
+        collectionId: this.collectionModel.collectionOf(object.id),
+      })),
       collections: this.collectionModel.entries(),
       ...(this.supportsSceneGraph ? { supportsSceneGraph: true } : {}),
       ...(this.supportsCollections ? { supportsCollections: true } : {}),

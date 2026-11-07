@@ -40,7 +40,12 @@ export function createBriefTools(bridge: EditorBridge): ToolDefinition[] {
           status: "recorded",
           checkCount: brief.checks.length,
           replaced,
-          ...(replaced && hadFailures ? { warning: "The previous brief had failing checks. Keep a check only if it still describes the right result; weakening a check to pass is disclosed to the user." } : {}),
+          ...(replaced && hadFailures
+            ? {
+                warning:
+                  "The previous brief had failing checks. Keep a check only if it still describes the right result; weakening a check to pass is disclosed to the user.",
+              }
+            : {}),
           next: "Build the model, then call validation.check_brief after the changes are applied.",
         };
       },
@@ -57,7 +62,8 @@ export function createBriefTools(bridge: EditorBridge): ToolDefinition[] {
       parameters: z.object({}).strict(),
       execute: async (_input, context) => {
         const state = context.progress.brief;
-        if (state.current === null) return { status: "rejected", reason: "No brief is recorded. Call modeling.record_brief first." };
+        if (state.current === null)
+          return { status: "rejected", reason: "No brief is recorded. Call modeling.record_brief first." };
         bridge.assertConnection(context.userId, context.projectId, context.clientId);
         const evaluation = evaluateBrief(await bridge.getContext(context.clientId), state.current);
         state.stale = false;
@@ -70,7 +76,12 @@ export function createBriefTools(bridge: EditorBridge): ToolDefinition[] {
           failed: evaluation.failed,
           unresolved: evaluation.unresolved,
           results: evaluation.results,
-          ...(evaluation.measurable ? {} : { message: "The editor did not report object bounds, so these checks cannot be measured. Say so in your reply instead of claiming they pass." }),
+          ...(evaluation.measurable
+            ? {}
+            : {
+                message:
+                  "The editor did not report object bounds, so these checks cannot be measured. Say so in your reply instead of claiming they pass.",
+              }),
         };
       },
     }),

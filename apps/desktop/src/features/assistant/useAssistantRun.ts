@@ -11,10 +11,7 @@ import { toUploads, type ComposerImage } from "../attachments";
 import { OncePerKey, RunSlot } from "./runSlot";
 import { waitForAbortable } from "./waitForAbortable";
 import { acceptedSchema, approvalSchema, readRunProgress } from "./runClient";
-import {
-  savedExchangesToMessages,
-  type SavedExchange,
-} from "./conversationMessages";
+import { savedExchangesToMessages, type SavedExchange } from "./conversationMessages";
 import { applyRunEvent, settleActivity } from "./runEvents";
 import { recoverSavedScene } from "../objectEditing/sceneHistory";
 import type { ChatMessage, RunPhase } from "./types";
@@ -81,24 +78,15 @@ export function useAssistantRun(
   useEffect(
     () => () => {
       if (runId.current)
-        void backendRequest(
-          `/agent-runs/${runId.current}/cancel`,
-          z.unknown(),
-          "POST",
-        ).catch(() => undefined);
+        void backendRequest(`/agent-runs/${runId.current}/cancel`, z.unknown(), "POST").catch(() => undefined);
       controller.current?.abort();
       connection.current?.close();
     },
     [],
   );
 
-  function patchMessage(
-    id: string,
-    change: (message: ChatMessage) => ChatMessage,
-  ) {
-    setMessages((current) =>
-      current.map((message) => (message.id === id ? change(message) : message)),
-    );
+  function patchMessage(id: string, change: (message: ChatMessage) => ChatMessage) {
+    setMessages((current) => current.map((message) => (message.id === id ? change(message) : message)));
   }
 
   /** Ends a request that never started. The message stays in the chat, so Try again can send it, pictures included. */
@@ -138,11 +126,7 @@ export function useAssistantRun(
       sessionProvider.current = fingerprint;
     }
     const reply = newMessage("assistant", "", "streaming");
-    setMessages((current) => [
-      ...current,
-      newMessage("user", message, "done", images),
-      reply,
-    ]);
+    setMessages((current) => [...current, newMessage("user", message, "done", images), reply]);
     setBusy(true);
     setApprovals([]);
     setPhase("connecting");
@@ -153,10 +137,15 @@ export function useAssistantRun(
       // Validate/refresh native authentication before opening the WebSocket, which cannot retry HTTP 401s.
       if (beforeSubmit) await waitForAbortable(abort.signal, beforeSubmit);
       abort.signal.throwIfAborted();
-      await waitForAbortable(abort.signal, () => backendRequest(
-        "/agents", z.array(z.object({ id: z.string() })), "GET", undefined,
-        AbortSignal.any([abort.signal, AbortSignal.timeout(20000)]),
-      ));
+      await waitForAbortable(abort.signal, () =>
+        backendRequest(
+          "/agents",
+          z.array(z.object({ id: z.string() })),
+          "GET",
+          undefined,
+          AbortSignal.any([abort.signal, AbortSignal.timeout(20000)]),
+        ),
+      );
       abort.signal.throwIfAborted();
       const projectId = await waitForAbortable(abort.signal, ensureProject);
       abort.signal.throwIfAborted();
@@ -203,17 +192,13 @@ export function useAssistantRun(
             patchMessage(reply.id, (current) => applyRunEvent(current, event));
             if (event.type === "tool.started") setStatus("Working");
             // The assistant stopped with work still open, so the run asks it to carry on.
-            if (event.type === "agent.continued")
-              setStatus("Finishing the unfinished work");
+            if (event.type === "agent.continued") setStatus("Finishing the unfinished work");
             if (event.type === "approval.required") {
               setPhase("waiting_approval");
               setStatus("Waiting for your approval");
               // The answer can arrive after the run has ended or been stopped; it must not bring the card back.
               const stillWaiting = () => !terminal && !abort.signal.aborted && runId.current === accepted.runId;
-              void backendRequest(
-                `/agent-runs/${accepted.runId}/approvals`,
-                z.array(approvalSchema),
-              )
+              void backendRequest(`/agent-runs/${accepted.runId}/approvals`, z.array(approvalSchema))
                 .then((list) => {
                   if (stillWaiting()) setApprovals(list);
                 })
@@ -221,12 +206,7 @@ export function useAssistantRun(
                   if (stillWaiting()) setStatus("Could not load approval details");
                 });
             }
-            if (
-              ["run.completed", "run.failed", "run.cancelled"].includes(
-                event.type,
-              )
-            )
-              terminal = true;
+            if (["run.completed", "run.failed", "run.cancelled"].includes(event.type)) terminal = true;
           },
           cursor,
         );
@@ -236,42 +216,25 @@ export function useAssistantRun(
           await recoverSavedScene(scene, true);
           terminal = true;
           const nextPhase: RunPhase =
-            result.status === "completed"
-              ? "completed"
-              : result.status === "failed"
-                ? "failed"
-                : "cancelled";
+            result.status === "completed" ? "completed" : result.status === "failed" ? "failed" : "cancelled";
           setPhase(nextPhase);
-          setStatus(
-            result.error?.message ??
-              (result.status === "completed" ? "Completed" : "Cancelled"),
-          );
+          setStatus(result.error?.message ?? (result.status === "completed" ? "Completed" : "Cancelled"));
           patchMessage(reply.id, (current) => {
             const settled = settleActivity(current);
             return {
               ...settled,
               content:
-                result.finalOutput &&
-                !settled.content.trimEnd().endsWith(result.finalOutput)
-                  ? [settled.content.trimEnd(), result.finalOutput]
-                      .filter(Boolean)
-                      .join("\n\n")
+                result.finalOutput && !settled.content.trimEnd().endsWith(result.finalOutput)
+                  ? [settled.content.trimEnd(), result.finalOutput].filter(Boolean).join("\n\n")
                   : settled.content.trimEnd(),
-              state:
-                result.status === "completed"
-                  ? "done"
-                  : result.status === "failed"
-                    ? "error"
-                    : "cancelled",
+              state: result.status === "completed" ? "done" : result.status === "failed" ? "error" : "cancelled",
               ...(result.error ? { error: result.error.message } : {}),
             };
           });
           setApprovals([]);
         } else {
           setStatus("Reconnecting to progress…");
-          await new Promise<void>((resolve) =>
-            window.setTimeout(resolve, 1000),
-          );
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 1000));
         }
       }
     } catch (error) {
@@ -304,9 +267,7 @@ export function useAssistantRun(
     setApprovals([]);
     setMessages((current) =>
       current.map((message) =>
-        message.state === "streaming"
-          ? { ...settleActivity(message), state: "cancelled" }
-          : message,
+        message.state === "streaming" ? { ...settleActivity(message), state: "cancelled" } : message,
       ),
     );
   }

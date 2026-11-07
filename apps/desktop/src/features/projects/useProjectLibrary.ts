@@ -2,11 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { errorMessage } from "@/lib/backend";
 import { listProjects } from "./projectsApi";
-import {
-  projectsFailed,
-  projectsLoaded,
-  projectsLoading,
-} from "./projectsSlice";
+import { projectsFailed, projectsLoaded, projectsLoading } from "./projectsSlice";
 import type { ProjectFilters } from "./projectTypes";
 
 /**
@@ -26,8 +22,7 @@ export function useProjectLibrary(filters: ProjectFilters) {
       const projects = await listProjects(filters);
       if (request === latest.current) dispatch(projectsLoaded(projects));
     } catch (failure) {
-      if (request === latest.current)
-        dispatch(projectsFailed(errorMessage(failure)));
+      if (request === latest.current) dispatch(projectsFailed(errorMessage(failure)));
     }
   }, [dispatch, filters]);
 

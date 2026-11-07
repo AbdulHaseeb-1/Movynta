@@ -5,5 +5,6 @@ import { DatabaseService } from "./database.service.js";
 @Module({
   providers: [DatabaseService],
   exports: [DatabaseService],
+/** Provides the SQLite connection and its migrations to the rest of the app. */
 })
 export class PersistenceModule {}

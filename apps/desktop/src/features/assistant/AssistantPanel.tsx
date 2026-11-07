@@ -5,12 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { errorMessage } from "@/lib/backend";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { ApprovalCard } from "./ApprovalCard";
 import { ASSISTANT_NAME, LOGO_SRC } from "./branding";
@@ -68,13 +63,7 @@ interface AssistantPanelProps {
 }
 
 /** Conversation pane: transcript with inline tool calls, approvals, and the composer. */
-export function AssistantPanel({
-  run,
-  className,
-  composer,
-  open,
-  onOpenChange,
-}: AssistantPanelProps) {
+export function AssistantPanel({ run, className, composer, open, onOpenChange }: AssistantPanelProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   // Where the view was last put by the panel itself; the scroll event this causes is not the reader moving.
@@ -127,9 +116,7 @@ export function AssistantPanel({
           className={cn(
             "pointer-events-auto relative min-h-0 gap-0 overflow-hidden border-0 bg-black/60 bg-[radial-gradient(ellipse_at_30%_22%,rgb(255_255_255_/_0.10),transparent_72%)] p-0 text-card-foreground shadow-2xl backdrop-blur-2xl backdrop-saturate-150",
             "transition-[width,height,border-radius] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-            open
-              ? "h-full w-[min(400px,calc(100vw-32px))] rounded-3xl"
-              : "h-8 w-8 rounded-xl",
+            open ? "h-full w-[min(400px,calc(100vw-32px))] rounded-3xl" : "h-8 w-8 rounded-xl",
           )}
         >
           <div
@@ -151,17 +138,10 @@ export function AssistantPanel({
                   aria-controls="assistant-panel"
                   onClick={() => onOpenChange(true)}
                 >
-                  <img
-                    src={LOGO_SRC}
-                    alt=""
-                    draggable={false}
-                    className="size-4 object-contain"
-                  />
+                  <img src={LOGO_SRC} alt="" draggable={false} className="size-4 object-contain" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right">
-                Open {ASSISTANT_NAME}
-              </TooltipContent>
+              <TooltipContent side="right">Open {ASSISTANT_NAME}</TooltipContent>
             </Tooltip>
           </div>
           {/* Fixed width so the content never reflows while the surface resizes. */}
@@ -173,22 +153,19 @@ export function AssistantPanel({
             inert={!open}
           >
             <header className="flex h-14 shrink-0 items-center gap-2.5 pr-3 pl-5">
-              <img
-                src={LOGO_SRC}
-                alt=""
-                draggable={false}
-                className="h-5 w-auto shrink-0 select-none"
-              />
-              <h2 className="min-w-0 flex-1 truncate text-[14px] font-medium tracking-tight">
-                {ASSISTANT_NAME}
-              </h2>
-              <HeaderButton label="Clear chat" disabled={run.busy || messages.length === 0} onClick={() => { setClearError(""); setClearOpen(true); }}>
+              <img src={LOGO_SRC} alt="" draggable={false} className="h-5 w-auto shrink-0 select-none" />
+              <h2 className="min-w-0 flex-1 truncate text-[14px] font-medium tracking-tight">{ASSISTANT_NAME}</h2>
+              <HeaderButton
+                label="Clear chat"
+                disabled={run.busy || messages.length === 0}
+                onClick={() => {
+                  setClearError("");
+                  setClearOpen(true);
+                }}
+              >
                 <Trash2 className="size-4" />
               </HeaderButton>
-              <HeaderButton
-                label={`Close ${ASSISTANT_NAME}`}
-                onClick={() => onOpenChange(false)}
-              >
+              <HeaderButton label={`Close ${ASSISTANT_NAME}`} onClick={() => onOpenChange(false)}>
                 <X className="size-4" />
               </HeaderButton>
             </header>
@@ -205,11 +182,7 @@ export function AssistantPanel({
                     setAtBottom(pinned.current);
                     return;
                   }
-                  const near =
-                    element.scrollHeight -
-                      element.scrollTop -
-                      element.clientHeight <
-                    STICK_THRESHOLD;
+                  const near = element.scrollHeight - element.scrollTop - element.clientHeight < STICK_THRESHOLD;
                   pinned.current = near;
                   setAtBottom(near);
                 }}
@@ -223,15 +196,8 @@ export function AssistantPanel({
                 >
                   {messages.length === 0 && (
                     <div className="flex min-h-48 animate-in flex-col items-center justify-center gap-3 text-center duration-500 fade-in motion-reduce:animate-none">
-                      <img
-                        src={LOGO_SRC}
-                        alt=""
-                        draggable={false}
-                        className="h-8 w-auto opacity-80 select-none"
-                      />
-                      <p className="text-[13px] text-muted-foreground">
-                        Describe what you want to create.
-                      </p>
+                      <img src={LOGO_SRC} alt="" draggable={false} className="h-8 w-auto opacity-80 select-none" />
+                      <p className="text-[13px] text-muted-foreground">Describe what you want to create.</p>
                     </div>
                   )}
                   {messages.map((message, index) => (
@@ -239,9 +205,7 @@ export function AssistantPanel({
                       key={message.id}
                       message={message}
                       onRetry={
-                        run.canRetry &&
-                        message.role === "assistant" &&
-                        index === messages.length - 1
+                        run.canRetry && message.role === "assistant" && index === messages.length - 1
                           ? run.retry
                           : undefined
                       }
@@ -255,9 +219,7 @@ export function AssistantPanel({
                 size="icon-sm"
                 className={cn(
                   "absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full shadow-lg transition-[opacity,transform] duration-200 motion-reduce:transition-none",
-                  atBottom
-                    ? "pointer-events-none translate-y-2 opacity-0"
-                    : "opacity-100",
+                  atBottom ? "pointer-events-none translate-y-2 opacity-0" : "opacity-100",
                 )}
                 onClick={scrollToEnd}
                 aria-label="Scroll to latest"
@@ -277,25 +239,45 @@ export function AssistantPanel({
                 ))}
               </div>
             )}
-            {composer && (
-              <div className="shrink-0 px-4 pt-1 pb-4">{composer}</div>
-            )}
+            {composer && <div className="shrink-0 px-4 pt-1 pb-4">{composer}</div>}
           </div>
         </Card>
       </aside>
-      <Dialog open={clearOpen} onOpenChange={(next) => { if (!run.busy) setClearOpen(next); }}>
+      <Dialog
+        open={clearOpen}
+        onOpenChange={(next) => {
+          if (!run.busy) setClearOpen(next);
+        }}
+      >
         <DialogContent className="z-[100] w-[min(420px,calc(100vw-32px))]">
           <DialogTitle>Clear chat?</DialogTitle>
           <DialogDescription className="text-xs leading-5 text-muted-foreground">
-            This clears the saved conversation and starts a new assistant session. The scene and its undo history stay available.
+            This clears the saved conversation and starts a new assistant session. The scene and its undo history stay
+            available.
           </DialogDescription>
-          {clearError && <p role="alert" className="text-xs text-destructive">{clearError}</p>}
+          {clearError && (
+            <p role="alert" className="text-xs text-destructive">
+              {clearError}
+            </p>
+          )}
           <div className="flex justify-end gap-2 border-t pt-4">
-            <Button type="button" variant="ghost" disabled={run.busy} onClick={() => setClearOpen(false)}>Cancel</Button>
-            <Button type="button" variant="destructive" disabled={run.busy} onClick={() => {
-              setClearError("");
-              void run.clearChat().then(() => setClearOpen(false)).catch((error: unknown) => setClearError(errorMessage(error)));
-            }}>{run.busy ? "Clearing…" : "Clear chat"}</Button>
+            <Button type="button" variant="ghost" disabled={run.busy} onClick={() => setClearOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={run.busy}
+              onClick={() => {
+                setClearError("");
+                void run
+                  .clearChat()
+                  .then(() => setClearOpen(false))
+                  .catch((error: unknown) => setClearError(errorMessage(error)));
+              }}
+            >
+              {run.busy ? "Clearing…" : "Clear chat"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

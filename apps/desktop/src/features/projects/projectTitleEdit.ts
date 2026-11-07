@@ -2,9 +2,7 @@ import { errorMessage } from "@/lib/backend";
 
 /** How an edit of the project's name ended. */
 export type TitleEditOutcome =
-  | { readonly kind: "unchanged" }
-  | { readonly kind: "saved" }
-  | { readonly kind: "failed"; readonly message: string };
+  { readonly kind: "unchanged" } | { readonly kind: "saved" } | { readonly kind: "failed"; readonly message: string };
 
 /**
  * Saves what was typed as the project's name. A name that is the same as the current one is not sent, and a

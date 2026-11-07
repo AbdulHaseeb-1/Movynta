@@ -41,11 +41,7 @@ export function uploadModel(
     format: upload.format,
     objectId: upload.objectId,
   });
-  return backendUpload(
-    `/projects/${projectId}/assets?${query.toString()}`,
-    importedStepSchema,
-    data,
-  );
+  return backendUpload(`/projects/${projectId}/assets?${query.toString()}`, importedStepSchema, data);
 }
 
 /** A model saved with a project, as the scene step that placed it. */
@@ -56,16 +52,10 @@ export interface SavedModel {
 }
 
 /** Fetches a saved model and prepares it exactly as it was when it was first imported. */
-export async function loadSavedModel(
-  projectId: string,
-  saved: SavedModel,
-): Promise<Object3D> {
+export async function loadSavedModel(projectId: string, saved: SavedModel): Promise<Object3D> {
   try {
-    if (!isModelFormat(saved.format))
-      throw new Error(`.${saved.format} files are not supported`);
-    const data = await backendDownload(
-      `/projects/${projectId}/assets/${saved.assetId}`,
-    );
+    if (!isModelFormat(saved.format)) throw new Error(`.${saved.format} files are not supported`);
+    const data = await backendDownload(`/projects/${projectId}/assets/${saved.assetId}`);
     const parsed = await parseModel(saved.format, data);
     return prepareModel(parsed, saved.name).object;
   } catch (failure) {

@@ -8,6 +8,7 @@ export interface SerialQueue {
   run: (task: () => Promise<void>, onError: (failure: unknown) => void) => void;
 }
 
+/** A queue that runs tasks one after another, so saves to the same project never overlap. flush waits for everything queued so far. */
 export function createSerialQueue(): SerialQueue {
   let tail: Promise<void> = Promise.resolve();
   return {

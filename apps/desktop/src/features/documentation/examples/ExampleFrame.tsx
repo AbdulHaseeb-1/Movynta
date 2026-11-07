@@ -58,7 +58,9 @@ export function ExampleFrame({
   return (
     <figure className="overflow-hidden rounded-xl border border-border bg-background">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Badge variant="accent" className="font-medium">Try it</Badge>
+        <Badge variant="accent" className="font-medium">
+          Try it
+        </Badge>
         <figcaption className="min-w-0 flex-1 truncate text-xs font-medium">{title}</figcaption>
         <Button
           type="button"
@@ -83,7 +85,9 @@ export function ExampleFrame({
           tabIndex={0}
           onKeyDown={onKeyDown}
           onKeyUp={onKeyUp}
-          onFocus={() => { if (!focused) changeFocus(true); }}
+          onFocus={() => {
+            if (!focused) changeFocus(true);
+          }}
           onBlur={onBlur}
           onPointerDownCapture={() => stageRef.current?.focus({ preventScroll: true })}
           className={cn(
@@ -105,7 +109,10 @@ export function ExampleFrame({
         <div className="flex flex-col gap-3 border-t border-border p-3 md:border-t-0 md:border-l">
           <ul className="space-y-1.5">
             {hints.map((hint) => (
-              <li key={`${hint.keys}-${hint.label}`} className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-2">
+              <li
+                key={`${hint.keys}-${hint.label}`}
+                className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-2"
+              >
                 <span className="pt-0.5 text-[11px] leading-4 text-muted-foreground">{hint.label}</span>
                 <KeyCombo keys={hint.keys} className="justify-end" />
               </li>
@@ -114,7 +121,10 @@ export function ExampleFrame({
           {footnote && <div className="text-[11px] leading-4 text-muted-foreground">{footnote}</div>}
         </div>
       </div>
-      <p aria-live="polite" className="min-h-9 border-t border-border bg-muted/50 px-3 py-2 font-mono text-[11px] leading-5 whitespace-pre-wrap text-foreground/90">
+      <p
+        aria-live="polite"
+        className="min-h-9 border-t border-border bg-muted/50 px-3 py-2 font-mono text-[11px] leading-5 whitespace-pre-wrap text-foreground/90"
+      >
         {status}
       </p>
     </figure>

@@ -21,9 +21,7 @@ export class ChatgptAuthController {
     return this.chatgpt.beginLogin(user.id);
   }
 
-  @Delete("login") async cancel(
-    @CurrentUser() user: AuthUser,
-  ): Promise<ChatgptSessionView> {
+  @Delete("login") async cancel(@CurrentUser() user: AuthUser): Promise<ChatgptSessionView> {
     await this.chatgpt.cancelLogin(user.id);
     return this.chatgpt.session(user.id);
   }

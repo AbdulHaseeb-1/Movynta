@@ -4,9 +4,7 @@ import type { ChatgptIdentity } from "./chatgpt.types.js";
 const claimsSchema = z.object({
   exp: z.number().optional(),
   email: z.string().optional(),
-  "https://api.openai.com/profile": z
-    .object({ email: z.string().optional() })
-    .optional(),
+  "https://api.openai.com/profile": z.object({ email: z.string().optional() }).optional(),
   "https://api.openai.com/auth": z
     .object({
       chatgpt_account_id: z.string().optional(),
@@ -35,9 +33,7 @@ export function readTokenClaims(jwt: string): TokenClaims {
   const payload = jwt.split(".")[1];
   if (!payload) return empty;
   try {
-    const json: unknown = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8"),
-    );
+    const json: unknown = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     const claims = claimsSchema.parse(json);
     const auth = claims["https://api.openai.com/auth"];
     return {

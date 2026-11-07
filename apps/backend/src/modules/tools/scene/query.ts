@@ -66,7 +66,12 @@ function withinRanges(vector: Vec3 | null, ranges: AxisRanges | undefined): bool
   return given.every((axis) => inRange(vector[AXIS_INDEX[axis]], ranges[axis]));
 }
 
-function matchesQuery(index: SceneIndex, entry: IndexedObject, query: ObjectQuery, selected: ReadonlySet<string>): boolean {
+function matchesQuery(
+  index: SceneIndex,
+  entry: IndexedObject,
+  query: ObjectQuery,
+  selected: ReadonlySet<string>,
+): boolean {
   const { object } = entry;
   if (query.nameMatches !== undefined && !globMatches(query.nameMatches, object.name)) return false;
   if (query.type !== undefined && !query.type.includes(object.type)) return false;

@@ -6,14 +6,9 @@ import type { ProviderCredentials } from "../providers.types.js";
 import { CHATGPT_BASE_URL, CHATGPT_ORIGINATOR } from "./chatgpt.constants.js";
 
 /** A Responses API model served from the ChatGPT subscription backend. */
-export function chatgptModel(
-  credentials: ProviderCredentials,
-): Promise<Model> {
+export function chatgptModel(credentials: ProviderCredentials): Promise<Model> {
   const { apiKey, accountId, model } = credentials;
-  if (!accountId)
-    throw new ServiceUnavailableError(
-      "The ChatGPT account is missing. Sign in again in Settings.",
-    );
+  if (!accountId) throw new ServiceUnavailableError("The ChatGPT account is missing. Sign in again in Settings.");
   const client = new OpenAI({
     apiKey,
     baseURL: CHATGPT_BASE_URL,
@@ -24,7 +19,5 @@ export function chatgptModel(
     },
     fetch: noRedirectFetch,
   });
-  return new OpenAIProvider({ openAIClient: client, useResponses: true }).getModel(
-    model,
-  );
+  return new OpenAIProvider({ openAIClient: client, useResponses: true }).getModel(model);
 }

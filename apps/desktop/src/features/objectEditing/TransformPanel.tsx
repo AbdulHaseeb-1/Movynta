@@ -59,8 +59,16 @@ export function TransformPanel({
           <X className="size-4" />
         </Button>
       </header>
-      <TransformFields transform={object.transform} disabled={disabled} onChange={onChange} onPreview={onPreview} onPreviewEnd={onPreviewEnd} />
-      {!disabled && <p className="mt-1.5 text-[10px] text-muted-foreground">G, R, and S transform. X, Y, or Z lock an axis.</p>}
+      <TransformFields
+        transform={object.transform}
+        disabled={disabled}
+        onChange={onChange}
+        onPreview={onPreview}
+        onPreviewEnd={onPreviewEnd}
+      />
+      {!disabled && (
+        <p className="mt-1.5 text-[10px] text-muted-foreground">G, R, and S transform. X, Y, or Z lock an axis.</p>
+      )}
       {(disabled || object.count > 1) && (
         <p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">
           {disabled

@@ -11,6 +11,7 @@ export const tokenPayloadSchema = z.object({
   exp: z.number().int().positive(),
 });
 
+/** Whether a value has the shape of a user id that this app issues or accepts. */
 export function isValidUserId(value: string): boolean {
   return USER_ID_PATTERN.test(value);
 }

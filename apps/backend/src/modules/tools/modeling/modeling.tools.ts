@@ -4,6 +4,7 @@ import type { ModelingToolDependencies } from "./modeling.types.js";
 
 export const MODELING_PLAN_TOOL_NAME = "modeling.generate_model_plan";
 
+/** Builds the plan-recording tool. Each plan step must name a tool that exists. */
 export function createModelingTools({ knownToolNames }: ModelingToolDependencies): ToolDefinition[] {
   return [
     defineTool({
@@ -26,7 +27,11 @@ export function createModelingTools({ knownToolNames }: ModelingToolDependencies
         const ids = plan.steps.map((step) => step.id);
         const duplicates = [...new Set(ids.filter((id, at) => ids.indexOf(id) !== at))];
         if (duplicates.length > 0) {
-          return { status: "rejected", reason: "Each step needs its own id, because batches are matched to steps by id.", duplicateStepIds: duplicates };
+          return {
+            status: "rejected",
+            reason: "Each step needs its own id, because batches are matched to steps by id.",
+            duplicateStepIds: duplicates,
+          };
         }
         context.progress.plans.push(plan);
         return { status: "recorded", planNumber: context.progress.plans.length, stepCount: plan.steps.length };

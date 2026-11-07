@@ -14,12 +14,9 @@ export type ExecutionRequest = z.infer<typeof executionSchema>;
 /** Runs a batch, turning a batch the editor cannot even parse into a failed result. */
 export function executeSafely(editor: EditorScene, request: ExecutionRequest) {
   try {
-    if (request.phase) return editor.executePrepared(request.proposalId, request.expectedRevision, request.commands, request.phase);
-    return editor.execute(
-      request.proposalId,
-      request.expectedRevision,
-      request.commands,
-    );
+    if (request.phase)
+      return editor.executePrepared(request.proposalId, request.expectedRevision, request.commands, request.phase);
+    return editor.execute(request.proposalId, request.expectedRevision, request.commands);
   } catch {
     return {
       status: "failed" as const,

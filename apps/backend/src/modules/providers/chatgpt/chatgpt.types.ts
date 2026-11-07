@@ -12,11 +12,7 @@ export interface ChatgptIdentity {
   plan: string | undefined;
 }
 
-export type ChatgptSessionState =
-  | "disconnected"
-  | "pending"
-  | "connected"
-  | "expired";
+export type ChatgptSessionState = "disconnected" | "pending" | "connected" | "expired";
 
 /** What clients see. Tokens never leave the backend. */
 export interface ChatgptSessionView {

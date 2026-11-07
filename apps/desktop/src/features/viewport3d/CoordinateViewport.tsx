@@ -14,12 +14,7 @@ export interface CoordinateViewportProps {
 // A transparent 3D viewport showing the coordinate grid. `children` are centered on the origin, where the two
 // highlighted lines cross, and stay there while the view orbits, zooms, or pans.
 // Drag to orbit, scroll to zoom, and right-drag, Space + drag, or two-finger drag to pan.
-export function CoordinateViewport({
-  className,
-  children,
-  showGrid = true,
-  onReady,
-}: CoordinateViewportProps) {
+export function CoordinateViewport({ className, children, showGrid = true, onReady }: CoordinateViewportProps) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<Group | null>(null);
 

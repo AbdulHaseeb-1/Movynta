@@ -15,7 +15,9 @@ export class FaceTransformPreview {
   constructor(source: BufferGeometry, result: ExtrudeResult, vertices: ReadonlySet<number>) {
     this.result = result;
     this.hard = hardCageVertices(source, result.mesh);
-    this.geometry = result.walls.length ? writeExtrudedGeometry(source, result) : writeGeometry(source, result.mesh, false, this.hard);
+    this.geometry = result.walls.length
+      ? writeExtrudedGeometry(source, result)
+      : writeGeometry(source, result.mesh, false, this.hard);
     this.indices = Array.from(this.geometry.getIndex()?.array ?? []);
     let index = 0;
     for (const face of result.mesh.faces) {
@@ -37,10 +39,11 @@ export class FaceTransformPreview {
     });
     const indexBuffer = this.geometry.getIndex();
     if (!indexBuffer) throw new Error("Missing face preview indices");
-    for (const row of rebuilt) row.indices.forEach((value, i) => {
-      this.indices[row.index + i] = value;
-      indexBuffer.setX(row.index + i, value);
-    });
+    for (const row of rebuilt)
+      row.indices.forEach((value, i) => {
+        this.indices[row.index + i] = value;
+        indexBuffer.setX(row.index + i, value);
+      });
     indexBuffer.needsUpdate = true;
     const positions = this.geometry.getAttribute("position");
     for (const corner of this.movedCorners) {

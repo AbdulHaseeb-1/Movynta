@@ -27,7 +27,9 @@ export function AssistantToolCard({ tool, scene, typeLabel, onOpenTool }: Assist
           <Badge variant="secondary">{typeLabel}</Badge>
           <Badge variant="outline">{tool.approval}</Badge>
           <Badge variant="outline">{tool.needsEditor ? "Needs the editor" : "No editor needed"}</Badge>
-          <Badge variant={tool.verify === "code" ? "success" : "accent"}>{tool.verify === "code" ? "Checked by tests" : "Live editor output"}</Badge>
+          <Badge variant={tool.verify === "code" ? "success" : "accent"}>
+            {tool.verify === "code" ? "Checked by tests" : "Live editor output"}
+          </Badge>
         </div>
       </header>
 
@@ -37,7 +39,14 @@ export function AssistantToolCard({ tool, scene, typeLabel, onOpenTool }: Assist
         <div className="min-w-0 space-y-6">
           <Section title="When the assistant uses it">
             <ul className="space-y-2 text-sm leading-6">
-              {tool.when.map((item) => <li key={item} className="flex gap-2"><span aria-hidden className="text-brand">▸</span><span>{item}</span></li>)}
+              {tool.when.map((item) => (
+                <li key={item} className="flex gap-2">
+                  <span aria-hidden className="text-brand">
+                    ▸
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))}
             </ul>
           </Section>
           {tool.flow && tool.flow.length > 0 && (
@@ -45,7 +54,9 @@ export function AssistantToolCard({ tool, scene, typeLabel, onOpenTool }: Assist
               <ol className="space-y-2">
                 {tool.flow.map((step, index) => (
                   <li key={step} className="flex gap-3 text-sm">
-                    <span className="grid size-6 shrink-0 place-items-center rounded-md bg-muted text-xs font-semibold">{index + 1}</span>
+                    <span className="grid size-6 shrink-0 place-items-center rounded-md bg-muted text-xs font-semibold">
+                      {index + 1}
+                    </span>
                     <span className="leading-6">{step}</span>
                   </li>
                 ))}
@@ -69,13 +80,33 @@ export function AssistantToolCard({ tool, scene, typeLabel, onOpenTool }: Assist
 
       {tool.details?.map((section) => (
         <Section key={section.title} title={section.title}>
-          <Table head={["Item", "Meaning"]} rows={section.rows.map((row) => twoColumn(row.label, ["Item", "Meaning"], <code className="font-mono text-xs">{row.label}</code>, row.meaning))} />
+          <Table
+            head={["Item", "Meaning"]}
+            rows={section.rows.map((row) =>
+              twoColumn(
+                row.label,
+                ["Item", "Meaning"],
+                <code className="font-mono text-xs">{row.label}</code>,
+                row.meaning,
+              ),
+            )}
+          />
         </Section>
       ))}
 
       <Section title="Result">
         {tool.result.note && <p className="mb-3 text-sm text-muted-foreground">{tool.result.note}</p>}
-        <Table head={["Field", "Meaning"]} rows={tool.result.rows.map((row) => twoColumn(row.field, ["Field", "Meaning"], <code className="font-mono text-xs">{row.field}</code>, row.meaning))} />
+        <Table
+          head={["Field", "Meaning"]}
+          rows={tool.result.rows.map((row) =>
+            twoColumn(
+              row.field,
+              ["Field", "Meaning"],
+              <code className="font-mono text-xs">{row.field}</code>,
+              row.meaning,
+            ),
+          )}
+        />
       </Section>
 
       <Section title="Example">
@@ -84,26 +115,52 @@ export function AssistantToolCard({ tool, scene, typeLabel, onOpenTool }: Assist
           <CodeBlock label="Result" text={JSON.stringify(exampleResponse(tool, scene), null, 2)} />
         </div>
         {tool.verify === "live" && (
-          <p className="mt-3 text-xs text-muted-foreground">The editor produces this output, so the test checks its shape rather than its values.</p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            The editor produces this output, so the test checks its shape rather than its values.
+          </p>
         )}
       </Section>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Section title="Tips">
           <ul className="space-y-2 text-sm leading-6">
-            {tool.tips.map((tip) => <li key={tip} className="flex gap-2"><span aria-hidden className="text-success">✓</span><span>{tip}</span></li>)}
+            {tool.tips.map((tip) => (
+              <li key={tip} className="flex gap-2">
+                <span aria-hidden className="text-success">
+                  ✓
+                </span>
+                <span>{tip}</span>
+              </li>
+            ))}
           </ul>
         </Section>
         <Section title="Limits">
           <ul className="space-y-2 text-sm leading-6">
-            {tool.limits.map((limit) => <li key={limit} className="flex gap-2"><span aria-hidden className="text-brand">!</span><span>{limit}</span></li>)}
+            {tool.limits.map((limit) => (
+              <li key={limit} className="flex gap-2">
+                <span aria-hidden className="text-brand">
+                  !
+                </span>
+                <span>{limit}</span>
+              </li>
+            ))}
           </ul>
         </Section>
       </div>
 
       {tool.errors && tool.errors.length > 0 && (
         <Section title="Errors you may see">
-          <Table head={["Message", "Cause"]} rows={tool.errors.map((error) => twoColumn(error.message, ["Message", "Cause"], <span className="font-mono text-xs">{error.message}</span>, error.cause))} />
+          <Table
+            head={["Message", "Cause"]}
+            rows={tool.errors.map((error) =>
+              twoColumn(
+                error.message,
+                ["Message", "Cause"],
+                <span className="font-mono text-xs">{error.message}</span>,
+                error.cause,
+              ),
+            )}
+          />
         </Section>
       )}
 
@@ -111,7 +168,13 @@ export function AssistantToolCard({ tool, scene, typeLabel, onOpenTool }: Assist
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Related:</span>
           {tool.related.map((name) => (
-            <Button key={name} variant="outline" size="sm" className="h-7 font-mono text-xs" onClick={() => onOpenTool(name)}>
+            <Button
+              key={name}
+              variant="outline"
+              size="sm"
+              className="h-7 font-mono text-xs"
+              onClick={() => onOpenTool(name)}
+            >
               {name}
             </Button>
           ))}
@@ -147,13 +210,21 @@ function Table({ head, rows }: { readonly head: readonly string[]; readonly rows
       <table className="w-full min-w-[32rem] text-left text-sm">
         <thead className="bg-muted text-xs text-muted-foreground">
           <tr>
-            {head.map((label) => <th key={label} scope="col" className="px-3 py-2 font-medium">{label}</th>)}
+            {head.map((label) => (
+              <th key={label} scope="col" className="px-3 py-2 font-medium">
+                {label}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
           {rows.map((row) => (
             <tr key={row.key} className="align-top">
-              {row.cells.map((cell) => <td key={cell.header} className="px-3 py-2 leading-5">{cell.content}</td>)}
+              {row.cells.map((cell) => (
+                <td key={cell.header} className="px-3 py-2 leading-5">
+                  {cell.content}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
@@ -164,7 +235,13 @@ function Table({ head, rows }: { readonly head: readonly string[]; readonly rows
 
 /** A two-column row, keyed by its first column. */
 function twoColumn(key: string, headers: readonly [string, string], first: ReactNode, second: ReactNode): TableRow {
-  return { key, cells: [{ header: headers[0], content: first }, { header: headers[1], content: second }] };
+  return {
+    key,
+    cells: [
+      { header: headers[0], content: first },
+      { header: headers[1], content: second },
+    ],
+  };
 }
 
 function inputRow(row: AssistantToolInputRow): TableRow {
@@ -188,12 +265,16 @@ function requiredLabel(row: AssistantToolInputRow): string {
 /** Shows a program's source as text. Other request fields follow as JSON. */
 function RequestBlock({ request }: { readonly request: unknown }) {
   const source = isRecord(request) && typeof request["source"] === "string" ? request["source"] : null;
-  const rest = isRecord(request) ? Object.fromEntries(Object.entries(request).filter(([key]) => key !== "source")) : request;
+  const rest = isRecord(request)
+    ? Object.fromEntries(Object.entries(request).filter(([key]) => key !== "source"))
+    : request;
   const hasRest = !isRecord(rest) || Object.keys(rest).length > 0;
   return (
     <div className="min-w-0 space-y-3">
       {source !== null && <CodeBlock label="Program" text={source} />}
-      {(source === null || hasRest) && <CodeBlock label={source === null ? "Request" : "Other request fields"} text={JSON.stringify(rest, null, 2)} />}
+      {(source === null || hasRest) && (
+        <CodeBlock label={source === null ? "Request" : "Other request fields"} text={JSON.stringify(rest, null, 2)} />
+      )}
     </div>
   );
 }

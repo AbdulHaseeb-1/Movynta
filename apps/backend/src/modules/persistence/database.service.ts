@@ -74,7 +74,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       applied_at TEXT NOT NULL
     )`);
     const applied = new Set(
-      db.prepare("SELECT version FROM schema_migrations").all().map((row) => Number(row["version"])),
+      db
+        .prepare("SELECT version FROM schema_migrations")
+        .all()
+        .map((row) => Number(row["version"])),
     );
 
     for (const migration of MIGRATIONS) {

@@ -28,7 +28,9 @@ export function isWithinBranch<Node>(
 }
 
 /** The result of making a name unique among its siblings. */
-export type NameResolution = { readonly ok: true; readonly name: string } | { readonly ok: false; readonly message: string };
+export type NameResolution =
+  | { readonly ok: true; readonly name: string }
+  | { readonly ok: false; readonly message: string };
 
 const NUMBER_SUFFIX = /\.(\d{3,})$/;
 
@@ -37,7 +39,9 @@ function numbered(stem: string, number: number): string {
 }
 
 /** What was chosen, and the number added to the stem (0 when the name was free as it was). */
-type Choice = { readonly ok: true; readonly name: string; readonly stem: string; readonly number: number } | { readonly ok: false; readonly message: string };
+type Choice =
+  | { readonly ok: true; readonly name: string; readonly stem: string; readonly number: number }
+  | { readonly ok: false; readonly message: string };
 
 /** `from` gives the number to start looking at for a stem; every lower number must already be known to be taken. */
 function choose(base: string, taken: ReadonlySet<string>, from: (stem: string) => number): Choice {
@@ -52,7 +56,10 @@ function choose(base: string, taken: ReadonlySet<string>, from: (stem: string) =
   while (taken.has(numbered(stem, number))) number += 1;
   const name = numbered(stem, number);
   if (name.length > MAX_OBJECT_NAME_LENGTH) {
-    return { ok: false, message: `"${trimmed}" is taken and a numbered name would exceed ${MAX_OBJECT_NAME_LENGTH} characters; use a shorter name` };
+    return {
+      ok: false,
+      message: `"${trimmed}" is taken and a numbered name would exceed ${MAX_OBJECT_NAME_LENGTH} characters; use a shorter name`,
+    };
   }
   return { ok: true, name, stem, number };
 }

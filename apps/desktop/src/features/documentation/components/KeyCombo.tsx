@@ -31,9 +31,11 @@ function Step({ step }: { readonly step: KeyStep }) {
       {step.map((part, index) => (
         <Fragment key={partText(part)}>
           {index > 0 && <Separator text="+" />}
-          {part.kind === "key"
-            ? <Kbd>{part.key}</Kbd>
-            : <span className="text-[11px] font-medium text-foreground/85">{part.action}</span>}
+          {part.kind === "key" ? (
+            <Kbd>{part.key}</Kbd>
+          ) : (
+            <span className="text-[11px] font-medium text-foreground/85">{part.action}</span>
+          )}
         </Fragment>
       ))}
     </span>
@@ -41,7 +43,8 @@ function Step({ step }: { readonly step: KeyStep }) {
 }
 
 function Alternative({ alternative }: { readonly alternative: KeyAlternative }) {
-  if (alternative.kind === "label") return <span className="text-[11px] text-muted-foreground">{alternative.text}</span>;
+  if (alternative.kind === "label")
+    return <span className="text-[11px] text-muted-foreground">{alternative.text}</span>;
   return (
     <span className="inline-flex items-center gap-1">
       {alternative.steps.map((step, index) => (
@@ -65,7 +68,11 @@ export function KeyCombo({ keys, className }: KeyComboProps) {
       <span className="sr-only">{keys}</span>
       {groups.map((group, groupIndex) => (
         <Fragment key={group.map(alternativeText).join(" / ")}>
-          {groupIndex > 0 && <span aria-hidden className="text-muted-foreground">·</span>}
+          {groupIndex > 0 && (
+            <span aria-hidden className="text-muted-foreground">
+              ·
+            </span>
+          )}
           <span aria-hidden className="inline-flex flex-wrap items-center justify-[inherit] gap-1">
             {group.map((alternative, index) => (
               <Fragment key={alternativeText(alternative)}>

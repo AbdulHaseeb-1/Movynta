@@ -13,7 +13,11 @@ export interface ViewPreset {
 }
 
 const ISOMETRIC_ELEVATION = MathUtils.degToRad(35.264);
-const isometric = [Math.sin(Math.PI / 4) * Math.cos(ISOMETRIC_ELEVATION), Math.sin(ISOMETRIC_ELEVATION), Math.cos(Math.PI / 4) * Math.cos(ISOMETRIC_ELEVATION)] as const;
+const isometric = [
+  Math.sin(Math.PI / 4) * Math.cos(ISOMETRIC_ELEVATION),
+  Math.sin(ISOMETRIC_ELEVATION),
+  Math.cos(Math.PI / 4) * Math.cos(ISOMETRIC_ELEVATION),
+] as const;
 
 export const VIEW_PRESETS: readonly ViewPreset[] = [
   { id: "front", label: "Front", direction: [0, 0, 1], code: "Numpad1" },

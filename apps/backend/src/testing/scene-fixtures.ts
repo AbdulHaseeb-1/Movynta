@@ -25,12 +25,21 @@ export function sceneObject(spec: ObjectSpec): EditorObject {
     parentId: spec.parentId ?? null,
     transform: { position: [...at], rotation: [0, 0, 0], scale: [1, 1, 1] },
     visible: spec.visible ?? true,
-    worldBounds: size === null ? null : { min: [at[0] - size[0] / 2, at[1] - size[1] / 2, at[2] - size[2] / 2], max: [at[0] + size[0] / 2, at[1] + size[1] / 2, at[2] + size[2] / 2] },
+    worldBounds:
+      size === null
+        ? null
+        : {
+            min: [at[0] - size[0] / 2, at[1] - size[1] / 2, at[2] - size[2] / 2],
+            max: [at[0] + size[0] / 2, at[1] + size[1] / 2, at[2] + size[2] / 2],
+          },
   };
 }
 
 /** A valid editor snapshot around the given objects. */
-export function sceneOf(objects: readonly EditorObject[], extra: { selected?: string[]; revision?: number } = {}): EditorContext {
+export function sceneOf(
+  objects: readonly EditorObject[],
+  extra: { selected?: string[]; revision?: number } = {},
+): EditorContext {
   return editorContextSchema.parse({
     projectId: "fixture",
     revision: extra.revision ?? 7,
@@ -61,15 +70,36 @@ export function buildingObjects(options: BuildingOptions): EditorObject[] {
   const parts = options.parts ?? true;
   const objects: EditorObject[] = [
     sceneObject({ id: "building", name: "Building", type: "empty", size: null }),
-    sceneObject({ id: "walls", name: "Walls", parentId: "building", at: [0, 0, 0], size: [options.columns * spacingX + 2, options.floors * spacingY, 10] }),
-    sceneObject({ id: "roof", name: "Roof", parentId: "building", at: [0, options.floors * spacingY / 2 + 0.5, 0], size: [options.columns * spacingX + 3, 1, 11] }),
+    sceneObject({
+      id: "walls",
+      name: "Walls",
+      parentId: "building",
+      at: [0, 0, 0],
+      size: [options.columns * spacingX + 2, options.floors * spacingY, 10],
+    }),
+    sceneObject({
+      id: "roof",
+      name: "Roof",
+      parentId: "building",
+      at: [0, (options.floors * spacingY) / 2 + 0.5, 0],
+      size: [options.columns * spacingX + 3, 1, 11],
+    }),
     sceneObject({ id: "facade", name: "Facade", type: "empty", parentId: "building", size: null }),
   ];
   for (let floor = 0; floor < options.floors; floor += 1) {
     for (let column = 0; column < options.columns; column += 1) {
       const id = `window_${floor}_${column}`;
       const at: Box = [column * spacingX, floor * spacingY, 5];
-      objects.push(sceneObject({ id, name: `Window.${String(floor * options.columns + column + 1).padStart(3, "0")}`, type: "empty", parentId: "facade", at, size: parts ? [1, 1.4, 0.2] : [1, 1.4, 0.2] }));
+      objects.push(
+        sceneObject({
+          id,
+          name: `Window.${String(floor * options.columns + column + 1).padStart(3, "0")}`,
+          type: "empty",
+          parentId: "facade",
+          at,
+          size: parts ? [1, 1.4, 0.2] : [1, 1.4, 0.2],
+        }),
+      );
       if (parts) {
         objects.push(sceneObject({ id: `${id}_frame`, name: "Frame", parentId: id, at, size: [1, 1.4, 0.2] }));
         objects.push(sceneObject({ id: `${id}_pane`, name: "Pane", parentId: id, at, size: [0.8, 1.2, 0.05] }));

@@ -1,14 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import {
-  Archive,
-  ArchiveRestore,
-  Copy,
-  FolderOpen,
-  Pencil,
-  Star,
-  StarOff,
-  Trash2,
-} from "lucide-react";
+import { Archive, ArchiveRestore, Copy, FolderOpen, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,15 +31,16 @@ export function ProjectActionsMenu({
   const choose = (action: Parameters<ProjectActionHandler>[0]) => onAction(action, project, trigger.current);
   return (
     <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild ref={trigger}>{children}</DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild ref={trigger}>
+        {children}
+      </DropdownMenuTrigger>
       <DropdownMenuContent
         align={align}
         sideOffset={6}
         className="z-[60] w-52 p-1.5"
         onCloseAutoFocus={(event) => {
           // Rename and delete open a dialog from the menu; focus belongs to the dialog, not the button.
-          if (document.querySelector('[role="dialog"][data-state="open"]'))
-            event.preventDefault();
+          if (document.querySelector('[role="dialog"][data-state="open"]')) event.preventDefault();
         }}
       >
         {!hideOpen && (

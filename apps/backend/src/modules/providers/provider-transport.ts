@@ -11,7 +11,7 @@ import { chatCompletionsFetch } from "./chat-completions-fetch.js";
 import { noRedirectFetch } from "./no-redirect-fetch.js";
 import { chatgptModel } from "./chatgpt/chatgpt-model.js";
 
-
+/** Builds the model client for a provider from its credentials. */
 @Injectable()
 export class ProviderTransport {
   async model(credentials: ProviderCredentials): Promise<Model> {
@@ -23,8 +23,7 @@ export class ProviderTransport {
       case "anthropic":
         return compatibleModel(aisdk(createAnthropic({ apiKey })(model)));
       case "openai-compatible":
-        if (!baseUrl)
-          throw new ServiceUnavailableError("A provider endpoint is required");
+        if (!baseUrl) throw new ServiceUnavailableError("A provider endpoint is required");
         return new OpenAIProvider({
           openAIClient: new OpenAI({
             apiKey,
@@ -34,8 +33,7 @@ export class ProviderTransport {
           useResponses: false,
         }).getModel(model);
       case "anthropic-compatible":
-        if (!baseUrl)
-          throw new ServiceUnavailableError("A provider endpoint is required");
+        if (!baseUrl) throw new ServiceUnavailableError("A provider endpoint is required");
         return compatibleModel(
           aisdk(
             createAnthropic({
@@ -46,9 +44,7 @@ export class ProviderTransport {
           ),
         );
       case "google":
-        return compatibleModel(
-          aisdk(createGoogleGenerativeAI({ apiKey })(model)),
-        );
+        return compatibleModel(aisdk(createGoogleGenerativeAI({ apiKey })(model)));
       case "chatgpt":
         return chatgptModel(credentials);
     }
@@ -58,8 +54,7 @@ export class ProviderTransport {
   /** Compatible URLs are validated before use; redirects never forward credentials to another endpoint. */
   async models(credentials: ProviderCredentials): Promise<string[]> {
     const { id, apiKey } = credentials;
-    if (id === "chatgpt")
-      throw new ServiceUnavailableError("This provider has a fixed model list");
+    if (id === "chatgpt") throw new ServiceUnavailableError("This provider has a fixed model list");
     const baseUrl = providerEndpoint(id, credentials.baseUrl);
     const url = baseUrl
       ? `${baseUrl}/models${id === "anthropic-compatible" ? "?limit=1000" : ""}`
@@ -82,10 +77,8 @@ export class ProviderTransport {
       });
       if (!response.ok) throw new Error("provider rejected request");
       const body: unknown = await response.json();
-      if (typeof body !== "object" || body === null)
-        throw new Error("invalid response");
-      const rows =
-        "data" in body ? body.data : "models" in body ? body.models : undefined;
+      if (typeof body !== "object" || body === null) throw new Error("invalid response");
+      const rows = "data" in body ? body.data : "models" in body ? body.models : undefined;
       if (!Array.isArray(rows)) throw new Error("invalid model list");
       const models: string[] = [];
       for (const row of rows as unknown[]) {
@@ -97,16 +90,12 @@ export class ProviderTransport {
           !row.supportedGenerationMethods.includes("generateContent")
         )
           continue;
-        const name =
-          "id" in row ? row.id : "name" in row ? row.name : undefined;
-        if (typeof name === "string")
-          models.push(name.replace(/^models\//, ""));
+        const name = "id" in row ? row.id : "name" in row ? row.name : undefined;
+        if (typeof name === "string") models.push(name.replace(/^models\//, ""));
       }
       return [...new Set(models)].sort();
     } catch {
-      throw new ServiceUnavailableError(
-        "Could not load models. Check the provider key, network, and account access.",
-      );
+      throw new ServiceUnavailableError("Could not load models. Check the provider key, network, and account access.");
     }
   }
 }

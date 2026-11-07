@@ -43,9 +43,7 @@ export function ApprovalCard({ preview, onDecide }: ApprovalCardProps) {
           <ul className="flex flex-col gap-1.5 text-xs">
             {commands.map((command, index) => (
               <li key={command.id} className="flex gap-2 text-foreground/90">
-                <span className="w-4 shrink-0 text-muted-foreground tabular-nums">
-                  {index + 1}
-                </span>
+                <span className="w-4 shrink-0 text-muted-foreground tabular-nums">{index + 1}</span>
                 <span className="min-w-0 break-words">{command.text}</span>
               </li>
             ))}
@@ -61,12 +59,7 @@ export function ApprovalCard({ preview, onDecide }: ApprovalCardProps) {
         <Button size="sm" disabled={deciding} onClick={() => void decide("approve")}>
           <Check className="size-3.5" /> Approve
         </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={deciding}
-          onClick={() => void decide("reject")}
-        >
+        <Button variant="secondary" size="sm" disabled={deciding} onClick={() => void decide("reject")}>
           <X className="size-3.5" /> Reject
         </Button>
       </div>

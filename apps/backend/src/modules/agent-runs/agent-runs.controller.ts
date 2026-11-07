@@ -23,6 +23,7 @@ import { AgentRunAcceptedDto, CreateAgentRunDto, DecideApprovalDto } from "./dto
 const runIdPipe = new ResourceIdPipe(RUN_ID_PATTERN);
 const approvalIdPipe = new ResourceIdPipe(APPROVAL_ID_PATTERN);
 
+/** HTTP endpoints for agent runs: start, read, stream events, cancel and decide approvals. The logic lives in AgentRunsService. */
 @ApiTags("agent-runs")
 @ApiBearerAuth()
 @Controller({ path: "agent-runs", version: "1" })

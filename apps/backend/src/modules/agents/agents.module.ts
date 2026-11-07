@@ -52,5 +52,6 @@ export class SkillToolReferenceValidator implements OnModuleInit {
     SkillToolReferenceValidator,
   ],
   exports: [AgentRegistry, AGENT_RUNNER],
+/** The agents feature: the agent registry and its controller. */
 })
 export class AgentsModule {}

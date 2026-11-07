@@ -15,22 +15,19 @@ export interface ProjectCategoryInfo {
  * Every kind of project the app knows. To add a category: extend the schema in `projectTypes.ts`
  * and the backend's `PROJECT_CATEGORIES`, then describe it here and give it a route.
  */
-export const PROJECT_CATEGORY_CATALOG: Readonly<
-  Record<ProjectCategoryId, ProjectCategoryInfo>
-> = {
+export const PROJECT_CATEGORY_CATALOG: Readonly<Record<ProjectCategoryId, ProjectCategoryInfo>> = {
   design: {
     id: "design",
     label: "Design",
     description: "Shape characters and objects in 3D with the assistant.",
     icon: Sparkles,
-    workspacePath: (projectId) =>
-      projectId ? `/studio/${projectId}` : "/studio",
+    workspacePath: (projectId) => (projectId ? `/studio/${projectId}` : "/studio"),
   },
 };
 
-export const projectCategories: readonly ProjectCategoryInfo[] =
-  Object.values(PROJECT_CATEGORY_CATALOG);
+export const projectCategories: readonly ProjectCategoryInfo[] = Object.values(PROJECT_CATEGORY_CATALOG);
 
+/** The catalogue entry for a project category. */
 export function categoryOf(id: ProjectCategoryId): ProjectCategoryInfo {
   return PROJECT_CATEGORY_CATALOG[id];
 }

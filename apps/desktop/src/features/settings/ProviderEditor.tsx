@@ -4,16 +4,8 @@ import { LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  isCompatibleProvider,
-  providersSchema,
-  type Provider,
-} from "@/features/providers";
+import { DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { isCompatibleProvider, providersSchema, type Provider } from "@/features/providers";
 import { providerNames as names } from "@/features/providers";
 import { backendRequest, errorMessage } from "@/lib/backend";
 import { fieldClass, settingsButtonClass } from "./styles";
@@ -24,11 +16,8 @@ interface ProviderEditorProps {
   onClose: () => void;
 }
 
-export function ProviderEditor({
-  provider,
-  onSaved,
-  onClose,
-}: ProviderEditorProps) {
+/** The form that saves one model provider: its model, key and endpoint, and tests it. */
+export function ProviderEditor({ provider, onSaved, onClose }: ProviderEditorProps) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [models, setModels] = useState<string[]>([]);
@@ -38,10 +27,7 @@ export function ProviderEditor({
   const [baseUrl, setBaseUrl] = useState(provider.baseUrl);
   const [pictures, setPictures] = useState(provider.acceptsImages);
   const endpoint = compatible ? { baseUrl: baseUrl.trim() } : {};
-  const endpointChanged =
-    compatible &&
-    provider.configured &&
-    baseUrl.trim().replace(/\/+$/, "") !== provider.baseUrl;
+  const endpointChanged = compatible && provider.configured && baseUrl.trim().replace(/\/+$/, "") !== provider.baseUrl;
   const needsKey = !provider.configured || endpointChanged;
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,19 +40,12 @@ export function ProviderEditor({
     setMessage("");
     try {
       onSaved(
-        await backendRequest(
-          `/providers/${provider.id}`,
-          providersSchema,
-          "POST",
-          {
-            model: submittedModel.trim(),
-            ...endpoint,
-            ...(compatible ? { acceptsImages: pictures } : {}),
-            ...(typeof key === "string" && key.trim()
-              ? { apiKey: key.trim() }
-              : {}),
-          },
-        ),
+        await backendRequest(`/providers/${provider.id}`, providersSchema, "POST", {
+          model: submittedModel.trim(),
+          ...endpoint,
+          ...(compatible ? { acceptsImages: pictures } : {}),
+          ...(typeof key === "string" && key.trim() ? { apiKey: key.trim() } : {}),
+        }),
       );
       form.reset();
       onClose();
@@ -114,16 +93,11 @@ export function ProviderEditor({
   }
   return (
     <DialogContent className="z-[100] max-h-[calc(100vh-48px)] w-[min(460px,calc(100vw-32px))] overflow-y-auto p-6">
-      <DialogTitle className="pr-6 text-base font-semibold">
-        Configure {names[provider.id]}
-      </DialogTitle>
+      <DialogTitle className="pr-6 text-base font-semibold">Configure {names[provider.id]}</DialogTitle>
       <DialogDescription className="text-xs leading-5 text-muted-foreground">
         Enter your key to load models and test access.
       </DialogDescription>
-      <form
-        onSubmit={(event) => void save(event)}
-        className="flex flex-col gap-5"
-      >
+      <form onSubmit={(event) => void save(event)} className="flex flex-col gap-5">
         {compatible && (
           <div className="flex flex-col gap-2">
             <label htmlFor="provider-base-url" className="text-xs">
@@ -141,8 +115,7 @@ export function ProviderEditor({
               className={fieldClass}
             />
             <p className="text-[11px] leading-5 text-muted-foreground">
-              API prefix, usually ending in /v1. Use HTTPS, or HTTP for
-              localhost.
+              API prefix, usually ending in /v1. Use HTTPS, or HTTP for localhost.
             </p>
           </div>
         )}
@@ -153,15 +126,11 @@ export function ProviderEditor({
                 Send pictures
               </label>
               <p className="text-[11px] leading-5 text-muted-foreground">
-                Turn off for a model that cannot read images. The assistant
-                then checks the scene from measurements only.
+                Turn off for a model that cannot read images. The assistant then checks the scene from measurements
+                only.
               </p>
             </div>
-            <Switch
-              id="provider-pictures"
-              checked={pictures}
-              onCheckedChange={setPictures}
-            />
+            <Switch id="provider-pictures" checked={pictures} onCheckedChange={setPictures} />
           </div>
         )}
         <div className="flex flex-col gap-2">
@@ -204,11 +173,7 @@ export function ProviderEditor({
               type="button"
               variant="outline"
               size="icon"
-              disabled={
-                busy ||
-                (needsKey && !apiKey.trim()) ||
-                (compatible && !baseUrl.trim())
-              }
+              disabled={busy || (needsKey && !apiKey.trim()) || (compatible && !baseUrl.trim())}
               onClick={() => void probe(false)}
               className="size-10 shrink-0 rounded-lg"
               aria-label="Load provider models"
@@ -226,18 +191,13 @@ export function ProviderEditor({
           </datalist>
         </div>
         <p className="text-xs leading-5 text-muted-foreground">
-          Keys are encrypted by Windows on the backend and never returned to
-          this app.
+          Keys are encrypted by Windows on the backend and never returned to this app.
         </p>
         <output className="text-xs text-muted-foreground">{message}</output>
         <div className="flex flex-wrap justify-between gap-3 border-t pt-4">
           <Button
             type="button"
-            disabled={
-              busy ||
-              (needsKey && !apiKey.trim()) ||
-              (compatible && !baseUrl.trim())
-            }
+            disabled={busy || (needsKey && !apiKey.trim()) || (compatible && !baseUrl.trim())}
             variant="outline"
             onClick={() => void probe(true)}
             className={settingsButtonClass}
@@ -245,19 +205,10 @@ export function ProviderEditor({
             Test connection
           </Button>
           <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-              className={settingsButtonClass}
-            >
+            <Button type="button" variant="ghost" onClick={onClose} className={settingsButtonClass}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={busy}
-              className={settingsButtonClass}
-            >
+            <Button type="submit" disabled={busy} className={settingsButtonClass}>
               {busy && <LoaderCircle size={14} className="animate-spin" />}Save
             </Button>
           </div>

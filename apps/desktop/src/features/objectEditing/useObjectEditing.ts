@@ -54,9 +54,7 @@ export interface ObjectEditing {
   redo: () => void;
 }
 
-type SceneChange =
-  | { kind: "transform"; changes: ObjectChange[] }
-  | { kind: "delete"; ids: readonly string[] };
+type SceneChange = { kind: "transform"; changes: ObjectChange[] } | { kind: "delete"; ids: readonly string[] };
 
 function describe(scene: EditorScene): SelectedObject | null {
   const id = scene.selection;
@@ -69,18 +67,19 @@ function describe(scene: EditorScene): SelectedObject | null {
  * Applies a move and saves it with the project; the objects go back if it cannot be saved. A change to
  * more objects than one batch holds is saved batch by batch, each kept or taken back on its own.
  */
-async function applyTransform(
-  scene: EditorScene,
-  change: Extract<SceneChange, { kind: "transform" }>,
-): Promise<void> {
+async function applyTransform(scene: EditorScene, change: Extract<SceneChange, { kind: "transform" }>): Promise<void> {
   const actionId = `edit_${crypto.randomUUID()}`;
   for (const batch of inBatches(change.changes)) {
     // Batches are saved one after another, in order.
     // eslint-disable-next-line no-await-in-loop
-    await applyAndRecord(scene, {
-      apply: () => scene.applyUserTransforms(batch.map(({ id, after }) => ({ id, transform: after }))),
-      revert: () => void scene.applyUserTransforms(batch.map(({ id, before }) => ({ id, transform: before }))),
-    }, (projectId, commands) => recordSceneEdit(projectId, commands, actionId));
+    await applyAndRecord(
+      scene,
+      {
+        apply: () => scene.applyUserTransforms(batch.map(({ id, after }) => ({ id, transform: after }))),
+        revert: () => void scene.applyUserTransforms(batch.map(({ id, before }) => ({ id, transform: before }))),
+      },
+      (projectId, commands) => recordSceneEdit(projectId, commands, actionId),
+    );
   }
 }
 
@@ -88,10 +87,7 @@ async function applyTransform(
  * Deletes objects and everything attached below them. A deletion cannot be taken back in the scene
  * once its parts are freed, so it is saved first and applied only if saving worked.
  */
-async function applyDelete(
-  scene: EditorScene,
-  change: Extract<SceneChange, { kind: "delete" }>,
-): Promise<void> {
+async function applyDelete(scene: EditorScene, change: Extract<SceneChange, { kind: "delete" }>): Promise<void> {
   if (!scene.hasProject) throw new Error(SAVE_FIRST);
   const actionId = `delete_${crypto.randomUUID()}`;
   // The deepest parts go first, and a batch never separates a part from the one it hangs from.
@@ -103,7 +99,6 @@ async function applyDelete(
       throw new Error("The objects were removed from the project but could not be removed here. Reopen the project.");
   }
 }
-
 
 /**
  * Selecting objects and moving, rotating, scaling and deleting them. Owns the {@link ObjectGizmo} for
@@ -140,12 +135,7 @@ export function useObjectEditing({
   const numericPreview = useRef<NumericTransformPreview | null>(null);
 
   const save = useCallback(
-    (
-      change: SceneChange,
-      onSuccess?: () => void,
-      onFailure?: () => void,
-      shouldApply?: () => boolean,
-    ) => {
+    (change: SceneChange, onSuccess?: () => void, onFailure?: () => void, shouldApply?: () => boolean) => {
       if (!scene) return;
       saves.run(
         async () => {
@@ -187,23 +177,31 @@ export function useObjectEditing({
       scene,
       {
         onLiveChange: (id, transform) =>
-          setSelected((previous) =>
-            previous?.id === id ? { ...previous, transform } : previous,
-          ),
+          setSelected((previous) => (previous?.id === id ? { ...previous, transform } : previous)),
         onCommit: onTransformCommit,
         onPreviewError: setError,
       },
       view,
     );
     const selecting = new SelectionTools(viewport, scene, view);
-    const keyboard = new KeyboardTransform(viewport, scene, view, onTransformCommit, setTransformHint, (id, transform) => setSelected((previous) => previous?.id === id ? { ...previous, transform } : previous));
+    const keyboard = new KeyboardTransform(
+      viewport,
+      scene,
+      view,
+      onTransformCommit,
+      setTransformHint,
+      (id, transform) => setSelected((previous) => (previous?.id === id ? { ...previous, transform } : previous)),
+    );
     const unsubscribeBefore = scene.onBeforeChange(() => {
       const preview = numericPreview.current;
       numericPreview.current = null;
       preview?.finish(false);
     });
     const unsubscribe = scene.onChange(() => {
-      if (numericPreview.current && !numericPreview.current.valid()) { numericPreview.current.finish(false); numericPreview.current = null; }
+      if (numericPreview.current && !numericPreview.current.valid()) {
+        numericPreview.current.finish(false);
+        numericPreview.current = null;
+      }
       const next = describe(scene);
       setSelected(next);
     });
@@ -220,19 +218,29 @@ export function useObjectEditing({
 
   const requestDelete = useCallback(() => {
     const ids = scene?.selectedIds;
-    if (!scene || !ids || ids.length === 0 || !current.current.enabled || historyBusy.current || scene.requiresRecovery) return;
+    if (!scene || !ids || ids.length === 0 || !current.current.enabled || historyBusy.current || scene.requiresRecovery)
+      return;
     setError("");
     save({ kind: "delete", ids });
   }, [scene, save]);
 
-  const history = useCallback((direction: "undo" | "redo") => {
-    if (!scene || !historyEnabled.current || historyBusy.current || scene.requiresRecovery) return;
-    historyBusy.current = true;
-    saves.run(async () => {
-      try { await changeSceneHistory(scene, direction); }
-      finally { historyBusy.current = false; }
-    }, (failure) => setError(errorMessage(failure)));
-  }, [scene, saves]);
+  const history = useCallback(
+    (direction: "undo" | "redo") => {
+      if (!scene || !historyEnabled.current || historyBusy.current || scene.requiresRecovery) return;
+      historyBusy.current = true;
+      saves.run(
+        async () => {
+          try {
+            await changeSceneHistory(scene, direction);
+          } finally {
+            historyBusy.current = false;
+          }
+        },
+        (failure) => setError(errorMessage(failure)),
+      );
+    },
+    [scene, saves],
+  );
   const undo = useCallback(() => history("undo"), [history]);
   const redo = useCallback(() => history("redo"), [history]);
 
@@ -274,22 +282,37 @@ export function useObjectEditing({
     [scene, save],
   );
 
-  const previewTransform = useCallback((patch: Partial<ObjectTransform>) => {
-    if (!scene || !scene.selection || !current.current.enabled || historyBusy.current || scene.requiresRecovery) return;
-    if (!scene.hasProject) { setError(SAVE_FIRST); return; }
-    try {
-      numericPreview.current ??= new NumericTransformPreview(scene, scene.selection);
-      const transform = numericPreview.current.preview(patch);
-      if (transform) setSelected((previous) => previous?.id === scene.selection ? { ...previous, transform } : previous);
-    } catch (failure) { setError(errorMessage(failure)); }
-  }, [scene]);
-  const finishTransformPreview = useCallback((commit: boolean) => {
-    const preview = numericPreview.current; numericPreview.current = null;
-    if (!scene || !preview) return;
-    const change = preview.finish(commit && current.current.enabled && !historyBusy.current);
-    const updatedSelection = describe(scene); setSelected(updatedSelection);
-    if (change) save({ kind: "transform", changes: [change] });
-  }, [scene, save]);
+  const previewTransform = useCallback(
+    (patch: Partial<ObjectTransform>) => {
+      if (!scene || !scene.selection || !current.current.enabled || historyBusy.current || scene.requiresRecovery)
+        return;
+      if (!scene.hasProject) {
+        setError(SAVE_FIRST);
+        return;
+      }
+      try {
+        numericPreview.current ??= new NumericTransformPreview(scene, scene.selection);
+        const transform = numericPreview.current.preview(patch);
+        if (transform)
+          setSelected((previous) => (previous?.id === scene.selection ? { ...previous, transform } : previous));
+      } catch (failure) {
+        setError(errorMessage(failure));
+      }
+    },
+    [scene],
+  );
+  const finishTransformPreview = useCallback(
+    (commit: boolean) => {
+      const preview = numericPreview.current;
+      numericPreview.current = null;
+      if (!scene || !preview) return;
+      const change = preview.finish(commit && current.current.enabled && !historyBusy.current);
+      const updatedSelection = describe(scene);
+      setSelected(updatedSelection);
+      if (change) save({ kind: "transform", changes: [change] });
+    },
+    [scene, save],
+  );
 
   return {
     transformHint,

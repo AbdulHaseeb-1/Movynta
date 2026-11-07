@@ -1,8 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import {
-  chatgptSessionReducer,
-  providersReducer,
-} from "@/features/providers";
+import { chatgptSessionReducer, providersReducer } from "@/features/providers";
 import { projectsReducer } from "@/features/projects";
 import { viewportReducer } from "@/features/viewport3d/viewportSlice";
 import { saveViewportDisplay } from "@/features/viewport3d/viewportStorage";
@@ -33,7 +30,16 @@ let savedPanels = store.getState().designWorkspace.panels;
 let savedDisplay = store.getState().viewport.display;
 store.subscribe(() => {
   const { assistantSelection, designWorkspace, viewport } = store.getState();
-  if (viewport.display !== savedDisplay) { savedDisplay = viewport.display; saveViewportDisplay(savedDisplay); }
-  if (assistantSelection !== savedSelection) { savedSelection = assistantSelection; saveSelection(assistantSelection); }
-  if (designWorkspace.panels !== savedPanels) { savedPanels = designWorkspace.panels; savePanelVisibility(savedPanels); }
+  if (viewport.display !== savedDisplay) {
+    savedDisplay = viewport.display;
+    saveViewportDisplay(savedDisplay);
+  }
+  if (assistantSelection !== savedSelection) {
+    savedSelection = assistantSelection;
+    saveSelection(assistantSelection);
+  }
+  if (designWorkspace.panels !== savedPanels) {
+    savedPanels = designWorkspace.panels;
+    savePanelVisibility(savedPanels);
+  }
 });

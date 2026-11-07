@@ -16,14 +16,21 @@ export const briefSelectorSchema = z
     namePrefix: z.string().trim().min(1).max(120).optional(),
   })
   .strict()
-  .refine((selector) => [selector.id, selector.name, selector.namePrefix].filter((field) => field !== undefined).length === 1, "Give exactly one of id, name or namePrefix");
+  .refine(
+    (selector) => [selector.id, selector.name, selector.namePrefix].filter((field) => field !== undefined).length === 1,
+    "Give exactly one of id, name or namePrefix",
+  );
 export type BriefSelector = z.infer<typeof briefSelectorSchema>;
 
 /** A selector for checks about one object: a prefix could match several, so it is not offered. */
-const singleSelectorSchema = briefSelectorSchema.refine((selector) => selector.namePrefix === undefined, "namePrefix is only for count checks; use id or name");
+const singleSelectorSchema = briefSelectorSchema.refine(
+  (selector) => selector.namePrefix === undefined,
+  "namePrefix is only for count checks; use id or name",
+);
 
 const limits = (check: { min?: number | undefined; max?: number | undefined }) =>
-  (check.min !== undefined || check.max !== undefined) && (check.min === undefined || check.max === undefined || check.min <= check.max);
+  (check.min !== undefined || check.max !== undefined) &&
+  (check.min === undefined || check.max === undefined || check.min <= check.max);
 const LIMITS_MESSAGE = "Give min, max or both, with min not above max";
 
 /**
@@ -32,22 +39,99 @@ const LIMITS_MESSAGE = "Give min, max or both, with min not above max";
  */
 export const briefCheckSchema = z.discriminatedUnion("kind", [
   /** How many objects match: at least `min` (default 1) and, when given, at most `max`. */
-  z.object({ kind: z.literal("count"), label, selector: briefSelectorSchema, min: z.number().int().min(0).max(1000).optional(), max: z.number().int().min(0).max(1000).optional() }).strict()
-    .refine((check) => check.min === undefined || check.max === undefined || check.min <= check.max, "min must not be above max"),
+  z
+    .object({
+      kind: z.literal("count"),
+      label,
+      selector: briefSelectorSchema,
+      min: z.number().int().min(0).max(1000).optional(),
+      max: z.number().int().min(0).max(1000).optional(),
+    })
+    .strict()
+    .refine(
+      (check) => check.min === undefined || check.max === undefined || check.min <= check.max,
+      "min must not be above max",
+    ),
   /** The extent of one object along an axis: for example a seat no wider than 0.5. */
-  z.object({ kind: z.literal("size"), label, target: singleSelectorSchema, axis: axisSchema, min: bound.optional(), max: bound.optional() }).strict().refine(limits, LIMITS_MESSAGE),
+  z
+    .object({
+      kind: z.literal("size"),
+      label,
+      target: singleSelectorSchema,
+      axis: axisSchema,
+      min: bound.optional(),
+      max: bound.optional(),
+    })
+    .strict()
+    .refine(limits, LIMITS_MESSAGE),
   /** Where the low edge, middle or high edge of one object lies on an axis: for example its lowest point on the floor. */
-  z.object({ kind: z.literal("position"), label, target: singleSelectorSchema, axis: axisSchema, anchor: z.enum(["min", "center", "max"]), min: bound.optional(), max: bound.optional() }).strict().refine(limits, LIMITS_MESSAGE),
+  z
+    .object({
+      kind: z.literal("position"),
+      label,
+      target: singleSelectorSchema,
+      axis: axisSchema,
+      anchor: z.enum(["min", "center", "max"]),
+      min: bound.optional(),
+      max: bound.optional(),
+    })
+    .strict()
+    .refine(limits, LIMITS_MESSAGE),
   /** The space from the high edge of `first` to the low edge of `second` on an axis (negative when they overlap): 0 means touching. */
-  z.object({ kind: z.literal("gap"), label, first: singleSelectorSchema, second: singleSelectorSchema, axis: axisSchema, min: bound.optional(), max: bound.optional() }).strict().refine(limits, LIMITS_MESSAGE),
+  z
+    .object({
+      kind: z.literal("gap"),
+      label,
+      first: singleSelectorSchema,
+      second: singleSelectorSchema,
+      axis: axisSchema,
+      min: bound.optional(),
+      max: bound.optional(),
+    })
+    .strict()
+    .refine(limits, LIMITS_MESSAGE),
   /** `second` mirrors `first` across the plane where `axis` equals `planeAt` (default 0), within `tolerance`. */
-  z.object({ kind: z.literal("symmetric"), label, first: singleSelectorSchema, second: singleSelectorSchema, axis: axisSchema, planeAt: bound.optional(), tolerance: z.number().finite().positive().max(1e6).optional() }).strict(),
+  z
+    .object({
+      kind: z.literal("symmetric"),
+      label,
+      first: singleSelectorSchema,
+      second: singleSelectorSchema,
+      axis: axisSchema,
+      planeAt: bound.optional(),
+      tolerance: z.number().finite().positive().max(1e6).optional(),
+    })
+    .strict(),
   /** The centers of the two objects are at the same place on an axis, within `tolerance`. */
-  z.object({ kind: z.literal("aligned"), label, first: singleSelectorSchema, second: singleSelectorSchema, axis: axisSchema, tolerance: z.number().finite().positive().max(1e6).optional() }).strict(),
+  z
+    .object({
+      kind: z.literal("aligned"),
+      label,
+      first: singleSelectorSchema,
+      second: singleSelectorSchema,
+      axis: axisSchema,
+      tolerance: z.number().finite().positive().max(1e6).optional(),
+    })
+    .strict(),
   /** Every part under `group` touches the rest through other parts, within `tolerance`: nothing floats or has come loose. */
-  z.object({ kind: z.literal("connected"), label, group: singleSelectorSchema, tolerance: z.number().finite().min(0).max(1e6).optional() }).strict(),
+  z
+    .object({
+      kind: z.literal("connected"),
+      label,
+      group: singleSelectorSchema,
+      tolerance: z.number().finite().min(0).max(1e6).optional(),
+    })
+    .strict(),
   /** `inner` lies inside `outer` on every axis, within `tolerance`: an eye in a head, a handle on its door. */
-  z.object({ kind: z.literal("contained"), label, inner: singleSelectorSchema, outer: singleSelectorSchema, tolerance: z.number().finite().min(0).max(1e6).optional() }).strict(),
+  z
+    .object({
+      kind: z.literal("contained"),
+      label,
+      inner: singleSelectorSchema,
+      outer: singleSelectorSchema,
+      tolerance: z.number().finite().min(0).max(1e6).optional(),
+    })
+    .strict(),
 ]);
 export type BriefCheck = z.infer<typeof briefCheckSchema>;
 

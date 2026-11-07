@@ -3,12 +3,7 @@ import type { EditorScene } from "@/features/assistant";
 import { errorMessage } from "@/lib/backend";
 import type { SerialQueue } from "@/lib";
 import { uploadModel } from "./importApi";
-import {
-  formatFileSize,
-  MAX_MODEL_BYTES,
-  modelFormatOf,
-  unsupportedFileMessage,
-} from "./modelFormats";
+import { formatFileSize, MAX_MODEL_BYTES, modelFormatOf, unsupportedFileMessage } from "./modelFormats";
 import { makeObjectId } from "./objectId";
 import { parseModel } from "./parseModel";
 import { disposeModel, prepareModel, scaleNotice } from "./prepareModel";
@@ -42,12 +37,7 @@ export interface ModelImport {
  * Imports a model file into the workspace: reads it, saves it with the project, then places it in the
  * scene. The file is saved first, so nothing appears that would be missing after reopening.
  */
-export function useModelImport({
-  saves,
-  editor,
-  ensureProject,
-  onImported,
-}: ModelImportOptions): ModelImport {
+export function useModelImport({ saves, editor, ensureProject, onImported }: ModelImportOptions): ModelImport {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -91,11 +81,22 @@ export function useModelImport({
   );
 
   const enqueue = saves.run;
-  const importFile = (file: File): Promise<void> => new Promise((resolve) => {
-    enqueue(async () => {
-      try { await performImport(file); } finally { resolve(); }
-    }, (failure) => { setError(errorMessage(failure)); resolve(); });
-  });
+  const importFile = (file: File): Promise<void> =>
+    new Promise((resolve) => {
+      enqueue(
+        async () => {
+          try {
+            await performImport(file);
+          } finally {
+            resolve();
+          }
+        },
+        (failure) => {
+          setError(errorMessage(failure));
+          resolve();
+        },
+      );
+    });
 
   return {
     importing,

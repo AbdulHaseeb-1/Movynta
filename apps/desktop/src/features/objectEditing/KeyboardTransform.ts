@@ -65,9 +65,7 @@ export class KeyboardTransform {
         editor.selectedIds === session.selected
           ? session.targets.flatMap(({ id, before }) => {
               const after = editor.transformOf(id);
-              return after && !sameTransform(before, after)
-                ? [{ id, before, after }]
-                : [];
+              return after && !sameTransform(before, after) ? [{ id, before, after }] : [];
             })
           : [];
       session.targets.forEach(restore);
@@ -84,13 +82,17 @@ export class KeyboardTransform {
       const session = this.session;
       if (!session) return;
       const numeric = session.numeric === "" ? null : Number(session.numeric);
-      if (numeric !== null && (!Number.isFinite(numeric) || (session.operation === "scale" && (numeric < 0.001 || numeric > 100)))) {
+      if (
+        numeric !== null &&
+        (!Number.isFinite(numeric) || (session.operation === "scale" && (numeric < 0.001 || numeric > 100)))
+      ) {
         status("Enter a valid number" + (session.operation === "scale" ? " from 0.001 to 100" : "") + " · Esc cancels");
         return;
       }
       const rect = dom.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      const start = session.start ?? new Vector2(); const current = session.current ?? start;
+      const start = session.start ?? new Vector2();
+      const current = session.current ?? start;
       const delta = current.clone().sub(start);
       const screenPivot = pivotOrigin.clone().project(viewport.camera);
       const center = new Vector2(
@@ -114,10 +116,7 @@ export class KeyboardTransform {
             ((tip.x - projected.x) * rect.width) / 2,
             (-(tip.y - projected.y) * rect.height) / 2,
           );
-          const amount =
-            screen.lengthSq() < 4
-              ? delta.x / 100
-              : delta.dot(screen) / screen.lengthSq();
+          const amount = screen.lengthSq() < 4 ? delta.x / 100 : delta.dot(screen) / screen.lengthSq();
           this.pivot.position.addScaledVector(axis, amount);
         } else {
           const target = new Vector3(
@@ -128,25 +127,24 @@ export class KeyboardTransform {
           this.pivot.position.add(target.sub(pivotOrigin));
         }
       } else if (session.operation === "rotate") {
-        const direction =
-          axis ?? viewport.camera.getWorldDirection(new Vector3()).negate();
+        const direction = axis ?? viewport.camera.getWorldDirection(new Vector3()).negate();
         const angle =
           startVector.length() < 8 || currentVector.length() < 8
             ? (delta.x - delta.y) * 0.01
             : Math.atan2(
-                startVector.x * currentVector.y -
-                  startVector.y * currentVector.x,
+                startVector.x * currentVector.y - startVector.y * currentVector.x,
                 startVector.dot(currentVector),
               );
-        this.pivot.quaternion.setFromAxisAngle(direction, numeric === null ? -angle * (axis ? rotationSign(axis, viewport.camera) : 1) : numeric * Math.PI / 180);
+        this.pivot.quaternion.setFromAxisAngle(
+          direction,
+          numeric === null ? -angle * (axis ? rotationSign(axis, viewport.camera) : 1) : (numeric * Math.PI) / 180,
+        );
       } else {
-        const factor = numeric ?? (
-          startVector.length() < 8
+        const factor =
+          numeric ??
+          (startVector.length() < 8
             ? Math.exp(Math.max(-4, Math.min(4, (delta.x - delta.y) / 150)))
-            : Math.max(
-                0.001,
-                Math.min(100, currentVector.length() / startVector.length()),
-              ));
+            : Math.max(0.001, Math.min(100, currentVector.length() / startVector.length())));
         if (session.axis) this.pivot.scale[session.axis] = factor;
         else this.pivot.scale.setScalar(factor);
       }
@@ -155,7 +153,10 @@ export class KeyboardTransform {
       const transformed = active ? editor.transformOf(active) : undefined;
       if (active && transformed) live(active, transformed);
       const previewError = editor.previewBooleans();
-      status(previewError ?? `${session.operation[0]?.toUpperCase() ?? ""}${session.operation.slice(1)}${session.axis ? ` · ${session.axis.toUpperCase()}` : ""}${session.numeric ? ` · ${session.numeric}${session.operation === "rotate" ? "°" : ""}` : ""}  ·  Type a value · X/Y/Z constrain  ·  Click or Enter confirm  ·  Esc cancel`);
+      status(
+        previewError ??
+          `${session.operation[0]?.toUpperCase() ?? ""}${session.operation.slice(1)}${session.axis ? ` · ${session.axis.toUpperCase()}` : ""}${session.numeric ? ` · ${session.numeric}${session.operation === "rotate" ? "°" : ""}` : ""}  ·  Type a value · X/Y/Z constrain  ·  Click or Enter confirm  ·  Esc cancel`,
+      );
     };
     const pivotOrigin = new Vector3();
     const flushMove = () => {
@@ -164,35 +165,33 @@ export class KeyboardTransform {
       update();
     };
     const keydown = (event: KeyboardEvent) => {
-      if (
-        isTypingTarget(event.target) ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey ||
-        event.repeat
-      )
-        return;
+      if (isTypingTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
       const key = event.key.toLowerCase();
       const session = this.session;
       if (!session && isOverlayTarget(event.target)) return;
       if (session) {
         if (/^[0-9.-]$/.test(key) || key === "backspace") {
-          event.preventDefault(); event.stopImmediatePropagation(); pendingMove = false;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          pendingMove = false;
           const value = key === "backspace" ? session.numeric.slice(0, -1) : session.numeric + key;
-          if (/^-?\d*(\.\d*)?$/.test(value) && value.length <= 16) { session.numeric = value; update(); }
+          if (/^-?\d*(\.\d*)?$/.test(value) && value.length <= 16) {
+            session.numeric = value;
+            update();
+          }
           return;
         }
-        if (
-          key === "escape" ||
-          key === "enter" ||
-          key === "x" ||
-          key === "y" ||
-          key === "z"
-        ) {
+        if (key === "escape" || key === "enter" || key === "x" || key === "y" || key === "z") {
           event.preventDefault();
           event.stopImmediatePropagation();
           if (key === "escape" || key === "enter") {
-            if (key === "enter" && session.numeric !== "" && (!Number.isFinite(Number(session.numeric)) || (session.operation === "scale" && (Number(session.numeric) < 0.001 || Number(session.numeric) > 100)))) return;
+            if (
+              key === "enter" &&
+              session.numeric !== "" &&
+              (!Number.isFinite(Number(session.numeric)) ||
+                (session.operation === "scale" && (Number(session.numeric) < 0.001 || Number(session.numeric) > 100)))
+            )
+              return;
             if (key === "enter") flushMove();
             else pendingMove = false;
             finish(key === "enter");
@@ -205,13 +204,7 @@ export class KeyboardTransform {
         return;
       }
       const operation: Operation | undefined =
-        key === "g"
-          ? "move"
-          : key === "r"
-            ? "rotate"
-            : key === "s"
-              ? "scale"
-              : undefined;
+        key === "g" ? "move" : key === "r" ? "rotate" : key === "s" ? "scale" : undefined;
       if (!operation || !view.enabled() || !editor.selection) return;
       const targets: Target[] = [];
       for (const id of editor.selectedIds) {
@@ -256,11 +249,7 @@ export class KeyboardTransform {
       this.pointer = new Vector2(event.clientX, event.clientY);
       const session = this.session;
       if (!session) return;
-      if (
-        !view.enabled() ||
-        editor.currentRevision !== session.revision ||
-        editor.selectedIds !== session.selected
-      ) {
+      if (!view.enabled() || editor.currentRevision !== session.revision || editor.selectedIds !== session.selected) {
         finish(false);
         return;
       }
@@ -272,9 +261,24 @@ export class KeyboardTransform {
     let blockContextMenu = false;
     const down = (event: PointerEvent) => {
       if (!this.session) return;
-      if (typeof Element !== "undefined" && event.target instanceof Element && event.target !== viewport.renderer.domElement) return;
+      if (
+        typeof Element !== "undefined" &&
+        event.target instanceof Element &&
+        event.target !== viewport.renderer.domElement
+      )
+        return;
       if (event.button !== 0 && event.button !== 2) return;
-      if (event.button === 0 && this.session.numeric !== "" && (!Number.isFinite(Number(this.session.numeric)) || (this.session.operation === "scale" && (Number(this.session.numeric) < 0.001 || Number(this.session.numeric) > 100)))) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+      if (
+        event.button === 0 &&
+        this.session.numeric !== "" &&
+        (!Number.isFinite(Number(this.session.numeric)) ||
+          (this.session.operation === "scale" &&
+            (Number(this.session.numeric) < 0.001 || Number(this.session.numeric) > 100)))
+      ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       blockContextMenu = event.button === 2;
@@ -294,11 +298,7 @@ export class KeyboardTransform {
     window.addEventListener("blur", blur);
     const unsubscribe = editor.onChange(() => {
       const session = this.session;
-      if (
-        session &&
-        (editor.currentRevision !== session.revision ||
-          editor.selectedIds !== session.selected)
-      )
+      if (session && (editor.currentRevision !== session.revision || editor.selectedIds !== session.selected))
         finish(false);
     });
     const stopFrame = viewport.addFrameListener(() => {

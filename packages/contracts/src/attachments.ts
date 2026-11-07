@@ -31,6 +31,7 @@ export interface AttachmentSummary {
   readonly bytes: number;
 }
 
+/** Whether a string names a picture format that the assistant accepts. */
 export function isAttachmentMediaType(value: string): value is AttachmentMediaType {
   return (ATTACHMENT_MEDIA_TYPES as readonly string[]).includes(value);
 }

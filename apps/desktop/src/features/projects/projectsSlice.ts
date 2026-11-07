@@ -53,11 +53,5 @@ const slice = createSlice({
   },
 });
 
-export const {
-  projectsLoading,
-  projectsLoaded,
-  projectsFailed,
-  projectChanged,
-  projectRemoved,
-} = slice.actions;
+export const { projectsLoading, projectsLoaded, projectsFailed, projectChanged, projectRemoved } = slice.actions;
 export const projectsReducer = slice.reducer;

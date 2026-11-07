@@ -25,6 +25,7 @@ function humanize(identifier: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/** The short text shown in the chat while a tool runs. An unknown tool gets a readable form of its name. */
 export function toolLabel(toolName: string): string {
   return TOOL_LABELS[toolName] ?? humanize(toolName);
 }
@@ -43,10 +44,7 @@ function pluralize(count: number, noun: string) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-function addStep(
-  message: ChatMessage,
-  step: Omit<ActivityStep, "id">,
-): ChatMessage {
+function addStep(message: ChatMessage, step: Omit<ActivityStep, "id">): ChatMessage {
   return {
     ...message,
     activity: [
@@ -74,21 +72,16 @@ function updateLastRunning(
   if (index < 0) return message;
   return {
     ...message,
-    activity: message.activity.map((step, at) =>
-      at === index ? change(step) : step,
-    ),
+    activity: message.activity.map((step, at) => (at === index ? change(step) : step)),
   };
 }
 
 /** Settles any step still marked as running once the run has ended. */
 export function settleActivity(message: ChatMessage): ChatMessage {
-  if (message.activity.every((step) => step.status !== "running"))
-    return message;
+  if (message.activity.every((step) => step.status !== "running")) return message;
   return {
     ...message,
-    activity: message.activity.map((step) =>
-      step.status === "running" ? { ...step, status: "done" } : step,
-    ),
+    activity: message.activity.map((step) => (step.status === "running" ? { ...step, status: "done" } : step)),
   };
 }
 
@@ -101,16 +94,9 @@ const FIRST_OUTPUT_EVENTS: ReadonlySet<string> = new Set([
 ]);
 
 /** Folds one streamed run event into the assistant message it belongs to. */
-export function applyRunEvent(
-  message: ChatMessage,
-  event: RunEvent,
-  now: number = Date.now(),
-): ChatMessage {
+export function applyRunEvent(message: ChatMessage, event: RunEvent, now: number = Date.now()): ChatMessage {
   if (message.thinkingMs === undefined && FIRST_OUTPUT_EVENTS.has(event.type))
-    return applyEvent(
-      { ...message, thinkingMs: now - message.startedAt },
-      event,
-    );
+    return applyEvent({ ...message, thinkingMs: now - message.startedAt }, event);
   return applyEvent(message, event);
 }
 
@@ -119,9 +105,7 @@ function applyEvent(message: ChatMessage, event: RunEvent): ChatMessage {
   switch (event.type) {
     case "agent.message.delta": {
       const delta = readString(payload, "delta");
-      return delta === undefined
-        ? message
-        : { ...message, content: message.content + delta };
+      return delta === undefined ? message : { ...message, content: message.content + delta };
     }
     case "agent.message.completed":
       // Keeps messages that arrive between tool calls apart as paragraphs.
@@ -180,10 +164,7 @@ function applyEvent(message: ChatMessage, event: RunEvent): ChatMessage {
       const summary = readString(payload, "summary");
       return addStep(message, {
         kind: "proposal",
-        label:
-          count === undefined
-            ? "Proposed scene changes"
-            : `Proposed ${pluralize(count, "scene change")}`,
+        label: count === undefined ? "Proposed scene changes" : `Proposed ${pluralize(count, "scene change")}`,
         ...(summary === undefined ? {} : { detail: summary }),
         status: "done",
       });
@@ -199,7 +180,9 @@ function applyEvent(message: ChatMessage, event: RunEvent): ChatMessage {
         (step) => ({
           ...step,
           captureId,
-          ...(imagesSent ? {} : { detail: "Pictures are turned off for this model, so the scene was measured, not drawn." }),
+          ...(imagesSent
+            ? {}
+            : { detail: "Pictures are turned off for this model, so the scene was measured, not drawn." }),
         }),
       );
     }

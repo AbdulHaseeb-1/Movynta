@@ -1,5 +1,15 @@
 import { MAX_ATTACHMENT_BYTES } from "@movynta/contracts";
-import { attachmentName, canSendUnchanged, fitWithin, JPEG_QUALITIES, mediaTypeOf, SHRINK_STEP, toBase64, withExtension, type Size } from "./imagePlan";
+import {
+  attachmentName,
+  canSendUnchanged,
+  fitWithin,
+  JPEG_QUALITIES,
+  mediaTypeOf,
+  SHRINK_STEP,
+  toBase64,
+  withExtension,
+  type Size,
+} from "./imagePlan";
 import { AttachmentError, type ComposerImage } from "./types";
 
 /** A file this large is not decoded at all: the browser would need hundreds of megabytes to hold its pixels. */
@@ -50,7 +60,10 @@ async function shrinkToFit(image: OpenImage): Promise<{ blob: Blob; size: Size }
       const blob = await image.encodeJpeg(size, quality);
       if (blob.size <= MAX_ATTACHMENT_BYTES) return { blob, size };
     }
-    size = { width: Math.max(1, Math.round(size.width * SHRINK_STEP)), height: Math.max(1, Math.round(size.height * SHRINK_STEP)) };
+    size = {
+      width: Math.max(1, Math.round(size.width * SHRINK_STEP)),
+      height: Math.max(1, Math.round(size.height * SHRINK_STEP)),
+    };
   }
   return undefined;
 }
@@ -72,7 +85,8 @@ export async function prepareImage(file: File, position = 1, codec: ImageCodec =
   const mediaType = mediaTypeOf(file);
   if (!mediaType) throw new AttachmentError(unsupportedMessage(file));
   if (file.size === 0) throw new AttachmentError(`"${label}" is empty.`);
-  if (file.size > MAX_SOURCE_BYTES) throw new AttachmentError(`"${label}" is too large. Pictures can be up to ${MAX_SOURCE_BYTES / (1024 * 1024)} MB.`);
+  if (file.size > MAX_SOURCE_BYTES)
+    throw new AttachmentError(`"${label}" is too large. Pictures can be up to ${MAX_SOURCE_BYTES / (1024 * 1024)} MB.`);
 
   let image: OpenImage;
   try {
@@ -84,7 +98,15 @@ export async function prepareImage(file: File, position = 1, codec: ImageCodec =
     const name = attachmentName(file, mediaType, position);
     if (canSendUnchanged(file, mediaType, image.size)) {
       const data = toBase64(new Uint8Array(await file.arrayBuffer()));
-      return { id: crypto.randomUUID(), name, mediaType, bytes: file.size, ...image.size, data, src: `data:${mediaType};base64,${data}` };
+      return {
+        id: crypto.randomUUID(),
+        name,
+        mediaType,
+        bytes: file.size,
+        ...image.size,
+        data,
+        src: `data:${mediaType};base64,${data}`,
+      };
     }
     const fitted = await shrinkToFit(image);
     if (!fitted) throw new AttachmentError(`"${label}" is too large to send, even after shrinking it.`);

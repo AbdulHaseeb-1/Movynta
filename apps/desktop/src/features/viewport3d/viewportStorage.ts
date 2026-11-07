@@ -34,6 +34,7 @@ export function loadViewportDisplay(): ViewportDisplay {
   return { ...DEFAULT_VIEWPORT_DISPLAY, ...readStored(KEY, displaySchema) };
 }
 
+/** Remembers the viewport's display options, so they survive a reload. */
 export function saveViewportDisplay(display: ViewportDisplay): void {
   writeStored(KEY, display);
 }

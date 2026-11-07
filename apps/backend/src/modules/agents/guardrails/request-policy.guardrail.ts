@@ -21,7 +21,9 @@ function partText(part: unknown): string {
 function textOf(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
-  const typed = content.findIndex((part: unknown) => typeof part === "object" && part !== null && "type" in part && part.type === "input_image");
+  const typed = content.findIndex(
+    (part: unknown) => typeof part === "object" && part !== null && "type" in part && part.type === "input_image",
+  );
   const words = typed < 0 ? content : content.slice(0, 1);
   return words.map(partText).join("\n");
 }

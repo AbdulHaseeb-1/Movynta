@@ -74,7 +74,8 @@ export function numericError(session: TransformSession): string | undefined {
   if (session.numeric === "") return undefined;
   const value = typedNumber(session);
   if (value === null) return "Enter a valid number";
-  if (session.operation === "scale" && (value < MIN_SCALE || value > MAX_SCALE)) return "Enter a valid number from 0.001 to 100";
+  if (session.operation === "scale" && (value < MIN_SCALE || value > MAX_SCALE))
+    return "Enter a valid number from 0.001 to 100";
   return undefined;
 }
 
@@ -110,9 +111,13 @@ export function previewShape(state: TransformPlayground): PlaygroundShape {
     }
     case "scale": {
       const startDistance = Math.hypot(session.start.x - pivot.x, session.start.y - pivot.y);
-      const dragged = startDistance > 1e-6
-        ? Math.max(MIN_DRAG_SCALE, Math.hypot(session.pointer.x - pivot.x, session.pointer.y - pivot.y) / startDistance)
-        : 1;
+      const dragged =
+        startDistance > 1e-6
+          ? Math.max(
+              MIN_DRAG_SCALE,
+              Math.hypot(session.pointer.x - pivot.x, session.pointer.y - pivot.y) / startDistance,
+            )
+          : 1;
       const factor = typed ?? dragged;
       return {
         ...shape,
@@ -163,7 +168,13 @@ export function transformReducer(state: TransformPlayground, action: PlaygroundA
       if (session) return state;
       return {
         ...state,
-        session: { operation: action.operation, axis: null, start: action.pointer, pointer: action.pointer, numeric: "" },
+        session: {
+          operation: action.operation,
+          axis: null,
+          start: action.pointer,
+          pointer: action.pointer,
+          numeric: "",
+        },
       };
     case "pointer":
       return session ? { ...state, session: { ...session, pointer: action.pointer } } : state;
@@ -184,15 +195,27 @@ export function transformReducer(state: TransformPlayground, action: PlaygroundA
     case "confirm": {
       if (!session || numericError(session)) return state;
       const shape = previewShape(state);
-      return { shape, session: null, history: [...state.history, state.shape], message: `${LABEL[session.operation]} confirmed: ${describe(shape)}. Ctrl+Z undoes it.` };
+      return {
+        shape,
+        session: null,
+        history: [...state.history, state.shape],
+        message: `${LABEL[session.operation]} confirmed: ${describe(shape)}. Ctrl+Z undoes it.`,
+      };
     }
     case "cancel":
-      return session ? { ...state, session: null, message: `${LABEL[session.operation]} cancelled; the shape is back where it was.` } : state;
+      return session
+        ? { ...state, session: null, message: `${LABEL[session.operation]} cancelled; the shape is back where it was.` }
+        : state;
     case "undo": {
       if (session) return state;
       const previous = state.history[state.history.length - 1];
       if (!previous) return { ...state, message: "Nothing to undo." };
-      return { shape: previous, session: null, history: state.history.slice(0, -1), message: `Undone: ${describe(previous)}.` };
+      return {
+        shape: previous,
+        session: null,
+        history: state.history.slice(0, -1),
+        message: `Undone: ${describe(previous)}.`,
+      };
     }
     case "reset":
       return INITIAL_PLAYGROUND;

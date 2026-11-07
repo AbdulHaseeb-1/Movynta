@@ -24,5 +24,6 @@ import { ProvidersModule } from "../providers/providers.module.js";
   ],
   controllers: [AgentRunsController],
   providers: [AgentRunProcessor, AgentRunsService],
+/** The agent-runs feature: its controller, service, processor and storage. */
 })
 export class AgentRunsModule {}

@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  type OnModuleDestroy,
-} from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnModuleDestroy } from "@nestjs/common";
 import {
   extractAllTextOutput,
   type AgentInputItem,
@@ -32,15 +27,8 @@ import { AgentRunRepository } from "./agent-run.repository.js";
 import { ProvidersService } from "../providers/providers.service.js";
 import { ProviderTransport } from "../providers/provider-transport.js";
 import { pictureBridgedModel } from "../providers/chat-completions-pictures.js";
-import {
-  reasoningModelSettings,
-  requiredModelSettings,
-} from "../providers/model-capabilities.js";
-import {
-  extractTextDelta,
-  interruptionCallId,
-  toRegistryToolName,
-} from "./agent-run.stream-mapper.js";
+import { reasoningModelSettings, requiredModelSettings } from "../providers/model-capabilities.js";
+import { extractTextDelta, interruptionCallId, toRegistryToolName } from "./agent-run.stream-mapper.js";
 import { RunClock, type RunStop } from "./run-clock.js";
 import { messageWithAttachments, type RunAttachment } from "./run-attachments.js";
 import {
@@ -127,9 +115,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
     progress.quality.required = requiresQualityReview(run.input, run.dimension, this.config.agents.reviewMode);
     // The pictures go to the model with this first turn only; the stored history keeps their names, not their pixels.
     const input = attachments.length > 0 ? messageWithAttachments(run.input, attachments) : run.input;
-    this.launch(run, progress, (context, signal) =>
-      this.turn(run, context, signal, input),
-    );
+    this.launch(run, progress, (context, signal) => this.turn(run, context, signal, input));
   }
 
   /** Continues a run that was waiting for approval, after every decision has been recorded. */
@@ -139,12 +125,14 @@ export class AgentRunProcessor implements OnModuleDestroy {
       const serialized = this.runs.readRunState(run.id);
       if (!serialized) throw new Error("Run state is missing");
       // The restored state keeps its approval records; the run context is merged in so tools get live handles.
-      const state = await RunState.fromStringWithContext<
-        AgentRunContext,
-        AppAgent
-      >(agent, serialized, new RunContext<AgentRunContext>(context), {
-        contextStrategy: "merge",
-      });
+      const state = await RunState.fromStringWithContext<AgentRunContext, AppAgent>(
+        agent,
+        serialized,
+        new RunContext<AgentRunContext>(context),
+        {
+          contextStrategy: "merge",
+        },
+      );
       this.applyDecisions(state, run.id);
       return (await this.runnerFor(run)).run(agent, state, {
         stream: true,
@@ -182,26 +170,15 @@ export class AgentRunProcessor implements OnModuleDestroy {
     );
     const transport = await this.transport.model(credentials);
     // Chat Completions cannot carry pictures in a tool result; the bridge moves them into the next user message.
-    const model =
-      run.providerId === "openai-compatible"
-        ? pictureBridgedModel(transport)
-        : transport;
+    const model = run.providerId === "openai-compatible" ? pictureBridgedModel(transport) : transport;
     return new SdkRunner({
       modelProvider: { getModel: () => model },
       modelSettings: {
         ...requiredModelSettings(run.providerId, credentials.model),
-        ...(run.reasoningEffort
-          ? reasoningModelSettings(
-              run.providerId,
-              credentials.model,
-              run.reasoningEffort,
-            )
-          : {}),
+        ...(run.reasoningEffort ? reasoningModelSettings(run.providerId, credentials.model, run.reasoningEffort) : {}),
       },
       // Without stored responses, replayed reasoning items must not point at ids the server never kept.
-      ...(run.providerId === "chatgpt"
-        ? { reasoningItemIdPolicy: "omit" as const }
-        : {}),
+      ...(run.providerId === "chatgpt" ? { reasoningItemIdPolicy: "omit" as const } : {}),
       tracingDisabled: true,
       traceIncludeSensitiveData: false,
     });
@@ -227,8 +204,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
         totalMs: this.config.agents.runTimeoutMs,
         idleMs: this.config.agents.runIdleTimeoutMs,
       },
-      (stop) =>
-        controller.abort(stop === "timeout" ? TIMEOUT_REASON : STALL_REASON),
+      (stop) => controller.abort(stop === "timeout" ? TIMEOUT_REASON : STALL_REASON),
     );
     // Any event of the run is a sign of progress; a run that goes quiet for too long is stopped.
     const unsubscribe = this.events.subscribe(run.id, () => clock.touch());
@@ -245,20 +221,12 @@ export class AgentRunProcessor implements OnModuleDestroy {
       events: this.events.sinkFor(run.id),
       signal: controller.signal,
       progress,
-      supportsToolImages: this.providers.picturesAllowed(
-        run.userId,
-        run.providerId,
-      ),
+      supportsToolImages: this.providers.picturesAllowed(run.userId, run.providerId),
     };
 
     clock.start();
-    this.drive(run, context, controller.signal, () =>
-      first(context, controller.signal),
-    ).catch((error: unknown) => {
-      this.logger.error(
-        `run ${run.id} crashed in the processor`,
-        error instanceof Error ? error.stack : undefined,
-      );
+    this.drive(run, context, controller.signal, () => first(context, controller.signal)).catch((error: unknown) => {
+      this.logger.error(`run ${run.id} crashed in the processor`, error instanceof Error ? error.stack : undefined);
     });
   }
 
@@ -322,19 +290,12 @@ export class AgentRunProcessor implements OnModuleDestroy {
         }
 
         continuations += 1;
-        this.logger.log(
-          `run ${run.id} continues (${continuations}): ${reasons.join("; ")}`,
-        );
+        this.logger.log(`run ${run.id} continues (${continuations}): ${reasons.join("; ")}`);
         this.events.publish(run.id, "agent.continued", {
           attempt: continuations,
           reasons,
         });
-        result = await this.turn(
-          run,
-          context,
-          signal,
-          continuationPrompt(reasons),
-        );
+        result = await this.turn(run, context, signal, continuationPrompt(reasons));
       }
     } catch (error) {
       if (this.isCancelled(run.id)) return;
@@ -420,8 +381,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
     switch (event.type) {
       case "raw_model_stream_event": {
         const delta = extractTextDelta(event.data);
-        if (delta !== undefined)
-          this.events.publish(runId, "agent.message.delta", { delta });
+        if (delta !== undefined) this.events.publish(runId, "agent.message.delta", { delta });
         return;
       }
       case "agent_updated_stream_event":
@@ -440,11 +400,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
     }
   }
 
-  private pauseForApprovals(
-    run: AgentRunRecord,
-    context: AgentRunContext,
-    result: RunResult,
-  ): void {
+  private pauseForApprovals(run: AgentRunRecord, context: AgentRunContext, result: RunResult): void {
     const serialized = result.state.toString();
     for (const item of result.interruptions) {
       const callId = interruptionCallId(item.rawItem);
@@ -468,9 +424,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
       runState: serialized,
       progressJson: serializeRunProgress(context.progress),
     });
-    this.logger.log(
-      `run ${run.id} is waiting for ${result.interruptions.length} approval(s)`,
-    );
+    this.logger.log(`run ${run.id} is waiting for ${result.interruptions.length} approval(s)`);
   }
 
   private complete(runId: string, result: RunResult, totals: RunTotals, notice?: string): void {
@@ -511,16 +465,11 @@ export class AgentRunProcessor implements OnModuleDestroy {
   }
 
   private applyDecisions(state: RunStateOf, runId: string): void {
-    const decisions = new Map(
-      this.approvals
-        .decisionsFor(runId)
-        .map((decision) => [decision.callId, decision]),
-    );
+    const decisions = new Map(this.approvals.decisionsFor(runId).map((decision) => [decision.callId, decision]));
     for (const item of [...state.getInterruptions()]) {
       const callId = interruptionCallId(item.rawItem);
       const decision = callId === undefined ? undefined : decisions.get(callId);
-      if (!decision)
-        throw new Error("An interrupted tool call has no approval decision");
+      if (!decision) throw new Error("An interrupted tool call has no approval decision");
       if (decision.approved) {
         state.approve(item);
       } else {
@@ -529,26 +478,18 @@ export class AgentRunProcessor implements OnModuleDestroy {
         });
         // A batch the user refused is no longer waiting for the run to apply it.
         const proposalId =
-          toRegistryToolName(item.name) === "editor.apply_proposal"
-            ? parseProposalId(item.arguments)
-            : undefined;
+          toRegistryToolName(item.name) === "editor.apply_proposal" ? parseProposalId(item.arguments) : undefined;
         if (proposalId !== undefined) this.proposals.reject(runId, proposalId);
       }
     }
   }
 
   /** Previews are built from server-side records, never from model output alone. */
-  private buildPreview(
-    runId: string,
-    toolName: string,
-    rawArguments: string | undefined,
-  ): ApprovalPreview {
-    if (toolName !== "editor.apply_proposal")
-      return { toolName, summary: `Run ${toolName}` };
+  private buildPreview(runId: string, toolName: string, rawArguments: string | undefined): ApprovalPreview {
+    if (toolName !== "editor.apply_proposal") return { toolName, summary: `Run ${toolName}` };
 
     const proposalId = parseProposalId(rawArguments);
-    if (proposalId === undefined)
-      return { toolName, proposalId: null, summary: "Apply a proposed change" };
+    if (proposalId === undefined) return { toolName, proposalId: null, summary: "Apply a proposed change" };
     try {
       const proposal = this.proposals.require(runId, proposalId);
       return {
@@ -564,11 +505,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
     }
   }
 
-  private setStatus(
-    runId: string,
-    to: AgentRunStatus,
-    update: RunUpdate,
-  ): void {
+  private setStatus(runId: string, to: AgentRunStatus, update: RunUpdate): void {
     this.runs.transition(runId, to, update, new Date().toISOString());
   }
 

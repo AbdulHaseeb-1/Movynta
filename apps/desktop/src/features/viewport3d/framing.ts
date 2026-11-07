@@ -32,7 +32,11 @@ export function framePose(
   const radius = Math.max(box.getSize(new Vector3()).length() / 2, MIN_RADIUS);
   const vertical = MathUtils.degToRad(fovDegrees) / 2;
   const horizontal = Math.atan(Math.tan(vertical) * aspect);
-  const distance = MathUtils.clamp((radius * MARGIN) / Math.sin(Math.min(vertical, horizontal)), limits.minDistance, limits.maxDistance);
+  const distance = MathUtils.clamp(
+    (radius * MARGIN) / Math.sin(Math.min(vertical, horizontal)),
+    limits.minDistance,
+    limits.maxDistance,
+  );
   const direction = from.position.clone().sub(from.target);
   if (direction.lengthSq() < 1e-12) direction.copy(DEFAULT_DIRECTION);
   direction.normalize();

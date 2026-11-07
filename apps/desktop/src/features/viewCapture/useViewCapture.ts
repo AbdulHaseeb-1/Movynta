@@ -21,16 +21,21 @@ export function useViewCapture(
           if (!scene) throw new Error("The scene is not ready yet");
           const candidate = options.candidate;
           if (candidate) {
-            return scene.withProposalPreview(candidate.proposalId, candidate.revision, candidate.commands, (world, isolated) => {
-              for (const child of viewport.scene.children) {
-                if (child instanceof Light) world.add(child.clone());
-              }
-              const result = captureViews({ ...viewport, scene: world }, isolated, request, options);
-              return {
-                ...result,
-                images: result.images.map((image) => ({ ...image, label: `Proposed · ${image.label}`.slice(0, 60) })),
-              };
-            });
+            return scene.withProposalPreview(
+              candidate.proposalId,
+              candidate.revision,
+              candidate.commands,
+              (world, isolated) => {
+                for (const child of viewport.scene.children) {
+                  if (child instanceof Light) world.add(child.clone());
+                }
+                const result = captureViews({ ...viewport, scene: world }, isolated, request, options);
+                return {
+                  ...result,
+                  images: result.images.map((image) => ({ ...image, label: `Proposed · ${image.label}`.slice(0, 60) })),
+                };
+              },
+            );
           }
           return captureViews(viewport, scene, request, options);
         }

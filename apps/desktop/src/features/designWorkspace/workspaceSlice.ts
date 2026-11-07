@@ -17,7 +17,13 @@ interface WorkspaceState {
   } | null;
   componentError: string;
   selectionRequest: { operation: ComponentSelectionOperation; sequence: number } | null;
-  diagnosticSelection: { objectId: string; meshPath: number[]; ids: string[]; revision: number; sequence: number } | null;
+  diagnosticSelection: {
+    objectId: string;
+    meshPath: number[];
+    ids: string[];
+    revision: number;
+    sequence: number;
+  } | null;
   panels: PanelVisibility;
 }
 const initialState: WorkspaceState = {
@@ -36,9 +42,16 @@ const workspaceSlice = createSlice({
   name: "designWorkspace",
   initialState,
   reducers: {
-    setKnifeSettings(state, action: PayloadAction<Partial<KnifeSettings>>) { state.knifeSettings = {...state.knifeSettings,...action.payload}; },
-    setKnifeActive(state, action: PayloadAction<boolean>) { state.knifeActive = action.payload; },
-    requestDiagnosticSelection(state, action: PayloadAction<{ objectId: string; meshPath: number[]; ids: string[]; revision: number }>) {
+    setKnifeSettings(state, action: PayloadAction<Partial<KnifeSettings>>) {
+      state.knifeSettings = { ...state.knifeSettings, ...action.payload };
+    },
+    setKnifeActive(state, action: PayloadAction<boolean>) {
+      state.knifeActive = action.payload;
+    },
+    requestDiagnosticSelection(
+      state,
+      action: PayloadAction<{ objectId: string; meshPath: number[]; ids: string[]; revision: number }>,
+    ) {
       state.diagnosticSelection = { ...action.payload, sequence: (state.diagnosticSelection?.sequence ?? 0) + 1 };
     },
     requestComponentSelection(state, action: PayloadAction<ComponentSelectionOperation>) {
@@ -54,10 +67,7 @@ const workspaceSlice = createSlice({
       state.componentSelection = null;
       state.componentError = "";
     },
-    setComponentSelection(
-      state,
-      action: PayloadAction<WorkspaceState["componentSelection"]>,
-    ) {
+    setComponentSelection(state, action: PayloadAction<WorkspaceState["componentSelection"]>) {
       state.componentSelection = action.payload;
       // A message about the last attempt is out of date once something new is picked.
       if (action.payload) state.componentError = "";
@@ -65,7 +75,9 @@ const workspaceSlice = createSlice({
     setComponentError(state, action: PayloadAction<string>) {
       state.componentError = action.payload;
     },
-    setPanelOpen(state, action: PayloadAction<{ id: PanelId; open: boolean }>) { state.panels[action.payload.id] = action.payload.open; },
+    setPanelOpen(state, action: PayloadAction<{ id: PanelId; open: boolean }>) {
+      state.panels[action.payload.id] = action.payload.open;
+    },
   },
 });
 

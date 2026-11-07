@@ -10,6 +10,7 @@ function toResponse(record: SessionRecord): SessionResponseDto {
   return { id: record.id, projectId: record.projectId, createdAt: record.createdAt };
 }
 
+/** HTTP endpoints for chat sessions. */
 @ApiTags("sessions")
 @ApiBearerAuth()
 @Controller({ path: "sessions", version: "1" })

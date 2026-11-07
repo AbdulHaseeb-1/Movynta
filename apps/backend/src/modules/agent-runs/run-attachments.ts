@@ -28,10 +28,14 @@ const SIGNATURE_BYTES = 12;
 
 /** What the first bytes of each format look like. A client's claim about the type is not trusted. */
 const SIGNATURES: Readonly<Record<AttachmentMediaType, (head: Buffer) => boolean>> = {
-  "image/png": (head) => head.length >= 8 && head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  "image/png": (head) =>
+    head.length >= 8 && head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
   "image/jpeg": (head) => head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff,
   "image/gif": (head) => head.length >= 6 && ["GIF87a", "GIF89a"].includes(head.subarray(0, 6).toString("latin1")),
-  "image/webp": (head) => head.length >= 12 && head.subarray(0, 4).toString("latin1") === "RIFF" && head.subarray(8, 12).toString("latin1") === "WEBP",
+  "image/webp": (head) =>
+    head.length >= 12 &&
+    head.subarray(0, 4).toString("latin1") === "RIFF" &&
+    head.subarray(8, 12).toString("latin1") === "WEBP",
 };
 
 /** The name shown in the chat and given to the model: no path, no control characters, never empty, never long. */
@@ -67,12 +71,16 @@ export function checkAttachments(uploads: readonly AttachmentUpload[]): RunAttac
       throw new ValidationFailedError(`"${name}" is larger than ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB`);
     const head = Buffer.from(data.slice(0, Math.ceil((SIGNATURE_BYTES * 4) / 3)), "base64");
     if (!SIGNATURES[upload.mediaType](head))
-      throw new ValidationFailedError(`"${name}" is not a ${upload.mediaType.slice("image/".length).toUpperCase()} image`);
+      throw new ValidationFailedError(
+        `"${name}" is not a ${upload.mediaType.slice("image/".length).toUpperCase()} image`,
+      );
     return { name, mediaType: upload.mediaType, bytes, data };
   });
   const total = checked.reduce((sum, picture) => sum + picture.bytes, 0);
   if (total > MAX_ATTACHMENT_TOTAL_BYTES)
-    throw new ValidationFailedError(`The images add up to more than ${MAX_ATTACHMENT_TOTAL_BYTES / (1024 * 1024)} MB; send fewer or smaller ones`);
+    throw new ValidationFailedError(
+      `The images add up to more than ${MAX_ATTACHMENT_TOTAL_BYTES / (1024 * 1024)} MB; send fewer or smaller ones`,
+    );
   return checked;
 }
 
@@ -92,7 +100,10 @@ export function messageWithAttachments(message: string, attachments: readonly Ru
       content: [
         { type: "input_text", text: message },
         ...attachments.flatMap((attachment, index) => [
-          { type: "input_text" as const, text: `Attached image ${index + 1} of ${attachments.length}: ${attachment.name}` },
+          {
+            type: "input_text" as const,
+            text: `Attached image ${index + 1} of ${attachments.length}: ${attachment.name}`,
+          },
           { type: "input_image" as const, image: `data:${attachment.mediaType};base64,${attachment.data}` },
         ]),
       ],

@@ -63,9 +63,7 @@ export const viewCaptureRequestSchema = z
 
 const boundsSchema = z.object({ min: vector3, max: vector3 }).strict();
 
-const screenRectSchema = z
-  .object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
-  .strict();
+const screenRectSchema = z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).strict();
 
 const capturedObjectSchema = z
   .object({

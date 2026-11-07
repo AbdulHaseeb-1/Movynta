@@ -27,6 +27,7 @@ export interface SkillRequest {
 /** Frontmatter values as read from SKILL.md, before validation. */
 export type RawFrontmatter = Record<string, string | string[]>;
 
+/** The part of a skill that listing and selection need, without its full instructions. */
 export function toSkillSummary(manifest: SkillManifest): SkillSummary {
   return {
     id: manifest.id,

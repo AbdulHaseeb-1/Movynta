@@ -23,10 +23,6 @@ export {
 } from "./transformMath";
 export { TransformFields } from "./TransformFields";
 export { TransformPanel } from "./TransformPanel";
-export {
-  useObjectEditing,
-  type ObjectEditing,
-  type SelectedObject,
-} from "./useObjectEditing";
+export { useObjectEditing, type ObjectEditing, type SelectedObject } from "./useObjectEditing";
 export { changeSceneHistory, recoverSavedScene } from "./sceneHistory";
 export { ModifierPanel } from "./ModifierPanel";

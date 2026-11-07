@@ -9,11 +9,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  EFFORT_HINTS,
-  EFFORT_LABELS,
-  reasoningEffortSchema,
-} from "./reasoningEfforts";
+import { EFFORT_HINTS, EFFORT_LABELS, reasoningEffortSchema } from "./reasoningEfforts";
 import { useReasoningEffort } from "./useReasoningEffort";
 
 const AUTO = "auto";
@@ -54,12 +50,7 @@ export function EffortSelector({ disabled }: { disabled: boolean }) {
           <ChevronDown className="size-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        side="top"
-        className="w-60 p-1.5"
-        collisionPadding={12}
-      >
+      <DropdownMenuContent align="start" side="top" className="w-60 p-1.5" collisionPadding={12}>
         <DropdownMenuLabel>Reasoning effort</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={effort ?? AUTO}
@@ -70,16 +61,12 @@ export function EffortSelector({ disabled }: { disabled: boolean }) {
         >
           <DropdownMenuRadioItem value={AUTO}>
             <span>Auto</span>
-            <span className="text-[11px] text-muted-foreground">
-              Use the model&apos;s own default
-            </span>
+            <span className="text-[11px] text-muted-foreground">Use the model&apos;s own default</span>
           </DropdownMenuRadioItem>
           {efforts.map((level) => (
             <DropdownMenuRadioItem key={level} value={level}>
               <span>{EFFORT_LABELS[level]}</span>
-              <span className="text-[11px] text-muted-foreground">
-                {EFFORT_HINTS[level]}
-              </span>
+              <span className="text-[11px] text-muted-foreground">{EFFORT_HINTS[level]}</span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

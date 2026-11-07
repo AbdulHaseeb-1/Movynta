@@ -1,4 +1,11 @@
-import { BufferGeometry, Float32BufferAttribute, Matrix4, Vector3, type BufferAttribute, type InterleavedBufferAttribute } from "three";
+import {
+  BufferGeometry,
+  Float32BufferAttribute,
+  Matrix4,
+  Vector3,
+  type BufferAttribute,
+  type InterleavedBufferAttribute,
+} from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import type { Manifold, ManifoldToplevel, Mesh } from "manifold-3d";
 import { getManifoldModule, getManifoldModuleSync, setWasmUrl } from "manifold-3d/lib/wasm.js";
@@ -82,7 +89,11 @@ function layoutFor(target: BufferGeometry, operand: BufferGeometry): PropertyLay
   return { numProp, uv: uvIndex, color: colorIndex, colorSize };
 }
 
-function readComponent(attribute: BufferAttribute | InterleavedBufferAttribute, index: number, component: number): number {
+function readComponent(
+  attribute: BufferAttribute | InterleavedBufferAttribute,
+  index: number,
+  component: number,
+): number {
   const value = attribute.getComponent(index, component);
   return Number.isFinite(value) ? value : 0;
 }
@@ -98,7 +109,14 @@ interface SolidArrays {
   runOriginalID: Uint32Array;
 }
 
-function buildMesh(api: ManifoldToplevel, geometry: BufferGeometry, matrix: Matrix4, flip: boolean, layout: PropertyLayout, originalId: number): Mesh {
+function buildMesh(
+  api: ManifoldToplevel,
+  geometry: BufferGeometry,
+  matrix: Matrix4,
+  flip: boolean,
+  layout: PropertyLayout,
+  originalId: number,
+): Mesh {
   const position = geometry.getAttribute("position");
   if (!position) throw new Error("Mesh needs 3D positions");
   const uv = geometry.getAttribute("uv");
@@ -202,7 +220,13 @@ function solidVertexIds(solid: SolidArrays, count: number): Uint32Array {
   return ids.map((_, index) => root(index));
 }
 
-function geometryFromSolid(solid: SolidArrays, layout: PropertyLayout, cutterId: number, cutMaterialIndex?: number, materialSlots = Infinity): BufferGeometry {
+function geometryFromSolid(
+  solid: SolidArrays,
+  layout: PropertyLayout,
+  cutterId: number,
+  cutMaterialIndex?: number,
+  materialSlots = Infinity,
+): BufferGeometry {
   const { numProp, vertProperties, triVerts, faceID, runIndex, runOriginalID } = solid;
   const vertices = vertProperties.length / numProp;
   const position = new Float32Array(vertices * 3);
@@ -211,12 +235,14 @@ function geometryFromSolid(solid: SolidArrays, layout: PropertyLayout, cutterId:
   for (let vertex = 0; vertex < vertices; vertex += 1) {
     const offset = vertex * numProp;
     for (let axis = 0; axis < 3; axis += 1) position[vertex * 3 + axis] = vertProperties[offset + axis] ?? 0;
-    if (layout.uv >= 0) for (let channel = 0; channel < 2; channel += 1) {
-      uv[vertex * 2 + channel] = vertProperties[offset + layout.uv + channel] ?? 0;
-    }
-    if (layout.color >= 0) for (let channel = 0; channel < layout.colorSize; channel += 1) {
-      color[vertex * layout.colorSize + channel] = vertProperties[offset + layout.color + channel] ?? 0;
-    }
+    if (layout.uv >= 0)
+      for (let channel = 0; channel < 2; channel += 1) {
+        uv[vertex * 2 + channel] = vertProperties[offset + layout.uv + channel] ?? 0;
+      }
+    if (layout.color >= 0)
+      for (let channel = 0; channel < layout.colorSize; channel += 1) {
+        color[vertex * layout.colorSize + channel] = vertProperties[offset + layout.color + channel] ?? 0;
+      }
   }
   const carrier = new BufferGeometry();
   carrier.setAttribute("position", new Float32BufferAttribute(position, 3));
@@ -226,8 +252,8 @@ function geometryFromSolid(solid: SolidArrays, layout: PropertyLayout, cutterId:
   let run = 0;
   for (let offset = 0; offset < triVerts.length; offset += 3) {
     while (offset >= (runIndex[run + 1] ?? Infinity)) run += 1;
-    const sourceMaterial = runOriginalID[run] === cutterId && cutMaterialIndex !== undefined
-      ? cutMaterialIndex : faceID[offset / 3] ?? 0;
+    const sourceMaterial =
+      runOriginalID[run] === cutterId && cutMaterialIndex !== undefined ? cutMaterialIndex : (faceID[offset / 3] ?? 0);
     const materialIndex = sourceMaterial < materialSlots ? sourceMaterial : 0;
     const previous = carrier.groups[carrier.groups.length - 1];
     if (previous?.materialIndex === materialIndex) previous.count += 3;
@@ -256,7 +282,14 @@ function geometryFromSolid(solid: SolidArrays, layout: PropertyLayout, cutterId:
  * Boolean of two solids. `operandToTarget` maps operand-local positions into the target's local space.
  * A negative determinant flips the operand's winding. Both Manifold objects are deleted before returning.
  */
-export function applyBoolean(target: BufferGeometry, operand: BufferGeometry, operation: BooleanOperation, operandToTarget: Matrix4, cutMaterialIndex?: number, materialSlots?: number): BufferGeometry {
+export function applyBoolean(
+  target: BufferGeometry,
+  operand: BufferGeometry,
+  operation: BooleanOperation,
+  operandToTarget: Matrix4,
+  cutMaterialIndex?: number,
+  materialSlots?: number,
+): BufferGeometry {
   assertSupported(target, "mesh");
   assertSupported(operand, "operand");
   assertClosedSolid(target);
@@ -272,10 +305,16 @@ export function applyBoolean(target: BufferGeometry, operand: BufferGeometry, op
     solids.push(left);
     const right = asSolid(api, buildMesh(api, operand, operandToTarget, flip, layout, cutterId));
     solids.push(right);
-    const result = operation === "union" ? left.add(right) : operation === "intersect" ? left.intersect(right) : left.subtract(right);
+    const result =
+      operation === "union"
+        ? left.add(right)
+        : operation === "intersect"
+          ? left.intersect(right)
+          : left.subtract(right);
     solids.push(result);
     if (result.isEmpty() || result.numTri() === 0) throw new Error("The boolean removed the entire mesh");
-    if (result.numTri() > MAX_MESH_OUTPUT_TRIANGLES) throw new Error(`Result exceeds the ${MAX_MESH_OUTPUT_TRIANGLES}-triangle geometry limit`);
+    if (result.numTri() > MAX_MESH_OUTPUT_TRIANGLES)
+      throw new Error(`Result exceeds the ${MAX_MESH_OUTPUT_TRIANGLES}-triangle geometry limit`);
     return geometryFromSolid(copySolid(result.getMesh()), layout, cutterId, cutMaterialIndex, materialSlots);
   } finally {
     for (const solid of solids) solid.delete();

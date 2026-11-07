@@ -119,7 +119,10 @@ const figure: Scenario = {
       check(
         "every part is under Figure",
         root !== undefined && parts.every((part) => under(part, root.id, objects)),
-        parts.filter((part) => root === undefined || !under(part, root.id, objects)).map((part) => part.name).join(", "),
+        parts
+          .filter((part) => root === undefined || !under(part, root.id, objects))
+          .map((part) => part.name)
+          .join(", "),
       ),
       check(
         "parts have descriptive names",
@@ -168,7 +171,11 @@ const headUp: Scenario = {
         relativeOk || absoluteOk,
         relativeOk ? "scene.move_object delta" : absoluteOk ? "scene.transform_object to y=2.1" : "no matching command",
       ),
-      check("uses the relative move command", relativeOk, moves.length > 0 ? "move_object used" : "move_object not used"),
+      check(
+        "uses the relative move command",
+        relativeOk,
+        moves.length > 0 ? "move_object used" : "move_object not used",
+      ),
       check(
         "touches nothing else",
         commands.every((command) => "objectId" in command && command.objectId === "head"),
@@ -188,7 +195,9 @@ const deleteTree: Scenario = {
   ],
   grade({ objects, proposals }) {
     const commands = proposals.flat();
-    const deletes = commands.flatMap((command, index) => (command.type === "scene.delete_object" ? [{ id: command.objectId, index }] : []));
+    const deletes = commands.flatMap((command, index) =>
+      command.type === "scene.delete_object" ? [{ id: command.objectId, index }] : [],
+    );
     const torsoAt = deletes.find((entry) => entry.id === "torso")?.index ?? -1;
     const childrenFirst = ["head", "armL"].every((id) => {
       const at = deletes.find((entry) => entry.id === id)?.index ?? -1;
@@ -247,12 +256,25 @@ async function runOnce(server: TestServer, token: string, scenario: Scenario, re
     const deadline = Date.now() + RUN_TIMEOUT_MS;
     let run = await call(server, token, "GET", `/api/v1/agent-runs/${accepted.runId}`, runSchema);
     while (!TERMINAL.includes(run.status) && Date.now() < deadline) {
-      const pending = await call(server, token, "GET", `/api/v1/agent-runs/${accepted.runId}/approvals`, approvalsSchema);
+      const pending = await call(
+        server,
+        token,
+        "GET",
+        `/api/v1/agent-runs/${accepted.runId}/approvals`,
+        approvalsSchema,
+      );
       for (const approval of pending) {
         if (approval.status !== "pending" || approvalsSeen.has(approval.id)) continue;
         approvalsSeen.add(approval.id);
         approvals.push(approval.toolName);
-        await call(server, token, "POST", `/api/v1/agent-runs/${accepted.runId}/approvals/${approval.id}`, z.unknown(), { decision: "approve" });
+        await call(
+          server,
+          token,
+          "POST",
+          `/api/v1/agent-runs/${accepted.runId}/approvals/${approval.id}`,
+          z.unknown(),
+          { decision: "approve" },
+        );
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
       run = await call(server, token, "GET", `/api/v1/agent-runs/${accepted.runId}`, runSchema);
@@ -290,7 +312,10 @@ describe("live assistant evaluation (Haiku via respan)", () => {
     if (!apiKey) throw new Error("Set RESPAN_API_KEY to run the live evaluation");
     process.env["OPENAI_AGENTS_DISABLE_TRACING"] = "true";
     // The database is in memory and dies with this process, so the key is kept in memory only, never on disk.
-    const memoryVault: SecretProtector = { protect: (value) => Promise.resolve(value), unprotect: (value) => Promise.resolve(value) };
+    const memoryVault: SecretProtector = {
+      protect: (value) => Promise.resolve(value),
+      unprotect: (value) => Promise.resolve(value),
+    };
     server = await startTestServer(0, { runTimeoutMs: RUN_TIMEOUT_MS, secretProtector: memoryVault });
     token = server.token(USER_ID);
     await server.app.get(ProvidersService).save(USER_ID, PROVIDER_ID, MODEL, apiKey, BASE_URL);
@@ -313,13 +338,20 @@ describe("live assistant evaluation (Haiku via respan)", () => {
 
   for (const scenario of SCENARIOS) {
     for (let repeat = 1; repeat <= REPEATS; repeat += 1) {
-      it(`${scenario.id} (run ${repeat})`, async () => {
-        const outcome = await runOnce(server, token, scenario, repeat);
-        const checks = [check("run completed", outcome.status === "completed", outcome.error || outcome.status), ...scenario.grade(outcome)];
-        results.push({ scenario: scenario.id, repeat, outcome, checks });
-        const failed = checks.filter((item) => !item.pass);
-        expect(failed.map((item) => `${item.name}: ${item.detail}`)).toEqual([]);
-      }, RUN_TIMEOUT_MS + 60_000);
+      it(
+        `${scenario.id} (run ${repeat})`,
+        async () => {
+          const outcome = await runOnce(server, token, scenario, repeat);
+          const checks = [
+            check("run completed", outcome.status === "completed", outcome.error || outcome.status),
+            ...scenario.grade(outcome),
+          ];
+          results.push({ scenario: scenario.id, repeat, outcome, checks });
+          const failed = checks.filter((item) => !item.pass);
+          expect(failed.map((item) => `${item.name}: ${item.detail}`)).toEqual([]);
+        },
+        RUN_TIMEOUT_MS + 60_000,
+      );
     }
   }
 });

@@ -79,10 +79,7 @@ function App() {
     <TooltipProvider delayDuration={300}>
       <div className="flex h-screen flex-col overflow-hidden">
         <TitleBar />
-        <div
-          key={routeId}
-          className="min-h-0 flex-1 animate-page-fade-in overflow-y-auto motion-reduce:animate-none"
-        >
+        <div key={routeId} className="min-h-0 flex-1 animate-page-fade-in overflow-y-auto motion-reduce:animate-none">
           <Outlet />
         </div>
         <ShortcutsDialog />

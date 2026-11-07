@@ -40,7 +40,14 @@ export function configureApplication(app: INestApplication, adapter: NodeAdapter
   });
   app.setGlobalPrefix("api", { exclude: HEALTH_ROUTES });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: "1" });
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true, validationError: { target: false, value: false } }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      validationError: { target: false, value: false },
+    }),
+  );
   app.enableCors({
     origin: config.corsOrigins.length > 0 ? [...config.corsOrigins] : false,
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],

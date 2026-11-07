@@ -18,6 +18,7 @@ export class RequestIdMiddleware implements NestMiddleware {
   }
 }
 
+/** The id of the request, set by the request-id middleware, or "unknown" when none was set. */
 export function getRequestId(request: RequestWithId): string {
   const { requestId } = request;
   return typeof requestId === "string" ? requestId : "unknown";

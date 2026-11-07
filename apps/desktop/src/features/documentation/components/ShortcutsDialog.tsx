@@ -48,10 +48,18 @@ export function ShortcutsDialog() {
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-card px-5 py-3">
           <p className="text-[11px] text-muted-foreground">Not sure what a key does? Press it in the key finder.</p>
           <div className="flex gap-2">
-            <Link to={SHORTCUTS_PATH} onClick={close} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-1.5")}>
+            <Link
+              to={SHORTCUTS_PATH}
+              onClick={close}
+              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-1.5")}
+            >
               <Keyboard className="size-3.5" aria-hidden /> Key finder
             </Link>
-            <Link to="/documentation" onClick={close} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}>
+            <Link
+              to="/documentation"
+              onClick={close}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+            >
               <BookOpen className="size-3.5" aria-hidden /> Full documentation
             </Link>
           </div>

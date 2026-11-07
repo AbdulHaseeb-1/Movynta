@@ -15,26 +15,17 @@ function DropdownMenuContent({
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
-        className={cn(
-          "z-50 rounded-xl bg-popover p-3 text-popover-foreground shadow-xl outline-none",
-          className,
-        )}
+        className={cn("z-50 rounded-xl bg-popover p-3 text-popover-foreground shadow-xl outline-none", className)}
         {...props}
       />
     </DropdownMenuPrimitive.Portal>
   );
 }
 
-function DropdownMenuLabel({
-  className,
-  ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Label>) {
+function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof DropdownMenuPrimitive.Label>) {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn(
-        "px-2 pt-1 pb-1.5 text-[11px] font-medium text-muted-foreground",
-        className,
-      )}
+      className={cn("px-2 pt-1 pb-1.5 text-[11px] font-medium text-muted-foreground", className)}
       {...props}
     />
   );
@@ -61,16 +52,8 @@ function DropdownMenuItem({
   );
 }
 
-function DropdownMenuSeparator({
-  className,
-  ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
-  return (
-    <DropdownMenuPrimitive.Separator
-      className={cn("-mx-1 my-1.5 h-px bg-border", className)}
-      {...props}
-    />
-  );
+function DropdownMenuSeparator({ className, ...props }: ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
+  return <DropdownMenuPrimitive.Separator className={cn("-mx-1 my-1.5 h-px bg-border", className)} {...props} />;
 }
 
 function DropdownMenuRadioItem({

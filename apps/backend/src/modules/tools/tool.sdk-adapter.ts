@@ -27,13 +27,15 @@ function describeError(error: unknown): string {
  * class instance or object identity would not survive, and every schema is strict, so a model cannot send the key.
  */
 const REFUSED_KEY = "__movyntaRefusedArguments";
-const refusedSchema = z.object({
-  [REFUSED_KEY]: z.object({
-    error: z.string(),
-    issues: z.array(z.object({ path: z.string(), message: z.string() })),
-    moreIssues: z.number().optional(),
-  }),
-}).strict();
+const refusedSchema = z
+  .object({
+    [REFUSED_KEY]: z.object({
+      error: z.string(),
+      issues: z.array(z.object({ path: z.string(), message: z.string() })),
+      moreIssues: z.number().optional(),
+    }),
+  })
+  .strict();
 type InvalidToolArguments = z.infer<typeof refusedSchema>;
 type Refusal = InvalidToolArguments[typeof REFUSED_KEY];
 
@@ -98,7 +100,9 @@ async function runTool(
       toolName: definition.name,
       message: first ? `Invalid arguments: ${first.path}: ${first.message}`.slice(0, 500) : "Invalid arguments",
     });
-    logger.warn(`${definition.name} refused invalid arguments (${refusal.issues.length + (refusal.moreIssues ?? 0)} issue(s))`);
+    logger.warn(
+      `${definition.name} refused invalid arguments (${refusal.issues.length + (refusal.moreIssues ?? 0)} issue(s))`,
+    );
     return JSON.stringify(refusal);
   }
   try {

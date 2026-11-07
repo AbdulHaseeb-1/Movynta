@@ -1,11 +1,6 @@
 import type { Vector3, BufferGeometry } from "three";
 import { hardCageVertices, recomputeNormals } from "./meshOutput";
-import {
-  updateExtrudedWallUvs,
-  writeExtrudedGeometry,
-  ZeroAreaWallError,
-  type ExtrudeResult,
-} from "./meshExtrude";
+import { updateExtrudedWallUvs, writeExtrudedGeometry, ZeroAreaWallError, type ExtrudeResult } from "./meshExtrude";
 
 /** Reuses the topology of a face extrusion while its cap moves as one rigid region. */
 export class ExtrudeFacePreview {
@@ -20,8 +15,7 @@ export class ExtrudeFacePreview {
     for (const id of result.selection) {
       for (const vertex of result.mesh.faces[Number(id)] ?? []) {
         const position = result.mesh.positions[vertex];
-        if (position && !this.moved.has(vertex))
-          this.moved.set(vertex, position.clone().sub(offset));
+        if (position && !this.moved.has(vertex)) this.moved.set(vertex, position.clone().sub(offset));
       }
     }
     this.geometry = writeExtrudedGeometry(source, result);
@@ -34,22 +28,14 @@ export class ExtrudeFacePreview {
     // Validate all walls before changing anything, so a blocked move keeps the last valid preview.
     for (const id of this.result.walls) {
       const face = this.result.mesh.faces[id];
-      const a =
-        face?.[0] === undefined
-          ? undefined
-          : this.result.mesh.positions[face[0]];
-      const b =
-        face?.[1] === undefined
-          ? undefined
-          : this.result.mesh.positions[face[1]];
+      const a = face?.[0] === undefined ? undefined : this.result.mesh.positions[face[0]];
+      const b = face?.[1] === undefined ? undefined : this.result.mesh.positions[face[1]];
       if (!a || !b) throw new Error("Missing extruded vertex");
       const edge = b.clone().sub(a);
-      const sine =
-        edge.clone().cross(offset).length() / (edge.length() * offset.length());
+      const sine = edge.clone().cross(offset).length() / (edge.length() * offset.length());
       if (!(sine > 1e-6)) throw new ZeroAreaWallError();
     }
-    for (const [id, origin] of this.moved)
-      this.result.mesh.positions[id]?.copy(origin).add(offset);
+    for (const [id, origin] of this.moved) this.result.mesh.positions[id]?.copy(origin).add(offset);
     const positions = this.geometry.getAttribute("position");
     this.vertexIds.forEach((id, index) => {
       if (!this.moved.has(id)) return;
@@ -58,19 +44,8 @@ export class ExtrudeFacePreview {
     });
     positions.needsUpdate = true;
     updateExtrudedWallUvs(this.geometry, this.result);
-    recomputeNormals(
-      this.geometry,
-      this.indices,
-      this.vertexIds,
-      this.result.mesh.positions.length,
-      true,
-      this.hard,
-    );
-    if (
-      this.geometry.getAttribute("tangent") &&
-      this.geometry.getAttribute("uv")
-    )
-      this.geometry.computeTangents();
+    recomputeNormals(this.geometry, this.indices, this.vertexIds, this.result.mesh.positions.length, true, this.hard);
+    if (this.geometry.getAttribute("tangent") && this.geometry.getAttribute("uv")) this.geometry.computeTangents();
     this.geometry.computeBoundingBox();
     this.geometry.computeBoundingSphere();
   }

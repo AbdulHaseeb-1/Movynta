@@ -1,13 +1,7 @@
 import { z } from "zod";
 import { readStored, writeStored } from "@/lib/storage";
 
-export const PANEL_IDS = [
-  "assistant",
-  "scene",
-  "meshSelection",
-  "modifiers",
-  "properties",
-] as const;
+export const PANEL_IDS = ["assistant", "scene", "meshSelection", "modifiers", "properties"] as const;
 export type PanelId = (typeof PANEL_IDS)[number];
 export type PanelVisibility = Record<PanelId, boolean>;
 const KEY = "movynta.workspace.panels.v1";
@@ -30,6 +24,7 @@ export function loadPanelVisibility(): PanelVisibility {
   return visibility;
 }
 
+/** Remembers which Edit-mode panels are open, so the layout survives a reload. */
 export function savePanelVisibility(visibility: PanelVisibility): void {
   writeStored(KEY, visibility);
 }

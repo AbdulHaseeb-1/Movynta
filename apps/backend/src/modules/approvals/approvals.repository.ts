@@ -24,13 +24,14 @@ function toRecord(row: SqlRow): ApprovalRecord {
   };
 }
 
+/** Stores approval records in the database. */
 @Injectable()
 export class ApprovalsRepository {
   constructor(private readonly database: DatabaseService) {}
 
   insert(record: Omit<ApprovalRecord, "status" | "reason" | "decidedAt">): void {
-    this.database
-      .db.prepare(
+    this.database.db
+      .prepare(
         `INSERT INTO approvals (id, run_id, user_id, call_id, tool_name, status, preview_json, created_at, expires_at)
          VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
       )
@@ -76,7 +77,9 @@ export class ApprovalsRepository {
   /** Expires pending approvals whose deadline has passed. */
   expireDue(runId: string, now: string): void {
     this.database.db
-      .prepare("UPDATE approvals SET status = 'expired', decided_at = ? WHERE run_id = ? AND status = 'pending' AND expires_at <= ?")
+      .prepare(
+        "UPDATE approvals SET status = 'expired', decided_at = ? WHERE run_id = ? AND status = 'pending' AND expires_at <= ?",
+      )
       .run(now, runId, now);
   }
 

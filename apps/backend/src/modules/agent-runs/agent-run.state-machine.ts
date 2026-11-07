@@ -21,6 +21,7 @@ const TRANSITIONS: Readonly<Record<AgentRunStatus, readonly AgentRunStatus[]>> =
   cancelled: [],
 };
 
+/** A run was asked to move to a status that its current status does not allow. */
 export class InvalidRunTransitionError extends ConflictError {
   constructor(from: AgentRunStatus, to: AgentRunStatus) {
     super(`Cannot move an agent run from ${from} to ${to}`, { from, to });
@@ -33,6 +34,7 @@ export function transitionRun(from: AgentRunStatus, to: AgentRunStatus): AgentRu
   return to;
 }
 
+/** Whether a run in this status has finished for good and can no longer change. */
 export function isTerminal(status: AgentRunStatus): boolean {
   return TERMINAL_RUN_STATUSES.includes(status);
 }

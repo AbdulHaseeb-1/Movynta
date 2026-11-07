@@ -1,7 +1,15 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { cn } from "@/lib/utils";
 import { ExampleFrame, type ExampleHint } from "./ExampleFrame";
-import { boxSelect, clickSelect, itemsInRect, operationText, rectFrom, type Modifiers, type PlaygroundItem } from "./selectionPlayground";
+import {
+  boxSelect,
+  clickSelect,
+  itemsInRect,
+  operationText,
+  rectFrom,
+  type Modifiers,
+  type PlaygroundItem,
+} from "./selectionPlayground";
 import type { Point } from "./transformPlayground";
 
 const HINTS: readonly ExampleHint[] = [
@@ -74,14 +82,22 @@ export function SelectionExample() {
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     trackModifiers(event);
     // Alt on its own would move focus to the window menu on some systems.
-    if (event.key === "Alt") { event.preventDefault(); return; }
+    if (event.key === "Alt") {
+      event.preventDefault();
+      return;
+    }
     if (event.ctrlKey || event.metaKey || event.repeat) return;
     const key = event.key.toLowerCase();
     if (key === "a") update(event.altKey ? [] : ITEMS.map(({ id }) => id));
-    else if (key === "b" && !event.altKey) { setArmed(true); setMessage("Box select: drag a rectangle, even over objects."); }
-    else if (key === "escape") {
-      if (gesture?.box || armed) { setGesture(null); setArmed(false); setMessage("Box cancelled."); }
-      else update([]);
+    else if (key === "b" && !event.altKey) {
+      setArmed(true);
+      setMessage("Box select: drag a rectangle, even over objects.");
+    } else if (key === "escape") {
+      if (gesture?.box || armed) {
+        setGesture(null);
+        setArmed(false);
+        setMessage("Box cancelled.");
+      } else update([]);
     } else return;
     event.preventDefault();
   };
@@ -91,7 +107,8 @@ export function SelectionExample() {
     const point = toScene(event.clientX, event.clientY);
     if (!point) return;
     trackModifiers(event);
-    const hit = event.target instanceof Element ? event.target.closest("[data-item]")?.getAttribute("data-item") ?? null : null;
+    const hit =
+      event.target instanceof Element ? (event.target.closest("[data-item]")?.getAttribute("data-item") ?? null) : null;
     event.currentTarget.setPointerCapture(event.pointerId);
     setGesture({ pointerId: event.pointerId, start: point, current: point, item: hit, box: armed });
   };
@@ -128,10 +145,20 @@ export function SelectionExample() {
       title="Select, Shift-click and box select"
       hints={HINTS}
       status={status}
-      onReset={() => { setGesture(null); setArmed(false); update([], "Click an object, or drag across empty space."); }}
+      onReset={() => {
+        setGesture(null);
+        setArmed(false);
+        update([], "Click an object, or drag across empty space.");
+      }}
       onKeyDown={onKeyDown}
       onKeyUp={trackModifiers}
-      onFocusChange={(focused) => { if (!focused) { setGesture(null); setArmed(false); setModifiers({ shiftKey: false, altKey: false }); } }}
+      onFocusChange={(focused) => {
+        if (!focused) {
+          setGesture(null);
+          setArmed(false);
+          setModifiers({ shiftKey: false, altKey: false });
+        }
+      }}
       footnote="Like the workspace, a box counts an object when its center is inside. In Edit mode the same keys select vertices, edges and faces."
       stageClassName={cn(armed && "cursor-crosshair")}
     >
@@ -149,7 +176,15 @@ export function SelectionExample() {
           const isActive = selected[selected.length - 1] === item.id;
           return (
             <g key={item.id} data-item={item.id} className="cursor-pointer">
-              {isSelected && <circle cx={item.center.x} cy={item.center.y} r={ITEM_RADIUS + 1.1} className={isActive ? "fill-none stroke-foreground" : "fill-none stroke-muted-foreground"} strokeWidth={0.5} />}
+              {isSelected && (
+                <circle
+                  cx={item.center.x}
+                  cy={item.center.y}
+                  r={ITEM_RADIUS + 1.1}
+                  className={isActive ? "fill-none stroke-foreground" : "fill-none stroke-muted-foreground"}
+                  strokeWidth={0.5}
+                />
+              )}
               <circle
                 cx={item.center.x}
                 cy={item.center.y}
@@ -157,8 +192,18 @@ export function SelectionExample() {
                 className={isSelected ? "fill-foreground" : "fill-secondary stroke-muted-foreground"}
                 strokeWidth={0.35}
               />
-              <circle cx={item.center.x} cy={item.center.y} r={0.5} className={isSelected ? "fill-background" : "fill-muted-foreground"} />
-              <text x={item.center.x} y={item.center.y + ITEM_RADIUS + 3.6} textAnchor="middle" className={cn("text-[2.6px]", isSelected ? "fill-foreground" : "fill-muted-foreground")}>
+              <circle
+                cx={item.center.x}
+                cy={item.center.y}
+                r={0.5}
+                className={isSelected ? "fill-background" : "fill-muted-foreground"}
+              />
+              <text
+                x={item.center.x}
+                y={item.center.y + ITEM_RADIUS + 3.6}
+                textAnchor="middle"
+                className={cn("text-[2.6px]", isSelected ? "fill-foreground" : "fill-muted-foreground")}
+              >
                 {item.label}
               </text>
             </g>

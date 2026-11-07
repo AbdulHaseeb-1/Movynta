@@ -1,5 +1,11 @@
 import { randomBytes } from "node:crypto";
-import type { MeasurementRequest, MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult, EditorContext } from "@movynta/editor-protocol";
+import type {
+  MeasurementRequest,
+  MeshInspectionRequest,
+  ViewCaptureRequest,
+  ViewCaptureResult,
+  EditorContext,
+} from "@movynta/editor-protocol";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
 import type { AppConfig } from "../../config/config.types.js";
@@ -57,7 +63,11 @@ export class EditorBridgeService implements EditorBridge {
     return { clientId, userId, projectId };
   }
 
-  getContext(clientId: string, inspection?: MeshInspectionRequest, measurement?: MeasurementRequest): Promise<EditorContext> {
+  getContext(
+    clientId: string,
+    inspection?: MeshInspectionRequest,
+    measurement?: MeasurementRequest,
+  ): Promise<EditorContext> {
     return new Promise<EditorContext>((resolve, reject) => {
       this.sendRequest(
         clientId,
@@ -204,11 +214,7 @@ export class EditorBridgeService implements EditorBridge {
   }
 
   /** Removes and returns a pending request only if it belongs to `clientId` and has the expected kind. */
-  private takePending(
-    clientId: string,
-    requestId: string,
-    kind: PendingRequest["kind"],
-  ): PendingRequest | undefined {
+  private takePending(clientId: string, requestId: string, kind: PendingRequest["kind"]): PendingRequest | undefined {
     const request = this.pending.get(requestId);
     if (!request || request.clientId !== clientId || request.kind !== kind) return undefined;
     clearTimeout(request.timer);

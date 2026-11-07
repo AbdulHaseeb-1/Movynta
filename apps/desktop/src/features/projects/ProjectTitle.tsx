@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 import { PROJECT_NAME_MAX_LENGTH, UNTITLED_PROJECT } from "./projectName";
 import { saveTitleEdit } from "./projectTitleEdit";
@@ -19,12 +13,7 @@ interface ProjectTitleProps {
 }
 
 /** The project's name in the workspace bar. Click to rename; Enter saves and Escape cancels. */
-export function ProjectTitle({
-  name,
-  onRename,
-  readOnly = false,
-  className,
-}: ProjectTitleProps) {
+export function ProjectTitle({ name, onRename, readOnly = false, className }: ProjectTitleProps) {
   const [draft, setDraft] = useState<string | null>(null);
   /** Why the last save failed. The typed name stays in the field so it can be saved again. */
   const [failure, setFailure] = useState("");

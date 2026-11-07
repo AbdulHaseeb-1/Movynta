@@ -8,7 +8,18 @@ import {
   type AttachmentMediaType,
 } from "@movynta/contracts";
 import { Type } from "class-transformer";
-import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateNested } from "class-validator";
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+  MaxLength,
+  ValidateNested,
+} from "class-validator";
 import { PROJECT_ID_PATTERN } from "../../sessions/dto/create-session.dto.js";
 import { MODELING_DIMENSIONS } from "../../../shared/schemas/modeling-plan.schema.js";
 import type { ModelingDimension } from "../../../shared/types/modeling-plan.types.js";
@@ -36,11 +47,15 @@ export class AttachmentDto {
   data!: string;
 }
 
+/** The request body for starting an agent run. It is checked before the run is created, and unknown fields are refused. */
 export class CreateAgentRunDto {
   @IsOptional() @IsIn(PROVIDER_IDS) providerId?: ProviderId;
   @IsOptional() @IsString() @Length(1, 160) @Matches(/^[A-Za-z0-9._:/-]+$/) model?: string;
   @IsOptional() @IsIn([true, false]) useConfiguredProvider?: boolean;
-  @ApiPropertyOptional({ enum: REASONING_EFFORTS, description: "Reasoning effort; must be one the selected model supports." })
+  @ApiPropertyOptional({
+    enum: REASONING_EFFORTS,
+    description: "Reasoning effort; must be one the selected model supports.",
+  })
   @IsOptional()
   @IsIn([...REASONING_EFFORTS])
   reasoningEffort?: ReasoningEffort;
@@ -72,7 +87,10 @@ export class CreateAgentRunDto {
   @Length(1, 4000)
   message!: string;
 
-  @ApiPropertyOptional({ type: [AttachmentDto], description: `Pictures for the assistant to look at, at most ${MAX_ATTACHMENTS}.` })
+  @ApiPropertyOptional({
+    type: [AttachmentDto],
+    description: `Pictures for the assistant to look at, at most ${MAX_ATTACHMENTS}.`,
+  })
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(MAX_ATTACHMENTS)
@@ -86,6 +104,7 @@ export class CreateAgentRunDto {
   dimension?: ModelingDimension;
 }
 
+/** The request body that approves or rejects one pending approval of a run. */
 export class DecideApprovalDto {
   @ApiProperty({ enum: ["approve", "reject"] })
   @IsIn(["approve", "reject"])
@@ -98,6 +117,7 @@ export class DecideApprovalDto {
   reason?: string;
 }
 
+/** The reply to starting a run: its id, its session, and the URL that streams its events. */
 export class AgentRunAcceptedDto {
   @ApiProperty() runId!: string;
   @ApiProperty() sessionId!: string;

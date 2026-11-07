@@ -16,7 +16,14 @@ export function proposalRun(context: AgentRunContext): ProposalRun {
 /** A plan step a batch carries out, or why the stepId names none. */
 export type PlanStepLookup =
   | { readonly ok: true; readonly step: { readonly id: string; readonly title: string } | undefined }
-  | { readonly ok: false; readonly rejection: { readonly status: "rejected"; readonly reason: string; readonly availableStepIds: readonly string[] } };
+  | {
+      readonly ok: false;
+      readonly rejection: {
+        readonly status: "rejected";
+        readonly reason: string;
+        readonly availableStepIds: readonly string[];
+      };
+    };
 
 /** Finds `stepId` in the latest plan. Leaving it out is fine; naming a step that is not there is refused. */
 export function resolvePlanStep(context: AgentRunContext, stepId: string | undefined): PlanStepLookup {
@@ -74,13 +81,17 @@ export interface ChunkRejection {
  * Refuses a new batch while earlier work is unchecked, or when a hand-written batch is too big to be one chunk.
  * The refusal says what to do, so the run goes on after the step it asks for.
  */
-export function chunkRejection(context: AgentRunContext, batch: { readonly handWrittenCommands?: number }): ChunkRejection | undefined {
+export function chunkRejection(
+  context: AgentRunContext,
+  batch: { readonly handWrittenCommands?: number },
+): ChunkRejection | undefined {
   const { batchesSinceCheck } = context.progress;
   if (batchesSinceCheck >= MAX_UNCHECKED_BATCHES) {
     return {
       status: "rejected",
       reason: `${batchesSinceCheck} batches have been applied since the scene was last checked. Verify this chunk before starting the next.`,
-      nextAction: "Call validation.check_scene, then measure or capture what you just built and fix anything wrong. Then propose the next chunk.",
+      nextAction:
+        "Call validation.check_scene, then measure or capture what you just built and fix anything wrong. Then propose the next chunk.",
     };
   }
   const size = batch.handWrittenCommands ?? 0;
@@ -88,7 +99,8 @@ export function chunkRejection(context: AgentRunContext, batch: { readonly handW
     return {
       status: "rejected",
       reason: `This batch has ${size} commands; a hand-written batch may have at most ${MAX_HAND_WRITTEN_COMMANDS}. Split the work into chunks, one part of the model each.`,
-      nextAction: "Propose the first part alone, apply it, check it, then propose the next. For many identical parts use editor.plan_duplicates or modeling.generate_commands, which are not held to this limit.",
+      nextAction:
+        "Propose the first part alone, apply it, check it, then propose the next. For many identical parts use editor.plan_duplicates or modeling.generate_commands, which are not held to this limit.",
     };
   }
   return undefined;

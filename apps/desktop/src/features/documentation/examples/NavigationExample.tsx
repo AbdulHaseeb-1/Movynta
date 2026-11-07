@@ -20,7 +20,14 @@ import { ZOOM_STEP } from "@/features/viewport3d/useViewportShortcuts";
 import type { Viewport } from "@/features/viewport3d/viewport";
 import { viewportShortcut } from "@/features/viewport3d/viewportShortcuts";
 import { DEFAULT_VIEWPORT_DISPLAY } from "@/features/viewport3d/viewportStorage";
-import { setViewportTool, toggleWireframe, toggleXray, viewportReducer, xrayActive, type ViewportState } from "@/features/viewport3d/viewportSlice";
+import {
+  setViewportTool,
+  toggleWireframe,
+  toggleXray,
+  viewportReducer,
+  xrayActive,
+  type ViewportState,
+} from "@/features/viewport3d/viewportSlice";
 import { ExampleFrame, type ExampleHint } from "./ExampleFrame";
 
 const HINTS: readonly ExampleHint[] = [
@@ -52,7 +59,10 @@ interface ExampleScene {
 /** A cube with a marker on each positive axis, colored like the gizmo, so each view is easy to recognize. */
 function buildScene(viewport: Viewport): ExampleScene & { readonly stop: () => void } {
   const model = new Group();
-  const body = new Mesh(new BoxGeometry(1.6, 1.6, 1.6), new MeshStandardMaterial({ color: token("--muted-foreground"), roughness: 0.6 }));
+  const body = new Mesh(
+    new BoxGeometry(1.6, 1.6, 1.6),
+    new MeshStandardMaterial({ color: token("--muted-foreground"), roughness: 0.6 }),
+  );
   body.name = "Cube";
   const markers: readonly { name: string; color: string; position: [number, number, number]; cone?: boolean }[] = [
     { name: "+X marker", color: "--axis-x", position: [1.6, 0, 0] },
@@ -128,16 +138,25 @@ export function NavigationExample() {
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     // The viewport handles a held Space itself; keep the page from scrolling while it does.
-    if (event.code === "Space") { event.preventDefault(); return; }
+    if (event.code === "Space") {
+      event.preventDefault();
+      return;
+    }
     const key = event.key.toLowerCase();
     if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat && (key === "h" || key === "v")) {
       event.preventDefault();
       const tool = key === "h" && state.tool !== "pan" ? "pan" : "select";
       dispatch(setViewportTool(tool));
-      setStatus(tool === "pan" ? "Hand tool: drag to pan. Press V to go back to orbiting." : "Select tool: drag to orbit.");
+      setStatus(
+        tool === "pan" ? "Hand tool: drag to pan. Press V to go back to orbiting." : "Select tool: drag to orbit.",
+      );
       return;
     }
-    if (key === "escape") { event.preventDefault(); select(null); return; }
+    if (key === "escape") {
+      event.preventDefault();
+      select(null);
+      return;
+    }
     const shortcut = viewportShortcut(event.nativeEvent);
     if (!shortcut || !viewport) return;
     event.preventDefault();
@@ -160,15 +179,21 @@ export function NavigationExample() {
       case "toggle-wireframe": {
         const next = viewportReducer(state, toggleWireframe());
         dispatch(toggleWireframe());
-        setStatus(next.display.shadingMode === "wireframe" ? "Wireframe on. Shift+Z again returns to the shading before it." : `Back to ${next.display.shadingMode === "solid" ? "Solid" : "Material"} shading.`);
+        setStatus(
+          next.display.shadingMode === "wireframe"
+            ? "Wireframe on. Shift+Z again returns to the shading before it."
+            : `Back to ${next.display.shadingMode === "solid" ? "Solid" : "Material"} shading.`,
+        );
         return;
       }
       case "toggle-xray": {
         const next = viewportReducer(state, toggleXray());
         dispatch(toggleXray());
-        setStatus(xrayActive(next.display)
-          ? `X-ray on${state.display.shadingMode === "default" ? ": the material view has no X-ray, so it switched to Solid" : ""}.`
-          : "X-ray off.");
+        setStatus(
+          xrayActive(next.display)
+            ? `X-ray on${state.display.shadingMode === "default" ? ": the material view has no X-ray, so it switched to Solid" : ""}.`
+            : "X-ray off.",
+        );
         return;
       }
     }
@@ -184,7 +209,10 @@ export function NavigationExample() {
     if (!start || !viewport || !model || !isClick(start, event.clientX, event.clientY, performance.now())) return;
     if (!(event.target instanceof HTMLCanvasElement)) return;
     const bounds = event.target.getBoundingClientRect();
-    const ndc = new Vector2(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
+    const ndc = new Vector2(
+      ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+      -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
+    );
     const raycaster = new Raycaster();
     raycaster.setFromCamera(ndc, viewport.camera);
     select(raycaster.intersectObjects(model.children, false)[0]?.object ?? null);

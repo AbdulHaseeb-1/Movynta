@@ -19,8 +19,7 @@ export type KeyPart =
 export type KeyStep = readonly KeyPart[];
 
 export type KeyAlternative =
-  | { readonly kind: "keys"; readonly steps: readonly KeyStep[] }
-  | { readonly kind: "label"; readonly text: string };
+  { readonly kind: "keys"; readonly steps: readonly KeyStep[] } | { readonly kind: "label"; readonly text: string };
 
 const MODIFIERS = ["Ctrl", "Alt", "Shift"] as const;
 type Modifier = (typeof MODIFIERS)[number];
@@ -113,7 +112,10 @@ function parseAlternative(text: string): KeyAlternative {
 }
 
 function pieces(text: string, separator: string): string[] {
-  return text.split(separator).map((piece) => piece.trim()).filter((piece) => piece.length > 0);
+  return text
+    .split(separator)
+    .map((piece) => piece.trim())
+    .filter((piece) => piece.length > 0);
 }
 
 /**

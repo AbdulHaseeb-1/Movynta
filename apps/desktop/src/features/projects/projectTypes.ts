@@ -45,25 +45,14 @@ export const projectSceneSchema = z.object({
 
 export const projectConversationSchema = z.object({
   sessionId: z.string().optional(),
-  provider: z
-    .object({ id: z.string(), model: z.string(), baseUrl: z.string() })
-    .optional(),
+  provider: z.object({ id: z.string(), model: z.string(), baseUrl: z.string() }).optional(),
   messages: z.array(
     z.object({
       runId: z.string(),
       prompt: z.string(),
       reply: z.string().optional(),
-      attachments: z
-        .array(z.object({ name: z.string(), mediaType: z.string(), bytes: z.number() }))
-        .default([]),
-      status: z.enum([
-        "created",
-        "running",
-        "waiting_approval",
-        "completed",
-        "failed",
-        "cancelled",
-      ]),
+      attachments: z.array(z.object({ name: z.string(), mediaType: z.string(), bytes: z.number() })).default([]),
+      status: z.enum(["created", "running", "waiting_approval", "completed", "failed", "cancelled"]),
       error: z.string().optional(),
       createdAt: z.string(),
     }),
@@ -90,20 +79,10 @@ export const defaultProjectFilters: ProjectFilters = {
 };
 
 /** Something the user can do to a project from a menu. */
-export type ProjectAction =
-  | "open"
-  | "rename"
-  | "star"
-  | "duplicate"
-  | "archive"
-  | "delete";
+export type ProjectAction = "open" | "rename" | "star" | "duplicate" | "archive" | "delete";
 
 /**
  * Called when the user picks something to do to a project. `opener` is the control that was used, so a dialog
  * the action opens can give focus back to it when it closes.
  */
-export type ProjectActionHandler = (
-  action: ProjectAction,
-  project: Project,
-  opener?: HTMLElement | null,
-) => void;
+export type ProjectActionHandler = (action: ProjectAction, project: Project, opener?: HTMLElement | null) => void;

@@ -20,17 +20,8 @@ interface ProviderIconProps {
 /** The provider's mark in the current text color. Compatible endpoints get a small plug badge. */
 export function ProviderIcon({ id, className }: ProviderIconProps) {
   return (
-    <span
-      className={cn(
-        "relative inline-grid size-5 place-items-center",
-        className,
-      )}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        className="size-full fill-current"
-        aria-hidden="true"
-      >
+    <span className={cn("relative inline-grid size-5 place-items-center", className)}>
+      <svg viewBox="0 0 24 24" className="size-full fill-current" aria-hidden="true">
         <path d={BRAND_PATHS[id]} />
       </svg>
       {isCompatibleProvider(id) && (
