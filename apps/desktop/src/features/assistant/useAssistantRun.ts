@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { useAssistantSelection } from "./useAssistantSelection";
 import { useReasoningEffort } from "./useReasoningEffort";
-import { backendRequest, errorMessage } from "@/lib/backend";
+import { BackendResponseError, backendRequest, errorMessage } from "@/lib/backend";
 import { forgetCaptures, type ViewCaptureHandler } from "@/features/viewCapture";
 import type { EditorScene } from "./EditorScene";
 import { connectEditor, type EditorConnection } from "./editorConnection";
@@ -162,8 +162,14 @@ export function useAssistantRun(
           ...(effort ? { reasoningEffort: effort } : {}),
           ...(session.current ? { sessionId: session.current } : {}),
         },
-        abort.signal,
+        // Not cancelled with the run: once sent, the backend may already have started it, and only its
+        // id lets the run be stopped. Stopping while it is sent cancels the run as soon as the id is known.
+        AbortSignal.timeout(20000),
       );
+      if (abort.signal.aborted) {
+        void backendRequest(`/agent-runs/${accepted.runId}/cancel`, z.unknown(), "POST").catch(() => undefined);
+        return;
+      }
       runId.current = accepted.runId;
       onAccepted?.();
       session.current = accepted.sessionId;
@@ -260,19 +266,24 @@ export function useAssistantRun(
       if (!abort.signal.aborted) setBusy(false);
     }
   }
+  /** Stops following the run here, leaving whatever the backend still does to its own timeouts. */
+  function stopLocally(reason: string) {
+    controller.current?.abort();
+    setBusy(false);
+    setPhase("cancelled");
+    setStatus(reason);
+    setApprovals([]);
+    setMessages((current) =>
+      current.map((message) =>
+        message.state === "streaming"
+          ? { ...settleActivity(message), state: "cancelled" }
+          : message,
+      ),
+    );
+  }
   async function cancel() {
     if (!runId.current) {
-      controller.current?.abort();
-      setBusy(false);
-      setPhase("cancelled");
-      setStatus("Cancelled");
-      setMessages((current) =>
-        current.map((message) =>
-          message.state === "streaming"
-            ? { ...settleActivity(message), state: "cancelled" }
-            : message,
-        ),
-      );
+      stopLocally("Cancelled");
       return;
     }
     try {
@@ -282,7 +293,10 @@ export function useAssistantRun(
         "POST",
       );
     } catch (error) {
-      setStatus(errorMessage(error));
+      // The backend answered, for example because the run already ended: its stream settles the run.
+      if (error instanceof BackendResponseError) setStatus(errorMessage(error));
+      // The backend could not be reached, so its stream will not settle the run either: stop here.
+      else stopLocally(`Stopped. ${errorMessage(error)}`);
     }
   }
   async function decide(id: string, decision: "approve" | "reject") {

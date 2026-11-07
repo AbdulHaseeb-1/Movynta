@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createSerialQueue } from "./serialQueue";
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -31,5 +31,25 @@ describe("the serial queue", () => {
     expect(failures).toHaveLength(1);
     expect(failures[0]).toBeInstanceOf(Error);
     expect(log).toEqual(["next"]);
+  });
+
+  it("keeps running later tasks when a failure handler itself throws", async () => {
+    const queue = createSerialQueue();
+    const log: string[] = [];
+    const reported: unknown[] = [];
+    vi.stubGlobal("reportError", (failure: unknown) => reported.push(failure));
+    try {
+      queue.run(() => Promise.reject(new Error("could not save")), () => {
+        throw new Error("handler broke");
+      });
+      queue.run(async () => {
+        log.push("next");
+      }, () => log.push("wrong handler"));
+      await queue.flush();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(log).toEqual(["next"]);
+    expect(reported).toHaveLength(1);
   });
 });

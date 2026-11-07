@@ -13,7 +13,15 @@ export function createSerialQueue(): SerialQueue {
   return {
     flush: () => tail,
     run(task, onError) {
-      tail = tail.then(task).catch(onError);
+      // A handler that throws must not leave the line failed, or every later task would be skipped.
+      tail = tail.then(task).catch((failure: unknown) => {
+        try {
+          onError(failure);
+        } catch (handlerFailure) {
+          // Reported like an uncaught error, without failing the line.
+          if (typeof reportError === "function") reportError(handlerFailure);
+        }
+      });
     },
   };
 }
