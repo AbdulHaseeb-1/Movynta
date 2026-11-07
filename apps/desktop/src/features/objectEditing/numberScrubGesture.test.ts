@@ -7,13 +7,13 @@ vi.mock("react", () => ({
   useEffect: () => undefined,
 }));
 afterEach(() => vi.unstubAllGlobals());
-function pointer(x: number) {
+function pointer(x: number, shiftKey = false) {
   // eslint-disable-next-line typescript/no-unsafe-type-assertion -- A minimal React pointer event for gesture handling.
   return {
     pointerId: 1,
     button: 0,
     clientX: x,
-    shiftKey: false,
+    shiftKey,
     currentTarget: { setPointerCapture: vi.fn() },
     preventDefault: vi.fn(),
   } as unknown as PointerEvent<HTMLElement>;
@@ -109,4 +109,26 @@ it("cancels on Escape and window blur without committing", () => {
   window.dispatchEvent(new Event("blur"));
   expect(cancel).toHaveBeenCalledTimes(2);
   expect(commit).not.toHaveBeenCalled();
+});
+it("carries on from the value reached when Shift is pressed or released during the drag", () => {
+  const frame = setupWindow();
+  const preview = vi.fn();
+  const scrub = useNumberScrub({ value: 1, step: 0.1, onPreview: preview, onCommit: () => undefined, onCancel: () => undefined });
+  scrub.onPointerDown(pointer(0));
+  scrub.onPointerMove(pointer(50));
+  frame();
+  expect(preview).toHaveBeenLastCalledWith(2);
+  // Shift only makes the movement from here on finer; the 1 unit already dragged stays.
+  scrub.onPointerMove(pointer(60, true));
+  frame();
+  expect(preview).toHaveBeenLastCalledWith(2);
+  scrub.onPointerMove(pointer(110, true));
+  frame();
+  expect(preview).toHaveBeenLastCalledWith(2.1);
+  scrub.onPointerMove(pointer(120));
+  frame();
+  expect(preview).toHaveBeenLastCalledWith(2.1);
+  scrub.onPointerMove(pointer(130));
+  frame();
+  expect(preview).toHaveBeenLastCalledWith(2.3);
 });

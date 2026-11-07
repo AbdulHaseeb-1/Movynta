@@ -67,6 +67,22 @@ export function attachmentName(file: Pick<File, "name">, mediaType: AttachmentMe
   return `pasted-image-${index}.${extension}`;
 }
 
+/**
+ * A name none of `taken` has, so two pictures of a message can be told apart in the chat and on their remove buttons.
+ * A repeat gets a number before its extension: "shot.png", "shot (2).png". Names are compared without regard to case,
+ * as file names are on the systems the app runs on.
+ */
+export function uniqueName(name: string, taken: readonly string[]): string {
+  const used = new Set(taken.map((other) => other.toLowerCase()));
+  if (!used.has(name.toLowerCase())) return name;
+  const dot = name.lastIndexOf(".");
+  const [base, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+  for (let number = 2; ; number += 1) {
+    const candidate = `${base} (${number})${extension}`;
+    if (!used.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
 /** Replaces the extension of a name, for a picture saved in another format. */
 export function withExtension(name: string, mediaType: AttachmentMediaType): string {
   const extension = mediaType === "image/jpeg" ? "jpg" : mediaType.slice("image/".length);

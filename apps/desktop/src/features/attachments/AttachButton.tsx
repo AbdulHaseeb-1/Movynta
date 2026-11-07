@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface AttachButtonProps {
-  disabled: boolean;
+  disabled?: boolean;
   /** Why attaching is unavailable, shown on hover instead of the usual hint. */
   disabledReason?: string | undefined;
   onFiles: (files: File[]) => void;
@@ -14,7 +14,7 @@ interface AttachButtonProps {
 const ACCEPT = ATTACHMENT_MEDIA_TYPES.join(",");
 
 /** Opens the system file picker for pictures. */
-export function AttachButton({ disabled, disabledReason, onFiles }: AttachButtonProps) {
+export function AttachButton({ disabled = false, disabledReason, onFiles }: AttachButtonProps) {
   const input = useRef<HTMLInputElement>(null);
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {

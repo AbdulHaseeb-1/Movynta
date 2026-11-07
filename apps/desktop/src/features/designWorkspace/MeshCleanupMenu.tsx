@@ -16,6 +16,7 @@ import { CutPlaneDialog, type CutChoice } from "./CutPlaneDialog";
 import { ShadingDialog, type ShadingChoice } from "./ShadingDialog";
 import { applyMeshTool, type MeshToolAction } from "./meshToolActions";
 import { meshEdgeDiagnostics } from "./meshDiagnostics";
+import { shortcutsBlocked } from "./shortcutGuard";
 import { requestDiagnosticSelection, setComponentError } from "./workspaceSlice";
 
 interface MeshCleanupMenuProps { scene: EditorScene | null; saves: SerialQueue; disabled: boolean }
@@ -31,6 +32,12 @@ export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  // A dialog opened from a menu item would hand the focus back to that item, which is gone; the Mesh button takes it.
+  const returnFocus = (event: Event) => {
+    event.preventDefault();
+    trigger.current?.focus();
+  };
   const count = componentSelection?.ids.length ?? 0;
   const merge = componentKind === "vertex" && count >= 2 && count <= 4096;
   const edges = componentKind === "edge" && count > 0;
@@ -48,7 +55,8 @@ export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps
     if (!scene || !componentSelection || !ids.length || extrudeIsActive()) return;
     dispatch(requestDiagnosticSelection({ objectId: componentSelection.objectId, meshPath: componentSelection.meshPath, ids, revision: scene.currentRevision }));
   };
-  const locked = disabled || knifeActive || busy || !scene || scene.requiresRecovery;
+  const unavailable = disabled || knifeActive || !scene || scene.requiresRecovery;
+  const locked = unavailable || busy;
   const run = (action: CleanupAction) => {
     if (locked || pending.current || !scene || !componentSelection || extrudeIsActive()) return;
     const choice = { ...componentSelection, meshPath: [...componentSelection.meshPath], ids: [...componentSelection.ids] };
@@ -76,8 +84,7 @@ export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || locked || open || extrudeIsActive()) return;
-      const target = event.target;
-      if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName) || target.closest('[role="menu"]'))) return;
+      if (shortcutsBlocked(event) || (event.target instanceof HTMLElement && event.target.tagName === "BUTTON")) return;
       if (event.key.toLowerCase() === "m" && merge) { event.preventDefault(); setOpen(true); }
       if (event.key.toLowerCase() === "f" && edges && count >= 3 && count <= 256) { event.preventDefault(); run("fill"); }
     };
@@ -85,9 +92,9 @@ export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps
     return () => window.removeEventListener("keydown", key);
   });
   return (<>
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={(next) => setOpen(next && !locked)}>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="ghost" disabled={locked} aria-label="Mesh cleanup tools" aria-keyshortcuts={merge ? "M" : undefined} title="Mesh cleanup tools · M opens the menu with vertices selected" aria-busy={busy} className="h-7 gap-1 rounded-sm px-2 text-[11px]">
+        <Button ref={trigger} size="sm" variant="ghost" disabled={unavailable} aria-disabled={busy || undefined} aria-label="Mesh cleanup tools" aria-keyshortcuts={merge ? "M" : undefined} title="Mesh cleanup tools · M opens the menu with vertices selected" aria-busy={busy} className="h-7 gap-1 rounded-sm px-2 text-[11px]">
           {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Combine className="size-3.5" />} Mesh <ChevronDown className="size-3" />
         </Button>
       </DropdownMenuTrigger>
@@ -125,10 +132,10 @@ export function MeshCleanupMenu({ scene, saves, disabled }: MeshCleanupMenuProps
         </> : <p className="px-2 pb-2 text-[11px] text-muted-foreground">{diagnosticError || "Select an edge on a mesh part to inspect it."}</p>}
       </DropdownMenuContent>
     </DropdownMenu>
-    {normalsChoice && scene && <CorrectNormalsDialog scene={scene} choice={normalsChoice} saves={saves} close={() => setNormalsChoice(null)} onError={(message) => dispatch(setComponentError(message))} />}
-    {duplicateChoice && scene && <DuplicateFacesDialog scene={scene} choice={duplicateChoice} saves={saves} close={() => setDuplicateChoice(null)} onError={(message) => dispatch(setComponentError(message))} />}
-    {cutChoice && scene && <CutPlaneDialog scene={scene} choice={cutChoice} saves={saves} close={() => setCutChoice(null)} onError={(message) => dispatch(setComponentError(message))} />}
-    {shadeChoice && scene && <ShadingDialog scene={scene} choice={shadeChoice} saves={saves} close={() => setShadeChoice(null)} onError={(message) => dispatch(setComponentError(message))} />}
-    {distanceChoice && scene && <MergeDistanceDialog scene={scene} choice={distanceChoice} saves={saves} close={() => setDistanceChoice(null)} onError={(message) => dispatch(setComponentError(message))} />}
+    {normalsChoice && scene && <CorrectNormalsDialog scene={scene} choice={normalsChoice} saves={saves} close={() => setNormalsChoice(null)} onError={(message) => dispatch(setComponentError(message))} onCloseAutoFocus={returnFocus} />}
+    {duplicateChoice && scene && <DuplicateFacesDialog scene={scene} choice={duplicateChoice} saves={saves} close={() => setDuplicateChoice(null)} onError={(message) => dispatch(setComponentError(message))} onCloseAutoFocus={returnFocus} />}
+    {cutChoice && scene && <CutPlaneDialog scene={scene} choice={cutChoice} saves={saves} close={() => setCutChoice(null)} onError={(message) => dispatch(setComponentError(message))} onCloseAutoFocus={returnFocus} />}
+    {shadeChoice && scene && <ShadingDialog scene={scene} choice={shadeChoice} saves={saves} close={() => setShadeChoice(null)} onError={(message) => dispatch(setComponentError(message))} onCloseAutoFocus={returnFocus} />}
+    {distanceChoice && scene && <MergeDistanceDialog scene={scene} choice={distanceChoice} saves={saves} close={() => setDistanceChoice(null)} onError={(message) => dispatch(setComponentError(message))} onCloseAutoFocus={returnFocus} />}
   </>);
 }

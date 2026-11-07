@@ -39,6 +39,7 @@ export {
   defaultProjectFilters,
   type Project,
   type ProjectAction,
+  type ProjectActionHandler,
   type ProjectCategoryId,
   type ProjectConversation,
   type ProjectFilters,

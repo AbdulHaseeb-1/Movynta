@@ -28,6 +28,14 @@ import {
   selectAssistantProvider,
 } from "./selectionSlice";
 
+interface LoadedModels {
+  providerId: string;
+  models: string[];
+  message: string;
+}
+
+const NO_MODELS: string[] = [];
+
 export function ModelProviderSelector({ disabled }: { disabled: boolean }) {
   return <SelectorControls disabled={disabled} />;
 }
@@ -35,25 +43,30 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
   const dispatch = useAppDispatch();
   const { provider, model, connected, providers } = useAssistantSelection();
   useChatgptModelSync(provider?.id, connected);
-  const [models, setModels] = useState<string[]>([]);
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  // What was loaded is kept with the provider it came from, so an answer that arrives after another provider
+  // was chosen is never listed under that one.
+  const [loaded, setLoaded] = useState<LoadedModels>({ providerId: "", models: NO_MODELS, message: "" });
+  const [loadingFor, setLoadingFor] = useState("");
+  const current = loaded.providerId === provider?.id;
+  const models = current ? loaded.models : NO_MODELS;
+  const message = current ? loaded.message : "";
+  const loading = loadingFor !== "" && loadingFor === provider?.id;
   async function loadModels() {
     if (!provider) return;
-    setLoading(true);
-    setMessage("");
+    const id = provider.id;
+    setLoadingFor(id);
+    setLoaded((before) => (before.providerId === id ? { ...before, message: "" } : { providerId: id, models: NO_MODELS, message: "" }));
     try {
       const result = await backendRequest(
-        `/providers/${provider.id}/models`,
+        `/providers/${id}/models`,
         z.object({ models: z.array(z.string()) }),
         "POST",
       );
-      setModels(result.models);
-      setMessage(`${result.models.length} models loaded`);
+      setLoaded({ providerId: id, models: result.models, message: `${result.models.length} models loaded` });
     } catch (error) {
-      setMessage(errorMessage(error));
+      setLoaded((before) => ({ providerId: id, models: before.providerId === id ? before.models : NO_MODELS, message: errorMessage(error) }));
     } finally {
-      setLoading(false);
+      setLoadingFor((now) => (now === id ? "" : now));
     }
   }
   const [open, setOpen] = useState(false);
@@ -131,8 +144,6 @@ function SelectorControls({ disabled }: { disabled: boolean }) {
                 onValueChange={(value) => {
                   const next = providers.find((item) => item.id === value);
                   if (next) {
-                    setModels([]);
-                    setMessage("");
                     setQuery("");
                     dispatch(
                       selectAssistantProvider({

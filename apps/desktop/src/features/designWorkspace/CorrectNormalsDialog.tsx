@@ -9,8 +9,8 @@ import { errorMessage, type SerialQueue } from "@/lib";
 import { saveCageEdit } from "./saveCageEdit";
 import type { DistanceChoice } from "./MergeDistanceDialog";
 
-interface Props { scene: EditorScene; choice: DistanceChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void }
-export function CorrectNormalsDialog({ scene, choice, saves, close, onError }: Props) {
+interface Props { scene: EditorScene; choice: DistanceChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void; onCloseAutoFocus?: (event: Event) => void }
+export function CorrectNormalsDialog({ scene, choice, saves, close, onError, onCloseAutoFocus }: Props) {
   const [mode, setMode] = useState<NormalCorrectionMode>("consistent");
   const [busy, setBusy] = useState(false); const [saveError, setSaveError] = useState("");
   const preview = useMemo(() => {
@@ -35,7 +35,7 @@ export function CorrectNormalsDialog({ scene, choice, saves, close, onError }: P
     }, (error) => { const message = errorMessage(error); setSaveError(message); onError(message); });
   };
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) close(); }}>
-    <DialogContent>
+    <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
       <DialogTitle>Correct normals</DialogTitle>
       <DialogDescription>Correct face winding and rebuild shading normals on the whole selected mesh part.</DialogDescription>
       <div className="flex gap-2"><Button type="button" variant={mode === "consistent" ? "default" : "outline"} aria-pressed={mode === "consistent"} onClick={() => setMode("consistent")}>Consistent</Button><Button type="button" variant={mode === "outward" ? "default" : "outline"} aria-pressed={mode === "outward"} onClick={() => setMode("outward")}>Outward for closed shells</Button></div>

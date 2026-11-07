@@ -1,9 +1,11 @@
 import { BookOpen, Keyboard } from "lucide-react";
-import { useEffect, useRef } from "react";
-import { Link, useLocation } from "react-router";
+import { useCallback, useLayoutEffect, useRef } from "react";
+import { Link } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { returnFocus } from "@/lib/dom";
+import { useCloseOnNavigation } from "@/lib/useCloseOnNavigation";
 import { cn } from "@/lib/utils";
 import { SHORTCUTS_PATH } from "../guideLinks";
 import { setShortcutsOpen } from "../shortcuts/helpSlice";
@@ -14,20 +16,22 @@ import { ShortcutReference } from "./ShortcutReference";
 export function ShortcutsDialog() {
   const open = useAppSelector((state) => state.help.shortcutsOpen);
   const dispatch = useAppDispatch();
-  const close = () => dispatch(setShortcutsOpen(false));
+  const close = useCallback(() => dispatch(setShortcutsOpen(false)), [dispatch]);
+  // The dialog has no trigger button, since "?" and F1 open it from anywhere, so it remembers what had focus.
+  // This runs before the dialog moves focus into itself.
+  const opener = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (open) opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }, [open]);
   // Moving to another page, including with the browser's back button, closes the list.
-  const { pathname, search } = useLocation();
-  const page = `${pathname}${search}`;
-  const shownOn = useRef(page);
-  useEffect(() => {
-    if (shownOn.current === page) return;
-    shownOn.current = page;
-    dispatch(setShortcutsOpen(false));
-  }, [dispatch, page]);
+  useCloseOnNavigation(close);
 
   return (
     <Dialog open={open} onOpenChange={(next) => dispatch(setShortcutsOpen(next))}>
-      <DialogContent className="flex h-[min(680px,calc(100vh-48px))] w-[min(880px,calc(100vw-32px))] flex-col gap-0 overflow-hidden rounded-xl p-0">
+      <DialogContent
+        onCloseAutoFocus={(event) => returnFocus(opener.current, event)}
+        className="flex h-[min(680px,calc(100vh-48px))] w-[min(880px,calc(100vw-32px))] flex-col gap-0 overflow-hidden rounded-xl p-0"
+      >
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b px-5 pr-12">
           <Keyboard className="size-4 text-muted-foreground" aria-hidden />
           <DialogTitle className="text-[15px] font-semibold">Keyboard shortcuts</DialogTitle>

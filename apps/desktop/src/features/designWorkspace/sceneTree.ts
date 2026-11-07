@@ -19,6 +19,13 @@ export function rowTarget(rowId: string): RowTarget {
   return rowId.startsWith(COLLECTION_PREFIX) ? { kind: "collection", id: rowId.slice(COLLECTION_PREFIX.length) } : { kind: "object", id: rowId };
 }
 
+/** Whether the scene still has the thing a line stands for. The scene line exists once there is a collection to drop things on. */
+export function rowExists(tree: SceneTree, rowId: string): boolean {
+  const target = rowTarget(rowId);
+  if (target.kind === "root") return tree.collections.size > 0;
+  return target.kind === "collection" ? tree.collections.has(target.id) : tree.entries.has(target.id);
+}
+
 /** Visible object rows in an inclusive range, with the clicked object last as the active selection. */
 export function objectRange(rows: readonly TreeRow[], anchor: string, clicked: string): string[] {
   const from = rows.findIndex((row) => row.id === anchor);

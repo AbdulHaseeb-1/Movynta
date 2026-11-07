@@ -1,16 +1,34 @@
+import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { errorMessage } from "@/lib/backend";
 import { describeApproval } from "./approvalPreview";
 
 interface ApprovalCardProps {
   preview: Record<string, unknown>;
-  onDecide: (decision: "approve" | "reject") => void;
+  /** Resolves once the backend has taken the decision, which removes the card; rejects when it did not. */
+  onDecide: (decision: "approve" | "reject") => Promise<void>;
 }
 
 /** Asks the user to approve or reject a batch of scene changes before they are applied. */
 export function ApprovalCard({ preview, onDecide }: ApprovalCardProps) {
   const { summary, commands } = describeApproval(preview);
+  // Both buttons wait while a decision is on its way, so a second click cannot send it twice.
+  const [deciding, setDeciding] = useState(false);
+  const [failure, setFailure] = useState("");
+  async function decide(decision: "approve" | "reject") {
+    if (deciding) return;
+    setDeciding(true);
+    setFailure("");
+    try {
+      await onDecide(decision);
+    } catch (error) {
+      setFailure(errorMessage(error));
+    } finally {
+      setDeciding(false);
+    }
+  }
   return (
     <section
       className="flex animate-in flex-col gap-3 rounded-2xl bg-foreground/[0.06] p-3.5 duration-300 fade-in slide-in-from-bottom-2 motion-reduce:animate-none"
@@ -34,14 +52,20 @@ export function ApprovalCard({ preview, onDecide }: ApprovalCardProps) {
           </ul>
         </ScrollArea>
       )}
+      {failure && (
+        <p role="alert" className="text-xs break-words text-muted-foreground">
+          {failure}
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2">
-        <Button size="sm" onClick={() => onDecide("approve")}>
+        <Button size="sm" disabled={deciding} onClick={() => void decide("approve")}>
           <Check className="size-3.5" /> Approve
         </Button>
         <Button
           variant="secondary"
           size="sm"
-          onClick={() => onDecide("reject")}
+          disabled={deciding}
+          onClick={() => void decide("reject")}
         >
           <X className="size-3.5" /> Reject
         </Button>

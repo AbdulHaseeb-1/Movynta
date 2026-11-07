@@ -27,7 +27,10 @@ function RenameForm({
     void actions.submitRename(name);
   }
   return (
-    <DialogContent className="z-[100] w-[min(420px,calc(100vw-32px))] p-6">
+    <DialogContent
+      className="z-[100] w-[min(420px,calc(100vw-32px))] p-6"
+      onCloseAutoFocus={actions.restoreFocus}
+    >
       <DialogTitle className="pr-6 text-base font-semibold">
         Rename project
       </DialogTitle>
@@ -79,7 +82,10 @@ function DeleteConfirmation({
   actions: ProjectActions;
 }) {
   return (
-    <DialogContent className="z-[100] w-[min(420px,calc(100vw-32px))] p-6">
+    <DialogContent
+      className="z-[100] w-[min(420px,calc(100vw-32px))] p-6"
+      onCloseAutoFocus={actions.restoreFocus}
+    >
       <DialogTitle className="pr-6 text-base font-semibold">
         Delete “{displayName(project)}”?
       </DialogTitle>

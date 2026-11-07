@@ -3,6 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import {
   chatgptErrorDismissed,
+  chatgptLoginStarted,
   chatgptLoginStartSchema,
   chatgptSessionLoaded,
   chatgptSessionSchema,
@@ -44,7 +45,8 @@ export function useChatgptSignIn(): ChatgptSignIn {
   const sessionError = useAppSelector((state) => state.chatgptSession.error);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
-  const [authorizationUrl, setAuthorizationUrl] = useState("");
+  // Kept in the store, not here, so the page can still be opened after Settings was closed and opened again.
+  const authorizationUrl = useAppSelector((state) => state.chatgptSession.authorizationUrl);
   const polling = useRef(false);
 
   const loadSession = useCallback(async () => {
@@ -104,13 +106,15 @@ export function useChatgptSignIn(): ChatgptSignIn {
           chatgptLoginStartSchema,
           "POST",
         );
-        setAuthorizationUrl(started.authorizationUrl);
+        dispatch(chatgptLoginStarted(started.authorizationUrl));
         await loadSession();
         await openInBrowser(started.authorizationUrl);
       }),
     reopen: () =>
       run(async () => {
-        if (authorizationUrl) await openInBrowser(authorizationUrl);
+        if (!authorizationUrl)
+          throw new Error("The sign-in page is no longer available here. Cancel the sign-in, then sign in again.");
+        await openInBrowser(authorizationUrl);
       }),
     cancel: () =>
       run(async () => {

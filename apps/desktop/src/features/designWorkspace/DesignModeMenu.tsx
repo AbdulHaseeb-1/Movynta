@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { setDesignMode } from "./workspaceSlice";
 import { knifeIsActive } from "./knifeActivity";
+import { shortcutsBlocked } from "./shortcutGuard";
 import { extrudeIsActive } from "@/features/objectEditing/ExtrudeGesture";
 
 export function DesignModeMenu() {
@@ -28,8 +29,7 @@ export function DesignModeMenu() {
   const menuIsOpen = useRef(false);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      const target = event.target;
-      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || menuOpen || knifeIsActive() || extrudeIsActive() || (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName) || target.closest('[role="dialog"], [role="menu"]')))) return;
+      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || menuOpen || knifeIsActive() || extrudeIsActive() || shortcutsBlocked(event) || (event.target instanceof HTMLElement && event.target.tagName === "BUTTON")) return;
       const key = event.key.toLowerCase();
       if ((mode === "object" && key === "e") || (mode === "edit" && key === "o")) {
         event.preventDefault(); dispatch(setDesignMode(mode === "object" ? "edit" : "object"));

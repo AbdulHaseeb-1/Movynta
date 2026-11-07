@@ -41,8 +41,17 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   );
 }
 
-function Link({ href, children }: ComponentProps<"a">) {
-  const safe = href !== undefined && /^https?:\/\//i.test(href);
+/** Whether a link from a reply is one to open: only web addresses are, never a script or a path in the app. */
+export function isOpenableLink(href: string | undefined): href is string {
+  return href !== undefined && /^https?:\/\//i.test(href);
+}
+
+export function Link({ href, children }: ComponentProps<"a">) {
+  const safe = isOpenableLink(href);
+  // The Tauri webview cannot open new windows, so hand links to the OS browser.
+  function open() {
+    if (safe) void openUrl(href).catch(() => window.open(href, "_blank"));
+  }
   return (
     <a
       href={safe ? href : undefined}
@@ -51,9 +60,12 @@ function Link({ href, children }: ComponentProps<"a">) {
       className="font-medium text-foreground underline decoration-foreground/30 underline-offset-2 hover:decoration-foreground"
       onClick={(event) => {
         event.preventDefault();
-        if (!safe) return;
-        // The Tauri webview cannot open new windows, so hand links to the OS browser.
-        void openUrl(href).catch(() => window.open(href, "_blank"));
+        open();
+      }}
+      // A middle click does not send "click", but would still ask the webview for a new window of its own.
+      onAuxClick={(event) => {
+        event.preventDefault();
+        if (event.button === 1) open();
       }}
     >
       {children}

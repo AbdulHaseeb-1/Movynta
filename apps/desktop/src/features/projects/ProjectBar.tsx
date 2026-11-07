@@ -1,16 +1,19 @@
-import { Archive, ArrowLeft, ChevronDown, Star } from "lucide-react";
+import { Archive, ArrowLeft, ChevronDown, Star, X } from "lucide-react";
 import { Link } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ProjectActionsMenu } from "./ProjectActionsMenu";
 import { ProjectTitle } from "./ProjectTitle";
-import type { Project, ProjectAction } from "./projectTypes";
+import type { Project, ProjectActionHandler } from "./projectTypes";
 
 interface ProjectBarProps {
   /** Undefined while the workspace is blank: the project is created on the first prompt. */
   project: Project | undefined;
-  onAction: (action: ProjectAction, project: Project) => void;
+  onAction: ProjectActionHandler;
   onRename: (project: Project, name: string) => Promise<void>;
+  /** Why the last action (star, archive, duplicate) failed. Shown under the bar until it is dismissed. */
+  error?: string;
+  onDismissError?: () => void;
   className?: string;
 }
 
@@ -22,10 +25,30 @@ export function ProjectBar({
   project,
   onAction,
   onRename,
+  error = "",
+  onDismissError,
   className,
 }: ProjectBarProps) {
   return (
-    <div className={cn("flex items-center gap-1.5", className)}>
+    <div className={cn("relative flex items-center gap-1.5", className)}>
+      {error && (
+        <div
+          role="alert"
+          className="absolute top-full left-0 mt-2 flex max-w-[min(420px,calc(100vw-32px))] items-center gap-2 rounded-lg bg-popover px-3 py-2 text-xs text-destructive shadow-xl"
+        >
+          <span>{error}</span>
+          {onDismissError && (
+            <button
+              type="button"
+              onClick={onDismissError}
+              aria-label="Dismiss error"
+              className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      )}
       <Link
         to="/"
         aria-label="Back to home"

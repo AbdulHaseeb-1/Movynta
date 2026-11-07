@@ -11,7 +11,7 @@ import { SegmentedChoice } from "./SegmentedChoice";
 import type { ComponentChoice } from "./subdivideSelection";
 
 export interface CutChoice extends ComponentChoice { revision: number; faceSelection: boolean }
-interface Props { scene: EditorScene; choice: CutChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void }
+interface Props { scene: EditorScene; choice: CutChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void; onCloseAutoFocus?: (event: Event) => void }
 
 const AXES = [{ value: "x", label: "X" }, { value: "y", label: "Y" }, { value: "z", label: "Z" }] as const;
 const SIDES = [{ value: "both", label: "Cut only" }, { value: "positive", label: "Keep + side" }, { value: "negative", label: "Keep − side" }] as const;
@@ -21,7 +21,7 @@ function startingOffset(scene: EditorScene, choice: ComponentChoice, axis: CutAx
 }
 
 /** Cut the mesh part with a plane at a world position, like Blender's Bisect, with a live account of what it would do. */
-export function CutPlaneDialog({ scene, choice, saves, close, onError }: Props) {
+export function CutPlaneDialog({ scene, choice, saves, close, onError, onCloseAutoFocus }: Props) {
   const [axis, setAxis] = useState<CutAxis>("y");
   const [offset, setOffset] = useState(() => startingOffset(scene, choice, "y"));
   const [keep, setKeep] = useState<BisectKeep>("both");
@@ -41,7 +41,7 @@ export function CutPlaneDialog({ scene, choice, saves, close, onError }: Props) 
     }, (error) => { const message = errorMessage(error); setSaveError(message); onError(message); });
   };
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) close(); }}>
-    <DialogContent>
+    <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
       <DialogTitle>Cut with a plane</DialogTitle>
       <DialogDescription>Cuts every face the plane crosses. The position is in scene coordinates.</DialogDescription>
       <SegmentedChoice label="Plane across axis" value={axis} options={AXES} onChange={chooseAxis} disabled={busy} />

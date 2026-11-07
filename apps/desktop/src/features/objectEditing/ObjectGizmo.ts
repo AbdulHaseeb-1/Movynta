@@ -190,6 +190,15 @@ export class ObjectGizmo {
       this.sync();
     });
 
+    // Escape puts a handle drag back, as in Blender, instead of also clearing the selection behind it.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !this.controls.dragging) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.abortDrag();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+
     this.cleanups.push(
       () => this.cancelDrag(),
       () => this.controls.removeEventListener("dragging-changed", onDragging),
@@ -198,6 +207,7 @@ export class ObjectGizmo {
       this.editor.onBeforeChange(() => this.cancelDrag()),
       bindShiftSnap(this.controls),
       removeFrameListener,
+      () => window.removeEventListener("keydown", onKeyDown, true),
     );
   }
 
@@ -236,6 +246,17 @@ export class ObjectGizmo {
     this.dragWorld = undefined;
     this.group.end();
     this.editor.previewBooleans();
+  }
+
+  /**
+   * Ends a handle drag that is still held, putting everything back. The handles ignore the release of the
+   * button once they are disabled, so a drag that outlives its selection would otherwise never end: the
+   * camera would stay locked and the object would follow the pointer without a button pressed.
+   */
+  private abortDrag() {
+    if (!this.controls.dragging) return;
+    this.cancelDrag();
+    this.controls.pointerUp(null);
   }
 
   /** Remembers where everything is before a handle moves it. */
@@ -344,6 +365,7 @@ export class ObjectGizmo {
       this.controls.setMode(this.mode);
     }
     const showGizmo = Boolean(target) && enabled && isHandleTool(tool);
+    if (!showGizmo) this.abortDrag();
     this.controls.getHelper().visible = showGizmo;
     this.controls.enabled = showGizmo;
     if (this.controls.dragging) return;

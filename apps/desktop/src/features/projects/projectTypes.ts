@@ -97,3 +97,13 @@ export type ProjectAction =
   | "duplicate"
   | "archive"
   | "delete";
+
+/**
+ * Called when the user picks something to do to a project. `opener` is the control that was used, so a dialog
+ * the action opens can give focus back to it when it closes.
+ */
+export type ProjectActionHandler = (
+  action: ProjectAction,
+  project: Project,
+  opener?: HTMLElement | null,
+) => void;

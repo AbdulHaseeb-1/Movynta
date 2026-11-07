@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Outlet, useMatches } from "react-router";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { TitleBar } from "./TitleBar";
 import { useAppDispatch } from "./hooks";
 import {
@@ -72,17 +73,21 @@ function App() {
     };
   }, []);
 
+  // One provider for the whole app: a tooltip anywhere, such as the attach button on the blank workspace,
+  // needs one above it, and without it the page fails to render.
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <TitleBar />
-      <div
-        key={routeId}
-        className="min-h-0 flex-1 animate-page-fade-in overflow-y-auto motion-reduce:animate-none"
-      >
-        <Outlet />
+    <TooltipProvider delayDuration={300}>
+      <div className="flex h-screen flex-col overflow-hidden">
+        <TitleBar />
+        <div
+          key={routeId}
+          className="min-h-0 flex-1 animate-page-fade-in overflow-y-auto motion-reduce:animate-none"
+        >
+          <Outlet />
+        </div>
+        <ShortcutsDialog />
       </div>
-      <ShortcutsDialog />
-    </div>
+    </TooltipProvider>
   );
 }
 

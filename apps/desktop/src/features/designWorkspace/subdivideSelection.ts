@@ -21,6 +21,8 @@ export function subdivideSelectedFaces(
   choice: ComponentChoice,
   saves: SerialQueue,
   onError: (failure: unknown) => void,
+  /** Called once the subdivision has been saved or has failed, or at once when it cannot be started. */
+  onSettled: () => void = () => undefined,
 ): void {
   try {
     const mesh = meshAtPath(scene.getObject(choice.objectId), choice.meshPath);
@@ -29,14 +31,21 @@ export function subdivideSelectedFaces(
       throw new Error("Disable modifiers before editing components, so the selection matches the base mesh");
     const revision = scene.currentRevision;
     const { selection } = subdivideFaces(readTopology(mesh.geometry), choice.ids);
-    saves.run(() => saveCageEdit(scene, {
-      revision,
-      objectId: choice.objectId,
-      meshPath: choice.meshPath,
-      selection,
-      edit: { type: "geometry.subdivide_faces", ids: [...choice.ids] },
-    }), onError);
+    saves.run(async () => {
+      try {
+        await saveCageEdit(scene, {
+          revision,
+          objectId: choice.objectId,
+          meshPath: choice.meshPath,
+          selection,
+          edit: { type: "geometry.subdivide_faces", ids: [...choice.ids] },
+        });
+      } finally {
+        onSettled();
+      }
+    }, onError);
   } catch (error) {
     onError(error);
+    onSettled();
   }
 }

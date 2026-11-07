@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Scene } from "three";
 import { editorCommandSchema, HAND_EDIT_COMMAND_TYPES } from "@movynta/editor-protocol";
 import { EditorScene, type CollectionEntry, type OutlineEntry } from "@/features/assistant/EditorScene";
-import { buildSceneTree, canMoveUnder, collectionRowId, dropAction, dropCommands, flattenTree, outlineCommands, revealed, ROOT_ROW_ID, rowTarget, scrollToRow, visibleRange } from "./sceneTree";
+import { buildSceneTree, canMoveUnder, collectionRowId, dropAction, dropCommands, flattenTree, outlineCommands, revealed, ROOT_ROW_ID, rowExists, rowTarget, scrollToRow, visibleRange } from "./sceneTree";
 
 const entry = (id: string, parentId: string | null = null, extra: Partial<OutlineEntry> = {}): OutlineEntry => ({
   id, name: id.toUpperCase(), kind: "empty", parentId, visible: true, collectionId: null, ...extra,
@@ -313,5 +313,19 @@ describe("the editor feeds the list with its collections", () => {
     ]);
     const rows = flattenTree(buildSceneTree(editor.outline(), editor.collections()), new Set());
     expect(rows.map((row) => `${"  ".repeat(row.depth)}${row.name}`)).toEqual(["Scene collection", "  Set", "    Fig", "      box", "  box"]);
+  });
+});
+
+describe("rowExists", () => {
+  const collection: CollectionEntry = { id: "c1", name: "Props", parentId: null, visible: true };
+  it("knows which lines the scene still has, so a chosen line that went away is not kept", () => {
+    const tree = buildSceneTree([entry("rock")], [collection]);
+    expect(rowExists(tree, "rock")).toBe(true);
+    expect(rowExists(tree, "gone")).toBe(false);
+    expect(rowExists(tree, collectionRowId("c1"))).toBe(true);
+    expect(rowExists(tree, ROOT_ROW_ID)).toBe(true);
+    const after = buildSceneTree([entry("rock")]);
+    expect(rowExists(after, collectionRowId("c1"))).toBe(false);
+    expect(rowExists(after, ROOT_ROW_ID)).toBe(false);
   });
 });

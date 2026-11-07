@@ -1,7 +1,7 @@
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_EDGE } from "@movynta/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { dragHasFiles, pictureFiles, picturesFromClipboard } from "./imageFiles";
-import { attachmentName, canSendUnchanged, fitsTotal, fitWithin, mediaTypeOf, toBase64, withExtension } from "./imagePlan";
+import { attachmentName, canSendUnchanged, fitsTotal, fitWithin, mediaTypeOf, toBase64, uniqueName, withExtension } from "./imagePlan";
 import { prepareImage, type ImageCodec, MAX_SOURCE_BYTES } from "./prepareImage";
 import { AttachmentError } from "./types";
 import { savedExchangesToMessages } from "../assistant/conversationMessages";
@@ -93,6 +93,21 @@ describe("names", () => {
     expect(withExtension("photo.png", "image/jpeg")).toBe("photo.jpg");
     expect(withExtension("animated.gif", "image/jpeg")).toBe("animated.jpg");
     expect(withExtension("noextension", "image/jpeg")).toBe("noextension.jpg");
+  });
+});
+
+describe("uniqueName", () => {
+  it("keeps a name nobody has taken", () => {
+    expect(uniqueName("shot.png", [])).toBe("shot.png");
+    expect(uniqueName("shot.png", ["other.png"])).toBe("shot.png");
+  });
+  it("numbers a repeat before its extension, so two pictures never share a name", () => {
+    expect(uniqueName("pasted-image-4.png", ["pasted-image-4.png"])).toBe("pasted-image-4 (2).png");
+    expect(uniqueName("shot.png", ["shot.png", "shot (2).png"])).toBe("shot (3).png");
+    expect(uniqueName("noextension", ["noextension"])).toBe("noextension (2)");
+  });
+  it("compares names as the file system does, without regard to case", () => {
+    expect(uniqueName("Shot.PNG", ["shot.png"])).toBe("Shot (2).PNG");
   });
 });
 

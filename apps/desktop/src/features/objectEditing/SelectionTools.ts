@@ -1,5 +1,5 @@
 import type { EditorScene } from "@/features/assistant";
-import type { Viewport } from "@/features/viewport3d";
+import { isOverlayTarget, type Viewport } from "@/features/viewport3d";
 import { combineSelection, selectionOperation } from "@/features/viewport3d/selectionOperation";
 import { idsInRect, rectBetween } from "./boxSelect";
 import type { GizmoView } from "./ObjectGizmo";
@@ -36,7 +36,7 @@ export class SelectionTools {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === " " && !isTypingTarget(event.target)) this.navigationHeld = true;
-      if (isTypingTarget(event.target) || event.ctrlKey || event.metaKey || event.repeat) return;
+      if (isTypingTarget(event.target) || isOverlayTarget(event.target) || event.ctrlKey || event.metaKey || event.repeat) return;
       if (event.key === "Escape" && this.armed) {
         // The first Escape puts the rectangle away; it must not also clear the selection.
         event.stopImmediatePropagation();

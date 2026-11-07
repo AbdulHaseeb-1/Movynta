@@ -71,17 +71,13 @@ export function ProjectsToolbar({
           </button>
         )}
       </div>
-      <div
-        role="tablist"
-        aria-label="Project view"
-        className="flex h-9 items-center rounded-lg bg-card p-0.5"
-      >
+      <fieldset className="m-0 flex h-9 min-w-0 items-center rounded-lg border-0 bg-card p-0.5">
+        <legend className="sr-only">Project view</legend>
         {VIEWS.map(({ id, label }) => (
           <button
             key={id}
             type="button"
-            role="tab"
-            aria-selected={filters.view === id}
+            aria-pressed={filters.view === id}
             onClick={() => onFiltersChange({ ...filters, view: id })}
             className={cn(
               "h-8 rounded-md px-3.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
@@ -91,7 +87,7 @@ export function ProjectsToolbar({
             {label}
           </button>
         ))}
-      </div>
+      </fieldset>
       <Select
         value={filters.category}
         onValueChange={(category) => {

@@ -1,5 +1,6 @@
 import { selectionOperation } from "@/features/viewport3d/selectionOperation";
 import type { Viewport } from "@/features/viewport3d";
+import { shortcutsBlocked } from "./shortcutGuard";
 
 /** Drag to box-select, or click to select one component. Space-drag remains available for panning. */
 export class ComponentBoxSelection {
@@ -26,8 +27,7 @@ export class ComponentBoxSelection {
       frame = undefined;
     };
     const key = (event: KeyboardEvent) => {
-      const target = event.target;
-      if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      if (shortcutsBlocked(event)) return;
       if (event.code === "Space") navigationHeld = true;
       if (blocked()) return;
       if (event.key === "Escape" && armed) {

@@ -11,17 +11,18 @@ import {
 } from "@/components/ui/tooltip";
 import {
   providersLoaded,
-  providersSchema,
   providerNames as names,
   providerIds as catalog,
   describeChatgptSession,
   isSubscriptionProvider,
   ProviderIcon,
   type Provider,
+  type ProviderId,
 } from "@/features/providers";
-import { backendRequest, errorMessage } from "@/lib/backend";
+import { errorMessage } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 import { ChatgptEditor } from "./ChatgptEditor";
+import { changeProvider } from "./providerChange";
 import { ProviderEditor } from "./ProviderEditor";
 import { useChatgptSignIn } from "./useChatgptSignIn";
 
@@ -73,15 +74,11 @@ export function ProvidersSettings() {
   const [confirmingRemoval, setConfirmingRemoval] = useState<string | null>(
     null,
   );
-  async function change(path: string, method: string, body?: unknown) {
+  async function change(id: ProviderId, method: string, body?: unknown) {
     setBusy(true);
     setMessage("");
     try {
-      dispatch(
-        providersLoaded(
-          await backendRequest(path, providersSchema, method, body),
-        ),
-      );
+      await changeProvider(dispatch, id, method, body);
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -188,7 +185,7 @@ export function ProvidersSettings() {
                           return;
                         }
                         setConfirmingRemoval(null);
-                        void change(`/providers/${id}`, "DELETE");
+                        void change(id, "DELETE");
                       }}
                     >
                       <Trash2 className="size-4" />

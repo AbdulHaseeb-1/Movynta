@@ -10,8 +10,8 @@ import { errorMessage, type SerialQueue } from "@/lib";
 import { saveCageEdit } from "./saveCageEdit";
 
 export interface DistanceChoice { objectId: string; meshPath: number[]; ids: string[]; revision: number }
-interface Props { scene: EditorScene; choice: DistanceChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void }
-export function MergeDistanceDialog({ scene, choice, saves, close, onError }: Props) {
+interface Props { scene: EditorScene; choice: DistanceChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void; onCloseAutoFocus?: (event: Event) => void }
+export function MergeDistanceDialog({ scene, choice, saves, close, onError, onCloseAutoFocus }: Props) {
   const [distance, setDistance] = useState("0.001");
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -39,7 +39,7 @@ export function MergeDistanceDialog({ scene, choice, saves, close, onError }: Pr
     }, (error) => { const message = errorMessage(error); setSaveError(message); onError(message); });
   };
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) close(); }}>
-    <DialogContent>
+    <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
       <DialogTitle>Merge by distance</DialogTitle>
       <DialogDescription>Merge nearby selected vertices into groups. Distance is measured in mesh-local units.</DialogDescription>
       <label htmlFor="merge-distance" className="grid gap-2 text-sm">Distance<Input id="merge-distance" type="number" min="0" max="100" step="any" value={distance} onChange={(event) => setDistance(event.target.value)} /></label>

@@ -17,6 +17,7 @@ import {
   outlineCommands,
   objectRange,
   revealed,
+  rowExists,
   ROOT_ROW_ID,
   rowTarget,
   scrollToRow,
@@ -69,7 +70,7 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [scrollTop, setScrollTop] = useState(0);
   /** The collection or scene line that is chosen, when an object is not. */
-  const [chosenRow, setChosenRow] = useState<string | null>(null);
+  const [chosenLine, setChosenRow] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,6 +79,8 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   const cancelled = useRef(false);
   const scrolledTo = useRef<string | null>(null);
   const keyboardMoved = useRef(false);
+  /** The line whose name was just edited with the keyboard: it takes the focus back once the name field is gone. */
+  const refocusRow = useRef<string | null>(null);
   /** A collection just made, whose name is asked for as soon as it appears. */
   const startRenaming = useRef<string | null>(null);
   const focusInput = useFocusOnMount();
@@ -127,7 +130,10 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   const viewport = Math.min(rows.length * ROW_HEIGHT, MAX_LIST_HEIGHT);
   const range = visibleRange(scrollTop, viewport, ROW_HEIGHT, rows.length);
   const shown = rows.slice(range.start, range.end);
-  const tabStop = active !== null && rows.some((row) => row.id === active) ? active : (chosenRow ?? rows[0]?.id);
+  // The chosen line may have gone (undo, the assistant, a deletion elsewhere); then nothing is chosen.
+  const chosenRow = chosenLine !== null && rowExists(tree, chosenLine) ? chosenLine : null;
+  const inView = (id: string | null) => id !== null && rows.some((row) => row.id === id);
+  const tabStop = inView(active) ? active : inView(chosenRow) ? chosenRow : rows[0]?.id;
 
   const run = useCallback(
     (commands: readonly unknown[]) => {
@@ -183,6 +189,14 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
       }
     }
   }, [active, chosenRow, rows, viewport, range.start, range.end]);
+
+  // A name field that ends with Enter or Escape would leave the focus on the page; give it back to its line.
+  useEffect(() => {
+    if (editing !== null || refocusRow.current === null) return;
+    const id = refocusRow.current;
+    refocusRow.current = null;
+    listRef.current?.querySelector<HTMLElement>(`[${ROW_ATTRIBUTE}="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+  }, [editing]);
 
   function toggleCollapsed(id: string) {
     setCollapsed((current) => (current.has(id) ? without(current, id) : new Set(current).add(id)));
@@ -265,6 +279,12 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   }
 
   function renameKey(event: KeyboardEvent<HTMLInputElement>) {
+    // Enter or Escape that picks an input-method candidate belongs to the input method, not to the name field.
+    if (event.nativeEvent.isComposing) {
+      event.stopPropagation();
+      return;
+    }
+    if (event.key === "Enter" || event.key === "Escape") refocusRow.current = editing?.id ?? null;
     if (event.key === "Enter") event.currentTarget.blur();
     if (event.key === "Escape") {
       cancelled.current = true;

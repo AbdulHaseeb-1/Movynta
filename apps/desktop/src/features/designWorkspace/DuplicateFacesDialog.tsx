@@ -9,8 +9,8 @@ import { errorMessage, type SerialQueue } from "@/lib";
 import { saveCageEdit } from "./saveCageEdit";
 import type { DistanceChoice } from "./MergeDistanceDialog";
 
-interface Props { scene: EditorScene; choice: DistanceChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void }
-export function DuplicateFacesDialog({ scene, choice, saves, close, onError }: Props) {
+interface Props { scene: EditorScene; choice: DistanceChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void; onCloseAutoFocus?: (event: Event) => void }
+export function DuplicateFacesDialog({ scene, choice, saves, close, onError, onCloseAutoFocus }: Props) {
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
   const preview = useMemo(() => {
@@ -37,7 +37,7 @@ export function DuplicateFacesDialog({ scene, choice, saves, close, onError }: P
     }, (error) => { const message = errorMessage(error); setSaveError(message); onError(message); });
   };
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) close(); }}>
-    <DialogContent>
+    <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
       <DialogTitle>Remove duplicate faces</DialogTitle>
       <DialogDescription>Inspect the whole selected mesh part for faces with the same orientation, material and attributes.</DialogDescription>
       <p className="text-sm text-muted-foreground" aria-live="polite">{saveError || preview.error || `${preview.removed} duplicate faces will be removed. ${preview.omitted} input triangles were omitted when reconstructing the editable cage.`}</p>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type { EditorScene, ObjectTransform } from "@/features/assistant";
-import type { Viewport, ViewportTool } from "@/features/viewport3d";
+import { isOverlayTarget, type Viewport, type ViewportTool } from "@/features/viewport3d";
 import { errorMessage, type SerialQueue } from "@/lib";
 import { applyAndRecord, SAVE_FIRST } from "./applyAndRecord";
 import { inBatches } from "./batches";
@@ -238,7 +238,8 @@ export function useObjectEditing({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target) || event.altKey) return;
+      // A menu, list or dialog that Escape just closed has already claimed the key.
+      if (isTypingTarget(event.target) || isOverlayTarget(event.target) || event.altKey) return;
       if (event.ctrlKey || event.metaKey) {
         const key = event.key.toLowerCase();
         if (key === "z") {
@@ -252,7 +253,7 @@ export function useObjectEditing({
         return;
       }
       if (event.repeat) return;
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !event.defaultPrevented) {
         scene?.select(null);
       }
     };

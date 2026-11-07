@@ -23,8 +23,10 @@ interface ChatgptSessionState {
   session: ChatgptSession | null;
   /** The backend reports a failed sign-in once, so it is kept here until the user dismisses it. */
   error: string | null;
+  /** The ChatGPT page of the sign-in in progress, kept for as long as it lasts so the page can be opened again. */
+  authorizationUrl: string | null;
 }
-const initialState: ChatgptSessionState = { session: null, error: null };
+const initialState: ChatgptSessionState = { session: null, error: null, authorizationUrl: null };
 
 const slice = createSlice({
   name: "chatgptSession",
@@ -33,6 +35,10 @@ const slice = createSlice({
     chatgptSessionLoaded(state, action: PayloadAction<ChatgptSession>) {
       state.session = action.payload;
       if (action.payload.error) state.error = action.payload.error;
+      if (action.payload.state !== "pending") state.authorizationUrl = null;
+    },
+    chatgptLoginStarted(state, action: PayloadAction<string>) {
+      state.authorizationUrl = action.payload;
     },
     chatgptErrorDismissed(state) {
       state.error = null;
@@ -43,7 +49,7 @@ const slice = createSlice({
   },
 });
 
-export const { chatgptSessionLoaded, chatgptErrorDismissed } = slice.actions;
+export const { chatgptSessionLoaded, chatgptLoginStarted, chatgptErrorDismissed } = slice.actions;
 export const chatgptSessionReducer = slice.reducer;
 
 /** Whole days left before the sign-in must be renewed; never negative. */

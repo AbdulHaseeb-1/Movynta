@@ -47,16 +47,20 @@ const workspaceSlice = createSlice({
     setDesignMode(state, action: PayloadAction<DesignMode>) {
       state.mode = action.payload;
       state.componentSelection = null;
+      state.componentError = "";
     },
     setComponentKind(state, action: PayloadAction<ComponentKind>) {
       state.componentKind = action.payload;
       state.componentSelection = null;
+      state.componentError = "";
     },
     setComponentSelection(
       state,
       action: PayloadAction<WorkspaceState["componentSelection"]>,
     ) {
       state.componentSelection = action.payload;
+      // A message about the last attempt is out of date once something new is picked.
+      if (action.payload) state.componentError = "";
     },
     setComponentError(state, action: PayloadAction<string>) {
       state.componentError = action.payload;

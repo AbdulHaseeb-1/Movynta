@@ -16,6 +16,10 @@ interface Gesture {
   initial: number;
   current: number;
   moved: boolean;
+  /** The value and pointer position the drag is measured from; they move on when Shift is pressed or released. */
+  base: number;
+  baseX: number;
+  fine: boolean;
 }
 /** Pure calculation shared by text and modifier inputs. Shift makes dragging ten times finer. */
 export function scrubValue(
@@ -94,19 +98,27 @@ export function useNumberScrub(options: ScrubOptions) {
       initial: options.value,
       current: options.value,
       moved: false,
+      base: options.value,
+      baseX: event.clientX,
+      fine: event.shiftKey,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function onPointerMove(event: PointerEvent<HTMLElement>) {
     const drag = gesture.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const pixels = event.clientX - drag.startX;
-    if (!drag.moved && Math.abs(pixels) < 4) return;
+    if (!drag.moved && Math.abs(event.clientX - drag.startX) < 4) return;
     drag.moved = true;
     event.preventDefault();
+    // Pressing or releasing Shift mid-drag carries on from the value reached, instead of rescaling the whole drag.
+    if (event.shiftKey !== drag.fine) {
+      drag.base = drag.current;
+      drag.baseX = event.clientX;
+      drag.fine = event.shiftKey;
+    }
     drag.current = scrubValue(
-      drag.initial,
-      pixels,
+      drag.base,
+      event.clientX - drag.baseX,
       options.step,
       event.shiftKey,
       options.min,

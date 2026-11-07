@@ -21,6 +21,7 @@ import { createShadingRenderer, type ShadingMode } from "./shading";
 import { framePose } from "./framing";
 import { viewPosition, type ViewPreset } from "./viewPresets";
 import { createOutlineRenderer } from "./outline";
+import { createCameraEase } from "./cameraEase";
 import { isTypingTarget } from "@/lib/dom";
 
 export type FrameListener = (deltaSeconds: number) => void;
@@ -222,41 +223,23 @@ export function createViewport(
   };
 
   // Eases the camera to a new position and target. Grabbing the view with the mouse cancels the move.
-  let stopEase: (() => void) | undefined;
   let assistantPanelOffset: Vector3 | null = null;
-  const easeTo = (position: Vector3, target: Vector3) => {
-    stopEase?.();
-    const fromPosition = camera.position.clone();
-    const fromTarget = controls.target.clone();
-    let elapsed = 0;
-    const removeListener = addFrameListener((delta) => {
-      elapsed += delta;
-      const progress = Math.min(elapsed / EASE_SECONDS, 1);
-      const eased = 1 - (1 - progress) ** 3;
-      camera.position.lerpVectors(fromPosition, position, eased);
-      controls.target.lerpVectors(fromTarget, target, eased);
-      if (progress >= 1) stopEase?.();
-    });
-    stopEase = () => {
-      removeListener();
-      stopEase = undefined;
-    };
-  };
-  controls.addEventListener("start", () => stopEase?.());
+  const ease = createCameraEase(camera, controls.target, addFrameListener, EASE_SECONDS);
+  const { easeTo } = ease;
+  controls.addEventListener("start", ease.stop);
 
   const zoomBy = (factor: number) => {
     if (!(factor > 0)) return;
     if (!fullNavigation) return;
-    const offset = camera.position.clone().sub(controls.target);
+    // From where an earlier step is heading, so quick steps add up instead of each starting half way.
+    const rest = ease.restPose();
+    const offset = rest.position.clone().sub(rest.target);
     const distance = MathUtils.clamp(
       offset.length() / factor,
       ORBIT_MIN_DISTANCE,
       ORBIT_MAX_DISTANCE,
     );
-    easeTo(
-      controls.target.clone().add(offset.setLength(distance)),
-      controls.target.clone(),
-    );
+    easeTo(rest.target.clone().add(offset.setLength(distance)), rest.target);
   };
   const resetView = () => {
     if (!fullNavigation) return;
@@ -265,7 +248,7 @@ export function createViewport(
   };
   const setView = (preset: ViewPreset) => {
     if (!fullNavigation) return;
-    stopEase?.();
+    ease.stop();
     const distance = Math.max(camera.position.distanceTo(controls.target), ORBIT_MIN_DISTANCE);
     camera.position.copy(viewPosition(controls.target, preset.direction, distance));
     controls.update();
@@ -284,28 +267,30 @@ export function createViewport(
     easeTo(pose.position, pose.target);
   };
   const setAssistantPanelOpen = (open: boolean) => {
+    // The shift is added to where the view is heading, so opening and closing the panel within one ease cancel out.
+    const rest = ease.restPose();
     if (open) {
       if (assistantPanelOffset) return;
       camera.updateMatrixWorld();
       const right = new Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
       const viewWidth =
         2 *
-        controls.getDistance() *
+        rest.position.distanceTo(rest.target) *
         Math.tan(MathUtils.degToRad(camera.fov / 2)) *
         camera.aspect;
       assistantPanelOffset = right.multiplyScalar(
         -viewWidth * ASSISTANT_PANEL_SHIFT_FRACTION,
       );
       easeTo(
-        camera.position.clone().add(assistantPanelOffset),
-        controls.target.clone().add(assistantPanelOffset),
+        rest.position.clone().add(assistantPanelOffset),
+        rest.target.clone().add(assistantPanelOffset),
       );
       return;
     }
     if (!assistantPanelOffset) return;
     const restore = assistantPanelOffset.clone().negate();
     assistantPanelOffset = null;
-    easeTo(camera.position.clone().add(restore), controls.target.clone().add(restore));
+    easeTo(rest.position.clone().add(restore), rest.target.clone().add(restore));
   };
   const setNavigationTool = (next: NavigationTool) => {
     tool = next;
@@ -315,7 +300,7 @@ export function createViewport(
     fullNavigation = scope === "full";
     if (!fullNavigation) {
       // A rotate-only view always starts from the default framing.
-      stopEase?.();
+      ease.stop();
       camera.position.copy(CAMERA_START);
       controls.target.set(0, 0, 0);
       controls.update();
@@ -340,7 +325,7 @@ export function createViewport(
     renderer.setAnimationLoop(null);
     timer.disconnect();
     resizeObserver.disconnect();
-    stopEase?.();
+    ease.stop();
     disableSpacePan();
     outline.dispose();
     shading.dispose();

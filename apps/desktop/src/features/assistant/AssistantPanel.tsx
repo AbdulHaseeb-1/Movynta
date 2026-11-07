@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -19,6 +19,12 @@ import type { AssistantRun } from "./useAssistantRun";
 
 /** Distance from the bottom, in px, within which new content keeps the view pinned to the end. */
 const STICK_THRESHOLD = 48;
+
+/** Puts the view at the end, and notes where, so the scroll event this causes can be told from the reader's own. */
+function followToEnd(element: HTMLElement, placed: { current: number }) {
+  element.scrollTop = element.scrollHeight;
+  placed.current = element.scrollTop;
+}
 
 function HeaderButton({
   label,
@@ -71,20 +77,34 @@ export function AssistantPanel({
 }: AssistantPanelProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  // Where the view was last put by the panel itself; the scroll event this causes is not the reader moving.
+  const autoTop = useRef(-1);
   const [atBottom, setAtBottom] = useState(true);
   const [clearOpen, setClearOpen] = useState(false);
   const [clearError, setClearError] = useState("");
   const { messages, approvals } = run;
   const pending = approvals.filter((approval) => approval.status === "pending");
 
+  // Sending a message always brings it into view, even if the reader had scrolled up to look at an earlier reply.
+  let lastRequestId: string | undefined;
+  for (const message of messages) if (message.role === "user") lastRequestId = message.id;
+  useEffect(() => {
+    if (lastRequestId === undefined) return;
+    pinned.current = true;
+    const element = viewport.current;
+    if (element) followToEnd(element, autoTop);
+  }, [lastRequestId]);
+
   /** Keeps the newest content in view as replies stream in, unless the reader scrolled up. */
   const followContent = useCallback((content: HTMLDivElement | null) => {
     if (!content) return undefined;
     const observer = new ResizeObserver(() => {
       const element = viewport.current;
-      if (element && pinned.current) element.scrollTop = element.scrollHeight;
+      if (element && pinned.current) followToEnd(element, autoTop);
     });
     observer.observe(content);
+    // The scroll area itself shrinks when an approval card appears or the composer grows; the end must stay in view then too.
+    if (content.parentElement) observer.observe(content.parentElement);
     return () => observer.disconnect();
   }, []);
 
@@ -179,6 +199,12 @@ export function AssistantPanel({
                 onScroll={(event) => {
                   const element = event.target;
                   if (!(element instanceof HTMLElement)) return;
+                  // A scroll the panel made itself is reported a frame later, when the area may have been resized
+                  // again (an approval card appeared, the composer grew); it must not read as the reader moving away.
+                  if (element.scrollTop === autoTop.current) {
+                    setAtBottom(pinned.current);
+                    return;
+                  }
                   const near =
                     element.scrollHeight -
                       element.scrollTop -
@@ -246,9 +272,7 @@ export function AssistantPanel({
                   <ApprovalCard
                     key={approval.id}
                     preview={approval.preview}
-                    onDecide={(decision) =>
-                      void run.decide(approval.id, decision)
-                    }
+                    onDecide={(decision) => run.decide(approval.id, decision)}
                   />
                 ))}
               </div>

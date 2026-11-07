@@ -1,14 +1,19 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Settings, Square, X } from "lucide-react";
+import { useState } from "react";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { SettingsDialog } from "@/features/settings";
+import { useCloseOnNavigation } from "@/lib/useCloseOnNavigation";
 import { cn } from "@/lib/utils";
 
 const controlClassName =
   "grid h-9 w-[46px] cursor-pointer place-items-center hover:bg-accent focus-visible:-outline-offset-[3px] focus-visible:outline-2 focus-visible:outline-ring";
 
 export function TitleBar() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Settings has links to other pages, such as "Learn more" in the shortcut list; the dialog must not stay over them.
+  useCloseOnNavigation(() => setSettingsOpen(false));
   if (!isTauri()) return null;
 
   const window = getCurrentWindow();
@@ -30,7 +35,7 @@ export function TitleBar() {
         />
       </div>
       <div className="flex">
-        <Dialog>
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
           <DialogTrigger asChild>
             <button
               type="button"

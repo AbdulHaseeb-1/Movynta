@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { parseSnapAngle } from "./knifeSettings";
 import { setKnifeSettings } from "./workspaceSlice";
 interface Props {
   start: (onlySelected?: boolean) => void;
@@ -103,11 +104,14 @@ export function KnifeToolMenu({ start, disabled }: Props) {
               max="180"
               step="any"
               defaultValue={settings.angle}
+              onChange={(event) => {
+                // Saved as it is typed: closing the menu removes the field without a blur, which lost the value.
+                const angle = parseSnapAngle(event.target.value);
+                if (angle !== null) dispatch(setKnifeSettings({ angle }));
+              }}
               onBlur={(event) => {
-                const angle = Number(event.target.value);
-                if (angle > 0 && angle <= 180)
-                  dispatch(setKnifeSettings({ angle }));
-                else event.target.value = String(settings.angle);
+                if (parseSnapAngle(event.target.value) === null)
+                  event.target.value = String(settings.angle);
               }}
               onKeyDown={(event) => event.stopPropagation()}
             />

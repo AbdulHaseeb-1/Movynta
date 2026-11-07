@@ -40,10 +40,13 @@ export function ComponentToolbar({ scene, saves, start, startKnife, disabled }: 
     dispatch(setComponentError(""));
     start(tool);
   };
+  // A second click before the first is saved would be refused as stale, so it is ignored while one is on its way.
+  const [subdividing, setSubdividing] = useState(false);
   const subdivide = () => {
-    if (!scene || !componentSelection) return;
+    if (!scene || !componentSelection || subdividing) return;
     dispatch(setComponentError(""));
-    subdivideSelectedFaces(scene, componentSelection, saves, (failure) => dispatch(setComponentError(errorMessage(failure))));
+    setSubdividing(true);
+    subdivideSelectedFaces(scene, componentSelection, saves, (failure) => dispatch(setComponentError(errorMessage(failure))), () => setSubdividing(false));
   };
   return (
     <div className="relative">
@@ -154,7 +157,7 @@ export function ComponentToolbar({ scene, saves, start, startKnife, disabled }: 
                 variant="ghost"
                 className="size-7 rounded-sm [&_svg]:size-4"
                 aria-label="Subdivide selected faces"
-                disabled={!scene || !canSubdivide}
+                disabled={!scene || !canSubdivide || subdividing}
                 onClick={subdivide}
               >
                 <Grid2x2 />

@@ -60,7 +60,7 @@ export const shortcutGroups: readonly ShortcutGroup[] = [
       { action: "Constrain transform", keys: "X / Y / Z", detail: "During a keyboard transform, constrain it to an axis. Press the same key again to release it.", guide: "transform" },
       { action: "Exact object transform", keys: "Type a number / Backspace", detail: "During G, R or S, type a signed distance, rotation in degrees, or scale factor from 0.001 to 100. Without an axis, movement follows camera-right and rotation uses the view axis. Backspace edits the value.", guide: "numeric-transform" },
       { action: "Confirm / cancel transform", keys: "Enter / Click · Esc / Right-click", detail: "Confirm the preview or restore the original transforms.", guide: "transform" },
-      { action: "Snap gizmo", keys: "Shift+Drag", detail: "Hold Shift while dragging a transform handle to snap its movement.", guide: "transform" },
+      { action: "Snap gizmo", keys: "Shift+Drag", detail: "Hold Shift while dragging a transform handle to snap its movement. Esc while dragging puts the object back.", guide: "transform" },
       { action: "Delete selected object", keys: "Delete / X", detail: "Delete the selected objects at once. There is no confirmation; use Undo to bring them back. Delete does nothing in Edit mode.", guide: "delete" },
       { action: "Deselect", keys: "Esc", detail: "Clear the object selection, or cancel an active selection rectangle.", guide: "select" },
       { action: "Add shape", keys: "Add shape menu", detail: "Add a cube, sphere, cylinder, cone, torus, plane, tetrahedron, octahedron or icosahedron.", guide: "add" },

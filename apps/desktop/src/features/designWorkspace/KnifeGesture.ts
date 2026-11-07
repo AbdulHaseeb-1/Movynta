@@ -661,7 +661,7 @@ export class KnifeGesture {
         finish(true);
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && key === "z") {
+      if ((event.ctrlKey || event.metaKey) && key === "z" && !event.shiftKey && !event.altKey) {
         if (s.down) {
           s.down = null;
           s.anchor = null;
@@ -679,6 +679,8 @@ export class KnifeGesture {
         }
         return;
       }
+      // Other Ctrl, Cmd and Alt combinations (copy, select all, redo, ...) are not Knife keys: swallowed, not acted on.
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (key === "e" || key === "rightmouse") s.anchor = null;
       else if (key === "c") s.cutThrough = !s.cutThrough;
       else if (key === "v") s.xray = !s.xray;

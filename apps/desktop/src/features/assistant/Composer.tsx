@@ -11,6 +11,7 @@ import {
   type ImageAttachments,
 } from "../attachments";
 import { ASSISTANT_NAME } from "./branding";
+import { composerKeyAction } from "./composerKeys";
 import { EffortSelector } from "./EffortSelector";
 import { ModelProviderSelector } from "./ModelProviderSelector";
 
@@ -147,12 +148,12 @@ export function Composer({
         onChange={(event) => onChange(event.target.value)}
         onPaste={handlePaste}
         onKeyDown={(event) => {
-          if (event.key === "Escape" && busy) onStop();
-          if (
-            event.key === "Enter" &&
-            !event.shiftKey &&
-            !event.nativeEvent.isComposing
-          ) {
+          const action = composerKeyAction(
+            { key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing },
+            busy,
+          );
+          if (action === "stop") onStop();
+          if (action === "send") {
             event.preventDefault();
             if (canSend) onSubmit();
           }

@@ -1,7 +1,7 @@
 import { MAX_ATTACHMENTS } from "@movynta/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MAX_ATTACHMENT_TOTAL_BYTES } from "@movynta/contracts";
-import { fitsTotal, mediaTypeOf } from "./imagePlan";
+import { fitsTotal, mediaTypeOf, uniqueName } from "./imagePlan";
 import { prepareImage, unsupportedMessage } from "./prepareImage";
 import { AttachmentError, type AttachmentUpload, type ComposerImage } from "./types";
 
@@ -65,6 +65,8 @@ export function useImageAttachments(): ImageAttachments {
     setPending(inFlight.current);
     let position = taken.current.length;
     for (const file of chosen) {
+      // The message was sent, or the composer closed, while earlier pictures were being read: skip the rest.
+      if (!isCurrent()) break;
       position += 1;
       try {
         // eslint-disable-next-line no-await-in-loop -- One picture at a time keeps memory use flat.
@@ -73,7 +75,10 @@ export function useImageAttachments(): ImageAttachments {
           throw new AttachmentError(`"${image.name}" would take the images past ${MAX_ATTACHMENT_TOTAL_BYTES / (1024 * 1024)} MB together. Remove one or choose a smaller picture.`);
         }
         if (isCurrent()) {
-          taken.current = [...taken.current, image];
+          // Pictures pasted from the clipboard are numbered by how many were there when they arrived, so two
+          // that arrive together, or one after another's removal, would otherwise share a name.
+          const name = uniqueName(image.name, taken.current.map((other) => other.name));
+          taken.current = [...taken.current, { ...image, name }];
           setImages(taken.current);
         }
       } catch (failure) {

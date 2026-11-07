@@ -9,7 +9,7 @@ import { SegmentedChoice } from "./SegmentedChoice";
 import type { ComponentChoice } from "./subdivideSelection";
 
 export interface ShadingChoice extends ComponentChoice { revision: number }
-interface Props { scene: EditorScene; choice: ShadingChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void }
+interface Props { scene: EditorScene; choice: ShadingChoice; saves: SerialQueue; close: () => void; onError: (message: string) => void; onCloseAutoFocus?: (event: Event) => void }
 type Look = "flat" | "smooth" | "angle";
 const EXPLANATION: Record<Look, string> = {
   flat: "Every face gets its own shade, so the surface looks faceted.",
@@ -19,7 +19,7 @@ const EXPLANATION: Record<Look, string> = {
 const LOOKS = [{ value: "flat", label: "Flat" }, { value: "smooth", label: "Smooth" }, { value: "angle", label: "Smooth by angle" }] as const;
 
 /** Change how the mesh part is shaded without changing its shape. The choice is kept through later edits. */
-export function ShadingDialog({ scene, choice, saves, close, onError }: Props) {
+export function ShadingDialog({ scene, choice, saves, close, onError, onCloseAutoFocus }: Props) {
   const [look, setLook] = useState<Look>("angle");
   const [angle, setAngle] = useState("30");
   const [busy, setBusy] = useState(false);
@@ -35,7 +35,7 @@ export function ShadingDialog({ scene, choice, saves, close, onError }: Props) {
     }, (error) => { const message = errorMessage(error); setSaveError(message); onError(message); });
   };
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) close(); }}>
-    <DialogContent>
+    <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
       <DialogTitle>Shading</DialogTitle>
       <DialogDescription>Changes how the surface is lit, not its shape.</DialogDescription>
       <SegmentedChoice label="Look" value={look} options={LOOKS} onChange={setLook} disabled={busy} />

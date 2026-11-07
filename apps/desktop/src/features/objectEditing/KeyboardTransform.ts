@@ -1,6 +1,6 @@
 import { Object3D, Vector2, Vector3 } from "three";
 import type { EditorScene, ObjectTransform } from "@/features/assistant";
-import type { Viewport } from "@/features/viewport3d";
+import { isOverlayTarget, type Viewport } from "@/features/viewport3d";
 import { GroupTransform, medianPosition, topLevel } from "./groupTransform";
 import type { GizmoView, ObjectChange } from "./ObjectGizmo";
 import { rotationSign, sameTransform } from "./transformMath";
@@ -174,7 +174,7 @@ export class KeyboardTransform {
         return;
       const key = event.key.toLowerCase();
       const session = this.session;
-      if (!session && event.target instanceof HTMLElement && event.target.closest('button, [role="menu"], [role="dialog"]')) return;
+      if (!session && (isOverlayTarget(event.target) || (event.target instanceof HTMLElement && event.target.closest("button")))) return;
       if (session) {
         if (/^[0-9.-]$/.test(key) || key === "backspace") {
           event.preventDefault(); event.stopImmediatePropagation(); pendingMove = false;

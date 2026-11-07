@@ -1,7 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { errorMessage } from "@/lib/backend";
+import { returnFocus } from "@/lib/dom";
 import { projectPath } from "./projectCategories";
 import {
   deleteProject,
@@ -9,7 +10,7 @@ import {
   updateProject,
 } from "./projectsApi";
 import { projectChanged, projectRemoved } from "./projectsSlice";
-import type { Project, ProjectAction } from "./projectTypes";
+import type { Project, ProjectAction, ProjectActionHandler } from "./projectTypes";
 
 export interface ProjectActionsOptions {
   /** Called with the project after it was renamed, starred, archived or duplicated. */
@@ -18,7 +19,7 @@ export interface ProjectActionsOptions {
 }
 
 export interface ProjectActions {
-  perform: (action: ProjectAction, project: Project) => void;
+  perform: ProjectActionHandler;
   /** The project whose name is being edited in the rename dialog, if any. */
   renaming: Project | null;
   /** The project waiting for delete confirmation, if any. */
@@ -29,6 +30,8 @@ export interface ProjectActions {
   submitRename: (name: string) => Promise<void>;
   confirmDelete: () => Promise<void>;
   cancel: () => void;
+  /** Called as a dialog closes: gives focus back to the control that opened it, if it is still on the page. */
+  restoreFocus: (event: Event) => void;
 }
 
 /**
@@ -45,6 +48,7 @@ export function useProjectActions(
   const [deleting, setDeleting] = useState<Project | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const opener = useRef<HTMLElement | null>(null);
 
   const attempt = useCallback(async (work: () => Promise<void>) => {
     setBusy(true);
@@ -69,17 +73,19 @@ export function useProjectActions(
   );
 
   const perform = useCallback(
-    (action: ProjectAction, project: Project) => {
+    (action: ProjectAction, project: Project, from?: HTMLElement | null) => {
       switch (action) {
         case "open":
           void navigate(projectPath(project));
           return;
         case "rename":
           setError("");
+          opener.current = from ?? null;
           setRenaming(project);
           return;
         case "delete":
           setError("");
+          opener.current = from ?? null;
           setDeleting(project);
           return;
         case "star":
@@ -137,6 +143,12 @@ export function useProjectActions(
     setError("");
   }, []);
 
+  const restoreFocus = useCallback((event: Event) => {
+    const target = opener.current;
+    opener.current = null;
+    returnFocus(target, event);
+  }, []);
+
   return {
     perform,
     renaming,
@@ -147,5 +159,6 @@ export function useProjectActions(
     submitRename,
     confirmDelete,
     cancel,
+    restoreFocus,
   };
 }
