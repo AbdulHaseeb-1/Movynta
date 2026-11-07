@@ -1,7 +1,7 @@
 import {
   Matrix3,
   Matrix4,
-  Mesh,
+  type Mesh,
   Quaternion,
   Vector3,
   type BufferAttribute,
@@ -10,13 +10,11 @@ import {
   type Object3D,
 } from "three";
 import { modifierStack } from "../meshGeometry/modifierStack";
+import { isMesh } from "@/lib/three";
 
 const SHEAR_LIMIT = 1e-5;
 type Attribute = BufferAttribute | InterleavedBufferAttribute;
 
-function isMesh(object: Object3D): object is Mesh {
-  return object instanceof Mesh;
-}
 
 /** World position of one vertex, after any shear baked into the geometry. */
 export function meshVertexWorld(object: Object3D, index: number): Vector3 {

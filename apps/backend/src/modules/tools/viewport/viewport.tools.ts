@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { viewCaptureRequestSchema, type CapturedImage, type ViewCaptureResult } from "@movynta/editor-protocol";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import type { CommandProposalService } from "../../editor-bridge/proposals/command-proposal.service.js";
 import { ConflictError } from "../../../common/errors/app-error.js";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 import { RichToolResult } from "../tool-result.js";
+import { newId } from "../../../common/ids/index.js";
 
 export const VIEWPORT_CAPTURE_TOOL_NAME = "viewport.capture";
 
@@ -60,7 +60,7 @@ export function createViewportTools({ bridge, proposals }: {
         bridge.assertConnection(context.userId, context.projectId, context.clientId);
         const withImages = context.supportsToolImages;
         // The editor files the pictures it draws under this id, and the chat finds them there to show the user.
-        const captureId = `cap_${randomUUID()}`;
+        const captureId = newId("cap");
         const proposal = request.proposalId ? proposals.require(context.runId, request.proposalId) : undefined;
         if (proposal && (proposal.status !== "proposed" || proposal.clientId !== context.clientId || proposal.projectId !== context.projectId)) {
           throw new ConflictError("Only a pending proposal for this editor can be previewed.");

@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { Box3, Mesh, MeshStandardMaterial, Vector3, type Object3D } from "three";
+import { Box3, type Mesh, MeshStandardMaterial, Vector3, type Object3D } from "three";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { parseObj } from "./objParser";
+import { isMesh } from "@/lib/three";
 
 const material = new MeshStandardMaterial();
 
-function isMesh(node: Object3D): node is Mesh {
-  return node instanceof Mesh;
-}
 
 function meshesOf(root: Object3D): Mesh[] {
   const meshes: Mesh[] = [];

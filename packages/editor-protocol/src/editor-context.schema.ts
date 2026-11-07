@@ -81,3 +81,5 @@ export const editorContextSchema = z
 
 /** The snapshot as a type. */
 export type EditorContext = z.infer<typeof editorContextSchema>;
+/** One object of the snapshot as a type. */
+export type EditorObject = z.infer<typeof editorObjectSchema>;

@@ -11,12 +11,12 @@ import {
   Scene,
   SkinnedMesh,
   Vector3,
-  type Object3D,
 } from "three";
 import { getManifoldModuleSync } from "manifold-3d/lib/wasm.js";
 import { EditorScene } from "../assistant/EditorScene";
 import { applyBoolean, ensureManifold } from "./meshBoolean";
 import { assertManifold, readTopology, topology } from "./meshTopology";
+import { isMesh } from "@/lib/three";
 
 beforeAll(async () => {
   await ensureManifold();
@@ -81,9 +81,6 @@ function editorWithCut(): EditorScene {
   return editor;
 }
 
-function isMesh(object: Object3D | undefined): object is Mesh {
-  return object instanceof Mesh;
-}
 
 function meshOf(editor: EditorScene, id: string): Mesh {
   const object = editor.getObject(id);

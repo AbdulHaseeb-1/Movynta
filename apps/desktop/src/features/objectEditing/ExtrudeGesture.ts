@@ -37,6 +37,7 @@ import { ExtrudeFacePreview } from "@/features/meshGeometry/extrudeFacePreview";
 import { FaceTransformPreview } from "@/features/meshGeometry/faceTransformPreview";
 import { ExtrudePreviewOverlay } from "./ExtrudePreviewOverlay";
 import { rotationSign } from "./transformMath";
+import { isTypingTarget } from "@/lib/dom";
 
 type Axis = "x" | "y" | "z";
 type ExtrudeMode = "move" | "scale" | "rotate";
@@ -146,13 +147,6 @@ interface Session {
   /** Why the pointer's current offset cannot be built. The last valid preview stays on screen and is what confirm keeps. */
   blocked: string | null;
   restoreMaterial: () => void;
-}
-function isTyping(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable ||
-      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-  );
 }
 function grabWorldDelta(
   camera: Camera,
@@ -674,7 +668,7 @@ export class ExtrudeGesture {
     };
     const keydown = (event: KeyboardEvent) => {
       if (
-        isTyping(event.target) ||
+        isTypingTarget(event.target) ||
         (event.ctrlKey && !(event.key.toLowerCase() === "b" && !this.session) && !(this.session?.inset && (event.key === "Enter" || event.key === "Escape"))) ||
         event.metaKey ||
         event.altKey ||

@@ -54,6 +54,7 @@ import { assertEditableMesh, inspectMesh, meshAtPath, evaluateStack, evaluateBas
 import { evaluateAffected, needsBooleanEvaluation, sceneMeshes, type MeshChange } from "../meshGeometry/booleanEvaluation";
 import { ensureManifold } from "../meshGeometry/meshBoolean";
 import type { MeshInspectionRequest } from "@movynta/editor-protocol";
+import { isMesh } from "@/lib/three";
 
 export type { CollectionEntry };
 
@@ -249,9 +250,6 @@ function storedOwnVisible(object: Object3D): unknown {
 function ownVisible(object: Object3D): boolean {
   const own = storedOwnVisible(object);
   return typeof own === "boolean" ? own : object.visible;
-}
-function isMesh(object: Object3D | undefined): object is Mesh {
-  return object instanceof Mesh;
 }
 function triangleCount(geometry: BufferGeometry): number {
   return (geometry.index?.count ?? geometry.getAttribute("position")?.count ?? 0) / 3;

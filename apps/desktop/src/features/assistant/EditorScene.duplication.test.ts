@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { Bone, BoxGeometry, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, Scene, Skeleton, SkinnedMesh, Uint16BufferAttribute, Vector3, type Object3D } from "three";
+import { Bone, BoxGeometry, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, Scene, Skeleton, SkinnedMesh, Uint16BufferAttribute, Vector3 } from "three";
 import { EditorScene } from "./EditorScene";
 import { modifierStack } from "../meshGeometry/modifierStack";
 import { ensureManifold } from "../meshGeometry/meshBoolean";
-function isMesh(node: Object3D | undefined): node is Mesh { return node instanceof Mesh; }
+import { isMesh } from "@/lib/three";
 
 describe("hierarchy duplication", () => {
   it("rejects copying a skin without its external skeleton hierarchy", () => {

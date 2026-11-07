@@ -1,5 +1,5 @@
-import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
-import type { EditorContext } from "../../../shared/types/editor-context.types.js";
+import type { EditorCommand, EditorContext } from "@movynta/editor-protocol";
+
 import { validateAgainstContext } from "./command-proposal.service.js";
 
 const transform = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } as const;

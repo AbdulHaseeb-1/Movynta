@@ -1,8 +1,6 @@
-import { Box3, Mesh, type BufferGeometry, type Object3D } from "three";
+import { Box3, type BufferGeometry, type Object3D } from "three";
+import { isMesh } from "@/lib/three";
 
-function isMesh(node: Object3D): node is Mesh {
-  return node instanceof Mesh;
-}
 
 /** One bottom-up pass, including imported subtrees, rather than traversing each parent's subtree again. */
 export function sceneBounds(roots: Iterable<Object3D>): ReadonlyMap<Object3D, Box3> {

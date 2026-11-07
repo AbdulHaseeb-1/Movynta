@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import type { MessageEvent } from "@nestjs/common";
 import { Observable } from "rxjs";
@@ -38,6 +37,7 @@ import type {
   ApprovalDecisionResult,
   ApprovalView,
 } from "./agent-runs.types.js";
+import { newId } from "../../common/ids/index.js";
 
 export const HEARTBEAT_INTERVAL_MS = 15_000;
 
@@ -154,7 +154,7 @@ export class AgentRunsService implements OnModuleInit {
     const selectedSkillIds = this.skills
       .selectRelevant({ message: dto.message, dimension: dto.dimension })
       .map((skill) => skill.id);
-    const runId = `run_${randomUUID()}`;
+    const runId = newId("run");
     const now = new Date().toISOString();
 
     this.runs.insert({

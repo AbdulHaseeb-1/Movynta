@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { CollectionModel, viewCaptureRequestSchema, type ViewCaptureRequest } from "@movynta/editor-protocol";
-import type { EditorContext, EditorObject } from "../shared/types/editor-context.types.js";
-import { editorCommandListSchema } from "../shared/schemas/editor-command.schema.js";
+import { CollectionModel, viewCaptureRequestSchema, type ViewCaptureRequest, type EditorContext, type EditorObject, editorCommandListSchema } from "@movynta/editor-protocol";
+
+
 import type { EditorCommand, EditorCommandList, OutboundMessage } from "./testing.types.js";
 
 export const outboundSchema = z.object({

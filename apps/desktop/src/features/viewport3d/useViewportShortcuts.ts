@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import type { Viewport } from "./viewport";
-import { isTypingTarget, viewportShortcut } from "./viewportShortcuts";
+import { isTypingTarget } from "@/lib/dom";
+import { viewportShortcut } from "./viewportShortcuts";
 import { toggleWireframe, toggleXray } from "./viewportSlice";
 
 /** How far one zoom key or button moves the camera. */

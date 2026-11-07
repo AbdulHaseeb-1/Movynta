@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { BoxGeometry, Mesh, Scene, SphereGeometry, type Object3D } from "three";
+import { BoxGeometry, Mesh, Scene, SphereGeometry } from "three";
 import { HAND_EDIT_COMMAND_TYPES } from "@movynta/editor-protocol";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { createPolygonMesh } from "@/features/meshGeometry/createPolygonMesh";
@@ -7,9 +7,9 @@ import { measureSurface } from "@/features/meshGeometry/meshTestSupport";
 import { readTopology, topology } from "@/features/meshGeometry/meshTopology";
 import { recordSceneEdit } from "@/features/objectEditing/sceneEditApi";
 import { applyMeshTool, meshToolEdit, middleOfObject, previewMeshCut, type CutSpec, type MeshToolAction } from "./meshToolActions";
+import { isMesh } from "@/lib/three";
 
 vi.mock("@/features/objectEditing/sceneEditApi", () => ({ recordSceneEdit: vi.fn(async () => undefined) }));
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 function meshOf(scene: EditorScene, id: string): Mesh {
   const object = scene.getObject(id);
   if (!isMesh(object)) throw new Error(`Missing mesh ${id}`);

@@ -1,9 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
-import { HAND_EDIT_COMMAND_TYPES, saveMeasurementsSchema } from "@movynta/editor-protocol";
+import { HAND_EDIT_COMMAND_TYPES, saveMeasurementsSchema, editorCommandListSchema } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../common/errors/app-error.js";
 import { isOneOf } from "../../shared/guards/enum.guard.js";
-import { editorCommandListSchema } from "../../shared/schemas/editor-command.schema.js";
+
 import { collectionKey, ProjectScenesService } from "./project-scenes.service.js";
 import { ProjectsRepository } from "./projects.repository.js";
 import {
@@ -21,6 +20,7 @@ import {
   type SceneStep,
   type StoredAsset,
 } from "./projects.types.js";
+import { newId } from "../../common/ids/index.js";
 
 const OBJECT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const ASSET_NAME_MAX_LENGTH = 160;
@@ -65,7 +65,7 @@ export class ProjectsService {
   /** Creates a project. Without a name it is untitled until the user names it. */
   create(userId: string, category: ProjectCategory = DEFAULT_PROJECT_CATEGORY, name = ""): ProjectView {
     const now = new Date().toISOString();
-    const id = `prj_${randomUUID()}`;
+    const id = newId("prj");
     this.repository.insert({ id, userId, name: normalizeProjectName(name), category, createdAt: now, updatedAt: now });
     return this.view(userId, id);
   }
@@ -261,7 +261,7 @@ export class ProjectsService {
       // Later commands of the same batch see the scene as the earlier ones leave it.
       if (command.type === "scene.delete_object") known.delete(command.objectId);
     }
-    const proposalId = `usr_${randomUUID()}`;
+    const proposalId = newId("usr");
     this.scenes.append(projectId, proposalId, parsed.data, actionId);
     this.repository.touch(projectId, new Date().toISOString());
     return { proposalId };

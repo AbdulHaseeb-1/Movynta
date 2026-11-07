@@ -1,5 +1,5 @@
 import { generateCommands } from "./procedural.runner.js";
-import type { EditorContext } from "../../../shared/types/editor-context.types.js";
+import type { EditorContext } from "@movynta/editor-protocol";
 
 const scene: EditorContext = { projectId: "p", revision: 3, activeSceneName: "Main", selectedObjectIds: [], objects: [] };
 const program = `return Array.from({ length: 20 }, (_, i) => ({

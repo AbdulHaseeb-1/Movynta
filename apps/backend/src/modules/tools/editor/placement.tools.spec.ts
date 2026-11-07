@@ -2,7 +2,7 @@ import { emptyRunProgress } from "../../agent-runs/run-progress.js";
 import { jest } from "@jest/globals";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
-import type { EditorContext } from "../../../shared/types/editor-context.types.js";
+import type { EditorContext } from "@movynta/editor-protocol";
 import type { EditorToolDependencies } from "./editor.types.js";
 import { createPlacementTool } from "./placement.tools.js";
 import { createEditorTools } from "./editor.tools.js";

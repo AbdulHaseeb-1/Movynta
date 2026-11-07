@@ -17,7 +17,7 @@ import {
   type ExampleId,
 } from "@/features/documentation";
 import { AssistantToolsPanel, KeyCombo, ShortcutFinder, ShortcutReference, ToolGuideCard, toolCardId } from "@/features/documentation/components";
-import { isTypingTarget } from "@/features/viewport3d/viewportShortcuts";
+import { isTypingTarget } from "@/lib/dom";
 
 type Area = "workspace" | "shortcuts" | "assistant";
 

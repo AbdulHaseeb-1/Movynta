@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { editorContextSchema } from "../../shared/schemas/editor-context.schema.js";
-import { MAX_COMMANDS_PER_PROPOSAL, viewCaptureResultSchema } from "@movynta/editor-protocol";
+import { editorContextSchema, MAX_COMMANDS_PER_PROPOSAL, viewCaptureResultSchema } from "@movynta/editor-protocol";
+
 
 /**
  * Messages exchanged with the editor over WebSocket. Format: `{ event, data }`.

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { BoxGeometry, BufferGeometry, Float32BufferAttribute, Mesh, Scene, Vector3, type Object3D } from "three";
+import { BoxGeometry, BufferGeometry, Float32BufferAttribute, Mesh, Scene, Vector3 } from "three";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { basis, evaluate } from "./meshWeights";
 import { createPolygonMesh } from "./createPolygonMesh";
 import { assertManifold, edgeKey, readTopology, topology } from "./meshTopology";
 import { knifeChord } from "./meshKnifeChord";
+import { isMesh } from "@/lib/three";
 
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 describe("knife chord topology", () => {
   it("splits a face and its neighboring boundary without cracks", () => {
     const geometry = createPolygonMesh([[0,0,0],[1,0,0],[2,0,0],[0,1,0],[1,1,0],[2,1,0]], [[0,1,4,3],[1,2,5,4]]);

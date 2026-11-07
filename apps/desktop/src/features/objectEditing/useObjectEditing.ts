@@ -11,6 +11,7 @@ import { SelectionTools } from "./SelectionTools";
 import { changeSceneHistory } from "./sceneHistory";
 import { KeyboardTransform } from "./KeyboardTransform";
 import { NumericTransformPreview } from "./NumericTransformPreview";
+import { isTypingTarget } from "@/lib/dom";
 
 /** The active object, as the panel shows it, and how many objects are selected with it. */
 export interface SelectedObject {
@@ -103,13 +104,6 @@ async function applyDelete(
   }
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable ||
-      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-  );
-}
 
 /**
  * Selecting objects and moving, rotating, scaling and deleting them. Owns the {@link ObjectGizmo} for

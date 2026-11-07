@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { editorCommandListSchema, identifierSchema, isWithinBranch } from "@movynta/editor-protocol";
 import { defineTool } from "../tool.types.js";
 import { rememberPlannedBatch } from "../../agent-runs/run-progress.js";
 import { ServiceUnavailableError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import type { EditorToolDependencies } from "./editor.types.js";
+import { newId } from "../../../common/ids/index.js";
 
 export function createDuplicationTool({ bridge }: EditorToolDependencies) {
   return defineTool({
@@ -21,8 +21,8 @@ export function createDuplicationTool({ bridge }: EditorToolDependencies) {
       if (!parents.has(input.sourceId)) throw new ValidationFailedError(`Source object "${input.sourceId}" does not exist; use an id from editor.get_context`);
       const descendants = scene.objects.filter((object) => object.id !== input.sourceId && isWithinBranch(object.id, input.sourceId, (id) => parents.get(id)));
       if (scene.objects.length + (descendants.length + 1) * input.copies > 2000) throw new ValidationFailedError("Copies exceed the 2000-object scene limit; make fewer copies");
-      const copies = Array.from({ length: input.copies }, () => ({ objectId: `obj_${randomUUID()}`, ...(input.name ? { name: input.name } : {}),
-        descendants: descendants.map((object) => ({ sourceId: object.id, objectId: `obj_${randomUUID()}` })),
+      const copies = Array.from({ length: input.copies }, () => ({ objectId: newId("obj"), ...(input.name ? { name: input.name } : {}),
+        descendants: descendants.map((object) => ({ sourceId: object.id, objectId: newId("obj") })),
       }));
       const commands = editorCommandListSchema.parse([{ commandId: "duplicate", type: "scene.duplicate_hierarchy", sourceId: input.sourceId, copies, offset: input.offset, space: input.space }]);
       const planId = rememberPlannedBatch(context.progress, { tool: "editor.plan_duplicates", sourceRevision: scene.revision, commands });

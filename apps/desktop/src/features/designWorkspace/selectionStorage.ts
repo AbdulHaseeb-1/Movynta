@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readStored, removeStored, writeStored } from "@/lib/storage";
 import type { ComponentKind } from "./workspaceSlice";
 
 const schema = z.object({
@@ -17,16 +18,9 @@ export interface StoredComponentSelection {
 }
 const storageKey = (projectId: string) => `movynta.project.selection.v1.${projectId}`;
 export function loadComponentSelection(projectId: string): StoredComponentSelection | null {
-  try {
-    const raw = localStorage.getItem(storageKey(projectId));
-    if (!raw) return null;
-    const parsed = schema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
-  } catch { return null; }
+  return readStored(storageKey(projectId), schema) ?? null;
 }
 export function saveComponentSelection(projectId: string, value: StoredComponentSelection | null): void {
-  try {
-    if (value) localStorage.setItem(storageKey(projectId), JSON.stringify(value));
-    else localStorage.removeItem(storageKey(projectId));
-  } catch { /* Storage is optional. */ }
+  if (value) writeStored(storageKey(projectId), value);
+  else removeStored(storageKey(projectId));
 }

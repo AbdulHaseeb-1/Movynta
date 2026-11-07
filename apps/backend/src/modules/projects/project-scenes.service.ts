@@ -1,12 +1,11 @@
-import { randomUUID } from "node:crypto";
 import type { DatabaseSync, StatementSync } from "node:sqlite";
 import { Injectable } from "@nestjs/common";
-import { editsExistingGeometry } from "@movynta/editor-protocol";
+import { editsExistingGeometry, type EditorCommand } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../persistence/database.service.js";
 import { blobColumn, integerColumn, textColumn } from "../persistence/row.js";
 import { requireOneOf } from "../../shared/guards/enum.guard.js";
-import type { EditorCommand } from "../../shared/types/editor-command.types.js";
+
 import {
   ASSET_FORMATS,
   MAX_PROJECT_ASSET_BYTES,
@@ -15,6 +14,7 @@ import {
   type SceneStep,
   type StoredAsset,
 } from "./projects.types.js";
+import { newId } from "../../common/ids/index.js";
 
 /** Prepared statements, kept per connection: preparing one costs more than running it on a small table. */
 const statements = new WeakMap<DatabaseSync, Map<string, StatementSync>>();
@@ -150,7 +150,7 @@ export class ProjectScenesService {
 
   /** Stores an imported model as the next step of the project. The project must exist. */
   addImport(projectId: string, asset: NewAsset): SceneImport {
-    const assetId = `ast_${randomUUID()}`;
+    const assetId = newId("ast");
     this.database.transaction((db) => {
       this.branch(db, projectId);
       this.ensureObjectsIndexed(db, projectId);
@@ -331,7 +331,7 @@ export class ProjectScenesService {
         `INSERT INTO project_assets (id, project_id, seq, object_id, name, format, size, content, created_at)
          SELECT ?, ?, seq, object_id, name, format, size, content, created_at FROM project_assets WHERE id = ?`,
       );
-      for (const asset of assets) insert.run(`ast_${randomUUID()}`, targetProjectId, textColumn(asset, "id"));
+      for (const asset of assets) insert.run(newId("ast"), targetProjectId, textColumn(asset, "id"));
       db.prepare(
         "INSERT INTO project_objects (project_id, object_id) SELECT ?, object_id FROM project_objects WHERE project_id = ?",
       ).run(targetProjectId, sourceProjectId);

@@ -1,11 +1,11 @@
-import { Mesh, SkinnedMesh, type BufferGeometry, type Material, type Object3D } from "three";
+import { SkinnedMesh, type BufferGeometry, type Material, type Object3D } from "three";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import type { EditorCommand } from "@movynta/editor-protocol";
 import { copyTopology } from "../meshGeometry/meshTopology";
 import { commitStack, copyModifierStack, modifierStack } from "../meshGeometry/modifierStack";
+import { isMesh } from "@/lib/three";
 
 type CopySpec = Extract<EditorCommand, { type: "scene.duplicate_hierarchy" }>["copies"][number];
-function isMesh(node: Object3D): node is Mesh { return node instanceof Mesh; }
 export function hierarchyBytes(root: Object3D): number {
   let bytes = 0;
   root.traverse((node) => {

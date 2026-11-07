@@ -1,7 +1,7 @@
 import type { z } from "zod";
-import type { MeasurementRequest, MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
-import type { EditorCommand } from "../../shared/types/editor-command.types.js";
-import type { EditorContext } from "../../shared/types/editor-context.types.js";
+import type { MeasurementRequest, MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult, EditorCommand, EditorContext } from "@movynta/editor-protocol";
+
+
 import type { EDITOR_INBOUND_EVENTS, commandResultSchema } from "./editor-protocol.js";
 
 export type CommandExecutionStatus = "applied" | "failed" | "revision_conflict";

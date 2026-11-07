@@ -1,20 +1,14 @@
-/** Providers that authenticate with an API key the user pastes in. */
-export const API_KEY_PROVIDER_IDS = [
-  "openai",
-  "anthropic",
-  "google",
-  "openai-compatible",
-  "anthropic-compatible",
-] as const;
-/** Every provider, including the one that signs in with a ChatGPT subscription instead of a key. */
-export const PROVIDER_IDS = [...API_KEY_PROVIDER_IDS, "chatgpt"] as const;
-export type ProviderId = (typeof PROVIDER_IDS)[number];
-export function isSubscriptionProvider(id: ProviderId): boolean {
-  return id === "chatgpt";
-}
-export function isCompatibleProvider(id: ProviderId): boolean {
-  return id === "openai-compatible" || id === "anthropic-compatible";
-}
+import type { ProviderId } from "@movynta/contracts";
+
+// The provider list is shared with the desktop app; these re-exports keep this module's public names.
+export {
+  API_KEY_PROVIDER_IDS,
+  PROVIDER_IDS,
+  isCompatibleProvider,
+  isSubscriptionProvider,
+  type ProviderId,
+} from "@movynta/contracts";
+
 export interface ProviderView {
   id: ProviderId;
   model: string;

@@ -1,15 +1,15 @@
-import { Box3, InstancedMesh, Matrix4, Mesh, SkinnedMesh, Triangle, Vector3, type Object3D } from "three";
+import { Box3, InstancedMesh, Matrix4, SkinnedMesh, Triangle, Vector3, type Object3D } from "three";
 import { measurementResultSchema, resolveMeshPath, type MeasurementRequest, type MeasurementResult } from "@movynta/editor-protocol";
 import { meshAtPath, modifierStack } from "@/features/meshGeometry";
 import { edgeKey, readTopology, topology } from "@/features/meshGeometry/meshTopology";
 import { boxGap, closestSurface } from "@/features/meshGeometry/surfaceDistance";
+import { isMesh } from "@/lib/three";
 
 type Dimensions = Extract<MeasurementRequest, { kind: "dimensions" }>;
 type Endpoint = Extract<MeasurementRequest, { kind: "distance" }>["from"];
 type Edge = Extract<MeasurementRequest, { kind: "edge" }>;
 type Lookup = (id: string) => Object3D | undefined;
 type Data = Extract<MeasurementResult, { status: "ok" }>["data"];
-function isMesh(node: Object3D): node is Mesh { return node instanceof Mesh; }
 
 const boundsOf = (box: Box3) => ({ min: box.min.toArray(), max: box.max.toArray() });
 function inverse(matrix: Matrix4): Matrix4 | null {

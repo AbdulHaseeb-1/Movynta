@@ -1,19 +1,14 @@
-import type { EditorCommand } from "../../shared/types/editor-command.types.js";
+import type { EditorCommand } from "@movynta/editor-protocol";
 
-/**
- * What a project is for. Each category opens its own workspace in the desktop app. Add a value here
- * (and its entry in the app's category catalog) to introduce a new kind of project.
- */
-export const PROJECT_CATEGORIES = ["design"] as const;
-export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number];
+import type { ProjectCategory, ProjectScope, ProjectSort } from "@movynta/contracts";
+
+// The category, sort and scope lists are shared with the desktop app; these re-exports keep this module's public names.
+export { PROJECT_CATEGORIES, PROJECT_SCOPES, PROJECT_SORTS } from "@movynta/contracts";
+export type { ProjectCategory, ProjectScope, ProjectSort } from "@movynta/contracts";
+
 export const DEFAULT_PROJECT_CATEGORY: ProjectCategory = "design";
 
 export const PROJECT_NAME_MAX_LENGTH = 80;
-export const PROJECT_SORTS = ["updated", "created", "name"] as const;
-export type ProjectSort = (typeof PROJECT_SORTS)[number];
-/** Which projects a listing includes: the working set, the archive, or both. */
-export const PROJECT_SCOPES = ["active", "archived", "all"] as const;
-export type ProjectScope = (typeof PROJECT_SCOPES)[number];
 
 /** A project as stored. An empty name means the user has not named it yet. */
 export interface ProjectRecord {

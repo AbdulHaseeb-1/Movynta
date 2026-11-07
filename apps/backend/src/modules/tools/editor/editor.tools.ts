@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { CAGE_EDIT_COMMAND_TYPES, MODIFIER_COMMAND_TYPES, TOPOLOGY_EDIT_COMMAND_TYPES, materialInspectionRequestSchema, measurementRequestSchema, meshInspectionRequestSchema } from "@movynta/editor-protocol";
+import { CAGE_EDIT_COMMAND_TYPES, MODIFIER_COMMAND_TYPES, TOPOLOGY_EDIT_COMMAND_TYPES, materialInspectionRequestSchema, measurementRequestSchema, meshInspectionRequestSchema, editorCommandListSchema, type EditorCommand } from "@movynta/editor-protocol";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
-import { editorCommandListSchema } from "../../../shared/schemas/editor-command.schema.js";
+
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 import type { EditorToolDependencies } from "./editor.types.js";
 import { createPlacementTool } from "./placement.tools.js";
@@ -12,7 +12,7 @@ import { closestValues } from "../tool-input-issues.js";
 import { applyProposal, afterApply, proposalRun, recordProposal, resolvePlanStep } from "./proposal-flow.js";
 import { findPlannedBatch } from "../../agent-runs/run-progress.js";
 import { AppError } from "../../../common/errors/app-error.js";
-import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
+
 
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const noInput = z.object({}).strict();

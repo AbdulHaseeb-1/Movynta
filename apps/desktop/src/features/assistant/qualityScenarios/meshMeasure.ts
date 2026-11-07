@@ -1,15 +1,13 @@
-import { Mesh, Vector3, type Object3D } from "three";
+import { Vector3 } from "three";
 import type { EditorScene } from "../EditorScene";
 import { triangulate } from "../../meshGeometry/meshOutput";
 import { boundaryLoops } from "../../meshGeometry/meshRegions";
 import { readTopology, topology } from "../../meshGeometry/meshTopology";
 import type { MeshMeasure } from "./types";
+import { isMesh } from "@/lib/three";
 
 const MAX_VERTICES = 2048;
 
-function isMesh(object: Object3D | undefined): object is Mesh {
-  return object instanceof Mesh;
-}
 
 /** Measures the base cage of one mesh object, or undefined when the object is missing or is not a mesh. */
 export function measureMesh(editor: EditorScene, objectId: string): MeshMeasure | undefined {

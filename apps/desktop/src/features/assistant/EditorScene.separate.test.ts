@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { Mesh, MeshStandardMaterial, Scene, type Material, type Object3D } from "three";
+import { type Mesh, MeshStandardMaterial, Scene, type Material } from "three";
 import { editorCommandListSchema } from "@movynta/editor-protocol";
 import { checkManifold } from "../meshGeometry/meshManifold";
 import { measureSurface } from "../meshGeometry/meshTestSupport";
 import { readTopology } from "../meshGeometry/meshTopology";
 import { EditorScene } from "./EditorScene";
+import { isMesh } from "@/lib/three";
 
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 function meshNamed(editor: EditorScene, id: string): Mesh {
   const object = editor.getObject(id);
   if (!isMesh(object)) throw new Error(`Missing mesh ${id}`);

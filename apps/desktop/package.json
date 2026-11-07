@@ -13,6 +13,7 @@
     "check": "pnpm run typecheck && pnpm run lint"
   },
   "dependencies": {
+    "@movynta/contracts": "workspace:*",
     "@movynta/editor-protocol": "workspace:*",
     "@radix-ui/react-collapsible": "^1.2.1",
     "@radix-ui/react-dialog": "^1.3.1",

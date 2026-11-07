@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { assistantMessage } from "@openai/agents/testing";
 import { startTestServer } from "../../testing/test-app.js";
 import type { TestServer } from "../../testing/testing.types.js";
-import type { EditorCommand } from "../../shared/types/editor-command.types.js";
+import type { EditorCommand } from "@movynta/editor-protocol";
 import { DatabaseService } from "../persistence/database.service.js";
 import { ProjectScenesService } from "./project-scenes.service.js";
 import { normalizeProjectName } from "./projects.service.js";
 import type { ProjectView } from "./projects.types.js";
+import { newId } from "../../common/ids/index.js";
 
 let server: TestServer;
 beforeAll(async () => {
@@ -47,7 +48,7 @@ function insertRun(projectId: string, input: string, status = "completed", user 
   db.prepare("INSERT INTO sessions (id, user_id, project_id, created_at) VALUES (?, ?, ?, ?)").run(sessionId, user, projectId, now);
   db.prepare(
     "INSERT INTO agent_runs (id, session_id, user_id, project_id, agent_id, status, input, final_output, created_at, updated_at) VALUES (?, ?, ?, ?, 'modeling-coordinator', ?, ?, 'Done.', ?, ?)",
-  ).run(`run_${randomUUID()}`, sessionId, user, projectId, status, input, now, now);
+  ).run(newId("run"), sessionId, user, projectId, status, input, now, now);
   return sessionId;
 }
 
@@ -201,7 +202,7 @@ describe("projects API", () => {
     const runId = run?.["id"];
     if (typeof runId !== "string") throw new Error("Missing test run");
     db.prepare("INSERT INTO agent_run_events (run_id, seq, event_id, type, timestamp, payload_json) VALUES (?, 1, ?, ?, ?, ?)")
-      .run(runId, `evt_${randomUUID()}`, "agent.message.delta", new Date().toISOString(), '{"delta":"private reply"}');
+      .run(runId, newId("evt"), "agent.message.delta", new Date().toISOString(), '{"delta":"private reply"}');
     expect((await request(`/projects/${project.id}/conversation`, "DELETE", undefined, "intruder")).status).toBe(404);
     expect((await request(`/projects/${project.id}/conversation`, "DELETE")).status).toBe(204);
     expect(await (await request(`/projects/${project.id}/conversation`)).json()).toEqual({ messages: [] });

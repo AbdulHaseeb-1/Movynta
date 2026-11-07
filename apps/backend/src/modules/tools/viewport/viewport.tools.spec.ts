@@ -1,7 +1,7 @@
 import type { ViewCaptureOptions } from "../../editor-bridge/editor-bridge.types.js";
-import type { EditorContext } from "../../../shared/types/editor-context.types.js";
+import type { EditorContext, ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
-import type { ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
+
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
 import { emptyRunProgress } from "../../agent-runs/run-progress.js";
 import type { CommandProposalRecord } from "../../editor-bridge/proposals/proposals.types.js";

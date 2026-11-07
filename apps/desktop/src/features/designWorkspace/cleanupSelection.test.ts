@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { BoxGeometry, Mesh, Scene, type Object3D } from "three";
+import { BoxGeometry, Mesh, Scene } from "three";
 import { HAND_EDIT_COMMAND_TYPES } from "@movynta/editor-protocol";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { createPolygonMesh } from "@/features/meshGeometry/createPolygonMesh";
 import { readTopology, topology } from "@/features/meshGeometry/meshTopology";
 import { recordSceneEdit } from "@/features/objectEditing/sceneEditApi";
 import { cleanupSelection } from "./cleanupSelection";
+import { isMesh } from "@/lib/three";
 
 vi.mock("@/features/objectEditing/sceneEditApi", () => ({ recordSceneEdit: vi.fn(async () => undefined) }));
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 
 describe("manual mesh cleanup", () => {
   it("saves a vertex merge and keeps the merged vertex selected", async () => {

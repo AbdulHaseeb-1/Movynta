@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { readStored, writeStored } from "@/lib/storage";
+
 export const PANEL_IDS = [
   "assistant",
   "scene",
@@ -8,33 +11,25 @@ export const PANEL_IDS = [
 export type PanelId = (typeof PANEL_IDS)[number];
 export type PanelVisibility = Record<PanelId, boolean>;
 const KEY = "movynta.workspace.panels.v1";
+const savedSchema = z.record(z.string(), z.unknown());
 
+/** The open state of each panel. A saved panel with a valid value is restored; any other panel keeps its default. */
 export function loadPanelVisibility(): PanelVisibility {
-  const defaults: PanelVisibility = {
+  const visibility: PanelVisibility = {
     assistant: false,
     scene: false,
     meshSelection: false,
     modifiers: false,
     properties: false,
   };
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return defaults;
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return defaults;
-    for (const [key, value] of Object.entries(parsed)) {
-      const id = PANEL_IDS.find((panel) => panel === key);
-      if (id && typeof value === "boolean") defaults[id] = value;
-    }
-  } catch {
-    /* Storage can be unavailable; use defaults. */
+  const saved: Record<string, unknown> = readStored(KEY, savedSchema) ?? {};
+  for (const id of PANEL_IDS) {
+    const value = saved[id];
+    if (typeof value === "boolean") visibility[id] = value;
   }
-  return defaults;
+  return visibility;
 }
+
 export function savePanelVisibility(visibility: PanelVisibility): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(visibility));
-  } catch {
-    /* Preferences are optional. */
-  }
+  writeStored(KEY, visibility);
 }

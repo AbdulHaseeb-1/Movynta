@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { BoxGeometry, CylinderGeometry, Mesh, Scene, SphereGeometry, Vector3, type Object3D } from "three";
+import { BoxGeometry, CylinderGeometry, Mesh, Scene, SphereGeometry, Vector3 } from "three";
 import { meshInspectionSchema } from "@movynta/editor-protocol";
 import { EditorScene } from "../assistant/EditorScene";
 import { createPolygonMesh } from "./createPolygonMesh";
 import { inspectMesh } from "./meshInspection";
 import { boundaryLoops, shellRoots, shellSummaries } from "./meshRegions";
 import { readTopology, topology } from "./meshTopology";
+import { isMesh } from "@/lib/three";
 
 const request = { objectId: "body", meshPath: [] as never[], offset: 0, limit: 25, view: "base" as const };
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 
 /** Two open tubes, one above the other: four openings, two shells. */
 function tubes(sides = 6) {

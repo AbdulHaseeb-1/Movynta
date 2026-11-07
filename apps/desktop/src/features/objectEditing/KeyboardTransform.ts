@@ -4,6 +4,7 @@ import type { Viewport } from "@/features/viewport3d";
 import { GroupTransform, medianPosition, topLevel } from "./groupTransform";
 import type { GizmoView, ObjectChange } from "./ObjectGizmo";
 import { rotationSign, sameTransform } from "./transformMath";
+import { isTypingTarget } from "@/lib/dom";
 
 type Operation = "move" | "rotate" | "scale";
 type Axis = "x" | "y" | "z";
@@ -28,13 +29,6 @@ const AXIS = {
   y: new Vector3(0, 1, 0),
   z: new Vector3(0, 0, 1),
 };
-function isTyping(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable ||
-      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-  );
-}
 
 /** Keyboard-driven object transforms. All updates are previews until confirmed. */
 export class KeyboardTransform {
@@ -171,7 +165,7 @@ export class KeyboardTransform {
     };
     const keydown = (event: KeyboardEvent) => {
       if (
-        isTyping(event.target) ||
+        isTypingTarget(event.target) ||
         event.ctrlKey ||
         event.metaKey ||
         event.altKey ||

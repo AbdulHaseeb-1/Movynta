@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { Injectable } from "@nestjs/common";
 import { AgentRunRepository } from "./agent-run.repository.js";
 import type { AgentRunEvent, AgentRunEventPayloads, AgentRunEventSink, AgentRunEventType } from "./agent-runs.types.js";
+import { newId } from "../../common/ids/index.js";
 
 /**
  * Persists every run event (for replay after reconnects) and publishes it to
@@ -19,7 +19,7 @@ export class AgentRunEventsService {
   publish<T extends AgentRunEventType>(runId: string, type: T, payload: AgentRunEventPayloads[T]): AgentRunEvent {
     const event = this.repository.appendEvent(
       runId,
-      `evt_${randomUUID()}`,
+      newId("evt"),
       type,
       new Date().toISOString(),
       JSON.stringify(payload),

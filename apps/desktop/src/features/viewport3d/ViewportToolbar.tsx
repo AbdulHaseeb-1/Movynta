@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import type { Viewport } from "./viewport";
 import { VIEW_PRESETS } from "./viewPresets";
 import { ZOOM_STEP } from "./useViewportShortcuts";
-import { isTypingTarget } from "./viewportShortcuts";
+import { isTypingTarget } from "@/lib/dom";
 import { setViewportTool, type ViewportTool } from "./viewportSlice";
 
 const SHORTCUTS: Readonly<Record<string, ViewportTool>> = {

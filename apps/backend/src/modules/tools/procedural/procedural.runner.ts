@@ -1,9 +1,9 @@
 import { getQuickJS } from "quickjs-emscripten";
 import { z } from "zod";
 import { describeIssues } from "../tool-input-issues.js";
-import { editorCommandListSchema } from "../../../shared/schemas/editor-command.schema.js";
-import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
-import type { EditorContext } from "../../../shared/types/editor-context.types.js";
+import { editorCommandListSchema, type EditorCommand, type EditorContext } from "@movynta/editor-protocol";
+
+
 
 export const MAX_PROGRAM_CHARACTERS = 16_000;
 export const PROGRAM_TIME_LIMIT_MS = 250;

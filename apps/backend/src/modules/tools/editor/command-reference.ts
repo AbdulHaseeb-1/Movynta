@@ -1,4 +1,4 @@
-import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
+import type { EditorCommand } from "@movynta/editor-protocol";
 
 export type EditorCommandType = EditorCommand["type"];
 

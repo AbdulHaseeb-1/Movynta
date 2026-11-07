@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { PROJECT_CATEGORIES, type ProjectSort } from "@movynta/contracts";
 
-export const projectCategoryIdSchema = z.enum(["design"]);
+export const projectCategoryIdSchema = z.enum(PROJECT_CATEGORIES);
 export type ProjectCategoryId = z.infer<typeof projectCategoryIdSchema>;
 
 export const projectSchema = z.object({
@@ -69,7 +70,7 @@ export type ProjectConversation = z.infer<typeof projectConversationSchema>;
 
 /** The tabs of the library: the working set, the starred ones among it, and the archive. */
 export type ProjectView = "all" | "starred" | "archived";
-export type ProjectSort = "updated" | "created" | "name";
+export type { ProjectSort };
 
 export interface ProjectFilters {
   search: string;
