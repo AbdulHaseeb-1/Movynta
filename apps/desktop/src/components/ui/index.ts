@@ -3,6 +3,7 @@ export * from "./button";
 export * from "./card";
 export * from "./collapsible";
 export * from "./input";
+export * from "./kbd";
 export { Switch } from "./switch";
 export * from "./dialog";
 export * from "./dropdown-menu";

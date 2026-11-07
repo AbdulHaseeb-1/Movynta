@@ -10,12 +10,15 @@ import {
   providersSchema,
 } from "@/features/providers";
 import { backendRequest } from "@/lib/backend";
+import { useHelpShortcut } from "@/features/documentation/shortcuts";
+import { ShortcutsDialog } from "@/features/documentation/components";
 
 function App() {
   // The page fades in when the route changes, not when only its parameters do.
   const matches = useMatches();
   const routeId = matches[matches.length - 1]?.id ?? "";
   const dispatch = useAppDispatch();
+  useHelpShortcut();
   useEffect(() => {
     let stopped = false;
     const connect = () => {
@@ -78,6 +81,7 @@ function App() {
       >
         <Outlet />
       </div>
+      <ShortcutsDialog />
     </div>
   );
 }
