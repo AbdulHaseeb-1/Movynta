@@ -1,6 +1,6 @@
 # `editor.apply_proposal`
 
-> Applies a stored proposal to the editor. It is the only assistant tool that changes the scene. The commands join the project history, so the user can undo them.
+> Applies a stored proposal to the editor. editor.propose_commands and modeling.propose_generated with apply true run this same step in one call. The commands join the project history, so the user can undo them.
 
 | | |
 | --- | --- |
@@ -103,7 +103,8 @@ flowchart LR
 
 | Message | Cause |
 | --- | --- |
-| `Scene changed; regenerate and propose again` | A strict proposal (with expectedRevision, or geometry, material or copy commands) saw a changed scene. |
+| `The scene changed after this proposal was made (revision 12 → 13), and these commands only apply to the revision they were written for.` | A strict proposal (with expectedRevision, or geometry, material or copy commands) saw a changed scene. |
+| `The scene changed after this proposal was made (revision 12 → 13), and it no longer fits: raise: …` | A command no longer fits the scene. Each problem is listed by commandId. |
 | `Scene changed since these commands were calculated. Regenerate and propose again.` | A command no longer fits the scene after a rebase. |
 
 ## Related

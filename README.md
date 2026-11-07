@@ -17,6 +17,6 @@ pnpm install
 pnpm tauri dev
 ```
 
-Use `pnpm dev` for the frontend alone and `pnpm dev:backend` for the backend. The backend listens on `127.0.0.1:3000` by default; set `PORT` to choose another port. Run `pnpm build` to build both apps, or use `pnpm build:desktop` and `pnpm build:backend` individually. Package the desktop app with `pnpm tauri build`.
+Use `pnpm dev` for the frontend alone and `pnpm dev:backend` for the backend. The backend always listens on `127.0.0.1:3001`, the only address the desktop app and its content security policy connect to; it refuses to start on any other host or port. The automatic connection between the desktop app and the backend, and stored provider credentials, use Windows DPAPI, so both need Windows. Run `pnpm build` to build both apps, or use `pnpm build:desktop` and `pnpm build:backend` individually. Package the desktop app with `pnpm tauri build`.
 
 Add shadcn components from `apps/desktop` with `pnpm dlx shadcn@latest add button`.

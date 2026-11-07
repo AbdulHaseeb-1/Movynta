@@ -1,3 +1,4 @@
+import { emptyRunProgress } from "../../agent-runs/run-progress.js";
 import { jest } from "@jest/globals";
 import { z } from "zod";
 import { editorCommandListSchema, validateAgainstContext, type EditorContext } from "@movynta/editor-protocol";
@@ -6,7 +7,7 @@ import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import type { EditorToolDependencies } from "./editor.types.js";
 import { createDuplicationTool } from "./duplication.tools.js";
 
-const context = { userId: "u", projectId: "p", clientId: "c" } as AgentRunContext;
+const context = { userId: "u", projectId: "p", clientId: "c", progress: emptyRunProgress() } as AgentRunContext;
 function setup() {
   const scene: EditorContext = { projectId: "p", revision: 4, activeSceneName: "Scene", selectedObjectIds: [], supportsRepetition: true,
     objects: ["root", "child"].map((id) => ({ id, name: id, type: "empty", parentId: id === "child" ? "root" : null,

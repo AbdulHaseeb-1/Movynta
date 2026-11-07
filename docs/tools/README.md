@@ -8,15 +8,17 @@ The backend test `apps/backend/src/modules/tools/tool-docs.spec.ts` runs the too
 
 ## Rules
 
-1. Only editor.apply_proposal changes the scene. Every other tool reads, calculates, plans or stores.
+1. Only applying a proposal changes the scene: editor.apply_proposal, or editor.propose_commands and modeling.propose_generated with apply true, which run the same apply step in the same call. Every other tool reads, calculates, plans or stores.
 2. A calculated batch is strict. Pass expectedRevision; if the scene changes first, the proposal fails and must be made again rather than moved onto the new scene.
 3. A failed tool returns { "error": "...", "details": ... } to the model, so it can correct the call. The run keeps going.
+4. Arguments that do not match a tool's schema come back as { "error", "issues" }: each issue has a path such as commands[1] (commandId "lid").transform.scale and what is wrong there, and an unknown command type lists the closest valid ones.
+5. editor.plan_placement, editor.plan_duplicates and modeling.generate_commands return a planId. editor.propose_commands accepts it in place of commands, so generated commands and ids are never copied by hand.
 
 ## Tool types
 
 | Type | What it does | Tools |
 | --- | --- | --- |
-| **Read** | These tools look at the scene or calculate a result. Nothing changes. | [`editor.get_context`](editor.get_context.md), [`editor.get_scene_summary`](editor.get_scene_summary.md), [`editor.inspect_mesh`](editor.inspect_mesh.md), [`editor.inspect_materials`](editor.inspect_materials.md), [`viewport.capture`](viewport.capture.md), [`validation.check_scene`](validation.check_scene.md), [`editor.measure`](editor.measure.md), [`editor.plan_placement`](editor.plan_placement.md), [`editor.plan_duplicates`](editor.plan_duplicates.md), [`modeling.generate_commands`](modeling.generate_commands.md), [`validation.check_brief`](validation.check_brief.md) |
+| **Read** | These tools look at the scene or calculate a result. Nothing changes. | [`editor.get_context`](editor.get_context.md), [`editor.get_scene_summary`](editor.get_scene_summary.md), [`editor.describe_commands`](editor.describe_commands.md), [`editor.inspect_mesh`](editor.inspect_mesh.md), [`editor.inspect_materials`](editor.inspect_materials.md), [`viewport.capture`](viewport.capture.md), [`validation.check_scene`](validation.check_scene.md), [`editor.measure`](editor.measure.md), [`editor.plan_placement`](editor.plan_placement.md), [`editor.plan_duplicates`](editor.plan_duplicates.md), [`modeling.generate_commands`](modeling.generate_commands.md), [`validation.check_brief`](validation.check_brief.md) |
 | **Plan** | Records intent and the steps for a task. It changes nothing. | [`modeling.generate_model_plan`](modeling.generate_model_plan.md), [`modeling.assess_quality`](modeling.assess_quality.md), [`modeling.record_brief`](modeling.record_brief.md) |
 | **Propose** | Stores a batch of changes for review. The scene is still unchanged. | [`editor.propose_commands`](editor.propose_commands.md), [`modeling.propose_generated`](modeling.propose_generated.md) |
 | **Apply** | Changes the scene by applying a stored proposal. | [`editor.apply_proposal`](editor.apply_proposal.md) |
@@ -52,6 +54,7 @@ Every example uses this scene, at revision 12, with `crate` selected.
 
 - [`editor.get_context`](editor.get_context.md): Reads the whole scene: every object with its parent and transform, the selection, the revision, and which features the editor supports.
 - [`editor.get_scene_summary`](editor.get_scene_summary.md): Counts the objects by type and reports what is selected. A quick orientation before a larger read.
+- [`editor.describe_commands`](editor.describe_commands.md): Returns the full rules of the editor commands asked for: fields, limits, batching and what each refuses. editor.propose_commands lists every command in one line, so the details are read only when needed.
 - [`editor.inspect_mesh`](editor.inspect_mesh.md): Reads the topology of one mesh: vertices, edges and faces, the faces that match a direction or position query, and its bounds.
 - [`editor.inspect_materials`](editor.inspect_materials.md): Reads the material slots of one object: name, shader, colour, roughness, metalness, opacity, sidedness and texture channels, without reading topology.
 - [`viewport.capture`](viewport.capture.md): Lets the assistant look at the scene. The editor draws it from one to six views and returns the pictures, with where each object sits in each one.
@@ -70,12 +73,12 @@ Every example uses this scene, at revision 12, with `crate` selected.
 
 ### Propose
 
-- [`editor.propose_commands`](editor.propose_commands.md): Stores a batch of scene commands for review. The batch is checked against the scene and kept waiting. Nothing changes until editor.apply_proposal runs.
+- [`editor.propose_commands`](editor.propose_commands.md): Checks a batch of scene commands against the scene and stores it. With apply true it also applies the batch in the same call, the usual way to make a change; without it the batch waits for editor.apply_proposal.
 - [`modeling.propose_generated`](modeling.propose_generated.md): Runs the same sandbox program as modeling.generate_commands, then stores the result as a proposal. The commands are not echoed back to the model.
 
 ### Apply
 
-- [`editor.apply_proposal`](editor.apply_proposal.md): Applies a stored proposal to the editor. It is the only assistant tool that changes the scene. The commands join the project history, so the user can undo them.
+- [`editor.apply_proposal`](editor.apply_proposal.md): Applies a stored proposal to the editor. editor.propose_commands and modeling.propose_generated with apply true run this same step in one call. The commands join the project history, so the user can undo them.
 
 ### Skill
 

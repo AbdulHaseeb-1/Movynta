@@ -22,10 +22,12 @@ const groups: readonly ControlGroup[] = [
     controls: [
       { action: "Orbit", keys: "Drag", detail: "Drag the viewport in Object mode, right-drag in Edit mode, or drag the orientation gizmo to rotate the view." },
       { action: "Pan", keys: "H / Space + drag", detail: "Choose the Hand tool with H, or hold Space and drag temporarily." },
-      { action: "Zoom", keys: "Scroll / = / + / −", detail: "Scroll or use =, + and − to move the camera closer or farther away." },
+      { action: "Zoom", keys: "Scroll / = / + / −", detail: "Scroll or use =, + and − to move the camera closer or farther away. These navigation keys work in Object and Edit mode." },
       { action: "Reset view", keys: "0", detail: "Return the camera to its starting view." },
       { action: "Front / right / top view", keys: "Numpad 1 / 3 / 7", detail: "Look at the same point from the front, right or top. Hold Ctrl for the back, left or bottom. Click the orientation gizmo axes for these six views; the View from menu also offers an isometric view." },
       { action: "Frame selected / all", keys: ". / Home", detail: "Move the camera to show the selected objects, or everything when nothing is selected. Home always frames the whole scene." },
+      { action: "Wireframe on / off", keys: "Shift+Z", detail: "Switch to Wireframe shading, or back to the shading used before it. The shading buttons next to Import choose Material, Solid or Wireframe directly." },
+      { action: "X-ray", keys: "Alt+Z", detail: "See through surfaces in Solid or Wireframe; in the material view it switches to Solid. While it is on, Edit-mode selection also reaches hidden components. The grid button beside it shows or hides the floor grid." },
       { action: "Measurements", keys: "Ruler button · Esc / right-click to cancel", detail: "Choose Distance or Angle and pick viewport points with a live preview. Snap controls select Surface, Vertex or Grid; hold Shift for a triangle vertex or Alt for the unit ground grid. Inspect selected dimensions in World/Local axes, read an Edit-mode edge, or measure gaps between two objects. Save named annotations and use the eye to hide them. Scene scale controls calibration. If loading fails or another session changes measurements, reload and review the latest settings before saving again." },
     ],
   },
@@ -57,7 +59,7 @@ const groups: readonly ControlGroup[] = [
     controls: [
       { action: "Change mode", keys: "E / O · mode menu", detail: "E enters Edit mode from Object mode; O returns to Object mode. E in Edit mode starts extrusion." },
       { action: "Component selection", keys: "Click / Shift + click", detail: "Choose vertex, edge or face selection in the toolbar. Shift-click adds or removes components." },
-      { action: "Box select components", keys: "B, then drag", detail: "Drag, or press B and drag, to select visible component centers. Wireframe X-ray includes hidden components. Hold Shift to add, Alt to subtract, or Shift+Alt to intersect. Esc cancels the rectangle." },
+      { action: "Box select components", keys: "B, then drag", detail: "Drag, or press B and drag, to select visible component centers. X-ray (Alt+Z) includes hidden components. Hold Shift to add, Alt to subtract, or Shift+Alt to intersect. Esc cancels the rectangle." },
       { action: "Select all / clear components", keys: "A / Alt + A / Esc", detail: "Select all components in the active mesh part, or clear the selection when no edit preview is active. Use the selection menu to grow, shrink, or select connected components." },
       { action: "Move / rotate / scale components", keys: "G / R / S", detail: "Transform selected vertices, edges or faces around the middle of the selection. Use X, Y or Z to constrain an axis." },
       { action: "Extrude region", keys: "E", detail: "Extrude selected vertices, edges or faces. Selected faces start along their average normal when available." },

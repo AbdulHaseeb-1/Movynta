@@ -31,10 +31,10 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Viewport } from "./viewport";
-import { presetForKey, VIEW_PRESETS } from "./viewPresets";
+import { VIEW_PRESETS } from "./viewPresets";
+import { ZOOM_STEP } from "./useViewportShortcuts";
+import { isTypingTarget } from "./viewportShortcuts";
 import { setViewportTool, type ViewportTool } from "./viewportSlice";
-
-const ZOOM_STEP = 1.35;
 
 const SHORTCUTS: Readonly<Record<string, ViewportTool>> = {
   v: "select",
@@ -115,7 +115,8 @@ interface ViewportToolbarProps {
 
 /**
  * Floating bar for working in the 3D space: choosing and transforming objects (Select, Move, Rotate,
- * Scale), moving around (Pan, zoom, reset). The shortcuts follow Blender: G, R and S.
+ * Scale), moving around (Pan, zoom, reset). The shortcuts follow Blender: G, R and S. The keys for
+ * zoom, views and framing belong to {@link useViewportShortcuts}, so they also work without this bar.
  */
 export function ViewportToolbar({
   viewport,
@@ -140,41 +141,13 @@ export function ViewportToolbar({
   }, [viewport, tool]);
 
   useEffect(() => {
+    // Moving around and shading have keys of their own, in useViewportShortcuts, that work in every mode.
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target;
-      const typing = target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
-      // Numpad 1, 3 and 7 look from the front, right and top; with Ctrl, from the back, left and bottom.
-      const preset = event.defaultPrevented || event.repeat || typing || event.altKey || event.metaKey ? undefined : presetForKey(event.code, event.ctrlKey);
-      if (preset) {
-        event.preventDefault();
-        viewport?.setView(preset);
-        return;
-      }
-      if (
-        event.defaultPrevented ||
-        event.repeat ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey ||
-        (target instanceof HTMLElement &&
-          (target.isContentEditable ||
-            ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)))
-      )
-        return;
+      if (event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target)) return;
       const key = event.key.toLowerCase();
       const next = SHORTCUTS[key];
       if (next) {
         dispatch(setViewportTool(next));
-      } else if (key === "=" || event.key === "+") {
-        viewport?.zoomBy(ZOOM_STEP);
-      } else if (key === "-" || key === "_") {
-        viewport?.zoomBy(1 / ZOOM_STEP);
-      } else if (key === "0") {
-        viewport?.resetView();
-      } else if (key === "." && onFrame) {
-        onFrame("selection");
-      } else if (event.key === "Home" && onFrame) {
-        onFrame("all");
       } else if ((event.key === "Delete" || key === "x") && hasSelection) {
         event.preventDefault();
         if (!disabled) onDelete();
@@ -182,7 +155,7 @@ export function ViewportToolbar({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, viewport, hasSelection, disabled, onDelete, onFrame]);
+  }, [dispatch, hasSelection, disabled, onDelete]);
 
   return (
     <TooltipProvider delayDuration={200}>

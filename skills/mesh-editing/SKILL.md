@@ -50,7 +50,7 @@ error_handling:
 1. Call `editor.get_context` and confirm every target object exists.
 2. Describe the change in plain language, then build the smallest set of commands that achieves it.
 3. Use `scene.transform_object` to set position, rotation, or scale, and `scene.move_object` to move an object by a distance from where it is now. Use `geometry.create_primitive` with `replaceExisting` only when the user asked to replace geometry.
-4. Submit with `editor.propose_commands` and apply with `editor.apply_proposal`.
+4. Submit with `editor.propose_commands` and `apply: true`; for batches from `editor.plan_placement`, `editor.plan_duplicates` or `modeling.generate_commands`, pass their `planId` instead of the commands. To preview a geometry candidate first, leave `apply` out, capture it, then call `editor.apply_proposal`.
 5. Validate with `validation.check_scene` and summarise what changed.
 
 For repeated layouts or mathematical placement, calculate command arrays with `modeling.generate_commands` using synchronous JavaScript and the supplied `scene` snapshot. Submit the returned commands with `expectedRevision` equal to `sourceRevision`. If the scene changes, recalculate before proposing again. Programs can return a bounded `geometry.create_mesh` command with vertices and indexed polygon faces. Appearance changes use separate material proposals after inspection.

@@ -52,7 +52,10 @@ export class CommandProposalService {
     }
     const context = await this.bridge.getContext(run.clientId);
     if (input.expectedRevision !== undefined && input.expectedRevision !== context.revision) {
-      throw new ConflictError("Scene changed since these commands were calculated. Read the scene and regenerate the commands.");
+      throw new ConflictError(
+        `Scene changed since these commands were calculated: they were written for revision ${input.expectedRevision}, and the scene is at revision ${context.revision}. Read the scene and regenerate the commands.`,
+        { expectedRevision: input.expectedRevision, currentRevision: context.revision },
+      );
     }
     const issues = validateAgainstContext(commands, context);
     if (issues.length > 0) {
@@ -135,7 +138,12 @@ export class CommandProposalService {
     const rebased = context.revision !== proposal.baseRevision;
     const issues = validateAgainstContext(proposal.commands, context);
     if ((rebased && proposal.strictRevision) || issues.length > 0) {
-      const result = failedOutcome(proposal.id, "Scene changed; regenerate and propose again", context.revision);
+      // Say why, as the other apply path does, so the next proposal can fix the right thing.
+      const reasons = issues.slice(0, 8).map((item) => `${item.commandId}: ${item.message}`).join("; ");
+      const message = issues.length > 0
+        ? `The scene changed after this proposal was made (revision ${proposal.baseRevision} → ${context.revision}), and it no longer fits: ${reasons}. Propose again.`
+        : `The scene changed after this proposal was made (revision ${proposal.baseRevision} → ${context.revision}), and these commands only apply to the revision they were written for. Read the scene and propose again.`;
+      const result = failedOutcome(proposal.id, message.slice(0, 500), context.revision);
       this.repository.transition(proposal.id, ["applying"], "failed", new Date().toISOString(), result);
       return result;
     }

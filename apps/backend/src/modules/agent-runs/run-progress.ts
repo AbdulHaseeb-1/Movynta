@@ -14,6 +14,22 @@ const proposalRecordSchema = z.object({
   stepId: z.string().optional(),
 });
 
+/** How many planned batches a run keeps; an older one is dropped and has to be planned again. */
+export const MAX_PLANNED_BATCHES = 10;
+
+/**
+ * Commands a planning tool worked out and validated, kept so editor.propose_commands can take them by `planId`
+ * instead of the model copying every command, and every generated id, back into its next call.
+ */
+const plannedBatchSchema = z.object({
+  id: z.string(),
+  /** The tool that planned it, for the model to recognise it by. */
+  tool: z.string(),
+  sourceRevision: z.number().int().nonnegative(),
+  commands: z.array(z.unknown()).min(1).max(200),
+});
+export type PlannedBatch = z.infer<typeof plannedBatchSchema>;
+
 /** One thing the independent reviewer found wrong or right, with what to change. */
 const reviewFindingSchema = z.object({
   aspect: z.string().max(80),
@@ -91,6 +107,10 @@ export const runProgressSchema = z.object({
   quality: qualityReviewSchema.default(() => qualityReviewSchema.parse({})),
   /** The measurable acceptance checks; older paused runs have none. */
   brief: briefStateSchema.default(() => briefStateSchema.parse({})),
+  /** Batches planned by tools and not yet proposed, newest last; older paused runs have none. */
+  plannedBatches: z.array(plannedBatchSchema).max(MAX_PLANNED_BATCHES).default([]),
+  /** The number the next planned batch takes, so planIds are never reused within a run. */
+  nextPlannedBatch: z.number().int().positive().default(1),
 });
 
 export type RunProgress = z.infer<typeof runProgressSchema>;
@@ -98,7 +118,20 @@ export type ProposalRecord = RunProgress["proposals"][number];
 
 /** Returns the state where nothing has been planned, proposed or changed. */
 export function emptyRunProgress(): RunProgress {
-  return { plans: [], proposals: [], unverifiedChanges: false, sceneErrors: 0, quality: qualityReviewSchema.parse({}), brief: briefStateSchema.parse({}) };
+  return { plans: [], proposals: [], unverifiedChanges: false, sceneErrors: 0, quality: qualityReviewSchema.parse({}), brief: briefStateSchema.parse({}), plannedBatches: [], nextPlannedBatch: 1 };
+}
+
+/** Keeps a validated batch for a later editor.propose_commands call and returns the planId to name it by. */
+export function rememberPlannedBatch(progress: RunProgress, batch: Omit<PlannedBatch, "id">): string {
+  const id = `batch_${progress.nextPlannedBatch}`;
+  progress.nextPlannedBatch += 1;
+  progress.plannedBatches = [...progress.plannedBatches, { id, ...batch }].slice(-MAX_PLANNED_BATCHES);
+  return id;
+}
+
+/** The planned batch named `planId`, or undefined when it was never planned or has been dropped. */
+export function findPlannedBatch(progress: RunProgress, planId: string): PlannedBatch | undefined {
+  return progress.plannedBatches.find((batch) => batch.id === planId);
 }
 
 /** Condenses a measurement into what the run remembers: counts and one line for each check that did not pass. */
@@ -153,7 +186,11 @@ export function openWorkReasons(progress: RunProgress, statusOf: ProposalStatusL
     }
   }
 
-  const waiting = progress.proposals.filter((proposal) => statusOf(proposal.id) === "proposed").length;
+  // A batch whose apply started and never finished (the editor dropped out) is as unfinished as one never applied.
+  const waiting = progress.proposals.filter((proposal) => {
+    const status = statusOf(proposal.id);
+    return status === "proposed" || status === "applying";
+  }).length;
   if (waiting > 0) {
     reasons.push(`${waiting} proposed batch${waiting === 1 ? " is" : "es are"} not applied`);
   }

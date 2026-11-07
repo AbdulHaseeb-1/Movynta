@@ -1,6 +1,6 @@
 # `editor.propose_commands`
 
-> Stores a batch of scene commands for review. The batch is checked against the scene and kept waiting. Nothing changes until editor.apply_proposal runs.
+> Checks a batch of scene commands against the scene and stores it. With apply true it also applies the batch in the same call, the usual way to make a change; without it the batch waits for editor.apply_proposal.
 
 | | |
 | --- | --- |
@@ -14,7 +14,8 @@
 
 ## When the assistant uses it
 
-- For every change to the scene: read, calculate, propose, apply.
+- For every change to the scene: read, calculate, then propose with apply true.
+- Without apply, when the proposal should be looked at with viewport.capture before it is applied.
 - To replace a waiting proposal when the request changes, by sending supersedes.
 
 ## Input
@@ -22,10 +23,12 @@
 | Name | Type | Required | Default | Meaning |
 | --- | --- | --- | --- | --- |
 | `summary` | string 1–300 | Yes | – | What the batch does, in words the user will read. |
-| `commands` | 1–200 commands | Yes | – | Run in order. A later command may use an object an earlier one created. |
+| `commands` | 1–200 commands | No | – | Run in order. A later command may use an object an earlier one created. Give commands or planId, not both. |
+| `planId` | identifier | No | – | A batch planned by editor.plan_placement, editor.plan_duplicates or modeling.generate_commands in this run. Uses its commands, and its sourceRevision as expectedRevision. |
 | `expectedRevision` | integer ≥ 0 | No | – | The revision the batch was written for. Makes the proposal strict. |
 | `supersedes` | identifier | No | – | A waiting proposal from this run that this one replaces. |
 | `stepId` | identifier | No | – | A step of the latest plan that this batch carries out. |
+| `apply` | boolean | No | – | true applies the batch in this call, with the same checks as editor.apply_proposal. Leave it out to preview first with viewport.capture. |
 
 ## Common commands
 
@@ -49,6 +52,7 @@
 | `requiresApproval` | Always false for assistant proposals. |
 | `commandCount, baseRevision` | How many commands, and the revision they were checked on. |
 | `nextAction` | The next call to make. |
+| `with apply true: status, revision, results, message, rebased` | The apply outcome, as editor.apply_proposal returns it. applyError, with the proposalId, when the editor could not be reached; retry with editor.apply_proposal. |
 
 ## Example
 
@@ -124,9 +128,13 @@ flowchart LR
 | --- | --- |
 | `stepId does not match a step of the latest plan. Record a plan first, or leave stepId out.` | The result is rejected and lists availableStepIds. Nothing is stored. |
 | `Proposal conflicts with the current scene` | A command does not fit the scene. The error lists each commandId and what to fix. |
+| `Scene changed since these commands were calculated: they were written for revision 12, and the scene is at revision 13.` | expectedRevision is older than the scene. details gives both revisions. |
+| `No planned batch has this planId in this run` | The result is rejected and lists availablePlanIds. Plan the batch again. |
+| `The arguments do not match this tool's schema` | A command has the wrong shape. issues gives each path, such as commands[0] (commandId "raise").delta, and what is wrong there. |
 
 ## Related
 
 - [`editor.apply_proposal`](editor.apply_proposal.md)
+- [`editor.describe_commands`](editor.describe_commands.md)
 - [`modeling.propose_generated`](modeling.propose_generated.md)
 - [`viewport.capture`](viewport.capture.md)

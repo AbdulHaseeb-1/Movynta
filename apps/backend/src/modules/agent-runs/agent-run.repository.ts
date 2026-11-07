@@ -176,6 +176,14 @@ export class AgentRunRepository {
     return row ? optionalTextColumn(row, "run_state") : undefined;
   }
 
+  /** Runs of one project that are paused until their approvals are decided. */
+  listWaitingForApproval(projectId: string): AgentRunRecord[] {
+    return this.database.db
+      .prepare("SELECT * FROM agent_runs WHERE project_id = ? AND status = 'waiting_approval'")
+      .all(projectId)
+      .map(toRecord);
+  }
+
   listRunningOrWaiting(): AgentRunRecord[] {
     return this.database.db
       .prepare(

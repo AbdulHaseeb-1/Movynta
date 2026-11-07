@@ -1,9 +1,11 @@
 {
   "intro": "Every tool the modeling assistant can call, with what it needs, what it returns, a worked example and a visual drawn from that example. The examples are checked against the code by the backend test suite, so they stay accurate as the tools change.",
   "rules": [
-    "Only editor.apply_proposal changes the scene. Every other tool reads, calculates, plans or stores.",
+    "Only applying a proposal changes the scene: editor.apply_proposal, or editor.propose_commands and modeling.propose_generated with apply true, which run the same apply step in the same call. Every other tool reads, calculates, plans or stores.",
     "A calculated batch is strict. Pass expectedRevision; if the scene changes first, the proposal fails and must be made again rather than moved onto the new scene.",
-    "A failed tool returns { \"error\": \"...\", \"details\": ... } to the model, so it can correct the call. The run keeps going."
+    "A failed tool returns { \"error\": \"...\", \"details\": ... } to the model, so it can correct the call. The run keeps going.",
+    "Arguments that do not match a tool's schema come back as { \"error\", \"issues\" }: each issue has a path such as commands[1] (commandId \"lid\").transform.scale and what is wrong there, and an unknown command type lists the closest valid ones.",
+    "editor.plan_placement, editor.plan_duplicates and modeling.generate_commands return a planId. editor.propose_commands accepts it in place of commands, so generated commands and ids are never copied by hand."
   ],
   "conventions": [
     { "term": "Identifiers", "meaning": "Match [A-Za-z0-9_-]{1,64}. Object and collection ids are separate." },
@@ -80,6 +82,29 @@
       "tips": ["It reports counts and selection only. For parents, transforms or names, use editor.get_context."],
       "limits": ["No positions, names or parents in the result."],
       "related": ["editor.get_context"]
+    },
+    {
+      "name": "editor.describe_commands", "type": "read", "group": "Inspect",
+      "provider": "editor__describe_commands", "permission": "read", "approval": "Never", "needsEditor": false, "verify": "code",
+      "source": "apps/backend/src/modules/tools/editor/command-reference.ts", "doc": "editor.describe_commands.md",
+      "summary": "Returns the full rules of the editor commands asked for: fields, limits, batching and what each refuses. editor.propose_commands lists every command in one line, so the details are read only when needed.",
+      "when": ["Before the first geometry or material command of a kind in a run.", "When a proposal was refused and the issue does not make the fix clear."],
+      "input": { "rows": [
+        { "name": "types", "type": "1–12 command types", "required": true, "meaning": "Command types such as geometry.bisect. Repeats are answered once." }
+      ] },
+      "result": { "rows": [
+        { "field": "commands[]", "meaning": "For each known type: type, summary (the line editor.propose_commands shows) and rules." },
+        { "field": "unknown[]", "meaning": "Types that are not commands, each with the three closest valid types." }
+      ] },
+      "request": {"types": ["geometry.flip_normals", "geometry.flip_faces"]},
+      "response": {"commands": [{"type": "geometry.flip_normals", "summary": "Reverses whole connected surfaces: omit ids for all, or list base faces and each surface containing one flips.", "rules": "IDs are unchanged, so it can share a component-edit batch."}], "unknown": [{"type": "geometry.flip_faces", "closest": ["geometry.flip_normals", "geometry.inset_faces", "geometry.slide_edges"]}]},
+      "visual": { "kind": "lists", "caption": "One known command and one misspelled type.", "groups": [
+        { "title": "Described", "items": ["geometry.flip_normals"], "tone": "ok" },
+        { "title": "Unknown, with suggestions", "items": ["geometry.flip_faces → geometry.flip_normals"], "tone": "warn" }
+      ] },
+      "tips": ["Ask for every type a batch will use in one call.", "The command list in editor.propose_commands and these rules come from the same table, so they always agree."],
+      "limits": ["Reads nothing from the scene; use editor.inspect_mesh or editor.get_context for ids and revisions.", "At most 12 types per call."],
+      "related": ["editor.propose_commands", "editor.inspect_mesh"]
     },
     {
       "name": "editor.inspect_mesh", "type": "read", "group": "Inspect",
@@ -342,16 +367,18 @@
         { "field": "sourceRevision", "meaning": "Propose the commands with this as expectedRevision." },
         { "field": "commands", "meaning": "scene.move_object commands, each with a delta in the parent's axes. Empty when nothing needs to move." },
         { "field": "status", "meaning": "planned, or already_placed." },
-        { "field": "nextAction", "meaning": "The next step: propose, apply, then measure again." }
+        { "field": "planId", "meaning": "Pass it to editor.propose_commands instead of the commands. Left out when nothing needs to move." },
+        { "field": "nextAction", "meaning": "The next step: propose by planId with apply true, then measure again." }
       ] },
       "request": { "request": { "kind": "align", "objectIds": ["crate"], "referenceId": "torso", "axes": ["y"], "sourceAnchor": "min", "referenceAnchor": "min" } },
       "response": {
         "sourceRevision": 12,
+        "planId": "batch_1",
         "commands": [{ "commandId": "placement_0", "type": "scene.move_object", "objectId": "crate", "delta": [0, 0.25, 0] }],
         "status": "planned",
-        "nextAction": "Propose commands with expectedRevision: sourceRevision, then apply. Re-measure the result."
+        "nextAction": "Call editor.propose_commands with this planId and apply true, then re-measure the result."
       },
-      "flow": ["Read the bounds at sourceRevision", "Work out the wanted position for each object", "Convert it to each parent's axes", "Propose with expectedRevision, apply, then measure"],
+      "flow": ["Read the bounds at sourceRevision", "Work out the wanted position for each object", "Convert it to each parent's axes", "Propose by planId with apply true, then measure"],
       "visual": { "kind": "side-view", "caption": "Side view: x across, y up. The crate rises 0.25 so its bottom matches the torso's.", "ground": 0,
         "boxes": [
           { "label": "Torso", "x0": -0.5, "x1": 0.5, "y0": 0.25, "y1": 1.75, "tone": "solid" },
@@ -384,11 +411,13 @@
       "result": { "rows": [
         { "field": "sourceRevision", "meaning": "Propose with this as expectedRevision." },
         { "field": "commands", "meaning": "One scene.duplicate_hierarchy command with a new objectId for each root and each registered descendant." },
+        { "field": "planId", "meaning": "Pass it to editor.propose_commands instead of the commands, so the generated ids are not copied by hand." },
         { "field": "nextAction", "meaning": "The next step." }
       ] },
       "request": { "sourceId": "figure", "copies": 2, "offset": [2.5, 0, 0], "space": "world", "name": "Figure copy" },
       "response": {
         "sourceRevision": 12,
+        "planId": "batch_1",
         "commands": [{
           "commandId": "duplicate", "type": "scene.duplicate_hierarchy", "sourceId": "figure", "offset": [2.5, 0, 0], "space": "world",
           "copies": [
@@ -404,9 +433,9 @@
             ] }
           ]
         }],
-        "nextAction": "Propose these commands with expectedRevision: sourceRevision, then apply and inspect the copies."
+        "nextAction": "Call editor.propose_commands with this planId and apply true (no need to copy the generated ids), then inspect the copies."
       },
-      "flow": ["Read the hierarchy at the current revision", "Generate fresh ids for each copy root and descendant", "Propose one scene.duplicate_hierarchy command", "Apply it, then inspect a copy"],
+      "flow": ["Read the hierarchy at the current revision", "Generate fresh ids for each copy root and descendant", "Propose it by planId with apply true", "Inspect a copy"],
       "visual": { "kind": "top-view", "caption": "Top view. Copy n moves by [2.5, 0, 0] × n in world space.", "boxes": [
         { "label": "Figure", "x0": -1.05, "x1": 1.05, "z0": -0.3, "z1": 0.3, "tone": "solid" },
         { "label": "copy 1", "x0": 1.45, "x1": 3.55, "z0": -0.3, "z1": 0.3, "tone": "ghost" },
@@ -416,8 +445,8 @@
       "limits": ["The scene may hold 2000 objects, copies included. Geometry is budgeted at 128 MiB.", "A skinned hierarchy must include all of its bones, or the copy is rejected."],
       "errors": [
         { "message": "Update the editor for hierarchy duplication", "cause": "The connected editor does not report supportsRepetition." },
-        { "message": "Source object does not exist", "cause": "sourceId is not in the scene." },
-        { "message": "Copies exceed the 2000-object scene limit", "cause": "The copies would take the scene past 2000 objects." }
+        { "message": "Source object \"…\" does not exist; use an id from editor.get_context", "cause": "sourceId is not in the scene." },
+        { "message": "Copies exceed the 2000-object scene limit; make fewer copies", "cause": "The copies would take the scene past 2000 objects." }
       ],
       "related": ["editor.propose_commands", "editor.plan_placement", "modeling.generate_commands"]
     },
@@ -444,12 +473,12 @@
         ] }
       ],
       "result": { "rows": [
-        { "field": "status: generated", "meaning": "sourceRevision and commands, parsed by the strict command schema (defaults such as replaceExisting: false are filled in)." },
+        { "field": "status: generated", "meaning": "sourceRevision, planId and commands, parsed by the strict command schema (defaults such as replaceExisting: false are filled in). Propose them by planId." },
         { "field": "status: rejected", "meaning": "sourceRevision and issues (each with a commandId), or a message when the program failed." }
       ] },
       "request": { "source": "const posts = [];\nfor (let i = 0; i < 5; i += 1) {\n  posts.push({\n    commandId: \"post_\" + i,\n    type: \"geometry.create_primitive\",\n    objectId: \"post_\" + i,\n    primitive: \"box\",\n    size: 1,\n    name: \"Post\",\n    transform: { position: [i * 1.5, 0.5, -3] },\n  });\n}\nreturn posts;" },
       "response": {
-        "status": "generated", "sourceRevision": 12,
+        "status": "generated", "sourceRevision": 12, "planId": "batch_1",
         "commands": [
           { "commandId": "post_0", "type": "geometry.create_primitive", "objectId": "post_0", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [0, 0.5, -3] } },
           { "commandId": "post_1", "type": "geometry.create_primitive", "objectId": "post_1", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [1.5, 0.5, -3] } },
@@ -458,7 +487,7 @@
           { "commandId": "post_4", "type": "geometry.create_primitive", "objectId": "post_4", "primitive": "box", "size": 1, "replaceExisting": false, "name": "Post", "transform": { "position": [6, 0.5, -3] } }
         ]
       },
-      "flow": ["The assistant writes a function body", "The sandbox runs it against a scene snapshot", "Commands are parsed and checked against the scene", "The commands go to editor.propose_commands with expectedRevision: sourceRevision"],
+      "flow": ["The assistant writes a function body", "The sandbox runs it against a scene snapshot", "Commands are parsed and checked against the scene", "editor.propose_commands takes them by planId"],
       "visual": { "kind": "top-view", "caption": "Top view of the five create_primitive commands. Each box is 1 unit wide.", "boxes": [
         { "label": "Post", "x0": -0.5, "x1": 0.5, "z0": -3.5, "z1": -2.5, "tone": "new" },
         { "label": "Post", "x0": 1, "x1": 2, "z0": -3.5, "z1": -2.5, "tone": "new" },
@@ -467,9 +496,12 @@
         { "label": "Post", "x0": 5.5, "x1": 6.5, "z0": -3.5, "z1": -2.5, "tone": "new" }
       ] },
       "tips": ["Use a program when the layout has arithmetic or repetition. Use direct commands for one or two edits.", "Use geometry.create_mesh for custom shapes: 3–4096 vertices, 1–4096 faces, and no more than 20,000 triangles."],
-      "limits": ["Nothing is proposed or applied. Pass the commands to editor.propose_commands with expectedRevision set to sourceRevision.", "Material and texture commands cannot be generated. They need a separate proposal after editor.inspect_materials."],
+      "limits": ["Nothing is proposed or applied. Pass the planId to editor.propose_commands, which carries sourceRevision as expectedRevision.", "Material and texture commands cannot be generated. They need a separate proposal after editor.inspect_materials."],
       "errors": [
-        { "message": "Tool input did not match its schema", "cause": "The source is empty or longer than 16,000 characters, or the inspection request is invalid." }
+        { "message": "The arguments do not match this tool's schema", "cause": "The source is empty or longer than 16,000 characters, or the inspection request is invalid. issues names each field." },
+        { "message": "TypeError: … (line 2 of your source)", "cause": "status rejected: the program threw. The message is the program's own error and the line in the submitted source." },
+        { "message": "The returned commands do not match the command schema: commands[1] (commandId \"…\").transform.scale: …", "cause": "status rejected: the program returned a command of the wrong shape, named by position and commandId." },
+        { "message": "Scene program stopped: it ran past 250ms, ran out of memory, or has a syntax error", "cause": "status rejected: the sandbox stopped the program." }
       ],
       "related": ["modeling.propose_generated", "editor.plan_duplicates", "editor.inspect_mesh"]
     },
@@ -524,14 +556,16 @@
       "name": "editor.propose_commands", "type": "propose", "group": "",
       "provider": "editor__propose_commands", "permission": "propose", "approval": "Never", "needsEditor": true, "verify": "code",
       "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.propose_commands.md",
-      "summary": "Stores a batch of scene commands for review. The batch is checked against the scene and kept waiting. Nothing changes until editor.apply_proposal runs.",
-      "when": ["For every change to the scene: read, calculate, propose, apply.", "To replace a waiting proposal when the request changes, by sending supersedes."],
+      "summary": "Checks a batch of scene commands against the scene and stores it. With apply true it also applies the batch in the same call, the usual way to make a change; without it the batch waits for editor.apply_proposal.",
+      "when": ["For every change to the scene: read, calculate, then propose with apply true.", "Without apply, when the proposal should be looked at with viewport.capture before it is applied.", "To replace a waiting proposal when the request changes, by sending supersedes."],
       "input": { "rows": [
         { "name": "summary", "type": "string 1–300", "required": true, "meaning": "What the batch does, in words the user will read." },
-        { "name": "commands", "type": "1–200 commands", "required": true, "meaning": "Run in order. A later command may use an object an earlier one created." },
+        { "name": "commands", "type": "1–200 commands", "required": false, "meaning": "Run in order. A later command may use an object an earlier one created. Give commands or planId, not both." },
+        { "name": "planId", "type": "identifier", "required": false, "meaning": "A batch planned by editor.plan_placement, editor.plan_duplicates or modeling.generate_commands in this run. Uses its commands, and its sourceRevision as expectedRevision." },
         { "name": "expectedRevision", "type": "integer ≥ 0", "required": false, "meaning": "The revision the batch was written for. Makes the proposal strict." },
         { "name": "supersedes", "type": "identifier", "required": false, "meaning": "A waiting proposal from this run that this one replaces." },
-        { "name": "stepId", "type": "identifier", "required": false, "meaning": "A step of the latest plan that this batch carries out." }
+        { "name": "stepId", "type": "identifier", "required": false, "meaning": "A step of the latest plan that this batch carries out." },
+        { "name": "apply", "type": "boolean", "required": false, "meaning": "true applies the batch in this call, with the same checks as editor.apply_proposal. Leave it out to preview first with viewport.capture." }
       ] },
       "details": [{ "title": "Common commands", "rows": [
         { "label": "scene.move_object", "meaning": "Move by a delta. Keeps a move the user made after the read." },
@@ -548,7 +582,8 @@
         { "field": "status", "meaning": "proposed, or rejected for a bad stepId. Later: superseded, applied, failed." },
         { "field": "requiresApproval", "meaning": "Always false for assistant proposals." },
         { "field": "commandCount, baseRevision", "meaning": "How many commands, and the revision they were checked on." },
-        { "field": "nextAction", "meaning": "The next call to make." }
+        { "field": "nextAction", "meaning": "The next call to make." },
+        { "field": "with apply true: status, revision, results, message, rebased", "meaning": "The apply outcome, as editor.apply_proposal returns it. applyError, with the proposalId, when the editor could not be reached; retry with editor.apply_proposal." }
       ] },
       "request": {
         "summary": "Raise the crate 2 units and rename it",
@@ -578,9 +613,12 @@
       "limits": ["At most 200 commands per proposal.", "Batches with geometry, material or hierarchy-copy commands are always strict.", "Collections and scene-graph features need an editor that supports them."],
       "errors": [
         { "message": "stepId does not match a step of the latest plan. Record a plan first, or leave stepId out.", "cause": "The result is rejected and lists availableStepIds. Nothing is stored." },
-        { "message": "Proposal conflicts with the current scene", "cause": "A command does not fit the scene. The error lists each commandId and what to fix." }
+        { "message": "Proposal conflicts with the current scene", "cause": "A command does not fit the scene. The error lists each commandId and what to fix." },
+        { "message": "Scene changed since these commands were calculated: they were written for revision 12, and the scene is at revision 13.", "cause": "expectedRevision is older than the scene. details gives both revisions." },
+        { "message": "No planned batch has this planId in this run", "cause": "The result is rejected and lists availablePlanIds. Plan the batch again." },
+        { "message": "The arguments do not match this tool's schema", "cause": "A command has the wrong shape. issues gives each path, such as commands[0] (commandId \"raise\").delta, and what is wrong there." }
       ],
-      "related": ["editor.apply_proposal", "modeling.propose_generated", "viewport.capture"]
+      "related": ["editor.apply_proposal", "editor.describe_commands", "modeling.propose_generated", "viewport.capture"]
     },
     {
       "name": "modeling.propose_generated", "type": "propose", "group": "",
@@ -591,10 +629,12 @@
       "input": { "rows": [
         { "name": "summary", "type": "string 1–300", "required": true, "meaning": "What the proposal does." },
         { "name": "source", "type": "string 1–16,000", "required": true, "meaning": "The function body, as for modeling.generate_commands." },
-        { "name": "inspection", "type": "mesh inspection request", "required": false, "meaning": "When given, the mesh is passed to the program. Use faceQuery with includeSamples false to target faces by id." }
+        { "name": "inspection", "type": "mesh inspection request", "required": false, "meaning": "When given, the mesh is passed to the program. Use faceQuery with includeSamples false to target faces by id." },
+        { "name": "stepId", "type": "identifier", "required": false, "meaning": "A step of the latest plan that this batch carries out." },
+        { "name": "apply", "type": "boolean", "required": false, "meaning": "true applies the proposal in this call. Leave it out to review it with viewport.capture first." }
       ] },
       "result": { "rows": [
-        { "field": "proposalId, status, commandCount, baseRevision", "meaning": "The stored proposal, proposed, with its size and the revision it was checked on." },
+        { "field": "proposalId, status, commandCount, baseRevision", "meaning": "The stored proposal, proposed, with its size and the revision it was checked on. With apply true, also the apply outcome: status, revision, results, message, rebased." },
         { "field": "status: rejected", "meaning": "A message when the program failed, or issues (each with a commandId) when a command does not fit." }
       ] },
       "request": {
@@ -619,7 +659,7 @@
       "name": "editor.apply_proposal", "type": "apply", "group": "",
       "provider": "editor__apply_proposal", "permission": "apply", "approval": "Never. Assistant proposals apply automatically.", "needsEditor": true, "verify": "live",
       "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.apply_proposal.md",
-      "summary": "Applies a stored proposal to the editor. It is the only assistant tool that changes the scene. The commands join the project history, so the user can undo them.",
+      "summary": "Applies a stored proposal to the editor. editor.propose_commands and modeling.propose_generated with apply true run this same step in one call. The commands join the project history, so the user can undo them.",
       "when": ["Right after a successful propose call, whose nextAction says so.", "After viewport.capture has shown the proposal to be right."],
       "input": { "rows": [
         { "name": "proposalId", "type": "identifier", "required": true, "meaning": "The id returned by the propose call." }
@@ -657,7 +697,8 @@
       "tips": ["Read results[].name rather than assuming the name you asked for.", "Undo is the user's. The assistant cannot undo its own change."],
       "limits": ["There is no approval prompt for assistant proposals.", "A failed batch leaves the scene unchanged.", "A batch is capped at 200 commands."],
       "errors": [
-        { "message": "Scene changed; regenerate and propose again", "cause": "A strict proposal (with expectedRevision, or geometry, material or copy commands) saw a changed scene." },
+        { "message": "The scene changed after this proposal was made (revision 12 → 13), and these commands only apply to the revision they were written for.", "cause": "A strict proposal (with expectedRevision, or geometry, material or copy commands) saw a changed scene." },
+        { "message": "The scene changed after this proposal was made (revision 12 → 13), and it no longer fits: raise: …", "cause": "A command no longer fits the scene. Each problem is listed by commandId." },
         { "message": "Scene changed since these commands were calculated. Regenerate and propose again.", "cause": "A command no longer fits the scene after a rebase." }
       ],
       "related": ["editor.propose_commands", "modeling.propose_generated", "validation.check_scene"]
@@ -673,7 +714,7 @@
       ] },
       "details": [{ "title": "Result statuses", "rows": [
         { "label": "loaded", "meaning": "The skill was selected and found. The result holds version, instructions, toolNames, validation and errorHandling." },
-        { "label": "not_selected", "meaning": "The skill exists but was not selected for this request. Nothing is loaded." },
+        { "label": "not_selected", "meaning": "The skill was not selected for this request. Nothing is loaded; availableSkillIds lists the ones that can be." },
         { "label": "not_found", "meaning": "No skill has that id." }
       ] }],
       "result": { "rows": [

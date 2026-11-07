@@ -28,7 +28,7 @@
 | Item | Meaning |
 | --- | --- |
 | `loaded` | The skill was selected and found. The result holds version, instructions, toolNames, validation and errorHandling. |
-| `not_selected` | The skill exists but was not selected for this request. Nothing is loaded. |
+| `not_selected` | The skill was not selected for this request. Nothing is loaded; availableSkillIds lists the ones that can be. |
 | `not_found` | No skill has that id. |
 
 ## Result

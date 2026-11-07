@@ -53,10 +53,24 @@ export async function backendRequest<T>(
     body === undefined ? {} : { "Content-Type": "application/json" },
   );
   // A 204 has no body, e.g. after deleting something.
-  const data: unknown =
-    response.status === 204 ? undefined : await response.json();
+  const data = response.status === 204 ? undefined : await readJson(response);
   if (!response.ok) throw new BackendResponseError(failureMessage(data), response.status);
   return schema.parse(data);
+}
+
+/**
+ * The JSON body of a response, or undefined when it has none or it is not JSON, such as an empty
+ * reply or an HTML error page. A failed request then still reports its status instead of a parse error.
+ */
+async function readJson(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (text.trim() === "") return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!response.ok) return undefined;
+    throw new BackendResponseError("The backend sent a reply that could not be read.", response.status);
+  }
 }
 
 /** Sends a request with the backend token, getting a fresh token once if the old one was refused. */
@@ -66,11 +80,16 @@ async function authorizedFetch(
   headers: Record<string, string>,
 ): Promise<Response> {
   await ensureBackendConnection();
-  const send = () =>
-    fetch(`${BACKEND_URL}/api/v1${path}`, {
-      ...init,
-      headers: { ...headers, Authorization: `Bearer ${accessToken}` },
-    });
+  const send = async () => {
+    try {
+      return await fetch(`${BACKEND_URL}/api/v1${path}`, {
+        ...init,
+        headers: { ...headers, Authorization: `Bearer ${accessToken}` },
+      });
+    } catch (failure) {
+      throw networkFailure(failure);
+    }
+  };
   let response = await send();
   if (response.status === 401 && isTauri()) {
     accessToken = "";
@@ -79,6 +98,19 @@ async function authorizedFetch(
   }
   if (response.status === 401) accessToken = "";
   return response;
+}
+
+/**
+ * A readable error for a request that never got an answer. A cancelled request keeps its own error,
+ * so callers can still tell a cancel from a failure.
+ */
+function networkFailure(failure: unknown): Error {
+  if (failure instanceof DOMException && failure.name === "AbortError") return failure;
+  if (failure instanceof DOMException && failure.name === "TimeoutError")
+    return new Error("The Movynta backend took too long to answer. Try again.");
+  if (failure instanceof TypeError)
+    return new Error("Could not reach the Movynta backend. Check that it is running, then try again.");
+  return failure instanceof Error ? failure : new Error("The backend request failed.");
 }
 
 function failureMessage(data: unknown): string {
@@ -106,8 +138,8 @@ export async function backendUpload<T>(
     },
     { "Content-Type": "application/octet-stream" },
   );
-  const body: unknown = await response.json();
-  if (!response.ok) throw new Error(failureMessage(body));
+  const body = await readJson(response);
+  if (!response.ok) throw new BackendResponseError(failureMessage(body), response.status);
   return schema.parse(body);
 }
 
@@ -121,15 +153,7 @@ export async function backendDownload(
     { method: "GET", signal: signal ?? AbortSignal.timeout(120000) },
     {},
   );
-  if (!response.ok) {
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      body = undefined;
-    }
-    throw new Error(failureMessage(body));
-  }
+  if (!response.ok) throw new BackendResponseError(failureMessage(await readJson(response)), response.status);
   return response.arrayBuffer();
 }
 

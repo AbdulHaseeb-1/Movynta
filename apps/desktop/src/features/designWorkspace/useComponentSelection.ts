@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
+import { xrayActive } from "@/features/viewport3d/viewportSlice";
 import { errorMessage } from "@/lib";
 import { pickObjectId, toNdc } from "@/features/objectEditing/picking";
 import { meshAtPath } from "@/features/meshGeometry";
@@ -21,7 +22,10 @@ export function useComponentSelection(
   disabled: boolean,
 ) {
   const dispatch = useAppDispatch();
-  const { shadingMode, wireframeXray } = useAppSelector((state) => state.viewport);
+  // Read when a click or drag needs it, so changing the shading does not rebuild the selection.
+  const seeThrough = useAppSelector((state) => xrayActive(state.viewport.display));
+  const seeThroughRef = useRef(seeThrough);
+  useEffect(() => { seeThroughRef.current = seeThrough; }, [seeThrough]);
   const { mode, componentKind } = useAppSelector(
     (state) => state.designWorkspace,
   );
@@ -108,7 +112,7 @@ export function useComponentSelection(
             return true;
           },
           () => scene.pickables(),
-          () => shadingMode === "wireframe" && wireframeXray,
+          () => seeThroughRef.current,
         );
         controllerRef.current = controller;
         const queued = takeComponentSelection(scene, id);
@@ -139,7 +143,7 @@ export function useComponentSelection(
       stopObjectSelection();
       viewport.setEditNavigation(false);
     };
-  }, [viewport, scene, mode, componentKind, disabled, dispatch, shadingMode, wireframeXray]);
+  }, [viewport, scene, mode, componentKind, disabled, dispatch]);
   useEffect(() => {
     if (!diagnosticSelection || diagnosticSelection.sequence === lastDiagnosticSequence.current) return;
     lastDiagnosticSequence.current = diagnosticSelection.sequence;

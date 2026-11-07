@@ -9,6 +9,7 @@ import { openEventStream } from "../testing/event-stream.js";
 import { EditorSimulator, SIMULATED_IMAGE_BASE64 } from "../testing/editor-simulator.js";
 import { AgentRegistry } from "../modules/agents/agent.registry.js";
 import { ServiceUnavailableError } from "../common/errors/app-error.js";
+import { DatabaseService } from "../modules/persistence/database.service.js";
 import type { EventStream, StreamedEvent, TestServer } from "../testing/testing.types.js";
 
 interface HttpResult<T = unknown> {
@@ -319,6 +320,65 @@ describe("agent run: propose, approve-free apply, and streaming", () => {
     editor.close();
   }, 30_000);
 
+  it("proposes and applies in one call, and finishes once the change is checked", async () => {
+    const token = server.token("alice");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-one-call");
+    const toolOutputs: string[] = [];
+    server.model.enqueue(
+      [functionCall("editor__propose_commands", {
+        summary: "Add a crate",
+        apply: true,
+        commands: [{ commandId: "crate", type: "geometry.create_primitive", objectId: "crate", primitive: "box", size: 1, replaceExisting: false }],
+      }, { callId: "propose-apply" })],
+      modelResponder((call) => {
+        toolOutputs.push(JSON.stringify(call.request.input));
+        return [functionCall("validation__check_scene", {}, { callId: "check-one-call" })];
+      }),
+      [assistantMessage("The crate is in the scene.")],
+    );
+    const run = await createRun(token, { projectId: "proj-one-call", editorClientId: editor.clientId, message: "Add a crate", dimension: "3d" });
+    const stream = streamFor(run, token);
+    const terminal = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+    stream.stop();
+    expect(terminal.envelope).toMatchObject({ type: "run.completed" });
+    // One model call reached the editor, and the model was told the batch applied.
+    expect(editor.executions).toHaveLength(1);
+    expect(toolOutputs[0]).toContain('\\"status\\":\\"applied\\"');
+    const types = stream.events.map((event: StreamedEvent) => event.envelope.type);
+    expect(types).not.toContain("agent.continued");
+    editor.close();
+  }, 30_000);
+
+  it("answers a malformed command with the field to fix, and the run goes on", async () => {
+    const token = server.token("alice");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-bad-args");
+    const toolOutputs: string[] = [];
+    server.model.enqueue(
+      [functionCall("editor__propose_commands", {
+        summary: "Scale the crate",
+        apply: true,
+        commands: [{ commandId: "wide", type: "scene.transform_object", objectId: "crate", transform: { scale: [2, 1] } }],
+      }, { callId: "bad-args" })],
+      modelResponder((call) => {
+        toolOutputs.push(JSON.stringify(call.request.input));
+        return [assistantMessage("I need to fix the scale.")];
+      }),
+    );
+    const run = await createRun(token, { projectId: "proj-bad-args", editorClientId: editor.clientId, message: "Make the crate wider", dimension: "3d" });
+    const stream = streamFor(run, token);
+    // Before, the SDK's own refusal reached the model as a bare "try again"; a copy check on approval input must not fail the run either.
+    const end = await stream.waitFor((event) => TERMINAL_TYPES.includes(event.envelope.type), 20_000);
+    stream.stop();
+    expect(end.envelope.type).toBe("run.completed");
+    expect(editor.executions).toHaveLength(0);
+    expect(toolOutputs[0]).toContain("do not match this tool's schema");
+    expect(toolOutputs[0]).toContain(".transform.scale");
+    expect(toolOutputs[0]).toContain("expected array to have exactly 3 items");
+    const failed = stream.events.find((event: StreamedEvent) => event.envelope.type === "tool.failed");
+    expect(failed?.envelope.payload["message"]).toEqual(expect.stringContaining("transform.scale"));
+    editor.close();
+  }, 30_000);
+
   it("resumes from Last-Event-ID without duplicating or skipping events", async () => {
     const token = server.token("alice");
     const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-resume");
@@ -338,6 +398,32 @@ describe("agent run: propose, approve-free apply, and streaming", () => {
     const seqs = resumed.events.map((event) => Number(event.id));
     expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
     expect(Math.min(...seqs)).toBeGreaterThan(Number(midpoint?.id));
+    editor.close();
+  }, 30_000);
+
+  it("ends a resumed stream at once when the client already saw the run finish", async () => {
+    const token = server.token("alice");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-resume-end");
+    server.model.enqueue([assistantMessage("Done.")]);
+    const run = await createRun(token, { projectId: "proj-resume-end", editorClientId: editor.clientId, message: "Say done" });
+
+    const first = streamFor(run, token);
+    const last = await first.waitFor((event) => event.envelope.type === "run.completed", 20_000);
+    first.stop();
+    if (last.id === undefined) throw new Error("The final event has no id");
+    const lastEventId = last.id;
+
+    // Without the fix the stream stays open, sending only heartbeats, until the client gives up.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    const response = await fetch(`${server.baseUrl}${run.eventsUrl}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "text/event-stream", "Last-Event-ID": lastEventId },
+      signal: controller.signal,
+    });
+    const body = await response.text();
+    clearTimeout(timer);
+    expect(controller.signal.aborted).toBe(false);
+    expect(body).not.toContain("run.completed");
     editor.close();
   }, 30_000);
 
@@ -471,6 +557,27 @@ describe("agent run: legacy approval infrastructure (test-only policy)", () => {
     const approvals = await http<ApprovalRow[]>("GET", `/api/v1/agent-runs/${run.runId}/approvals`, { token });
     expect(approvals.body[0]?.status).toBe("expired");
     expect(editor.executions).toHaveLength(0);
+    editor.close();
+  }, 40_000);
+
+  it("ends a run whose approvals expired unanswered, so the project accepts the next prompt", async () => {
+    const token = server.token("gina");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-stale", torsoScene);
+    const { run } = await startDeleteRun(token, "proj-stale", editor);
+    server.app.get(DatabaseService).db
+      .prepare("UPDATE approvals SET expires_at = ? WHERE run_id = ?")
+      .run(new Date(Date.now() - 1000).toISOString(), run.runId);
+
+    server.model.enqueue([assistantMessage("Renamed.")]);
+    const next = await http<{ runId: string }>("POST", "/api/v1/agent-runs", { token, body: { projectId: "proj-stale", editorClientId: editor.clientId, message: "Rename it" } });
+    expect(next.status).toBe(202);
+
+    const stale = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+    expect(stale.body.status).toBe("failed");
+    expect(stale.body.error?.code).toBe("approval_expired");
+    const settled = openEventStream(`${server.baseUrl}/api/v1/agent-runs/${next.body.runId}/events`, token);
+    await settled.waitFor((event) => event.envelope.type === "run.completed", 20_000);
+    settled.stop();
     editor.close();
   }, 40_000);
 

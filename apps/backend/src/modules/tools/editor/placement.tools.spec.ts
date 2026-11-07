@@ -1,3 +1,4 @@
+import { emptyRunProgress } from "../../agent-runs/run-progress.js";
 import { jest } from "@jest/globals";
 import type { AgentRunContext } from "../../agent-runs/agent-runs.types.js";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
@@ -7,7 +8,7 @@ import { createPlacementTool } from "./placement.tools.js";
 import { createEditorTools } from "./editor.tools.js";
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-const context = { userId: "u", projectId: "p", clientId: "c" } as AgentRunContext;
+const context = { userId: "u", projectId: "p", clientId: "c", progress: emptyRunProgress() } as AgentRunContext;
 function setup() {
   const objects: EditorContext["objects"] = ["a", "b", "c", "parent"].map((id) => ({ id, name: id, type: "mesh", parentId: null,
     transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } }));
