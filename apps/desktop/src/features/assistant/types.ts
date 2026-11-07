@@ -1,3 +1,5 @@
+import type { MessageAttachment } from "../attachments/types";
+
 export type ChatRole = "user" | "assistant";
 
 export type MessageState = "streaming" | "done" | "error" | "cancelled";
@@ -28,6 +30,8 @@ export interface ChatMessage {
   content: string;
   state: MessageState;
   activity: ActivityStep[];
+  /** The pictures sent with a request. A reopened project lists their names only. */
+  attachments?: MessageAttachment[];
   /** Set when the reply ended in an error; shown apart from the reply text. */
   error?: string;
   /** When the message was created, in epoch milliseconds. */

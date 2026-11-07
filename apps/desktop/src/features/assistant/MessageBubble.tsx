@@ -5,6 +5,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { MessageAttachments } from "../attachments/MessageAttachments";
 import { PendingIndicator, StepRow, ThinkingNote } from "./ActivityRow";
 import { CopyButton } from "./CopyButton";
 import { Markdown } from "./Markdown";
@@ -19,7 +20,8 @@ interface MessageBubbleProps {
 
 function UserMessage({ message }: { message: ChatMessage }) {
   return (
-    <div className="flex animate-in justify-end duration-300 fade-in slide-in-from-bottom-2 motion-reduce:animate-none">
+    <div className="flex animate-in flex-col items-end gap-1.5 duration-300 fade-in slide-in-from-bottom-2 motion-reduce:animate-none">
+      {message.attachments && <MessageAttachments attachments={message.attachments} />}
       <p className="max-w-[88%] rounded-2xl bg-foreground/[0.08] px-3.5 py-2 text-[13.5px] leading-relaxed break-words whitespace-pre-wrap text-foreground">
         {message.content}
       </p>

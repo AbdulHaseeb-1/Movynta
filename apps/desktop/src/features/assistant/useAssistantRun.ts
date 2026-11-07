@@ -7,6 +7,7 @@ import { BackendResponseError, backendRequest, errorMessage } from "@/lib/backen
 import { forgetCaptures, type ViewCaptureHandler } from "@/features/viewCapture";
 import type { EditorScene } from "./EditorScene";
 import { connectEditor, type EditorConnection } from "./editorConnection";
+import { toUploads, type ComposerImage } from "../attachments";
 import { waitForAbortable } from "./waitForAbortable";
 import { acceptedSchema, approvalSchema, readRunProgress } from "./runClient";
 import {
@@ -25,6 +26,7 @@ function newMessage(
   role: ChatMessage["role"],
   content: string,
   state: ChatMessage["state"],
+  images: readonly ComposerImage[] = [],
 ): ChatMessage {
   return {
     id: crypto.randomUUID(),
@@ -33,6 +35,7 @@ function newMessage(
     state,
     activity: [],
     startedAt: Date.now(),
+    ...(images.length > 0 ? { attachments: images.map(({ id, name, src }) => ({ id, name, src })) } : {}),
   };
 }
 
@@ -60,6 +63,7 @@ export function useAssistantRun(
   const sessionProvider = useRef("");
   const inFlight = useRef(false);
   const lastPrompt = useRef("");
+  const lastImages = useRef<readonly ComposerImage[]>([]);
   const [status, setStatus] = useState("Ready");
   const [phase, setPhase] = useState<RunPhase>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -102,7 +106,11 @@ export function useAssistantRun(
     ]);
   }
 
-  async function submit(message: string, onAccepted?: () => void) {
+  /**
+   * Sends one request. `images` travel with it to the model; they are kept in the chat for this session, and
+   * the backend stores only their names.
+   */
+  async function submit(message: string, images: readonly ComposerImage[] = [], onAccepted?: () => void) {
     if (inFlight.current) return;
     const scene = editor.current;
     if (!scene) {
@@ -121,10 +129,11 @@ export function useAssistantRun(
       sessionProvider.current = fingerprint;
     }
     lastPrompt.current = message;
+    lastImages.current = images;
     const reply = newMessage("assistant", "", "streaming");
     setMessages((current) => [
       ...current,
-      newMessage("user", message, "done"),
+      newMessage("user", message, "done", images),
       reply,
     ]);
     setBusy(true);
@@ -159,6 +168,7 @@ export function useAssistantRun(
           useConfiguredProvider: true,
           providerId: provider.id,
           model: model.trim(),
+          ...(images.length > 0 ? { attachments: toUploads(images) } : {}),
           ...(effort ? { reasoningEffort: effort } : {}),
           ...(session.current ? { sessionId: session.current } : {}),
         },
@@ -328,6 +338,7 @@ export function useAssistantRun(
       session.current = undefined;
       sessionProvider.current = "";
       lastPrompt.current = "";
+      lastImages.current = [];
       forgetCaptures();
       setMessages([]);
       setApprovals([]);
@@ -345,11 +356,13 @@ export function useAssistantRun(
       ? `${saved.provider.id}:${saved.provider.model.trim()}:${saved.provider.baseUrl}`
       : "";
     lastPrompt.current = saved.messages[saved.messages.length - 1]?.prompt ?? "";
+    // The pictures of a saved request are not kept, so trying it again sends the words alone.
+    lastImages.current = [];
     setMessages(savedExchangesToMessages(saved.messages));
   }
   /** Sends the most recent prompt again, e.g. after a failure or to get another take. */
   function retry() {
-    if (lastPrompt.current) void submit(lastPrompt.current);
+    if (lastPrompt.current) void submit(lastPrompt.current, lastImages.current);
   }
   return {
     submit,

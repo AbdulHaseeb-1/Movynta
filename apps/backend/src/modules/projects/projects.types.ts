@@ -1,6 +1,6 @@
 import type { EditorCommand } from "@movynta/editor-protocol";
 
-import type { ProjectCategory, ProjectScope, ProjectSort } from "@movynta/contracts";
+import type { AttachmentSummary, ProjectCategory, ProjectScope, ProjectSort } from "@movynta/contracts";
 
 // The category, sort and scope lists are shared with the desktop app; these re-exports keep this module's public names.
 export { PROJECT_CATEGORIES, PROJECT_SCOPES, PROJECT_SORTS } from "@movynta/contracts";
@@ -103,6 +103,8 @@ export interface ProjectMessage {
   readonly runId: string;
   readonly prompt: string;
   readonly reply: string | undefined;
+  /** The pictures attached to the request, by name; their pixels are not kept. */
+  readonly attachments: readonly AttachmentSummary[];
   readonly status: ProjectMessageStatus;
   readonly error: string | undefined;
   readonly createdAt: string;

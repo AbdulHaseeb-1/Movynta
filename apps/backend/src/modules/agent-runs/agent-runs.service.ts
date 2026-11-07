@@ -38,6 +38,7 @@ import type {
   ApprovalView,
 } from "./agent-runs.types.js";
 import { newId } from "../../common/ids/index.js";
+import { checkAttachments, summarizeAttachments } from "./run-attachments.js";
 
 export const HEARTBEAT_INTERVAL_MS = 15_000;
 
@@ -134,6 +135,11 @@ export class AgentRunsService implements OnModuleInit {
       if (!supported.includes(dto.reasoningEffort))
         throw new ValidationFailedError("The selected model does not support that reasoning effort");
     }
+    const attachments = checkAttachments(dto.attachments ?? []);
+    if (attachments.length > 0 && !this.providers.picturesAllowed(user.id, provider?.id))
+      throw new ValidationFailedError(
+        "The selected model connection is set not to receive pictures. Turn on Send pictures for it in Settings, or remove the images.",
+      );
     this.projects.assertOwner(user.id, dto.projectId);
     this.failAbandonedRuns(dto.projectId);
     // Two runs on one project would interleave the conversation and edit the same scene at once.
@@ -171,6 +177,7 @@ export class AgentRunsService implements OnModuleInit {
       dimension: dto.dimension,
       selectedSkillIds,
       input: dto.message,
+      attachments: summarizeAttachments(attachments),
       now,
     });
     this.projects.recordActivity(dto.projectId);
@@ -183,7 +190,7 @@ export class AgentRunsService implements OnModuleInit {
     });
 
     const record = this.requireRun(user.id, runId);
-    this.processor.start(record);
+    this.processor.start(record, attachments);
     this.logger.log(`started run ${runId} for project ${dto.projectId}`);
 
     return {

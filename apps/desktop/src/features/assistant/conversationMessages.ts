@@ -5,6 +5,8 @@ export interface SavedExchange {
   runId: string;
   prompt: string;
   reply?: string | undefined;
+  /** The pictures sent with the request, by name; the backend does not keep their pixels. */
+  attachments?: readonly { name: string }[] | undefined;
   status:
     | "created"
     | "running"
@@ -44,6 +46,7 @@ export function savedExchangesToMessages(
       state: "done",
       activity: [],
       startedAt,
+      ...(exchange.attachments?.length ? { attachments: exchange.attachments.map(({ name }, position) => ({ id: `${exchange.runId}:${position}`, name })) } : {}),
     };
     const assistant: ChatMessage = {
       id: exchange.runId,

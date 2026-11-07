@@ -4,6 +4,7 @@ import { DatabaseService } from "../persistence/database.service.js";
 import type { SqlRow } from "../persistence/persistence.types.js";
 import { integerColumn, optionalTextColumn, textColumn } from "../persistence/row.js";
 import { requireOneOf } from "../../shared/guards/enum.guard.js";
+import { parseAttachmentSummaries } from "../../shared/schemas/attachments.schema.js";
 import {
   PROJECT_CATEGORIES,
   type ProjectConversation,
@@ -195,7 +196,7 @@ export class ProjectsRepository {
           };
     const messages = this.database.db
       .prepare(
-        "SELECT id, input, final_output, status, error_message, created_at FROM agent_runs WHERE session_id = ? ORDER BY created_at ASC",
+        "SELECT id, input, final_output, status, error_message, created_at, attachments_json FROM agent_runs WHERE session_id = ? ORDER BY created_at ASC",
       )
       .all(sessionId)
       .map(
@@ -203,6 +204,7 @@ export class ProjectsRepository {
           runId: textColumn(row, "id"),
           prompt: textColumn(row, "input"),
           reply: optionalTextColumn(row, "final_output"),
+          attachments: parseAttachmentSummaries(optionalTextColumn(row, "attachments_json")),
           status: requireOneOf(RUN_STATUSES, textColumn(row, "status"), "run status"),
           error: optionalTextColumn(row, "error_message"),
           createdAt: textColumn(row, "created_at"),

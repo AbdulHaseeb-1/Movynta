@@ -67,7 +67,7 @@ export const shortcutGroups: readonly ShortcutGroup[] = [
       { action: "Duplicate object", keys: "Shift+D", detail: "Duplicate the selected object and its registered children in place, then move the selected copy.", guide: "duplicate-object" },
       { action: "Mirror controls", keys: "Ctrl+M", detail: "Open Modifiers, then add Mirror / symmetry and choose its settings.", guide: "mirror-modifier" },
       { action: "Import model", keys: "Import button", detail: "Choose a supported 3D model file to add it to the project.", guide: "import" },
-      { action: "Export for Blender", keys: "Export button", detail: "Save the selected objects as one .glb file for Blender, with their names, placement, materials and size.", guide: "export-selection" },
+      { action: "Export for Blender", keys: "Export button", detail: "Save the selected objects as one .glb file for Blender, with their names, placement, materials and size. A Save dialog lets you choose where.", guide: "export-selection" },
     ],
   },
   {
@@ -180,6 +180,7 @@ export const shortcutGroups: readonly ShortcutGroup[] = [
       { action: "New line", keys: "Shift+Enter", detail: "Add a line in the assistant composer.", guide: "assistant-chat" },
       { action: "Clear chat", keys: "Assistant header", detail: "Clear the saved conversation and start a new session while keeping the scene and undo history.", guide: "clear-chat" },
       { action: "Stop assistant", keys: "Esc", detail: "Stop the current run while the assistant composer has focus.", guide: "assistant-chat" },
+      { action: "Attach images", keys: "Attach button · Ctrl+V · Drop", detail: "Add up to 4 pictures to a message from the file picker, by pasting, or by dropping them on the composer.", guide: "attach-images" },
       { action: "Model and reasoning", keys: "Composer menus", detail: "Choose the provider, model and available reasoning effort for the assistant.", guide: "assistant-chat" },
       { action: "Approve or reject", keys: "Approval card", detail: "Review an assistant proposal and choose whether to apply it.", guide: "assistant-chat" },
       { action: "Copy or retry response", keys: "Message actions", detail: "Copy a response or retry an eligible message from its actions.", guide: "assistant-chat" },

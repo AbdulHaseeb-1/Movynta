@@ -52,6 +52,23 @@ function appliedVersions(service: DatabaseService): number[] {
 }
 
 describe("schema migrations", () => {
+  it("adds attachment storage to a database at version 15, and reads runs stored before it as having none", () => {
+    const path = databaseAt(15);
+    const raw = new DatabaseSync(path);
+    raw.exec("PRAGMA foreign_keys = OFF");
+    raw.prepare(
+      "INSERT INTO agent_runs (id, session_id, user_id, project_id, agent_id, status, input, created_at, updated_at, selected_skill_ids_json) VALUES ('run_old', 's', 'u', 'p', 'a', 'completed', 'hi', 't', 't', '[]')",
+    ).run();
+    raw.close();
+
+    const service = newDatabaseService();
+    service.open(path);
+    expect(columnsOf(service, "agent_runs")).toContain("attachments_json");
+    expect(service.db.prepare("SELECT attachments_json FROM agent_runs WHERE id = 'run_old'").get()?.["attachments_json"]).toBeNull();
+    expect(appliedVersions(service)).toContain(16);
+    service.close();
+  });
+
   it("adds run progress and the picture setting to a database at version 14", () => {
     const service = newDatabaseService();
     service.open(databaseAt(14));

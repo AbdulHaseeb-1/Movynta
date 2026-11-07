@@ -240,4 +240,12 @@ export const MIGRATIONS: readonly Migration[] = [
       `ALTER TABLE model_providers ADD COLUMN accepts_images INTEGER NOT NULL DEFAULT 1`,
     ],
   },
+  {
+    // The pictures a user attached to a request: only their names, types and sizes. The pixels are sent to the
+    // model with the request and are never stored.
+    version: 16,
+    name: "run_attachments",
+    statements: [],
+    run: (db) => addColumnIfMissing(db, "agent_runs", "attachments_json", "TEXT"),
+  },
 ];

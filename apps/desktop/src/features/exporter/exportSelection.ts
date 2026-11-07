@@ -217,3 +217,9 @@ export async function exportSelectionAsGlb(source: ExportSource): Promise<Export
   const blob = await encodeGlb(scene);
   return { blob, fileName: exportFileName(scene.children.map((child) => child.name)) };
 }
+
+/** What the Save dialog offers for an exported selection. */
+export const GLB_SAVE_OPTIONS = {
+  title: "Export for Blender",
+  filters: [{ name: "glTF binary (Blender)", extensions: ["glb"] }],
+};

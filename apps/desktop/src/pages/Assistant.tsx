@@ -21,6 +21,7 @@ import {
   LOGO_SRC,
   PromptSuggestions,
   useAssistantRun,
+  useAssistantSelection,
   UNSAVED_PROJECT_ID,
   type SceneStep,
 } from "@/features/assistant";
@@ -35,6 +36,7 @@ import {
   ToolHint,
   useObjectEditing,
 } from "@/features/objectEditing";
+import { useImageAttachments } from "@/features/attachments";
 import { useViewCapture } from "@/features/viewCapture";
 import { setShortcutsOpen } from "@/features/documentation/shortcuts";
 import { createSerialQueue } from "@/lib";
@@ -124,6 +126,8 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const viewCapture = useViewCapture(viewport, editorRef);
   const [saves] = useState(createSerialQueue);
   const run = useAssistantRun(editorRef, ensureProject, viewCapture, saves.flush);
+  const attachments = useImageAttachments();
+  const { provider: selectedProvider } = useAssistantSelection();
   const hydrate = useRef(run.hydrate);
   useEffect(() => {
     hydrate.current = run.hydrate;
@@ -238,15 +242,20 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   }, [dispatch]);
 
   function handleSubmit() {
-    const message = prompt.trim();
-    if (!message || run.busy) return;
+    const images = attachments.images;
+    const typed = prompt.trim();
+    if ((!typed && images.length === 0) || run.busy || attachments.preparing) return;
+    // Pictures alone are a complete request: they are the reference to work from.
+    const message =
+      typed || (images.length === 1 ? "Use the attached image as a reference." : "Use the attached images as a reference.");
     setSubmitted(true);
     setPrompt("");
+    attachments.clear();
     // Mount the launcher first, then open on the next frame so the pane grows out of it.
     window.requestAnimationFrame(() =>
       window.requestAnimationFrame(() => setPanelOpen(true)),
     );
-    void run.submit(message);
+    void run.submit(message, images);
   }
 
   function handleSuggestion(suggestion: string) {
@@ -270,6 +279,8 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       onStop={() => void run.cancel()}
       busy={run.busy}
       ready={run.ready}
+      attachments={attachments}
+      picturesAllowed={selectedProvider?.acceptsImages !== false}
     />
   );
 

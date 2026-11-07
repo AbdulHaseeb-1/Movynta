@@ -9,6 +9,7 @@ import {
 import type { SqlRow } from "../persistence/persistence.types.js";
 import { MODELING_DIMENSIONS } from "../../shared/schemas/modeling-plan.schema.js";
 import { requireOneOf } from "../../shared/guards/enum.guard.js";
+import { parseAttachmentSummaries } from "../../shared/schemas/attachments.schema.js";
 import { NotFoundError } from "../../common/errors/app-error.js";
 import {
   AGENT_RUN_STATUSES,
@@ -31,13 +32,16 @@ import { parseRunProgress } from "./run-progress.js";
 const usageSchema = z.record(z.string(), z.number());
 const skillIdsSchema = z.array(z.string());
 
+
 function toRecord(row: SqlRow): AgentRunRecord {
   const usageJson = optionalTextColumn(row, "usage_json");
   const dimension = optionalTextColumn(row, "dimension");
   const providerId = optionalTextColumn(row, "provider_id");
   const reasoningEffort = optionalTextColumn(row, "reasoning_effort");
   const progressJson = optionalTextColumn(row, "progress_json");
+  const attachmentsJson = optionalTextColumn(row, "attachments_json");
   return {
+    attachments: parseAttachmentSummaries(attachmentsJson),
     progress: progressJson === undefined ? undefined : parseRunProgress(progressJson),
     providerBaseUrl: optionalTextColumn(row, "provider_base_url"),
     providerId:
@@ -88,8 +92,8 @@ export class AgentRunRepository {
   insert(run: NewAgentRun): void {
     this.database.db
       .prepare(
-        `INSERT INTO agent_runs (id, session_id, user_id, project_id, agent_id, editor_client_id, dimension, selected_skill_ids_json, status, input, created_at, updated_at, provider_id, provider_model, provider_base_url, reasoning_effort)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO agent_runs (id, session_id, user_id, project_id, agent_id, editor_client_id, dimension, selected_skill_ids_json, status, input, created_at, updated_at, provider_id, provider_model, provider_base_url, reasoning_effort, attachments_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         run.id,
@@ -107,6 +111,7 @@ export class AgentRunRepository {
         run.providerModel ?? null,
         run.providerBaseUrl ?? null,
         run.reasoningEffort ?? null,
+        run.attachments && run.attachments.length > 0 ? JSON.stringify(run.attachments) : null,
       );
   }
 

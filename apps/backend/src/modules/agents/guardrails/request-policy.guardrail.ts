@@ -10,12 +10,20 @@ export type RequestVerdict =
   | { readonly tripwireTriggered: true; readonly reason: "request_too_long" | "code_execution_requested" }
   | { readonly tripwireTriggered: false; readonly reason: "allowed" };
 
+function partText(part: unknown): string {
+  return typeof part === "object" && part !== null && "text" in part && typeof part.text === "string" ? part.text : "";
+}
+
+/**
+ * The words of a message. A message with pictures carries what the user typed first, then a line naming each
+ * picture; only what the user typed is judged, so a long file name cannot make a request too long.
+ */
 function textOf(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
-  return content
-    .map((part: unknown) => (typeof part === "object" && part !== null && "text" in part && typeof part.text === "string" ? part.text : ""))
-    .join("\n");
+  const typed = content.findIndex((part: unknown) => typeof part === "object" && part !== null && "type" in part && part.type === "input_image");
+  const words = typed < 0 ? content : content.slice(0, 1);
+  return words.map(partText).join("\n");
 }
 
 /**

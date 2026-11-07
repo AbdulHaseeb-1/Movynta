@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsIn, IsOptional, IsString, IsUUID, Length, Matches } from "class-validator";
+import {
+  ATTACHMENT_MEDIA_TYPES,
+  base64Length,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_NAME_LENGTH,
+  MAX_ATTACHMENTS,
+  type AttachmentMediaType,
+} from "@movynta/contracts";
+import { Type } from "class-transformer";
+import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateNested } from "class-validator";
 import { PROJECT_ID_PATTERN } from "../../sessions/dto/create-session.dto.js";
 import { MODELING_DIMENSIONS } from "../../../shared/schemas/modeling-plan.schema.js";
 import type { ModelingDimension } from "../../../shared/types/modeling-plan.types.js";
@@ -8,6 +17,24 @@ import { PROVIDER_IDS, type ProviderId } from "../../providers/providers.types.j
 
 export const AGENT_ID_PATTERN = /^[a-z][a-z0-9-]{1,63}$/;
 export const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** One picture attached to a request. The content is checked in full by `checkAttachments`. */
+export class AttachmentDto {
+  @ApiProperty({ maxLength: MAX_ATTACHMENT_NAME_LENGTH, example: "reference.png" })
+  @IsString()
+  @Length(1, MAX_ATTACHMENT_NAME_LENGTH)
+  name!: string;
+
+  @ApiProperty({ enum: ATTACHMENT_MEDIA_TYPES })
+  @IsIn([...ATTACHMENT_MEDIA_TYPES])
+  mediaType!: AttachmentMediaType;
+
+  @ApiProperty({ description: "The picture's bytes as base64 text, without a data: prefix." })
+  @IsString()
+  @MaxLength(base64Length(MAX_ATTACHMENT_BYTES))
+  @Length(4, base64Length(MAX_ATTACHMENT_BYTES))
+  data!: string;
+}
 
 export class CreateAgentRunDto {
   @IsOptional() @IsIn(PROVIDER_IDS) providerId?: ProviderId;
@@ -44,6 +71,14 @@ export class CreateAgentRunDto {
   @IsString()
   @Length(1, 4000)
   message!: string;
+
+  @ApiPropertyOptional({ type: [AttachmentDto], description: `Pictures for the assistant to look at, at most ${MAX_ATTACHMENTS}.` })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_ATTACHMENTS)
+  @ValidateNested({ each: true })
+  @Type(() => AttachmentDto)
+  attachments?: AttachmentDto[];
 
   @ApiPropertyOptional({ enum: MODELING_DIMENSIONS })
   @IsOptional()

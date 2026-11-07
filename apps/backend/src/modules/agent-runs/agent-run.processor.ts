@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import {
   extractAllTextOutput,
+  type AgentInputItem,
   RunContext,
   RunState,
   Runner as SdkRunner,
@@ -41,6 +42,7 @@ import {
   toRegistryToolName,
 } from "./agent-run.stream-mapper.js";
 import { RunClock, type RunStop } from "./run-clock.js";
+import { messageWithAttachments, type RunAttachment } from "./run-attachments.js";
 import {
   continuationPrompt,
   emptyRunProgress,
@@ -120,11 +122,13 @@ export class AgentRunProcessor implements OnModuleDestroy {
   ) {}
 
   /** Starts a run in the background. Failures are recorded on the run, never thrown to the caller. */
-  start(run: AgentRunRecord): void {
+  start(run: AgentRunRecord, attachments: readonly RunAttachment[] = []): void {
     const progress = emptyRunProgress();
     progress.quality.required = requiresQualityReview(run.input, run.dimension, this.config.agents.reviewMode);
+    // The pictures go to the model with this first turn only; the stored history keeps their names, not their pixels.
+    const input = attachments.length > 0 ? messageWithAttachments(run.input, attachments) : run.input;
     this.launch(run, progress, (context, signal) =>
-      this.turn(run, context, signal, run.input),
+      this.turn(run, context, signal, input),
     );
   }
 
@@ -156,7 +160,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
     run: AgentRunRecord,
     context: AgentRunContext,
     signal: AbortSignal,
-    input: string,
+    input: string | AgentInputItem[],
   ): Promise<RunResult> {
     return (await this.runnerFor(run)).run(this.agents.agent(run.agentId), input, {
       stream: true,

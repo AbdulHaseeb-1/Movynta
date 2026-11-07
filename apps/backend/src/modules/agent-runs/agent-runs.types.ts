@@ -8,6 +8,7 @@ import type { ReasoningEffort } from "../providers/model-capabilities.js";
 import type { ProviderId } from "../providers/providers.types.js";
 import type { RunProgress } from "./run-progress.js";
 import type { RunClock } from "./run-clock.js";
+import type { AttachmentSummary } from "@movynta/contracts";
 
 export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 
@@ -146,6 +147,8 @@ export interface AgentRunRecord {
   readonly errorCode: string | undefined;
   readonly errorMessage: string | undefined;
   readonly usage: Readonly<Record<string, number>> | undefined;
+  /** The pictures the user attached to the request. Their pixels are not stored. */
+  readonly attachments: readonly AttachmentSummary[];
   /** Plans and unfinished work saved when the run paused for an approval. Server-side only. */
   readonly progress?: RunProgress | undefined;
   readonly createdAt: string;
@@ -166,6 +169,7 @@ export interface NewAgentRun {
   readonly dimension: ModelingDimension | undefined;
   readonly selectedSkillIds: readonly string[];
   readonly input: string;
+  readonly attachments?: readonly AttachmentSummary[];
   readonly now: string;
 }
 

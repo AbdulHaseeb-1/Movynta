@@ -53,6 +53,9 @@ export const projectConversationSchema = z.object({
       runId: z.string(),
       prompt: z.string(),
       reply: z.string().optional(),
+      attachments: z
+        .array(z.object({ name: z.string(), mediaType: z.string(), bytes: z.number() }))
+        .default([]),
       status: z.enum([
         "created",
         "running",

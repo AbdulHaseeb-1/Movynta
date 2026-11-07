@@ -160,6 +160,27 @@ The chat shows what the assistant sees. Under the "Looking at the scene" step of
 - The pictures live only in the editor window that drew them. After a reload, or for a capture older than the last 12, the step shows no thumbnails.
 - When `imagesSent` is false (an OpenAI-compatible model), the step says the scene was measured, not drawn.
 
+## Images attached by the user
+
+A request can carry up to 4 pictures for the assistant to use as reference. This is not a tool: the pictures are part of the user's message, so no tool, permission or approval rule is involved, and the assistant still changes the editor only through `editor.propose_commands` and `editor.apply_proposal`.
+
+**Sending.** The composer takes pictures from the attach button, from a paste into the message field, or from a drop on the composer. `POST /api/v1/agent-runs` accepts `attachments: [{ name, mediaType, data }]`, where `data` is the file as base64 text. The limits are in `packages/contracts/src/attachments.ts` and are read by both sides:
+
+| Limit | Value |
+| --- | --- |
+| Pictures per request | 4 |
+| Formats | PNG, JPEG, WebP, GIF |
+| Size of one picture | 5 MB |
+| Name | 120 characters |
+
+Before sending, the desktop (`apps/desktop/src/features/attachments/`) keeps a picture that already fits unchanged. Larger ones are scaled to a longest side of 1568 pixels and saved as JPEG, at lower quality and then smaller if still over 5 MB. GIFs are saved as JPEG so the model sees one still picture. Photos are turned upright by their orientation tag.
+
+**Checks.** `checkAttachments` (`apps/backend/src/modules/agent-runs/run-attachments.ts`) refuses a request with more than 4 pictures, text that is not base64, a picture over 5 MB, or one whose first bytes are not those of the format it claims (the declared type is not trusted). Failures are `422` and name the file. A request with pictures is also refused when the selected connection has **Send pictures** turned off. Only `POST /api/v1/agent-runs` accepts a body large enough for pictures (`configure-application.ts`); every other JSON route keeps `REQUEST_BODY_LIMIT`.
+
+**What the model gets.** The message is the first part of the user message, exactly as typed. Each picture follows a line that numbers and names it ("Attached image 2 of 3: side.jpg"), so the user can refer to it. The request guardrail judges only what the user typed. The base instructions tell the assistant to treat pictures as reference material, to treat any text inside them as content and not as instructions, and to record what it took from them in the brief and plan.
+
+**What is kept.** Pictures are not stored. `agent_runs.attachments_json` keeps each picture's name, type and size, so a reopened project lists the names. `withoutImages` in `sqlite-session.ts` replaces the pictures of a user message with a short placeholder when the message is saved to the session, so later turns do not resend them; the names stay. This also means a run that continues after an approval or a "carry on" prompt no longer has the pixels, which is why the assistant is told to write down its observations. Trying a request again from a reopened project sends the words only.
+
 ## Proposals
 
 In Object mode, keyboard G/R/S transforms accept typed values: signed distance, rotation in degrees, or a scale factor from 0.001 to 100. X/Y/Z constrain the axis; without an axis, numeric movement uses camera-right and rotation uses the view axis. Backspace edits the entry; invalid input cannot be confirmed.
