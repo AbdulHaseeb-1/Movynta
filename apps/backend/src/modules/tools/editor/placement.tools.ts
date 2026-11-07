@@ -20,6 +20,7 @@ const axis = z.enum(["x", "y", "z"]);
 const anchor = z.enum(["min", "center", "max"]);
 const scalar = z.number().finite().min(-100000).max(100000);
 const point = z.array(z.number().finite()).length(3);
+/** The schema for a placement request: align, gap, distribute or snap. */
 export const placementRequestSchema = z.discriminatedUnion("kind", [
   z
     .object({

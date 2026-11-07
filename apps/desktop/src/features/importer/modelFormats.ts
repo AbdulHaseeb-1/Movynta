@@ -1,5 +1,6 @@
 /** The 3D file formats the app can open. Each is read in the app, not on the backend. */
 export const MODEL_FORMATS = ["glb", "gltf", "obj", "fbx", "stl", "ply", "dae"] as const;
+/** A 3D model file format the importer can read. */
 export type ModelFormat = (typeof MODEL_FORMATS)[number];
 
 /** The file dialog's filter. */

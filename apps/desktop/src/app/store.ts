@@ -9,6 +9,7 @@ import { designWorkspaceReducer } from "@/features/designWorkspace";
 import { savePanelVisibility } from "@/features/designWorkspace/panelStorage";
 import { helpReducer } from "@/features/documentation/shortcuts/helpSlice";
 
+/** The app's Redux store, with its slices and the saving of settings to local storage. */
 export const store = configureStore({
   reducer: {
     providers: providersReducer,
@@ -21,7 +22,9 @@ export const store = configureStore({
   },
 });
 
+/** The whole state of the app's store. */
 export type RootState = ReturnType<typeof store.getState>;
+/** The dispatch function of the app's store. */
 export type AppDispatch = typeof store.dispatch;
 
 // Persist the chosen provider and model, the open panels and the view's shading, so they are restored on the next launch.

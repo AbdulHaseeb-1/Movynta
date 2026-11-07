@@ -1,7 +1,9 @@
 import { z } from "zod";
 
+/** The dimensions a modeling plan can be for. Only 3D is supported. */
 export const MODELING_DIMENSIONS = ["3d"] as const;
 
+/** The schema for one step of a modeling plan. */
 export const modelingPlanStepSchema = z
   .object({
     id: z.string().regex(/^[a-z0-9-]{1,40}$/),
@@ -12,6 +14,7 @@ export const modelingPlanStepSchema = z
   })
   .strict();
 
+/** The schema for a modeling plan: its goal, dimension and steps. */
 export const modelingPlanSchema = z
   .object({
     goal: z.string().min(1).max(500),

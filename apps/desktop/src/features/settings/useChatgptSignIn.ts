@@ -15,6 +15,7 @@ import { backendRequest, errorMessage } from "@/lib/backend";
 
 const POLL_INTERVAL_MS = 1500;
 
+/** What the ChatGPT sign-in hook returns: its state and actions. */
 export interface ChatgptSignIn {
   session: ChatgptSession | null;
   busy: boolean;

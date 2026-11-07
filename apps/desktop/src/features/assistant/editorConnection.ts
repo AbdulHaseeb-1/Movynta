@@ -114,6 +114,7 @@ function answerCommands(
     });
 }
 
+/** An open connection from the desktop editor to the backend, which runs the assistant's batches. */
 export interface EditorConnection {
   clientId: string;
   close: () => void;

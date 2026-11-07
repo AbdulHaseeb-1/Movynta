@@ -1,3 +1,4 @@
+/** How a new pick changes the selection: replace, add, subtract or intersect. */
 export type SelectionOperation = "replace" | "add" | "subtract" | "intersect";
 
 /** Shift adds, Alt subtracts, and both modifiers intersect. */

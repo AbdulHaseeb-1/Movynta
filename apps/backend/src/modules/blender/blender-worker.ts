@@ -4,4 +4,5 @@
  */
 export const BLENDER_WORKER = Symbol("BLENDER_WORKER");
 
+/** The states a Blender job can be in. */
 export const BLENDER_JOB_STATES = ["queued", "running", "succeeded", "failed", "cancelled"] as const;

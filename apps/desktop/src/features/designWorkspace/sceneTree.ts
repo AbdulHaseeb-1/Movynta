@@ -8,8 +8,10 @@ import type { CollectionEntry, OutlineEntry } from "@/features/assistant";
  */
 export type RowKind = "mesh" | "empty" | "collection" | "root";
 
+/** The id of the outliner's root row, which stands for the whole scene. */
 export const ROOT_ROW_ID = ":scene";
 const COLLECTION_PREFIX = "collection:";
+/** The outliner row id for a collection. */
 export const collectionRowId = (collectionId: string): string => `${COLLECTION_PREFIX}${collectionId}`;
 
 /** The thing a line stands for. */

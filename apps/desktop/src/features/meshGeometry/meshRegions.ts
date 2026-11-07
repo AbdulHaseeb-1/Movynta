@@ -32,10 +32,12 @@ export function shellRoots(mesh: PolygonMesh): Int32Array {
   return parent.map((_, face) => find(face));
 }
 
+/** One closed loop of edges on a mesh's boundary. */
 export interface BoundaryLoop {
   /** Canonical edge IDs in walking order. */ edges: string[];
   vertices: number[];
 }
+/** All the boundary loops of a mesh. */
 export interface BoundaryLoops {
   loops: BoundaryLoop[];
   /** Boundary edges that are not part of a simple closed loop: a chain that does not close, or a vertex where openings touch. */
@@ -89,6 +91,7 @@ export function boundaryLoops(graph: Topology): BoundaryLoops {
   return { loops, irregular: boundary - emitted };
 }
 
+/** A summary of one connected shell of a mesh. */
 export interface ShellSummary {
   faceCount: number;
   /** The lowest face number in the shell: naming it names the whole shell (for example to flip it). */

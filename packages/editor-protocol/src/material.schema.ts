@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use an sRGB #RRGGBB color");
+/** The schema for the properties of a material. */
 export const materialPropertiesSchema = z
   .object({
     name: z.string().min(1).max(80).optional(),
@@ -14,7 +15,9 @@ export const materialPropertiesSchema = z
     side: z.enum(["front", "back", "double"]).optional(),
   })
   .strict();
+/** The properties of a material. */
 export type MaterialProperties = z.infer<typeof materialPropertiesSchema>;
+/** The schema for one material slot of a mesh. */
 export const materialSlotSchema = z
   .object({
     slot: z.number().int().nonnegative(),

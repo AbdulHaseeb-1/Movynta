@@ -1,5 +1,6 @@
 import type { ExampleId } from "./examples/exampleIds";
 
+/** One tool or workflow in the in-app guide. */
 export interface ToolGuideEntry {
   id: string;
   name: string;
@@ -12,6 +13,7 @@ export interface ToolGuideEntry {
   example?: ExampleId;
 }
 
+/** A section of the in-app guide. */
 export interface ToolGuideSection {
   id: string;
   title: string;

@@ -1,6 +1,7 @@
 import { ConflictError } from "../../common/errors/app-error.js";
 import type { AgentRunStatus } from "./agent-runs.types.js";
 
+/** Every status a run can have, in the order a run moves through them. */
 export const AGENT_RUN_STATUSES = [
   "created",
   "running",
@@ -10,6 +11,7 @@ export const AGENT_RUN_STATUSES = [
   "cancelled",
 ] as const;
 
+/** The statuses from which a run cannot move on. */
 export const TERMINAL_RUN_STATUSES: readonly AgentRunStatus[] = ["completed", "failed", "cancelled"];
 
 const TRANSITIONS: Readonly<Record<AgentRunStatus, readonly AgentRunStatus[]>> = {

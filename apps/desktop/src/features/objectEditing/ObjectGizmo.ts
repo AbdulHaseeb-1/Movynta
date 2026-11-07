@@ -39,6 +39,7 @@ export interface ObjectChange {
   after: ObjectTransform;
 }
 
+/** The events the transform gizmo reports: a drag starting, changing and ending. */
 export interface GizmoEvents {
   /** The user is dragging a handle: the active object's current transform. */
   onLiveChange: (id: string, transform: ObjectTransform) => void;

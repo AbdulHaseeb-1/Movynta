@@ -1,5 +1,6 @@
 import type { ActivityStep, ChatMessage } from "./types";
 
+/** One part of a reply: a run of text, or one step of the work. */
 export type MessagePart = { kind: "text"; id: string; text: string } | { kind: "step"; id: string; step: ActivityStep };
 
 /**

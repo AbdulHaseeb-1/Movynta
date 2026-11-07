@@ -3,6 +3,7 @@ import { channels, point, topology, type PolygonMesh } from "./meshTopology";
 import { triangulate } from "./meshOutput";
 import { validateTopologyEdit } from "./meshTopologyEdit";
 
+/** How normals are corrected: consistent, or outward. */
 export type NormalCorrectionMode = "consistent" | "outward";
 /** Make each connected face shell consistently wound. Optionally orient each closed shell outward. */
 export function correctNormals(mesh: PolygonMesh, mode: NormalCorrectionMode) {

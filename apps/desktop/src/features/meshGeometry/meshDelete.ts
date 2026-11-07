@@ -4,7 +4,9 @@ import { channels, type PolygonMesh } from "./meshTopology";
 import { topologyResult } from "./meshTopologyEdit";
 import type { Weights } from "./meshWeights";
 
+/** What is deleted: faces, edges or vertices. */
 export type DeleteKind = "face" | "edge" | "vertex";
+/** The result of a delete operation. */
 export interface DeleteResult extends ExtrudeResult {
   removedFaces: number;
   removedVertices: number;

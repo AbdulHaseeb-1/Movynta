@@ -3,6 +3,7 @@ import { channels, type PolygonMesh } from "./meshTopology";
 import { shellRoots } from "./meshRegions";
 import { validateTopologyEdit } from "./meshTopologyEdit";
 
+/** The result of flipping faces. */
 export interface FlipResult extends ExtrudeResult {
   flippedFaces: number;
 }

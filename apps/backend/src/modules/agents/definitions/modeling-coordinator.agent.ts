@@ -7,7 +7,9 @@ import { requestPolicyGuardrail } from "../guardrails/request-policy.guardrail.j
 import type { AgentDefinition, AppAgent, ModelingCoordinatorDependencies } from "./definitions.types.js";
 import { buildModelingInstructions } from "./modeling-coordinator.instructions.js";
 
+/** The id of the modeling coordinator agent. */
 export const MODELING_COORDINATOR_ID = "modeling-coordinator";
+/** The version of the modeling coordinator's instructions. */
 export const MODELING_COORDINATOR_VERSION = "1.0.0";
 
 /**

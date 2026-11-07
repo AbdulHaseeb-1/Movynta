@@ -3,6 +3,7 @@ import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import { briefBlocksReady } from "../../agent-runs/run-progress.js";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 
+/** The name of the reviewer's verdict tool. */
 export const QUALITY_ASSESS_TOOL_NAME = "modeling.assess_quality";
 
 /**

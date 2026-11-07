@@ -2,11 +2,13 @@ import { InterleavedBufferAttribute, Vector3, type BufferAttribute, type BufferG
 import { MAX_MESH_INPUT_TRIANGLES, MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import { basis, type Weights } from "./meshWeights";
 
+/** The per-vertex, per-corner and per-face data of a mesh: positions, corners and materials. */
 export interface SurfaceChannels {
   positions: Weights[];
   corners: Weights[][];
   materials: number[];
 }
+/** A mesh as polygons: vertex positions, faces as vertex lists, and optional channel data. */
 export interface PolygonMesh {
   positions: Vector3[];
   faces: number[][];
@@ -64,11 +66,13 @@ export function channels(mesh: PolygonMesh): SurfaceChannels {
     }
   );
 }
+/** One side of an edge: the face it belongs to and its direction. */
 export interface HalfEdge {
   face: number;
   from: number;
   to: number;
 }
+/** The edges and vertex adjacency of a mesh. */
 export interface Topology {
   edges: Map<string, HalfEdge[]>;
   vertexFaces: number[][];
@@ -222,6 +226,7 @@ export function assertManifold(mesh: PolygonMesh, graph: Topology, closed = fals
 }
 
 const CONTINUITY_SKIP = new Set(["position", "normal", "tangent", "skinIndex", "skinWeight"]);
+/** A vertex attribute whose values must stay continuous across an edit. */
 export type ContinuityChannel = BufferAttribute | InterleavedBufferAttribute;
 
 /** Attributes that must stay continuous for two triangles to become one polygon, and for a subdivision chart to stay smooth. */

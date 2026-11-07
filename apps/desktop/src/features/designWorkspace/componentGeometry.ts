@@ -3,6 +3,7 @@ import { readTopology, edgeKey, type PolygonMesh } from "@/features/meshGeometry
 import { triangulate } from "@/features/meshGeometry/meshOutput";
 import type { ComponentKind } from "./workspaceSlice";
 
+/** The geometry the component picking and highlighting use, built from a mesh. */
 export interface ComponentGeometry {
   mesh: PolygonMesh;
   picking: BufferGeometry;

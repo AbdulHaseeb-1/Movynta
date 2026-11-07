@@ -1,5 +1,6 @@
 import type { EditorScene } from "@/features/assistant";
 
+/** A component selection waiting to be restored once the scene is ready. */
 export interface QueuedComponentSelection {
   scene: EditorScene;
   objectId: string;

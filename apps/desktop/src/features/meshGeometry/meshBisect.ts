@@ -10,12 +10,14 @@ import { blend, type Weights } from "./meshWeights";
 const OPEN_OUTLINE =
   "The cut outline does not close, so it cannot be capped: the mesh is open where the plane passes (a face is missing there). Close the opening first with geometry.fill_hole, move the plane clear of it, or leave fill off";
 
+/** Which side of a bisecting plane to keep: both, positive or negative. */
 export type BisectKeep = "both" | "positive" | "negative";
 /** A plane in mesh-local space: a point on it and the direction that counts as its positive side. */
 export interface BisectPlane {
   point: Vector3;
   normal: Vector3;
 }
+/** The options of a bisect operation. */
 export interface BisectOptions {
   /** Cut only these faces. Edges they cross are still split in their neighbors, so no crack opens. */
   faces?: ReadonlySet<number>;
@@ -26,6 +28,7 @@ export interface BisectOptions {
   /** Vertices within this distance of the plane count as on it, and a cut this close to a vertex lands on the vertex. */
   snapDistance?: number;
 }
+/** The result of a bisect operation. */
 export interface BisectResult extends ExtrudeResult {
   split: number;
   removed: number;

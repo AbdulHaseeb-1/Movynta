@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { readStored, writeStored } from "@/lib/storage";
 
+/** The Edit-mode panels that can be shown or hidden. */
 export const PANEL_IDS = ["assistant", "scene", "meshSelection", "modifiers", "properties"] as const;
+/** One Edit-mode panel. */
 export type PanelId = (typeof PANEL_IDS)[number];
+/** Whether each Edit-mode panel is open. */
 export type PanelVisibility = Record<PanelId, boolean>;
 const KEY = "movynta.workspace.panels.v1";
 const savedSchema = z.record(z.string(), z.unknown());

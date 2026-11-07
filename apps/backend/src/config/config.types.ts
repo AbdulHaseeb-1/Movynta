@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { envSchema } from "./env.validation.js";
 
+/** The settings of one MCP server the app may connect to. */
 export interface McpServerConfig {
   readonly name: string;
   readonly command: string;
@@ -8,6 +9,7 @@ export interface McpServerConfig {
   readonly allowedTools: readonly string[];
 }
 
+/** The validated application configuration, grouped by area. */
 export interface AppConfig {
   readonly nodeEnv: "development" | "test" | "production";
   readonly host: string;
@@ -42,4 +44,5 @@ export interface AppConfig {
   readonly blender: { readonly enabled: boolean };
 }
 
+/** The environment variables as they are read, before they are validated and grouped. */
 export type RawEnv = z.infer<typeof envSchema>;

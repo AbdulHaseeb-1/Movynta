@@ -18,6 +18,7 @@ export function requireIds(ids: readonly string[], minimum = 1): void {
  */
 const faceChecked = new WeakMap<readonly (readonly number[])[], WeakSet<readonly Vector3[]>>();
 
+/** The options of a topology edit, such as which faces it must keep. */
 export interface TopologyEditOptions {
   /** The edit may open a closed mesh (delete, or a cut that keeps one side). Otherwise a closed mesh must stay closed. */
   allowOpening?: boolean;

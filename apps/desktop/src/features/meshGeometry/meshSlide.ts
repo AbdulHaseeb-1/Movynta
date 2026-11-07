@@ -2,6 +2,7 @@ import { channels, point, topology, type PolygonMesh } from "./meshTopology";
 import { componentTransformSelection } from "./meshComponentTransform";
 import { topologyResult } from "./meshTopologyEdit";
 
+/** A rail along which an edge slides. */
 export interface SlideRail {
   vertex: string;
   toward: string;

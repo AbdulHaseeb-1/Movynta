@@ -49,6 +49,7 @@ export function sceneOf(
   });
 }
 
+/** Options for the building fixture: how many floors and columns, and how far apart they are. */
 export interface BuildingOptions {
   readonly floors: number;
   readonly columns: number;

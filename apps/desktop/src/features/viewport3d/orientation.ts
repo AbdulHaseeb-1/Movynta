@@ -1,6 +1,7 @@
 import { MathUtils, Spherical, Vector3, type Quaternion } from "three";
 import type { ViewPresetId } from "./viewPresets";
 
+/** One axis shown by the orientation gizmo. */
 export interface OrientationAxis {
   label: "X" | "Y" | "Z";
   positive: boolean;
@@ -8,6 +9,7 @@ export interface OrientationAxis {
   direction: readonly [number, number, number];
 }
 
+/** The axes shown by the orientation gizmo. */
 export const ORIENTATION_AXES: readonly OrientationAxis[] = [
   { label: "X", positive: true, preset: "right", direction: [1, 0, 0] },
   { label: "X", positive: false, preset: "left", direction: [-1, 0, 0] },

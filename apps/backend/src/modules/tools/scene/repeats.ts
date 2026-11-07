@@ -15,6 +15,7 @@ export type Arrangement =
   /** No regular spacing was found. */
   | { kind: "scattered" };
 
+/** A set of look-alike objects, described once: a template, its size and how its members are arranged. */
 export interface RepeatGroup {
   /** The name the members share, without the numbering that tells them apart. */
   name: string;
@@ -35,6 +36,7 @@ export interface RepeatGroup {
   arrangement: Arrangement;
 }
 
+/** The groups found in a scene, and how much of the scene they cover. */
 export interface RepeatReport {
   /** Objects looked at. */
   scanned: number;
@@ -45,6 +47,7 @@ export interface RepeatReport {
   omittedGroups: number;
 }
 
+/** Options for finding repeats: the branch to search, the smallest group, and how many groups to return. */
 export interface RepeatOptions {
   rootId?: string | undefined;
   minCount: number;

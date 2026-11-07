@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
+/** The address of the local backend. Tests point it at another port. */
 export let BACKEND_URL = "http://127.0.0.1:3001";
 let accessToken = "";
 let connecting: Promise<void> | undefined;

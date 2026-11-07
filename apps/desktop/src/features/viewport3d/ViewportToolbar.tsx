@@ -39,6 +39,7 @@ const SHORTCUTS: Readonly<Record<string, ViewportTool>> = {
   h: "pan",
 };
 
+/** The props of one viewport toolbar button. */
 export interface ToolButtonProps {
   label: string;
   /** Which side the tooltip opens on, away from the bar. */

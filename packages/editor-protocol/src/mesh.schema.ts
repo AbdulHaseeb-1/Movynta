@@ -3,10 +3,13 @@ import { meshPathSchema } from "./mesh-path.js";
 import { modifierListSchema } from "./modifier.schema.js";
 import { materialSlotSchema } from "./material.schema.js";
 
+/** The most triangles a mesh may have as input. */
 export const MAX_MESH_INPUT_TRIANGLES = 20_000;
+/** The most triangles a mesh may have as output. */
 export const MAX_MESH_OUTPUT_TRIANGLES = 100_000;
 export { meshPathSchema };
 const point = z.array(z.number().finite()).length(3);
+/** The schema for a request to inspect a mesh. */
 export const meshInspectionRequestSchema = z
   .object({
     objectId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
@@ -60,12 +63,14 @@ export const meshInspectionRequestSchema = z
       .optional(),
   })
   .strict();
+/** The schema for a request to inspect a mesh's materials. */
 export const materialInspectionRequestSchema = meshInspectionRequestSchema.pick({
   objectId: true,
   meshPath: true,
   offset: true,
   limit: true,
 });
+/** The schema for the answer to a mesh inspection. */
 export const meshInspectionSchema = z
   .object({
     objectId: z.string(),
@@ -175,5 +180,7 @@ export const meshInspectionSchema = z
       .max(100),
   })
   .strict();
+/** A request to inspect a mesh. */
 export type MeshInspectionRequest = z.infer<typeof meshInspectionRequestSchema>;
+/** The answer to a mesh inspection. */
 export type MeshInspection = z.infer<typeof meshInspectionSchema>;

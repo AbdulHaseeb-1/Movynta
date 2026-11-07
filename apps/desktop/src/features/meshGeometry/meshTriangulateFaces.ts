@@ -4,6 +4,7 @@ import { channels, type PolygonMesh } from "./meshTopology";
 import { topologyResult } from "./meshTopologyEdit";
 import type { Weights } from "./meshWeights";
 
+/** The result of splitting faces into triangles. */
 export interface TriangulateResult extends ExtrudeResult {
   triangulatedFaces: number;
 }

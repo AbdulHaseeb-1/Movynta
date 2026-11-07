@@ -10,9 +10,11 @@ export interface KnifeEdgePoint {
   edge: string;
   factor: number;
 }
+/** A knife point on a vertex. */
 export interface KnifeVertexPoint {
   vertex: string;
 }
+/** A knife point: on a vertex, or on an edge. */
 export type KnifePoint = KnifeEdgePoint | KnifeVertexPoint;
 interface SplitPoint extends KnifeEdgePoint {
   id: number;
@@ -23,6 +25,7 @@ interface Corner {
   id: number;
   sample: Weights;
 }
+/** The options of one knife cut across a face. */
 export interface KnifeChordOptions {
   /** Check the whole result here. A caller that cuts several times in a row turns this off and checks once at the end. */
   validate?: boolean;

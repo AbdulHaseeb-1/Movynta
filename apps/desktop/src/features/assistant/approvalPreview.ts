@@ -74,11 +74,13 @@ const previewSchema = z.looseObject({
   commands: z.array(commandSchema).optional(),
 });
 
+/** One command of a pending batch, as shown in the approval card. */
 export interface ApprovalCommandView {
   id: string;
   text: string;
 }
 
+/** A pending approval, as shown in the approval card. */
 export interface ApprovalView {
   summary: string;
   commands: ApprovalCommandView[];

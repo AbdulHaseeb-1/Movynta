@@ -12,6 +12,7 @@ import { getManifoldModule, getManifoldModuleSync, setWasmUrl } from "manifold-3
 import { writeGeometry } from "./meshOutput";
 import { assertManifold, faceNormal, readTopology, topology } from "./meshTopology";
 
+/** A boolean operation: difference, union or intersect. */
 export type BooleanOperation = "difference" | "union" | "intersect";
 
 interface PropertyLayout {

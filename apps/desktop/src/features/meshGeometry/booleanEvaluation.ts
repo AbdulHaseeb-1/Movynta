@@ -3,6 +3,7 @@ import { resolveMeshPath, type MeshModifierSpec, type MeshPath } from "@movynta/
 import { evaluateBase, modifierStack, type ModifierEvalContext, type ModifierStackState } from "./modifierStack";
 import { isMesh } from "@/lib/three";
 
+/** A mesh of the scene, as a boolean operation sees it. */
 export interface SceneMesh {
   objectId: string;
   /** The scene object this mesh is part of, which a path to one of its meshes is taken from. */
@@ -12,6 +13,7 @@ export interface SceneMesh {
   mesh: Mesh;
 }
 
+/** A change to a mesh that a boolean operation produces. */
 export interface MeshChange {
   base?: BufferGeometry;
   modifiers?: MeshModifierSpec[];

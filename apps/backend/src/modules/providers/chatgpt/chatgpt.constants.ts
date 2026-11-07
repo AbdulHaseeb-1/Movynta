@@ -6,23 +6,31 @@ import type { ModelSettings } from "@openai/agents";
  * personal use of the user's own subscription.
  */
 export const CHATGPT_ISSUER = "https://auth.openai.com";
+/** The ChatGPT sign-in page address. */
 export const CHATGPT_AUTHORIZE_URL = `${CHATGPT_ISSUER}/oauth/authorize`;
+/** The address where the sign-in code is exchanged for tokens. */
 export const CHATGPT_TOKEN_URL = `${CHATGPT_ISSUER}/oauth/token`;
+/** The sign-in client id that the ChatGPT sign-in uses. */
 export const CHATGPT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
+/** The permissions requested during the ChatGPT sign-in. */
 export const CHATGPT_SCOPES = "openid profile email offline_access";
 /** The client registration only allows this loopback redirect, so the callback port is fixed. */
 export const CHATGPT_CALLBACK_PORT = 1455;
+/** The path of the local redirect that the sign-in returns to. */
 export const CHATGPT_CALLBACK_PATH = "/auth/callback";
+/** The full local redirect address for the sign-in. */
 export const CHATGPT_REDIRECT_URI = `http://localhost:${CHATGPT_CALLBACK_PORT}${CHATGPT_CALLBACK_PATH}`;
 
 /** Inference endpoint for subscription accounts (Responses API). */
 export const CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
+/** The client name sent with ChatGPT requests. */
 export const CHATGPT_ORIGINATOR = "codex_cli_rs";
 /**
  * The model list is filtered by the client version the caller reports: an old version only sees old
  * (or no) models. This is a high version so the account's current models are returned.
  */
 export const CHATGPT_CLIENT_VERSION = "1.0.0";
+/** How long the list of ChatGPT models is kept before it is fetched again, in milliseconds. */
 export const CHATGPT_CATALOG_TTL_MS = 10 * 60 * 1000;
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -32,6 +40,7 @@ export const CHATGPT_LOGIN_TTL_MS = 30 * 24 * HOUR_MS;
 export const CHATGPT_LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 /** Access tokens closer than this to expiry are refreshed before use. */
 export const CHATGPT_REFRESH_MARGIN_MS = 10 * 60 * 1000;
+/** How long a ChatGPT request may take before it is abandoned, in milliseconds. */
 export const CHATGPT_REQUEST_TIMEOUT_MS = 15000;
 
 /** Stored in `model_providers.encrypted_key`, which holds no secret for a subscription provider. */

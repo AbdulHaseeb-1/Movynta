@@ -1,5 +1,6 @@
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
 
+/** One numbered step of the database schema. */
 export interface Migration {
   readonly version: number;
   readonly name: string;
@@ -11,4 +12,5 @@ export interface Migration {
   readonly run?: (db: DatabaseSync) => void;
 }
 
+/** One row of a query result. */
 export type SqlRow = Readonly<Record<string, SQLOutputValue>>;

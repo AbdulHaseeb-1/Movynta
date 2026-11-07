@@ -2,8 +2,10 @@ import type { EditorCommand } from "@movynta/editor-protocol";
 import type { PROPOSAL_STATUSES } from "./command-proposal.repository.js";
 import type { CommandExecutionResult } from "../editor-bridge.types.js";
 
+/** The status of a proposal. */
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
 
+/** A proposal as it is stored. */
 export interface CommandProposalRecord {
   readonly strictRevision?: boolean;
   readonly id: string;
@@ -20,6 +22,7 @@ export interface CommandProposalRecord {
   readonly updatedAt: string;
 }
 
+/** What is needed to create a proposal record. */
 export interface NewProposal {
   readonly strictRevision?: boolean;
   readonly id: string;
@@ -33,6 +36,7 @@ export interface NewProposal {
   readonly now: string;
 }
 
+/** The run and connection a proposal belongs to. */
 export interface ProposalRun {
   readonly id: string;
   readonly userId: string;
@@ -40,6 +44,7 @@ export interface ProposalRun {
   readonly clientId: string;
 }
 
+/** What a tool gives when it proposes a batch. */
 export interface ProposalInput {
   /** Reject computations based on an obsolete scene snapshot. */
   readonly expectedRevision?: number | undefined;
@@ -49,6 +54,7 @@ export interface ProposalInput {
   readonly supersedes?: string | undefined;
 }
 
+/** One problem found in a proposed batch, with the path of the field at fault. */
 export interface ProposalIssue {
   readonly commandId: string;
   readonly message: string;

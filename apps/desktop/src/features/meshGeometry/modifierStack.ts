@@ -19,6 +19,7 @@ export interface ModifierEvalContext {
   operand(objectId: string, meshPath: readonly (number | string)[]): BooleanOperandView;
 }
 
+/** The modifier stack of one mesh: its base geometry, its modifiers and the result. */
 export interface ModifierStackState {
   base: BufferGeometry;
   modifiers: MeshModifierSpec[];

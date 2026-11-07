@@ -36,6 +36,7 @@ interface ObjectEditingOptions {
   saves: SerialQueue;
 }
 
+/** What the object editing hook returns: its tools and their state. */
 export interface ObjectEditing {
   transformHint: string;
   selected: SelectedObject | null;

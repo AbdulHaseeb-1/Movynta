@@ -2,6 +2,7 @@ import { modelingPlanSchema } from "../../../shared/schemas/modeling-plan.schema
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 import type { ModelingToolDependencies } from "./modeling.types.js";
 
+/** The name of the plan-recording tool. */
 export const MODELING_PLAN_TOOL_NAME = "modeling.generate_model_plan";
 
 /** Builds the plan-recording tool. Each plan step must name a tool that exists. */

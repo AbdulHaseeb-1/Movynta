@@ -37,6 +37,7 @@ import { isOverlayTarget, isTypingTarget } from "@/lib/dom";
 
 type Axis = "x" | "y" | "z";
 type ExtrudeMode = "move" | "scale" | "rotate";
+/** A tool that works on faces: extrude, normals, inset or another face tool. */
 export type FaceTool = ExtrudeMode | "extrude" | "normals" | "individual" | "solid" | "inset" | "bevel";
 interface CapShape {
   capScale?: number;
@@ -60,12 +61,14 @@ export function extrudeHasPreview(mesh: Mesh): boolean {
   return previewMesh === mesh;
 }
 
+/** The mesh and the faces an extrude gesture is aimed at. */
 export interface ExtrudeTarget {
   objectId: string;
   meshPath: number[];
   kind: ExtrudeKind;
   ids: readonly string[];
 }
+/** An extrude gesture's final edit, to be saved as one step. */
 export interface ExtrudeCommit {
   objectId: string;
   meshPath: number[];
@@ -80,19 +83,23 @@ export interface ExtrudeCommit {
   normalMode?: "vertex" | "individual";
   closeOpenSurface?: true;
 }
+/** The final edit of a face transform gesture. */
 export type FaceTransformCommit = Pick<
   ExtrudeCommit,
   "objectId" | "meshPath" | "kind" | "ids" | "selection" | "revision"
 > & {
   transform: FaceTransform;
 };
+/** The final edit of an inset gesture. */
 export type InsetCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & {
   options: InsetOptions;
 };
+/** The final edit of a bevel gesture. */
 export type BevelCommit = Pick<ExtrudeCommit, "objectId" | "meshPath" | "ids" | "selection" | "revision"> & {
   width: number;
   segments: number;
 };
+/** A preview that has been confirmed and is waiting to be saved. */
 export interface ConfirmedPreview {
   show: () => void;
   dispose: () => void;

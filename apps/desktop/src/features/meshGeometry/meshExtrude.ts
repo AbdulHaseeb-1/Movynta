@@ -24,7 +24,9 @@ import {
   type Topology,
 } from "./meshTopology";
 
+/** What is extruded: vertices, edges or faces. */
 export type ExtrudeKind = "vertex" | "edge" | "face";
+/** The shape of the cap of an extrusion: its scale, rotation and twist. */
 export interface ExtrudeCapShape {
   capScale?: number | undefined;
   capScaleXY?: readonly number[] | undefined;
@@ -34,6 +36,7 @@ export interface ExtrudeCapShape {
   normalMode?: "region" | "individual" | "vertex" | undefined;
   normalDistance?: number | undefined;
 }
+/** The result of an extrude or other face edit: the mesh and the ids of what it changed. */
 export interface ExtrudeResult {
   mesh: PolygonMesh;
   selection: string[];

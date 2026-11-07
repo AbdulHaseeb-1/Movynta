@@ -1,11 +1,13 @@
 import type { AgentInputItem, InputGuardrail } from "@openai/agents";
 
+/** The longest message, in characters, that a user may send in one request. */
 export const MAX_REQUEST_CHARACTERS = 4000;
 
 /** System execution stays unavailable; JavaScript modeling calculations use the isolated tool. */
 const CODE_EXECUTION_PATTERN =
   /\b(run|execute|eval)\b[\s\S]{0,40}\b(python|shell|bash|powershell|cmd)\b|\bos\.system\b|\bsubprocess\b|\bchild_process\b/i;
 
+/** Whether a request is allowed, and if not, the rule that refused it. */
 export type RequestVerdict =
   | { readonly tripwireTriggered: true; readonly reason: "request_too_long" | "code_execution_requested" }
   | { readonly tripwireTriggered: false; readonly reason: "allowed" };

@@ -5,6 +5,7 @@ import { fitsTotal, mediaTypeOf, uniqueName } from "./imagePlan";
 import { prepareImage, unsupportedMessage } from "./prepareImage";
 import { AttachmentError, type AttachmentUpload, type ComposerImage } from "./types";
 
+/** The pictures chosen for the next message, and the actions that change them. */
 export interface ImageAttachments {
   images: readonly ComposerImage[];
   /** True while chosen files are being read and shrunk. */

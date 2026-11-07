@@ -1,9 +1,13 @@
 import { z } from "zod";
 import { meshPathSchema } from "./mesh-path.js";
 const common = { id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), enabled: z.boolean().default(true) };
+/** The schema for a bevel profile. */
 export const bevelProfileSchema = z.enum(["chamfer", "round", "circular"]);
+/** The schema for a subdivision method. */
 export const subdivisionMethodSchema = z.enum(["catmull-clark", "linear", "loop"]);
+/** The schema for a boolean operation. */
 export const booleanOperationSchema = z.enum(["difference", "union", "intersect"]);
+/** The fields that describe a boolean's operand. */
 export const booleanOperandFields = {
   operation: booleanOperationSchema.default("difference"),
   operandObjectId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
@@ -12,6 +16,7 @@ export const booleanOperandFields = {
 };
 const capScale = z.number().min(0.01).max(100);
 const angle = z.number().min(-180).max(180);
+/** The fields that describe an extrusion's shape. */
 export const extrusionShapeFields = {
   capScale: capScale.optional(),
   capScaleXY: z.array(capScale).length(2).optional(),
@@ -48,6 +53,7 @@ export function validExtrusionShape(input: {
     (input.normalDistance !== undefined && (input.normalMode === undefined || input.normalMode === "region"))
   );
 }
+/** The schema for one modifier of a mesh's stack. */
 export const modifierSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -134,6 +140,7 @@ export const modifierSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
 ]);
+/** The schema for a mesh's modifier stack. */
 export const modifierListSchema = z
   .array(modifierSchema)
   .max(8)
@@ -142,4 +149,5 @@ export const modifierListSchema = z
     (entries) => entries.every((entry, index) => entry.kind !== "extrusion" || index === 0),
     "A single live extrusion must be the first modifier because it targets base components",
   );
+/** One entry of a mesh's modifier stack, as specified. */
 export type MeshModifierSpec = z.infer<typeof modifierSchema>;

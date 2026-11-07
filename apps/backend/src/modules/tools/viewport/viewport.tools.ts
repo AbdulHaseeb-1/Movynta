@@ -6,6 +6,7 @@ import { defineTool, type ToolDefinition } from "../tool.types.js";
 import { RichToolResult } from "../tool-result.js";
 import { newId } from "../../../common/ids/index.js";
 
+/** The name of the viewport capture tool. */
 export const VIEWPORT_CAPTURE_TOOL_NAME = "viewport.capture";
 
 const AXES_NOTE =

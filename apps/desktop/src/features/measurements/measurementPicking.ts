@@ -4,6 +4,7 @@ import type { Viewport } from "@/features/viewport3d";
 import { accelerateRaycasts } from "@/features/objectEditing/denseRaycast";
 import { isMesh } from "@/lib/three";
 
+/** What a measurement point snaps to: the surface, a vertex or the grid. */
 export type MeasurementSnap = "surface" | "vertex" | "grid";
 
 /** Shows a crosshair over the viewport while a measurement point is picked. Returns a function that restores the cursor. */

@@ -366,4 +366,5 @@ export function useAssistantRun(
   };
 }
 
+/** What the assistant's chat hook returns: its messages, state and actions. */
 export type AssistantRun = ReturnType<typeof useAssistantRun>;

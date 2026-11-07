@@ -1,3 +1,4 @@
+/** The Knife tool's options: snapping and the angle step. */
 export interface KnifeSettings {
   cutThrough: boolean;
   xray: boolean;
@@ -5,6 +6,7 @@ export interface KnifeSettings {
   angleMode: number;
   measures: number;
 }
+/** The Knife options used before the user changes them. */
 export const defaultKnifeSettings: KnifeSettings = {
   cutThrough: false,
   xray: true,

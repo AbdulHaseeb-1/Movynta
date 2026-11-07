@@ -12,8 +12,10 @@ const storedSelectionSchema = z.object({
   efforts: z.record(z.string(), reasoningEffortSchema).default({}),
 });
 
+/** The provider and model chosen for the assistant. */
 export type AssistantSelection = z.infer<typeof storedSelectionSchema>;
 
+/** The choice used before the user has chosen anything. */
 export const emptySelection: AssistantSelection = {
   providerId: null,
   model: "",

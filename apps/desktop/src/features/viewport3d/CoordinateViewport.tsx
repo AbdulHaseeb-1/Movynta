@@ -4,6 +4,7 @@ import { addCoordinateSpace, anchorToOrigin, updateCoordinateSpace } from "./coo
 import { ThreeViewport } from "./ThreeViewport";
 import type { Viewport } from "./viewport";
 
+/** The props of the viewport component. */
 export interface CoordinateViewportProps {
   className?: string | undefined;
   children?: ReactNode;

@@ -10,6 +10,7 @@ import { isWithinBranch, resolveSiblingName } from "./scene-graph.js";
  * two cannot disagree about what is allowed. Methods that can fail return the reason, which says how to fix it.
  */
 
+/** A collection as the editor lists it. */
 export interface CollectionEntry {
   readonly id: string;
   readonly name: string;

@@ -19,6 +19,7 @@ import type { ToolDefinition } from "./tool.types.js";
 import { createValidationTools } from "./validation/validation.tools.js";
 import { createViewportTools } from "./viewport/index.js";
 
+/** Registers every assistant tool with the registry the agent uses. */
 @Module({
   imports: [EditorBridgeModule, SkillsModule, ProjectsModule],
   providers: [
@@ -68,6 +69,5 @@ import { createViewportTools } from "./viewport/index.js";
     ToolRegistry,
   ],
   exports: [ToolRegistry],
-/** Registers every assistant tool with the registry the agent uses. */
 })
 export class ToolsModule {}

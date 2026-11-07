@@ -8,6 +8,7 @@ export interface OverlayItem {
   highlighted: boolean;
 }
 
+/** The options of the labels and highlights drawn on a captured view. */
 export interface OverlayOptions {
   items: readonly OverlayItem[];
   /** Write each object's id next to it. */
@@ -16,6 +17,7 @@ export interface OverlayOptions {
   caption: string;
 }
 
+/** The colour of the highlights drawn on a captured view. */
 export const HIGHLIGHT_COLOR = "#ff9b21";
 const LABEL_TEXT = "#f4f6fa";
 const LABEL_BACKGROUND = "rgba(8, 10, 14, 0.72)";

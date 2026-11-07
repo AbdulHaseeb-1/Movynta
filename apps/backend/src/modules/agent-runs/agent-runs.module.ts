@@ -11,6 +11,7 @@ import { AgentRunProcessor } from "./agent-run.processor.js";
 import { AgentRunStorageModule } from "./agent-run-storage.module.js";
 import { ProvidersModule } from "../providers/providers.module.js";
 
+/** The agent-runs feature: its controller, service, processor and storage. */
 @Module({
   imports: [
     AgentRunStorageModule,
@@ -24,6 +25,5 @@ import { ProvidersModule } from "../providers/providers.module.js";
   ],
   controllers: [AgentRunsController],
   providers: [AgentRunProcessor, AgentRunsService],
-/** The agent-runs feature: its controller, service, processor and storage. */
 })
 export class AgentRunsModule {}

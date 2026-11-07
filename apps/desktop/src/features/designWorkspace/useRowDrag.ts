@@ -8,6 +8,7 @@ export const LIST_ATTRIBUTE = "data-outliner-list";
 /** How far the pointer must travel before a press becomes a drag, so a plain click is never one. */
 const DRAG_THRESHOLD = 4;
 
+/** A drag of an outliner row, and where it would drop. */
 export interface RowDrag {
   /** The object being dragged. */
   readonly id: string;

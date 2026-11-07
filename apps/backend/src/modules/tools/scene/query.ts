@@ -1,13 +1,16 @@
 import { globMatches } from "./glob.js";
 import { roundVec, type IndexedObject, type SceneIndex, type Vec3 } from "./scene-index.js";
 
+/** A minimum and maximum for one axis value. Either bound may be left out. */
 export interface Range {
   min?: number | undefined;
   max?: number | undefined;
 }
 
+/** Ranges for the axes. An axis left out is not filtered. */
 export type AxisRanges = { x?: Range | undefined; y?: Range | undefined; z?: Range | undefined };
 
+/** The object types a query can select. */
 export type ObjectType = "mesh" | "empty" | "collection" | "camera" | "light";
 
 /** What to select. Every filter that is given must hold; one that is left out matches everything. */
@@ -32,6 +35,7 @@ export interface ObjectQuery {
   limit: number;
 }
 
+/** One object that a query matched, with what a command needs to refer to it. */
 export interface QueryMatch {
   id: string;
   name: string;
@@ -41,6 +45,7 @@ export interface QueryMatch {
   center: [number, number, number] | null;
 }
 
+/** The matches of a query, one page at a time. */
 export interface QueryResult {
   /** Every object that matched, whatever the limit. */
   total: number;

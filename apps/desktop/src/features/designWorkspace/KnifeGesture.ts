@@ -28,11 +28,13 @@ import { knifeGraph, projectKnife, snapKnife } from "./knifeProjection";
 import { defaultKnifeSettings, type KnifeSettings } from "./knifeSettings";
 import { setKnifeActivity } from "./knifeActivity";
 
+/** What a Knife stroke is aimed at: the mesh, and the point it is over. */
 export interface KnifeTarget {
   objectId: string;
   meshPath: number[];
   selectedFaces: number[];
 }
+/** The stroke a Knife gesture commits, to be applied as one edit. */
 export interface KnifeCommit {
   objectId: string;
   meshPath: number[];

@@ -13,6 +13,7 @@ import {
 } from "three";
 import { isMesh } from "@/lib/three";
 
+/** How the viewport shades the scene: default, solid or wireframe. */
 export type ShadingMode = "default" | "solid" | "wireframe";
 
 /** How much of a surface shows in Solid X-ray; the rest lets what is behind it through. */

@@ -2,6 +2,7 @@ import { edgeKey } from "@/features/meshGeometry/meshTopology";
 import type { ComponentGeometry } from "./componentGeometry";
 import type { ComponentKind } from "./workspaceSlice";
 
+/** How the selection changes: grow, shrink, or another neighbour operation. */
 export type ComponentSelectionOperation = "grow" | "shrink" | "connected" | "loop" | "ring";
 
 /** Vertices meet through an edge, edges through a vertex, and faces through an edge. */

@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { ConflictError, ServiceUnavailableError } from "../../../common/errors/app-error.js";
 import { CHATGPT_CALLBACK_PATH, CHATGPT_CALLBACK_PORT } from "./chatgpt.constants.js";
 
+/** A temporary local listener that receives the ChatGPT sign-in redirect. */
 export interface CallbackListener {
   /** Resolves with the authorization code; rejects on denial, a bad state, cancellation, or timeout. */
   readonly code: Promise<string>;

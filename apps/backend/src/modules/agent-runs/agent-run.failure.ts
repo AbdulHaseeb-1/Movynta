@@ -1,6 +1,7 @@
 import { InputGuardrailTripwireTriggered, MaxTurnsExceededError } from "@openai/agents";
 import type { RunStop } from "./run-clock.js";
 
+/** Why a run failed: a stable code and a message that is safe to show. */
 export interface RunFailure {
   readonly code: string;
   /** Safe to show to the user. */

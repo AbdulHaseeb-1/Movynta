@@ -19,6 +19,7 @@ export interface SkillManifest {
 /** Metadata-only view used in lists and in the coordinator prompt. */
 export type SkillSummary = Omit<SkillManifest, "instructions" | "tags" | "validation" | "errorHandling">;
 
+/** The request a skill is selected for: its message and the dimension. */
 export interface SkillRequest {
   readonly message: string;
   readonly dimension?: ModelingDimension | undefined;

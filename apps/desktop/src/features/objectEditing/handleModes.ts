@@ -7,6 +7,7 @@ export const HANDLE_MODES = {
   scale: "scale",
 } as const;
 
+/** How a transform handle works: move, rotate or scale. */
 export type HandleMode = (typeof HANDLE_MODES)[keyof typeof HANDLE_MODES];
 
 /** Whether a tool shows handles at all: Select and Pan only click and navigate. */

@@ -11,6 +11,7 @@
  * plus key, not a separator.
  */
 
+/** One part of a key combination, such as a key cap or a word. */
 export type KeyPart =
   | { readonly kind: "key"; readonly key: string; readonly modifier: boolean }
   | { readonly kind: "pointer"; readonly action: string };
@@ -18,6 +19,7 @@ export type KeyPart =
 /** Keys pressed together, such as Ctrl+B. */
 export type KeyStep = readonly KeyPart[];
 
+/** One way of pressing a shortcut, which may be one of several listed. */
 export type KeyAlternative =
   { readonly kind: "keys"; readonly steps: readonly KeyStep[] } | { readonly kind: "label"; readonly text: string };
 

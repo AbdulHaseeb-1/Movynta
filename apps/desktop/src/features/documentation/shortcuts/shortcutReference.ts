@@ -1,5 +1,6 @@
 import { chordsOf } from "./keys";
 
+/** One shortcut or control in the reference. */
 export interface ShortcutControl {
   readonly action: string;
   /** Written in the key grammar of `keys.ts`, so it can be drawn as key caps and found from a key press. */
@@ -9,6 +10,7 @@ export interface ShortcutControl {
   readonly guide?: string;
 }
 
+/** A group of shortcuts in the reference, such as the viewport's. */
 export interface ShortcutGroup {
   readonly id: string;
   readonly name: string;
@@ -220,6 +222,7 @@ export function filterShortcutGroups(
     .filter((group) => group.controls.length > 0);
 }
 
+/** A shortcut that matches a search or a key press. */
 export interface ShortcutMatch {
   readonly group: ShortcutGroup;
   readonly control: ShortcutControl;

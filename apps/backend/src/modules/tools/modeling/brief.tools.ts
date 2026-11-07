@@ -4,7 +4,9 @@ import { summarizeEvaluation } from "../../agent-runs/run-progress.js";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 
+/** The name of the tool that records a brief. */
 export const BRIEF_RECORD_TOOL_NAME = "modeling.record_brief";
+/** The name of the tool that checks a brief against the scene. */
 export const BRIEF_CHECK_TOOL_NAME = "validation.check_brief";
 
 /**

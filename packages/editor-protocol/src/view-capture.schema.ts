@@ -5,6 +5,7 @@ import { identifierSchema } from "./editor-command.schema.js";
 export const MAX_CAPTURE_VIEWS = 6;
 /** The smallest and largest side, in pixels, of a captured image. */
 export const MIN_CAPTURE_SIDE = 128;
+/** The longest side of a captured image, in pixels. */
 export const MAX_CAPTURE_SIDE = 1024;
 /** The most objects one capture may focus on or highlight. */
 export const MAX_CAPTURE_OBJECTS = 50;
@@ -13,8 +14,11 @@ export const MAX_LISTED_OBJECTS = 60;
 /** The longest base64 text of one image the editor may send. */
 export const MAX_IMAGE_BASE64_LENGTH = 2_000_000;
 
+/** The viewpoints a capture can be taken from. */
 export const VIEW_PRESETS = ["current", "front", "back", "left", "right", "top", "bottom", "isometric"] as const;
+/** How a view is drawn: solid, wireframe or normals. */
 export const CAPTURE_MODES = ["solid", "wireframe", "normals"] as const;
+/** The camera projections a capture can use. */
 export const PROJECTIONS = ["perspective", "orthographic"] as const;
 
 // A fixed-length array rather than z.tuple: tuples become `items: [...]` in JSON Schema, which model
@@ -117,8 +121,13 @@ export const viewCaptureResultSchema = z
   })
   .strict();
 
+/** One view to capture. */
 export type ViewSpec = z.infer<typeof viewSpecSchema>;
+/** A request for one or more views of the scene. */
 export type ViewCaptureRequest = z.infer<typeof viewCaptureRequestSchema>;
+/** The answer to a view capture request. */
 export type ViewCaptureResult = z.infer<typeof viewCaptureResultSchema>;
+/** One image of a capture. */
 export type CapturedImage = z.infer<typeof capturedImageSchema>;
+/** An object visible in a captured view, with its position in the image. */
 export type CapturedObject = z.infer<typeof capturedObjectSchema>;

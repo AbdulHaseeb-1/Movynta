@@ -24,8 +24,10 @@ import { createOutlineRenderer } from "./outline";
 import { createCameraEase } from "./cameraEase";
 import { isTypingTarget } from "@/lib/dom";
 
+/** A function run on every animation frame, with the time since the last frame. */
 export type FrameListener = (deltaSeconds: number) => void;
 
+/** The options a viewport is created with. */
 export interface ViewportOptions {
   // Omit to keep the canvas transparent so the page behind it shows through.
   background?: ColorRepresentation;
@@ -35,8 +37,10 @@ export interface ViewportOptions {
 // "select" is the default tool: dragging orbits the camera. "pan" makes dragging move the view instead.
 export type NavigationTool = "select" | "pan";
 
+/** Which part of the camera a navigation changes: the rotation, or everything. */
 export type NavigationScope = "rotate" | "full";
 
+/** The viewport: its renderer, camera and scene, with the operations that move the camera. */
 export interface Viewport {
   scene: Scene;
   setShadingMode: (mode: ShadingMode, xray: boolean) => void;

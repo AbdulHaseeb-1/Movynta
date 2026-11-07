@@ -4,11 +4,13 @@ import { edgeKey, type PolygonMesh } from "./meshTopology";
 import { knifeChord, type KnifePoint } from "./meshKnifeChord";
 import { validateTopologyEdit } from "./meshTopologyEdit";
 
+/** One straight segment of a knife stroke. */
 export interface KnifeSegment {
   face: number;
   start: KnifePoint;
   end: KnifePoint;
 }
+/** The options of a knife stroke. */
 export interface KnifeSessionOptions {
   /**
    * Check the whole mesh once, in `finish()`, instead of after every cut. For a stroke that is applied as one

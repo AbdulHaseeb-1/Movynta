@@ -12,8 +12,11 @@ import {
   type PolygonMesh,
 } from "./meshTopology";
 
+/** How a subdivision modifier smooths: Catmull-Clark, linear or Loop. */
 export type SubdivisionMethod = "catmull-clark" | "linear" | "loop";
+/** The profile of a bevel: chamfer, round or circular. */
 export type BevelProfile = "chamfer" | "round" | "circular";
+/** A modifier that changes a mesh's geometry, such as a bevel or a subdivision. */
 export type MeshModifier =
   | { type: "geometry.bevel"; width: number; segments?: number; profile?: BevelProfile; angle?: number }
   | { type: "geometry.subdivide"; levels: number; method?: SubdivisionMethod };

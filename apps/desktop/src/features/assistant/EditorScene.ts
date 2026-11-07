@@ -90,6 +90,7 @@ import { ensureManifold } from "../meshGeometry/meshBoolean";
 import type { MeshInspectionRequest } from "@movynta/editor-protocol";
 import { isMesh } from "@/lib/three";
 
+/** A collection of the scene, as the assistant and the outliner see it. */
 export type { CollectionEntry };
 
 /** What the user is doing with the design tools, as the assistant is told about it. */
@@ -253,6 +254,7 @@ function revealExtrudeBackfaces(mesh: Mesh): void {
 /** Stands in for a project's id until the first prompt or import creates the project. */
 export const UNSAVED_PROJECT_ID = "unsaved-project";
 
+/** A three-number vector, in scene units. */
 export type Vec3 = [number, number, number];
 /** Where an object is: position, rotation (radians, XYZ order) and scale. */
 export interface ObjectTransform {

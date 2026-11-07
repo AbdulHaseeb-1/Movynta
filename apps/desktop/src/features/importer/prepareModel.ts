@@ -7,6 +7,7 @@ const MIN_SIZE = 0.25;
 const MAX_SIZE = 20;
 const TARGET_SIZE = 2;
 
+/** A model file read and ready to add to the scene. */
 export interface PreparedModel {
   /** One object holding the whole model, ready to add to the scene. */
   object: Object3D;

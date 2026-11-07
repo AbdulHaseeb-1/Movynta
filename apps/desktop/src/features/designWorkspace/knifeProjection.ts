@@ -13,6 +13,7 @@ export function knifeGraph(mesh: PolygonMesh): ReturnType<typeof topology> {
   }
   return graph;
 }
+/** A mesh vertex projected onto the screen, with its depth. */
 export interface ProjectedVertex {
   screen: Vector2;
   w: number;

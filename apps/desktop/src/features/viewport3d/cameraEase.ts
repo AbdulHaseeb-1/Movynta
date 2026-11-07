@@ -6,6 +6,7 @@ export interface RestPose {
   target: Vector3;
 }
 
+/** The camera's easing state: where it is and where it is heading. */
 export interface CameraEase {
   /** Eases the camera to a new position and target, replacing any move still under way. */
   easeTo: (position: Vector3, target: Vector3) => void;

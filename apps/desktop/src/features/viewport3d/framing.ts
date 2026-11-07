@@ -7,11 +7,13 @@ const MARGIN = 1.2;
 const MIN_RADIUS = 0.5;
 const DEFAULT_DIRECTION = new Vector3(5, 4, 7).normalize();
 
+/** A camera position and the point it looks at. */
 export interface CameraPose {
   position: Vector3;
   target: Vector3;
 }
 
+/** The limits used when framing the camera on a subject. */
 export interface FrameLimits {
   minDistance: number;
   maxDistance: number;

@@ -2,7 +2,9 @@ import { execFile } from "node:child_process";
 import { Injectable } from "@nestjs/common";
 import { ServiceUnavailableError } from "../../common/errors/app-error.js";
 
+/** The injection token for the component that encrypts secrets. */
 export const SECRET_PROTECTOR = Symbol("SECRET_PROTECTOR");
+/** Encrypts and decrypts secrets, bound to a purpose so one kind cannot be read as another. */
 export interface SecretProtector {
   protect(value: string, scope: string): Promise<string>;
   unprotect(value: string, scope: string): Promise<string>;

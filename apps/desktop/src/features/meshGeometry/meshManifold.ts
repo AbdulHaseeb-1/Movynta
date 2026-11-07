@@ -7,6 +7,7 @@ import type { PolygonMesh } from "./meshTopology";
  */
 const verified = new WeakMap<readonly (readonly number[])[], { closed: boolean; vertices: number }>();
 
+/** A report of how well a mesh is closed and consistent: its open edges and non-manifold points. */
 export interface ManifoldReport {
   closed: boolean;
 }

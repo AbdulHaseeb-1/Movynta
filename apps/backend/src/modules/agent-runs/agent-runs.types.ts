@@ -10,8 +10,10 @@ import type { RunProgress } from "./run-progress.js";
 import type { RunClock } from "./run-clock.js";
 import type { AttachmentSummary } from "@movynta/contracts";
 
+/** The status of a run, as defined by the state machine. */
 export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 
+/** The kinds of event a run can publish to its event stream. */
 export type AgentRunEventType = (typeof AGENT_RUN_EVENT_TYPES)[number];
 
 /**
@@ -108,6 +110,7 @@ export type AgentRunEventPayloads = {
   readonly "run.cancelled": { readonly runId: string };
 };
 
+/** The payload of an event, whose shape depends on its type. */
 export type AgentRunEventPayload = AgentRunEventPayloads[AgentRunEventType];
 
 /** Client-facing envelope. `seq` orders events and is sent as the SSE `id`. */
@@ -125,6 +128,7 @@ export interface AgentRunEventSink {
   emit<T extends AgentRunEventType>(type: T, payload: AgentRunEventPayloads[T]): void;
 }
 
+/** A run as it is stored, including its server-side state. */
 export interface AgentRunRecord {
   readonly reasoningEffort?: ReasoningEffort | undefined;
   readonly providerBaseUrl?: string | undefined;
@@ -152,6 +156,7 @@ export interface AgentRunRecord {
   readonly updatedAt: string;
 }
 
+/** What is needed to create a run record. */
 export interface NewAgentRun {
   readonly reasoningEffort?: ReasoningEffort | undefined;
   readonly providerBaseUrl?: string | undefined;
@@ -170,6 +175,7 @@ export interface NewAgentRun {
   readonly now: string;
 }
 
+/** The fields that a status change may update on a run. */
 export interface RunUpdate {
   readonly status?: AgentRunStatus;
   readonly finalOutput?: string;
@@ -180,6 +186,7 @@ export interface RunUpdate {
   readonly progressJson?: string | null;
 }
 
+/** The answer to starting a run. */
 export interface AgentRunAccepted {
   readonly runId: string;
   readonly sessionId: string;
@@ -187,6 +194,7 @@ export interface AgentRunAccepted {
   readonly eventsUrl: string;
 }
 
+/** A run as the API returns it, without server-side state. */
 export interface AgentRunView {
   readonly id: string;
   readonly sessionId: string;
@@ -200,6 +208,7 @@ export interface AgentRunView {
   readonly updatedAt: string;
 }
 
+/** An approval as the API returns it. */
 export interface ApprovalView {
   readonly id: string;
   readonly runId: string;
@@ -212,13 +221,16 @@ export interface ApprovalView {
   readonly decidedAt: string | undefined;
 }
 
+/** The answer to deciding one approval. */
 export interface ApprovalDecisionResult {
   readonly approvalId: string;
   readonly approvalStatus: string;
   readonly runStatus: AgentRunStatus;
 }
 
+/** The result of one streamed model turn. */
 export type RunResult = StreamedRunResult<AgentRunContext, AppAgent>;
+/** The serialisable state of a run's model turn, which is kept while it waits for approval. */
 export type RunStateOf = RunState<AgentRunContext, AppAgent>;
 
 /** A run that is executing now: its abort handle, its clock, and the subscription that feeds the clock. */

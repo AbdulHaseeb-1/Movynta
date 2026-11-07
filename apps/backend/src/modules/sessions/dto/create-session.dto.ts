@@ -1,6 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsString, Length, Matches } from "class-validator";
 
+/** The allowed form of a project id. */
 export const PROJECT_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
 
 /** The request body that starts a chat session for a project. */

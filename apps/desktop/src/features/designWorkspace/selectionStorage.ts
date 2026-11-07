@@ -11,6 +11,7 @@ const schema = z
     key: z.string().regex(/^[0-9a-f]{16}$/),
   })
   .strict();
+/** A component selection as it is saved for a project. */
 export interface StoredComponentSelection {
   objectId: string;
   kind: ComponentKind;

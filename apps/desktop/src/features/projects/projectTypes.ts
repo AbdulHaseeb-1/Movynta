@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { PROJECT_CATEGORIES, type ProjectSort } from "@movynta/contracts";
 
+/** The schema for a project category id. */
 export const projectCategoryIdSchema = z.enum(PROJECT_CATEGORIES);
+/** The id of a project category. */
 export type ProjectCategoryId = z.infer<typeof projectCategoryIdSchema>;
 
+/** The schema for a project as the backend returns it. */
 export const projectSchema = z.object({
   id: z.string(),
   /** Empty until the user names the project. */
@@ -17,7 +20,9 @@ export const projectSchema = z.object({
   /** The first request made in the project, shortened by the backend. */
   firstPrompt: z.string(),
 });
+/** A project as the app knows it. */
 export type Project = z.infer<typeof projectSchema>;
+/** The schema for a list of projects. */
 export const projectsSchema = z.array(projectSchema);
 
 /**
@@ -43,6 +48,7 @@ export const projectSceneSchema = z.object({
   ),
 });
 
+/** The schema for a project's saved chat. */
 export const projectConversationSchema = z.object({
   sessionId: z.string().optional(),
   provider: z.object({ id: z.string(), model: z.string(), baseUrl: z.string() }).optional(),
@@ -58,12 +64,15 @@ export const projectConversationSchema = z.object({
     }),
   ),
 });
+/** A project's saved chat: its session and its requests. */
 export type ProjectConversation = z.infer<typeof projectConversationSchema>;
 
 /** The tabs of the library: the working set, the starred ones among it, and the archive. */
 export type ProjectView = "all" | "starred" | "archived";
+/** The sort order of the library. */
 export type { ProjectSort };
 
+/** The search, category, view and sort that filter the library. */
 export interface ProjectFilters {
   search: string;
   category: ProjectCategoryId | "all";
@@ -71,6 +80,7 @@ export interface ProjectFilters {
   sort: ProjectSort;
 }
 
+/** The library filters used before the user changes them. */
 export const defaultProjectFilters: ProjectFilters = {
   search: "",
   category: "all",

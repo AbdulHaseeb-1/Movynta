@@ -5,8 +5,11 @@ import { meshPathSchema } from "./mesh-path.js";
 const point = z.array(z.number().finite().min(-1e12).max(1e12)).length(3);
 const matrix = z.array(z.number().finite()).length(16);
 const bounds = z.object({ min: point, max: point }).strict();
+/** The length units a project can be calibrated in. */
 export const lengthUnits = ["mm", "cm", "m", "in", "ft"] as const;
+/** How many metres one of each length unit is. */
 export const metersPerUnit = { mm: 0.001, cm: 0.01, m: 1, in: 0.0254, ft: 0.3048 } as const;
+/** The schema for a project's measurement units. */
 export const measurementUnitsSchema = z
   .object({
     display: z.enum(lengthUnits),
@@ -14,8 +17,10 @@ export const measurementUnitsSchema = z
   })
   .strict()
   .nullable();
+/** A project's measurement units. */
 export type MeasurementUnits = z.infer<typeof measurementUnitsSchema>;
 
+/** The schema for a measurement annotation. */
 export const measurementAnnotationSchema = z
   .object({
     id: identifierSchema,
@@ -23,7 +28,9 @@ export const measurementAnnotationSchema = z
     points: z.array(point).min(2).max(3),
   })
   .strict();
+/** A measurement annotation kept with the project. */
 export type MeasurementAnnotation = z.infer<typeof measurementAnnotationSchema>;
+/** The schema for a project's measurements. */
 export const projectMeasurementsSchema = z
   .object({
     units: measurementUnitsSchema,
@@ -33,11 +40,15 @@ export const projectMeasurementsSchema = z
       .refine((items) => new Set(items.map((item) => item.id)).size === items.length),
   })
   .strict();
+/** A project's measurements: its units and annotations. */
 export type ProjectMeasurements = z.infer<typeof projectMeasurementsSchema>;
+/** The measurements of a project that has none saved. */
 export const defaultMeasurements: ProjectMeasurements = { units: null, annotations: [] };
+/** The schema for measurements as they are saved. */
 export const savedMeasurementsSchema = z
   .object({ version: z.number().int().nonnegative(), value: projectMeasurementsSchema })
   .strict();
+/** The schema for saving a project's measurements. */
 export const saveMeasurementsSchema = z
   .object({ expectedVersion: z.number().int().nonnegative(), value: projectMeasurementsSchema })
   .strict();
@@ -59,6 +70,7 @@ const vertex = z
   })
   .strict();
 const endpoint = z.union([point, vertex]);
+/** The schema for a measurement request: distance, dimensions, edge or angle. */
 export const measurementRequestSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("dimensions"), target, space: z.enum(["world", "local"]).optional() }).strict(),
   z.object({ kind: z.literal("distance"), from: endpoint, to: endpoint }).strict(),
@@ -82,7 +94,9 @@ export const measurementRequestSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
 ]);
+/** A request to measure the scene. */
 export type MeasurementRequest = z.infer<typeof measurementRequestSchema>;
+/** The schema for the answer to a measurement request. */
 export const measurementResultSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("unavailable"), message: z.string().max(500) }).strict(),
   z
@@ -124,4 +138,5 @@ export const measurementResultSchema = z.discriminatedUnion("status", [
     })
     .strict(),
 ]);
+/** The answer to a measurement request. */
 export type MeasurementResult = z.infer<typeof measurementResultSchema>;

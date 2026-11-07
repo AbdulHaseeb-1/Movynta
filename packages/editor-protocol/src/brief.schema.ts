@@ -20,6 +20,7 @@ export const briefSelectorSchema = z
     (selector) => [selector.id, selector.name, selector.namePrefix].filter((field) => field !== undefined).length === 1,
     "Give exactly one of id, name or namePrefix",
   );
+/** The rule that picks which objects a brief check measures. */
 export type BriefSelector = z.infer<typeof briefSelectorSchema>;
 
 /** A selector for checks about one object: a prefix could match several, so it is not offered. */
@@ -133,6 +134,7 @@ export const briefCheckSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
 ]);
+/** One measurable check of a brief. */
 export type BriefCheck = z.infer<typeof briefCheckSchema>;
 
 /**
@@ -147,10 +149,13 @@ export const briefSchema = z
     checks: z.array(briefCheckSchema).min(1).max(40),
   })
   .strict();
+/** The brief for a request: its measurable checks. */
 export type Brief = z.infer<typeof briefSchema>;
 
+/** Whether a brief check passes, fails, or cannot be measured. */
 export type BriefCheckStatus = "pass" | "fail" | "unresolved";
 
+/** The result of one brief check, with the value measured. */
 export interface BriefCheckResult {
   readonly index: number;
   readonly label: string;
@@ -161,6 +166,7 @@ export interface BriefCheckResult {
   readonly expected: string;
 }
 
+/** The results of measuring a whole brief on the scene. */
 export interface BriefEvaluation {
   /** The scene revision the checks were measured on. */
   readonly revision: number;

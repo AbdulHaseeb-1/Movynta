@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { KeyCombo } from "../components/KeyCombo";
 
+/** A hint shown beside an interactive example. */
 export interface ExampleHint {
   /** Key text in the grammar of `shortcuts/keys.ts`. */
   readonly keys: string;
   readonly label: string;
 }
 
+/** The props of the frame that holds an interactive example. */
 export interface ExampleFrameProps {
   readonly title: string;
   readonly hints: readonly ExampleHint[];

@@ -13,6 +13,7 @@ const claimsSchema = z.object({
     .optional(),
 });
 
+/** The identity claims read from a ChatGPT token. */
 export interface TokenClaims extends ChatgptIdentity {
   accountId: string | undefined;
   /** Epoch milliseconds, from the `exp` claim. */

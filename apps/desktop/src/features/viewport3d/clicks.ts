@@ -1,5 +1,6 @@
 /** A press that moves less than this, and ends sooner than the time limit, is a click, not a drag. */
 export const CLICK_TOLERANCE_PX = 4;
+/** The longest press, in milliseconds, that still counts as a click. */
 export const CLICK_MAX_MS = 500;
 
 /** Where and when a press began. */
@@ -14,6 +15,7 @@ export function isClick(press: Press, x: number, y: number, now: number): boolea
   return Math.hypot(x - press.x, y - press.y) <= CLICK_TOLERANCE_PX && now - press.time <= CLICK_MAX_MS;
 }
 
+/** Tracks a press to tell a click from a drag. */
 export interface ClickWatch {
   /**
    * Asked when the button goes down: true leaves this press alone, for one that grabs a handle and so

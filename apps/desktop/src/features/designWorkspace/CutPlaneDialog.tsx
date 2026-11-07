@@ -10,6 +10,7 @@ import { applyMeshTool, middleOfObject, previewMeshCut, type CutAxis, type CutSp
 import { SegmentedChoice } from "./SegmentedChoice";
 import type { ComponentChoice } from "./subdivideSelection";
 
+/** The settings chosen for a plane cut. */
 export interface CutChoice extends ComponentChoice {
   revision: number;
   faceSelection: boolean;

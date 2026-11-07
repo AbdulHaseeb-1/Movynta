@@ -8,6 +8,7 @@ import { requireOneOf } from "../../../shared/guards/enum.guard.js";
 import type { CommandExecutionResult } from "../editor-bridge.types.js";
 import type { CommandProposalRecord, NewProposal, ProposalStatus } from "./proposals.types.js";
 
+/** The statuses a proposal can have. */
 export const PROPOSAL_STATUSES = ["proposed", "applying", "applied", "failed", "rejected", "superseded"] as const;
 
 // JSON storage drops undefined fields, so optional values may be absent or null.

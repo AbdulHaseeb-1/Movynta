@@ -15,6 +15,7 @@ export const MAX_COMMANDS_PER_PROPOSAL = 200;
 /** Segment limit for interactive and assistant-selected edge bevels. */
 export const MAX_SELECTED_BEVEL_SEGMENTS = 32;
 
+/** The schema for an object, collection or command id. */
 export const identifierSchema = z
   .string()
   .regex(/^[A-Za-z0-9_-]{1,64}$/, "Identifiers use letters, digits, '_' or '-'");
@@ -22,6 +23,7 @@ export const identifierSchema = z
 // providers reject when this schema is sent as a tool definition.
 const vector3 = z.array(z.number().finite()).length(3);
 
+/** The schema for a transform: position, rotation and scale. */
 export const transformSchema = z
   .object({
     position: vector3.optional(),
@@ -789,6 +791,7 @@ export const editorCommandSchema = z.discriminatedUnion("type", [
     .strict(),
 ]);
 
+/** The schema for a batch of editor commands: between one and the maximum. */
 export const editorCommandListSchema = z.array(editorCommandSchema).min(1).max(MAX_COMMANDS_PER_PROPOSAL);
 
 /** One command as a type. */

@@ -1,6 +1,8 @@
 import type { Project } from "./projectTypes";
 
+/** The name shown for a project that has no name. */
 export const UNTITLED_PROJECT = "Untitled project";
+/** The longest project name, in characters. */
 export const PROJECT_NAME_MAX_LENGTH = 80;
 
 /** Whether a project has no name, so it is shown as untitled. */

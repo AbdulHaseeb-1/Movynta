@@ -2,8 +2,10 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { createViewport, type Viewport } from "./viewport";
 
+/** A function that sets up a viewport and returns the cleanup to run when it goes. */
 export type ViewportSetup = (viewport: Viewport) => void | (() => void);
 
+/** The props of the three.js viewport. */
 export interface ThreeViewportProps {
   className?: string | undefined;
   children?: ReactNode;

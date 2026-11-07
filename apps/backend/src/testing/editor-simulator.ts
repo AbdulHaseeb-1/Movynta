@@ -10,6 +10,7 @@ import {
 
 import type { EditorCommand, EditorCommandList, OutboundMessage } from "./testing.types.js";
 
+/** The schema for messages the simulated editor receives from the backend. */
 export const outboundSchema = z.object({
   event: z.string(),
   data: z.record(z.string(), z.unknown()),

@@ -4,6 +4,7 @@ import type { EditorContext } from "@movynta/editor-protocol";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 import type { SceneCheckResult, SceneIssue } from "./validation.types.js";
 
+/** The object count above which the scene check adds a warning that its results may be slow to review. */
 export const LARGE_SCENE_WARNING_THRESHOLD = 500;
 
 /** Pure checks over an editor snapshot. Used by the tool and by unit tests. */

@@ -8,6 +8,7 @@ import { CHATGPT_MODEL_SETTINGS } from "./chatgpt/chatgpt.constants.js";
  * translates it here.
  */
 export const REASONING_EFFORTS = ["minimal", "low", "medium", "high"] as const;
+/** How hard a model should think: minimal, low, medium or high. */
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 const LOW_MEDIUM_HIGH: readonly ReasoningEffort[] = ["low", "medium", "high"];

@@ -7,7 +7,9 @@
  * A matrix is 16 numbers in column-major order and always affine: its last row is 0, 0, 0, 1.
  */
 
+/** A three-number vector. */
 export type Vec3 = readonly [number, number, number];
+/** A four-by-four matrix, in column order. */
 export type Mat4 = readonly number[];
 
 /** Where an object is, relative to its parent. */
@@ -17,7 +19,9 @@ export interface Trs {
   readonly scale: Vec3;
 }
 
+/** The identity matrix, which leaves a position unchanged. */
 export const IDENTITY_MATRIX: Mat4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+/** A transform with no movement, no rotation and unit scale. */
 export const IDENTITY_TRS: Trs = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
 
 /** Below this, a matrix has no inverse for the purpose of keeping an object in place. The editor uses the same limit. */

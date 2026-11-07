@@ -8,12 +8,14 @@ import { deleteProject, duplicateProject, updateProject } from "./projectsApi";
 import { projectChanged, projectRemoved } from "./projectsSlice";
 import type { Project, ProjectAction, ProjectActionHandler } from "./projectTypes";
 
+/** Options for the project actions hook. */
 export interface ProjectActionsOptions {
   /** Called with the project after it was renamed, starred, archived or duplicated. */
   onChanged?: (project: Project, action: ProjectAction) => void;
   onRemoved?: (project: Project) => void;
 }
 
+/** The actions the project menus and dialogs can take. */
 export interface ProjectActions {
   perform: ProjectActionHandler;
   /** The project whose name is being edited in the rename dialog, if any. */

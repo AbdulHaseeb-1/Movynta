@@ -3,6 +3,7 @@ import type { EditorCommand, MaterialProperties } from "@movynta/editor-protocol
 import { copyTopology } from "../meshGeometry/meshTopology";
 import { modifierStack } from "../meshGeometry/modifierStack";
 
+/** One of the editor commands that change a material. */
 export type MaterialEditCommand = Extract<
   EditorCommand,
   { type: "material.set_properties" | "material.add_slot" | "material.replace_slot" }

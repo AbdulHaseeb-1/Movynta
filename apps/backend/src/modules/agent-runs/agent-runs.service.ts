@@ -33,6 +33,7 @@ import type {
 import { newId } from "../../common/ids/index.js";
 import { checkAttachments, summarizeAttachments } from "./run-attachments.js";
 
+/** How often the event stream sends a heartbeat, so idle connections are kept open. */
 export const HEARTBEAT_INTERVAL_MS = 15_000;
 
 const TERMINAL_EVENTS: readonly AgentRunEventType[] = ["run.completed", "run.failed", "run.cancelled"];

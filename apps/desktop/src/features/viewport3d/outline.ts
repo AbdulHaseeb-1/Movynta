@@ -70,6 +70,7 @@ const FRAGMENT_SHADER = /* glsl */ `
   }
 `;
 
+/** Draws the outline around the selected objects. */
 export interface OutlineRenderer {
   /** The objects to outline. An empty list switches the outline, and its cost, off. */
   setObjects: (objects: readonly Object3D[]) => void;

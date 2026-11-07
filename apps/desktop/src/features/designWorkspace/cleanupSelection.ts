@@ -8,6 +8,7 @@ import { fillHole } from "@/features/meshGeometry/meshFillHole";
 import { saveCageEdit, type CageEdit } from "./saveCageEdit";
 import type { ComponentChoice } from "./subdivideSelection";
 
+/** A cleanup action on the selected components, such as merging or deleting them. */
 export type CleanupAction = "merge-center" | "merge-first" | "merge-last" | "dissolve" | "fill";
 
 /** Called inside the save queue; the IDs must still name the cage the user selected. */

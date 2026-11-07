@@ -1,3 +1,4 @@
+/** Weights that say how much each index contributes to a value. */
 export type Weights = ReadonlyMap<number, number>;
 /** Weights that give all their influence to one index. */
 export function basis(index: number): Weights {

@@ -28,6 +28,7 @@ const plannedBatchSchema = z.object({
   sourceRevision: z.number().int().nonnegative(),
   commands: z.array(z.unknown()).min(1).max(200),
 });
+/** A batch of commands the planning tools calculated and kept under a planId. */
 export type PlannedBatch = z.infer<typeof plannedBatchSchema>;
 
 /** One thing the independent reviewer found wrong or right, with what to change. */
@@ -37,10 +38,12 @@ const reviewFindingSchema = z.object({
   severity: z.enum(["major", "minor"]),
   fix: z.string().max(240).optional(),
 });
+/** One finding of the independent review, with a severity and, optionally, a fix. */
 export type ReviewFinding = z.infer<typeof reviewFindingSchema>;
 
 /** Which runs are reviewed by a separate agent: none, those that ask for quality, or every build. */
 export const REVIEW_MODES = ["off", "quality", "builds"] as const;
+/** When the independent review runs: never, for quality requests, or for every build. */
 export type ReviewMode = (typeof REVIEW_MODES)[number];
 
 const qualityReviewSchema = z.object({
@@ -128,7 +131,9 @@ export const runProgressSchema = z.object({
   nextPlannedBatch: z.number().int().positive().default(1),
 });
 
+/** What a run has done so far: plans, batches, checks, brief and review. It is kept across an approval pause. */
 export type RunProgress = z.infer<typeof runProgressSchema>;
+/** One proposal a run made, with the plan step it carries out. */
 export type ProposalRecord = RunProgress["proposals"][number];
 
 /** Returns the state where nothing has been planned, proposed or changed. */

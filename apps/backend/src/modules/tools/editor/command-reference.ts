@@ -1,5 +1,6 @@
 import type { EditorCommand } from "@movynta/editor-protocol";
 
+/** The type name of an editor command, such as scene.create_object. */
 export type EditorCommandType = EditorCommand["type"];
 
 /** What the model reads about one command: a line for the index, and the full rules on request. */

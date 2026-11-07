@@ -6,7 +6,9 @@ import type { ToolRegistry } from "../../tools/tool.registry.js";
 import type { AgentDefinition, AppAgent } from "./definitions.types.js";
 import { QUALITY_REVIEWER_INSTRUCTIONS } from "./quality-reviewer.instructions.js";
 
+/** The id of the independent quality reviewer agent. */
 export const QUALITY_REVIEWER_ID = "quality-reviewer";
+/** The version of the quality reviewer's instructions. */
 export const QUALITY_REVIEWER_VERSION = "1.0.0";
 
 /**

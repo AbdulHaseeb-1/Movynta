@@ -3,6 +3,7 @@ import { channels, point, type PolygonMesh } from "./meshTopology";
 import { topologyResult } from "./meshTopologyEdit";
 import type { Weights } from "./meshWeights";
 
+/** The result of bridging two openings of a mesh. */
 export interface BridgeResult extends ExtrudeResult {
   bridgeFaces: number;
   quads: number;

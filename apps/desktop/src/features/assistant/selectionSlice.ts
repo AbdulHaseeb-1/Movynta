@@ -29,6 +29,8 @@ const slice = createSlice({
     },
   },
 });
+/** The actions that choose the assistant's provider and model, and reconcile them with what is configured. */
 export const { selectAssistantProvider, selectAssistantModel, reconcileAssistantModel, selectAssistantEffort } =
   slice.actions;
+/** The reducer for the assistant's provider and model choice. */
 export const assistantSelectionReducer = slice.reducer;

@@ -8,6 +8,7 @@ import { applyMeshTool } from "./meshToolActions";
 import { SegmentedChoice } from "./SegmentedChoice";
 import type { ComponentChoice } from "./subdivideSelection";
 
+/** The shading settings chosen in the dialog. */
 export interface ShadingChoice extends ComponentChoice {
   revision: number;
 }

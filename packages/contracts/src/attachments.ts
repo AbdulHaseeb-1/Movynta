@@ -5,6 +5,7 @@
 
 /** Picture formats every supported model provider can read. */
 export const ATTACHMENT_MEDIA_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
+/** A picture format the assistant accepts. */
 export type AttachmentMediaType = (typeof ATTACHMENT_MEDIA_TYPES)[number];
 
 /** Pictures one request can carry. More would cost context without helping the assistant. */
@@ -22,6 +23,7 @@ export const MAX_ATTACHMENT_TOTAL_BYTES = 24 * 1024 * 1024;
  */
 export const MAX_ATTACHMENT_EDGE = 1568;
 
+/** The longest attachment name, in characters. */
 export const MAX_ATTACHMENT_NAME_LENGTH = 120;
 
 /** What the backend keeps of a picture after the request: enough to list it in the chat, never the pixels. */

@@ -1,7 +1,9 @@
 import type { z } from "zod";
 import type { AgentRunContext } from "../agent-runs/agent-runs.types.js";
 
+/** The permission levels a tool can declare, from read-only to apply. */
 export const TOOL_PERMISSIONS = ["read", "plan", "propose", "apply", "skill"] as const;
+/** The permission level of a tool. */
 export type ToolPermission = (typeof TOOL_PERMISSIONS)[number];
 
 /** Tool names are `namespace.tool_name`, for example `editor.get_context`. */
@@ -21,6 +23,7 @@ export interface ToolDefinition {
   execute(args: unknown, context: AgentRunContext): Promise<unknown>;
 }
 
+/** What a tool is defined from: its name, description, permission, input schema and handler. */
 export interface ToolSpec<S extends z.ZodObject> {
   readonly name: string;
   readonly description: string;

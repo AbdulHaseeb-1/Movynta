@@ -10,6 +10,7 @@ export const DEFAULT_FOLD_FROM = 4;
 /** How many members of a folded run are named. */
 const EXAMPLE_IDS = 3;
 
+/** The summary of one object in a tree read. */
 export interface ObjectSummary {
   id: string;
   name: string;
@@ -37,8 +38,10 @@ export interface RepeatEntry {
   descendantsEach: number;
 }
 
+/** One entry of a tree read: an object summary with its children, or a folded run of look-alikes. */
 export type BranchEntry = (ObjectSummary & { children?: BranchEntry[]; childrenOmitted?: number }) | RepeatEntry;
 
+/** The options of one tree read: the object to open, the depth, the paging, and whether look-alikes fold. */
 export interface BranchOptions {
   rootId?: string | undefined;
   depth: number;
@@ -48,6 +51,7 @@ export interface BranchOptions {
   foldFrom: number;
 }
 
+/** The result of one tree read: the opened object if any, its children, and how to continue. */
 export interface BranchRead {
   node?: ObjectSummary;
   path?: { id: string; name: string }[];

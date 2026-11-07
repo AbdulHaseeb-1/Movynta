@@ -1,6 +1,7 @@
 import { Sparkles, type LucideIcon } from "lucide-react";
 import type { Project, ProjectCategoryId } from "./projectTypes";
 
+/** What the app shows about a project category: its name and description. */
 export interface ProjectCategoryInfo {
   id: ProjectCategoryId;
   label: string;
@@ -25,6 +26,7 @@ export const PROJECT_CATEGORY_CATALOG: Readonly<Record<ProjectCategoryId, Projec
   },
 };
 
+/** The catalogue of project categories. */
 export const projectCategories: readonly ProjectCategoryInfo[] = Object.values(PROJECT_CATEGORY_CATALOG);
 
 /** The catalogue entry for a project category. */

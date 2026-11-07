@@ -3,6 +3,7 @@ import { z } from "zod";
 
 /** The tool types, one tab each. They follow the permissions declared in `TOOL_PERMISSIONS` (modules/tools/tool.types.ts). */
 export const assistantToolTypeSchema = z.enum(["read", "plan", "propose", "apply", "skill"]);
+/** The type of an assistant tool: read, plan, propose, apply or skill. */
 export type AssistantToolType = z.infer<typeof assistantToolTypeSchema>;
 
 const inputRowSchema = z.object({
@@ -149,8 +150,10 @@ export const assistantToolVisualSchema = z.discriminatedUnion("kind", [
       .min(1),
   }),
 ]);
+/** The picture shown beside a tool in the documentation. */
 export type AssistantToolVisual = z.infer<typeof assistantToolVisualSchema>;
 
+/** The schema for one tool's documentation entry. */
 export const assistantToolSchema = z.object({
   name: z.string().regex(/^[a-z_]+\.[a-z_]+$/),
   type: assistantToolTypeSchema,
@@ -179,11 +182,16 @@ export const assistantToolSchema = z.object({
   errors: z.array(z.object({ message: z.string().min(1), cause: z.string().min(1) })).optional(),
   related: z.array(z.string()),
 });
+/** One tool's documentation entry. */
 export type AssistantTool = z.infer<typeof assistantToolSchema>;
+/** One row of a tool's input table. */
 export type AssistantToolInputRow = z.infer<typeof inputRowSchema>;
+/** One row of a tool's result table. */
 export type AssistantToolResultRow = z.infer<typeof resultRowSchema>;
+/** A section of a tool's documentation with its own rows. */
 export type AssistantToolDetail = z.infer<typeof detailSectionSchema>;
 
+/** The schema for the whole assistant tools document. */
 export const assistantToolDocumentSchema = z.object({
   intro: z.string().min(1),
   rules: z.array(z.string().min(1)).min(1),
@@ -192,4 +200,5 @@ export const assistantToolDocumentSchema = z.object({
   scene: editorContextSchema,
   tools: z.array(assistantToolSchema).min(1),
 });
+/** The whole assistant tools document: its intro, rules and tools. */
 export type AssistantToolDocument = z.infer<typeof assistantToolDocumentSchema>;

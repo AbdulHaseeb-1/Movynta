@@ -6,6 +6,7 @@ import {
   type AttachmentMediaType,
 } from "@movynta/contracts";
 
+/** A width and height in pixels. */
 export interface Size {
   width: number;
   height: number;

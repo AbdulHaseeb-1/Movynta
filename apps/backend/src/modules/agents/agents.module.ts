@@ -35,6 +35,7 @@ export class SkillToolReferenceValidator implements OnModuleInit {
   }
 }
 
+/** The agents feature: the agent registry and its controller. */
 @Module({
   imports: [ToolsModule, SkillsModule],
   controllers: [AgentsController],
@@ -52,6 +53,5 @@ export class SkillToolReferenceValidator implements OnModuleInit {
     SkillToolReferenceValidator,
   ],
   exports: [AgentRegistry, AGENT_RUNNER],
-/** The agents feature: the agent registry and its controller. */
 })
 export class AgentsModule {}

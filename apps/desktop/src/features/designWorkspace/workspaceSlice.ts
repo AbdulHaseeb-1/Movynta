@@ -3,7 +3,9 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { ComponentSelectionOperation } from "./componentNeighbors";
 import { loadPanelVisibility, type PanelId, type PanelVisibility } from "./panelStorage";
 
+/** The two design modes: Object, and Edit. */
 export type DesignMode = "object" | "edit";
+/** The kind of component picked in Edit mode: a vertex, an edge or a face. */
 export type ComponentKind = "vertex" | "edge" | "face";
 interface WorkspaceState {
   mode: DesignMode;
@@ -81,6 +83,7 @@ const workspaceSlice = createSlice({
   },
 });
 
+/** The actions that change the design mode, the picked components and the Edit-mode panels. */
 export const {
   requestComponentSelection,
   requestDiagnosticSelection,
@@ -92,4 +95,5 @@ export const {
   setComponentError,
   setPanelOpen,
 } = workspaceSlice.actions;
+/** The reducer for the design workspace state. */
 export const designWorkspaceReducer = workspaceSlice.reducer;

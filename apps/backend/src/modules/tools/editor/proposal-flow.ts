@@ -71,6 +71,7 @@ export const MAX_UNCHECKED_BATCHES = 3;
  */
 export const MAX_HAND_WRITTEN_COMMANDS = 40;
 
+/** A refusal that tells the model what to do next, because a chunk of work is not yet verified or is too large. */
 export interface ChunkRejection {
   readonly status: "rejected";
   readonly reason: string;

@@ -8,6 +8,7 @@ import { makeObjectId } from "./objectId";
 import { parseModel } from "./parseModel";
 import { disposeModel, prepareModel, scaleNotice } from "./prepareModel";
 
+/** A short summary of an imported model, for the chat. */
 export interface ImportedModelSummary {
   name: string;
   triangles: number;
@@ -22,6 +23,7 @@ interface ModelImportOptions {
   onImported?: (model: ImportedModelSummary) => void;
 }
 
+/** The import hook's state and actions. */
 export interface ModelImport {
   importing: boolean;
   /** Why the last import failed, until it is dismissed or another import starts. */

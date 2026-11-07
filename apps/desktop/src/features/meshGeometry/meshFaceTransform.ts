@@ -2,6 +2,7 @@ import { Euler, Matrix4, Quaternion, Vector3 } from "three";
 import type { ExtrudeResult } from "./meshExtrude";
 import { faceAreaNormal, point, type PolygonMesh } from "./meshTopology";
 
+/** A transform applied to a set of faces. */
 export interface FaceTransform {
   position?: readonly number[] | undefined;
   rotation?: readonly number[] | undefined;

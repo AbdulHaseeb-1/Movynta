@@ -19,6 +19,7 @@ const range = z
   );
 const axisRanges = z.object({ x: range.optional(), y: range.optional(), z: range.optional() }).strict();
 
+/** The input schema of editor.read_branch. */
 export const readBranchParameters = z
   .object({
     rootId: identifierSchema.optional(),
@@ -29,6 +30,7 @@ export const readBranchParameters = z
   })
   .strict();
 
+/** The input schema of editor.find_repeats. */
 export const findRepeatsParameters = z
   .object({
     rootId: identifierSchema.optional(),
@@ -37,6 +39,7 @@ export const findRepeatsParameters = z
   })
   .strict();
 
+/** The input schema of editor.query_objects. */
 export const queryObjectsParameters = z
   .object({
     nameMatches: z.string().trim().min(1).max(80).optional(),

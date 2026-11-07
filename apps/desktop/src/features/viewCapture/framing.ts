@@ -1,6 +1,7 @@
 import { MathUtils, Vector3, type Box3 } from "three";
 import type { ViewSpec } from "@movynta/editor-protocol";
 
+/** How the camera projects the scene: perspective or orthographic. */
 export type Projection = "perspective" | "orthographic";
 
 /** Where a camera stands and what it looks at, in world space. */

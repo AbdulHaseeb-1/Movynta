@@ -15,6 +15,7 @@ import {
 } from "./meshTopology";
 import { basis, blend, type Weights } from "./meshWeights";
 
+/** The options of an inset: its thickness, depth and how it treats each face. */
 export interface InsetOptions {
   thickness: number;
   depth?: number | undefined;

@@ -6,6 +6,7 @@ import { requireOneOf } from "../../shared/guards/enum.guard.js";
 import { approvalPreviewSchema } from "./approval.preview.js";
 import type { ApprovalRecord } from "./approvals.types.js";
 
+/** The statuses an approval can have. */
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "expired"] as const;
 
 function toRecord(row: SqlRow): ApprovalRecord {

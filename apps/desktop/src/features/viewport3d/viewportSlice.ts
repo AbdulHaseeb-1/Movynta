@@ -9,6 +9,7 @@ import { loadViewportDisplay, type ViewportDisplay } from "./viewportStorage";
  */
 export type ViewportTool = "select" | "pan" | "move" | "rotate" | "scale";
 
+/** The viewport's state: its grid, tool, shading and display. */
 export interface ViewportState {
   tool: ViewportTool;
   display: ViewportDisplay;
@@ -61,6 +62,8 @@ const viewportSlice = createSlice({
   },
 });
 
+/** The actions that change the viewport's grid, tool, shading and display. */
 export const { setShowGrid, setViewportTool, setShadingMode, setXray, toggleWireframe, toggleXray } =
   viewportSlice.actions;
+/** The reducer for the viewport state. */
 export const viewportReducer = viewportSlice.reducer;

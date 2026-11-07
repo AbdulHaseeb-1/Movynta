@@ -1,8 +1,11 @@
 import { z } from "zod";
 
+/** The schema for the reasoning effort settings the composer offers. */
 export const reasoningEffortSchema = z.enum(["minimal", "low", "medium", "high"]);
+/** How hard the model should think: minimal, low, medium or high. */
 export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
 
+/** The label shown for each reasoning effort. */
 export const EFFORT_LABELS: Readonly<Record<ReasoningEffort, string>> = {
   minimal: "Minimal",
   low: "Low",
@@ -10,6 +13,7 @@ export const EFFORT_LABELS: Readonly<Record<ReasoningEffort, string>> = {
   high: "High",
 };
 
+/** The short description shown for each reasoning effort. */
 export const EFFORT_HINTS: Readonly<Record<ReasoningEffort, string>> = {
   minimal: "Fastest, almost no reasoning",
   low: "Quick answers",

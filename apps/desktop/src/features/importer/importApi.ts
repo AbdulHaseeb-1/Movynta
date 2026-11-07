@@ -24,6 +24,7 @@ export class SavedModelError extends Error {
   }
 }
 
+/** A model file being sent to the backend. */
 export interface ModelUpload {
   name: string;
   format: ModelFormat;

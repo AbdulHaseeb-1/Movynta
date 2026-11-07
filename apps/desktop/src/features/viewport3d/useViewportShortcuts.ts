@@ -8,6 +8,7 @@ import { toggleWireframe, toggleXray } from "./viewportSlice";
 /** How far one zoom key or button moves the camera. */
 export const ZOOM_STEP = 1.35;
 
+/** Options for the viewport keyboard shortcuts hook. */
 export interface ViewportShortcutOptions {
   viewport: Viewport | null;
   /** Moves the camera to show the selection, or the whole scene. Without it, "." and Home do nothing. */

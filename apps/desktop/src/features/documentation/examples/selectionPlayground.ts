@@ -12,6 +12,7 @@ export interface PlaygroundItem {
   readonly center: Point;
 }
 
+/** A rectangle on the example's grid. */
 export interface Rect {
   readonly left: number;
   readonly top: number;
@@ -19,6 +20,7 @@ export interface Rect {
   readonly bottom: number;
 }
 
+/** The modifier keys held during a selection example. */
 export interface Modifiers {
   readonly shiftKey: boolean;
   readonly altKey: boolean;

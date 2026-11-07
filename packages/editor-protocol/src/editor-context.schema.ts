@@ -5,6 +5,7 @@ import { measurementAnnotationSchema, measurementResultSchema, measurementUnitsS
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const vector3 = z.tuple([z.number().finite(), z.number().finite(), z.number().finite()]);
 
+/** The schema for one object of the scene snapshot. */
 export const editorObjectSchema = z.object({
   id: identifier,
   name: z.string().max(120),

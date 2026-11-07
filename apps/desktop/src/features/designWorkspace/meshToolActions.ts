@@ -8,6 +8,7 @@ import { saveCageEdit, type CageEdit } from "./saveCageEdit";
 import type { ComponentChoice } from "./subdivideSelection";
 import type { ComponentKind } from "./workspaceSlice";
 
+/** An axis along which a mesh can be cut. */
 export type CutAxis = "x" | "y" | "z";
 /** A plane cut chosen in the dialog. The plane is in world space, so it follows the object's transform. */
 export interface CutSpec {
@@ -120,6 +121,7 @@ export function middleOfObject(scene: EditorScene, choice: ComponentChoice, axis
   return Number(middle.toPrecision(6));
 }
 
+/** The preview of a plane cut: the result, before it is applied. */
 export interface CutPreview {
   ok: boolean;
   message: string;

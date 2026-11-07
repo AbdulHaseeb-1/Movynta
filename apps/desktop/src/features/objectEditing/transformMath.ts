@@ -3,12 +3,16 @@ import type { ObjectTransform, Vec3 } from "@/features/assistant";
 
 /** While Shift is held, handles snap to these steps. */
 export const TRANSLATION_SNAP = 0.25;
+/** The angle a rotation snaps to when Ctrl is held, in degrees. */
 export const ROTATION_SNAP_DEGREES = 15;
+/** The step a scale snaps to when Ctrl is held. */
 export const SCALE_SNAP = 0.1;
 
 const EPSILON = 1e-6;
 
+/** One field of an object's transform: position, rotation or scale. */
 export type TransformField = keyof ObjectTransform;
+/** The transform fields in the order they are shown. */
 export const TRANSFORM_FIELDS: readonly TransformField[] = ["position", "rotation", "scale"];
 
 function mapVector(vector: Vec3, convert: (value: number) => number): Vec3 {
@@ -25,6 +29,7 @@ export function degreesToRadians(rotation: Vec3): Vec3 {
   return mapVector(rotation, MathUtils.degToRad);
 }
 
+/** An axis index: 0 for x, 1 for y, 2 for z. */
 export type Axis = 0 | 1 | 2;
 /** The three axes with the index each one has in a vector. */
 export const AXES = [

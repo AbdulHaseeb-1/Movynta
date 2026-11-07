@@ -5,14 +5,18 @@
  * pointer, and scale factors must be from 0.001 to 100. Units are scene units with Y pointing up.
  */
 
+/** A transform operation in the example: move, rotate or scale. */
 export type TransformOperation = "move" | "rotate" | "scale";
+/** An axis in the transform example. */
 export type PlaygroundAxis = "x" | "y";
 
+/** A point on the transform example's grid. */
 export interface Point {
   readonly x: number;
   readonly y: number;
 }
 
+/** The shape moved by the transform example. */
 export interface PlaygroundShape {
   readonly x: number;
   readonly y: number;
@@ -22,6 +26,7 @@ export interface PlaygroundShape {
   readonly scaleY: number;
 }
 
+/** A transform in progress in the example. */
 export interface TransformSession {
   readonly operation: TransformOperation;
   readonly axis: PlaygroundAxis | null;
@@ -31,6 +36,7 @@ export interface TransformSession {
   readonly numeric: string;
 }
 
+/** The whole state of the transform example. */
 export interface TransformPlayground {
   readonly shape: PlaygroundShape;
   readonly session: TransformSession | null;
@@ -40,8 +46,10 @@ export interface TransformPlayground {
   readonly message: string;
 }
 
+/** The shape's position before the example is touched. */
 export const INITIAL_SHAPE: PlaygroundShape = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 };
 
+/** The state of the transform example before it is touched. */
 export const INITIAL_PLAYGROUND: TransformPlayground = {
   shape: INITIAL_SHAPE,
   session: null,
@@ -143,6 +151,7 @@ export function transformStatus(state: TransformPlayground): string {
   return `${LABEL[session.operation]}${axis}${typed}  ·  Type a value · X/Y constrain  ·  Click or Enter confirm  ·  Esc cancel`;
 }
 
+/** The actions that change the transform example's state. */
 export type PlaygroundAction =
   | { readonly type: "start"; readonly operation: TransformOperation; readonly pointer: Point }
   | { readonly type: "pointer"; readonly pointer: Point }

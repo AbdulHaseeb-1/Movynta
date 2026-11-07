@@ -4,6 +4,7 @@ import { backendDisconnected } from "./providersSlice";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** The schema for the ChatGPT sign-in session. */
 export const chatgptSessionSchema = z.object({
   state: z.enum(["disconnected", "pending", "connected", "expired"]),
   email: z.string().nullable(),
@@ -12,8 +13,10 @@ export const chatgptSessionSchema = z.object({
   expiresAt: z.string().nullable(),
   error: z.string().nullable(),
 });
+/** The ChatGPT sign-in session as the app knows it. */
 export type ChatgptSession = z.infer<typeof chatgptSessionSchema>;
 
+/** The schema for the reply that starts a ChatGPT sign-in. */
 export const chatgptLoginStartSchema = z.object({
   authorizationUrl: z.url(),
   expiresAt: z.string(),
@@ -49,7 +52,9 @@ const slice = createSlice({
   },
 });
 
+/** The actions that record the ChatGPT sign-in session and its errors. */
 export const { chatgptSessionLoaded, chatgptLoginStarted, chatgptErrorDismissed } = slice.actions;
+/** The reducer for the ChatGPT sign-in session. */
 export const chatgptSessionReducer = slice.reducer;
 
 /** Whole days left before the sign-in must be renewed; never negative. */

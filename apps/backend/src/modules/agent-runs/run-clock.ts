@@ -1,6 +1,7 @@
 /** Why a run was stopped by its clock. */
 export type RunStop = "timeout" | "stalled";
 
+/** The time limits of a run: its total time and how long it may go without progress. */
 export interface RunClockLimits {
   /** Longest active time for the whole run, in milliseconds. */
   readonly totalMs: number;

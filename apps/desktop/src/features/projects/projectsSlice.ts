@@ -2,6 +2,7 @@ import { createSlice, original, type PayloadAction } from "@reduxjs/toolkit";
 import { backendDisconnected } from "@/features/providers";
 import type { Project } from "./projectTypes";
 
+/** Where the project library stands: idle, loading, ready or failed. */
 export type ProjectsStatus = "idle" | "loading" | "ready" | "error";
 
 interface ProjectsState {
@@ -53,5 +54,7 @@ const slice = createSlice({
   },
 });
 
+/** The actions that report the library's loading, loaded and failed states, and changes to a project. */
 export const { projectsLoading, projectsLoaded, projectsFailed, projectChanged, projectRemoved } = slice.actions;
+/** The reducer for the project library. */
 export const projectsReducer = slice.reducer;

@@ -26,7 +26,9 @@ import type { ModelingDimension } from "../../../shared/types/modeling-plan.type
 import { REASONING_EFFORTS, type ReasoningEffort } from "../../providers/model-capabilities.js";
 import { PROVIDER_IDS, type ProviderId } from "../../providers/providers.types.js";
 
+/** The allowed form of an agent id. */
 export const AGENT_ID_PATTERN = /^[a-z][a-z0-9-]{1,63}$/;
+/** The allowed form of an editor connection id. */
 export const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** One picture attached to a request. The content is checked in full by `checkAttachments`. */

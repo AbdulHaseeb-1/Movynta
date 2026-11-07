@@ -9,6 +9,7 @@ import { distanceGroups, mergeByDistance } from "@/features/meshGeometry/meshMer
 import { errorMessage, type SerialQueue } from "@/lib";
 import { saveCageEdit } from "./saveCageEdit";
 
+/** The merge distance chosen in the dialog. */
 export interface DistanceChoice {
   objectId: string;
   meshPath: number[];

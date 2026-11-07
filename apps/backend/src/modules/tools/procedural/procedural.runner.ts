@@ -3,7 +3,9 @@ import { z } from "zod";
 import { describeIssues } from "../tool-input-issues.js";
 import { editorCommandListSchema, type EditorCommand, type EditorContext } from "@movynta/editor-protocol";
 
+/** The longest program the procedural tools accept, in characters. */
 export const MAX_PROGRAM_CHARACTERS = 16_000;
+/** How long a program may run before it is stopped, in milliseconds. */
 export const PROGRAM_TIME_LIMIT_MS = 250;
 const MEMORY_LIMIT_BYTES = 16 * 1024 * 1024;
 const MAX_OUTPUT_CHARACTERS = 256_000;

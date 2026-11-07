@@ -1,17 +1,20 @@
 /* eslint-disable no-await-in-loop -- SSE chunks must be consumed in wire order. */
 import { z } from "zod";
 import { BACKEND_URL, backendRequest, backendToken } from "@/lib/backend";
+/** The schema for a run as the backend returns it. */
 export const runSchema = z.object({
   id: z.string(),
   status: z.enum(["created", "running", "waiting_approval", "completed", "failed", "cancelled"]),
   finalOutput: z.string().optional(),
   error: z.object({ message: z.string() }).optional(),
 });
+/** The schema for the reply to starting a run. */
 export const acceptedSchema = z.object({
   runId: z.string(),
   sessionId: z.string(),
   eventsUrl: z.string(),
 });
+/** The schema for a pending approval. */
 export const approvalSchema = z.object({
   id: z.string(),
   status: z.string(),
@@ -21,6 +24,7 @@ const eventSchema = z.object({
   type: z.string(),
   payload: z.record(z.string(), z.unknown()),
 });
+/** One event of a run's progress stream. */
 export type RunEvent = z.infer<typeof eventSchema>;
 
 /** A transport interruption that can be recovered by checking the run and reconnecting. */
@@ -90,6 +94,7 @@ export async function streamRun(
     reader.releaseLock();
   }
 }
+/** Reads a run's current status from the backend. */
 export const getRun = (id: string) => backendRequest(`/agent-runs/${id}`, runSchema);
 
 /** A lost progress stream does not mean the run failed: check its state and let the caller reconnect. */
