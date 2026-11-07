@@ -56,25 +56,36 @@ describe.skipIf(!token)("assistant quality", () => {
     };
 
     const results: LiveRunResult[] = [];
+    const errors: { scenarioId: string; trial: number; message: string }[] = [];
     const startedAt = new Date().toISOString();
-    for (const scenario of chosenScenarios()) {
-      for (let trial = 1; trial <= trials; trial += 1) {
-        // One run at a time: the backend allows one active run per project, and timings stay comparable.
-        // eslint-disable-next-line no-await-in-loop
-        const result = await runScenarioLive(scenario, trial, options);
-        results.push(result);
-        const failing = result.score.results.filter((entry) => entry.status !== "pass").map((entry) => entry.label);
-        console.log(`${scenario.id} #${trial}: ${Math.round(result.score.ratio * 100)}% (${result.status}, ${(result.durationMs / 1000).toFixed(0)}s)${failing.length > 0 ? ` failed: ${failing.join("; ")}` : ""}`);
-      }
-    }
-
-    const scorecard = summarizeRuns(results);
-    console.log(`\n${formatScorecard(scorecard)}\n`);
     const folder = resolve(dirname(fileURLToPath(import.meta.url)), "../results/quality");
     mkdirSync(folder, { recursive: true });
     const file = resolve(folder, `${startedAt.replace(/[:.]/g, "-")}-${label}.json`);
     const config = { baseUrl: options.baseUrl, providerId: options.providerId ?? null, model: options.model ?? null, reasoningEffort: options.reasoningEffort ?? null, trials, timeoutMs };
-    writeFileSync(file, JSON.stringify({ label, startedAt, gitSha: gitSha() ?? null, config, scorecard, results }, null, 2));
+    // Saved after every run, so a long sweep that stops half way still leaves what it finished.
+    const save = () => writeFileSync(file, JSON.stringify({ label, startedAt, gitSha: gitSha() ?? null, config, scorecard: summarizeRuns(results), results, errors }, null, 2));
+
+    for (const scenario of chosenScenarios()) {
+      for (let trial = 1; trial <= trials; trial += 1) {
+        // One run at a time: the backend allows one active run per project, and timings stay comparable.
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const result = await runScenarioLive(scenario, trial, options);
+          results.push(result);
+          const failing = result.score.results.filter((entry) => entry.status !== "pass").map((entry) => entry.label);
+          console.log(`${scenario.id} #${trial}: ${Math.round(result.score.ratio * 100)}% (${result.status}, ${(result.durationMs / 1000).toFixed(0)}s)${failing.length > 0 ? ` failed: ${failing.join("; ")}` : ""}`);
+        } catch (error) {
+          // A run that could not happen at all (the backend refused, the connection dropped) is recorded, not fatal.
+          const message = error instanceof Error ? error.message : String(error);
+          errors.push({ scenarioId: scenario.id, trial, message });
+          console.log(`${scenario.id} #${trial}: could not run: ${message}`);
+        }
+        save();
+      }
+    }
+
+    console.log(`\n${formatScorecard(summarizeRuns(results))}\n`);
+    if (errors.length > 0) console.log(`${errors.length} run${errors.length === 1 ? "" : "s"} could not be made; see "errors" in the results file.\n`);
     console.log(`Saved ${file}`);
   });
 });
