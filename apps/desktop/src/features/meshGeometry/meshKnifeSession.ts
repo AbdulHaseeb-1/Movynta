@@ -1,6 +1,6 @@
 import type { BufferGeometry } from "three";
 import type { ExtrudeResult } from "./meshExtrude";
-import type { PolygonMesh } from "./meshTopology";
+import { edgeKey, type PolygonMesh } from "./meshTopology";
 import { knifeChord, type KnifePoint } from "./meshKnifeChord";
 import { validateTopologyEdit } from "./meshTopologyEdit";
 
@@ -29,8 +29,20 @@ export class KnifeSession {
     if (this.steps.length >= MAX_SEGMENTS) throw new Error("Knife stroke exceeds the interactive geometry budget");
     // An interactive stroke checks the whole mesh after every cut, so it is bounded by the work that costs.
     if (!this.deferred && (this.base.faces.length + this.steps.length + 1) * (this.steps.length + 1) > 160000) throw new Error("Knife stroke exceeds the interactive geometry budget");
+    // The selection accumulates across cuts; a cut that splits an already selected edge keeps both halves selected.
+    const selected = new Set(this.selection);
+    let nextVertex = this.mesh.positions.length;
+    for (const endpoint of [segment.start, segment.end]) if ("edge" in endpoint) {
+      if (selected.delete(endpoint.edge)) {
+        const [a,b] = endpoint.edge.split("_").map(Number);
+        if (a === undefined || b === undefined) throw new Error("Invalid cut edge");
+        selected.add(edgeKey(a,nextVertex));selected.add(edgeKey(nextVertex,b));
+      }
+      nextVertex++;
+    }
     const result = knifeChord(this.mesh, segment.face, segment.start, segment.end, this.source, { validate: !this.deferred });
-    this.steps.push({ segment: { face: segment.face, start: { ...segment.start }, end: { ...segment.end } }, mesh: result.mesh, selection: result.selection });
+    for (const id of result.selection) selected.add(id);
+    this.steps.push({ segment: { face: segment.face, start: { ...segment.start }, end: { ...segment.end } }, mesh: result.mesh, selection: [...selected] });
   }
   undo(count = 1): void {
     if (!Number.isInteger(count) || count < 1) throw new Error("Undo count must be a positive integer");

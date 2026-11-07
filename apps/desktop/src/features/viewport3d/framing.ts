@@ -1,3 +1,4 @@
+import { visibleBounds } from "./visibleBounds";
 import { Box3, MathUtils, Vector3, type Object3D } from "three";
 
 /** Empty space left around the framed objects, as a factor of their size. */
@@ -58,7 +59,7 @@ export function boxToFrame(source: FrameSource, scope: "selection" | "all" = "se
     let visible = true;
     for (let node: Object3D | null = object; node; node = node.parent) if (!node.visible) visible = false;
     if (!visible) continue;
-    const part = new Box3().setFromObject(object);
+    const part = visibleBounds(object, new Box3());
     if (part.isEmpty()) part.setFromCenterAndSize(object.getWorldPosition(new Vector3()), new Vector3());
     box.union(part);
   }

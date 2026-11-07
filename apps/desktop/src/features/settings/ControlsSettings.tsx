@@ -57,7 +57,7 @@ const groups: readonly ControlGroup[] = [
     controls: [
       { action: "Change mode", keys: "E / O · mode menu", detail: "E enters Edit mode from Object mode; O returns to Object mode. E in Edit mode starts extrusion." },
       { action: "Component selection", keys: "Click / Shift + click", detail: "Choose vertex, edge or face selection in the toolbar. Shift-click adds or removes components." },
-      { action: "Box select components", keys: "B, then drag", detail: "Drag, or press B and drag, to select component centers. Hold Shift to add, Alt to subtract, or Shift+Alt to intersect. Esc cancels the rectangle." },
+      { action: "Box select components", keys: "B, then drag", detail: "Drag, or press B and drag, to select visible component centers. Wireframe X-ray includes hidden components. Hold Shift to add, Alt to subtract, or Shift+Alt to intersect. Esc cancels the rectangle." },
       { action: "Select all / clear components", keys: "A / Alt + A / Esc", detail: "Select all components in the active mesh part, or clear the selection when no edit preview is active. Use the selection menu to grow, shrink, or select connected components." },
       { action: "Move / rotate / scale components", keys: "G / R / S", detail: "Transform selected vertices, edges or faces around the middle of the selection. Use X, Y or Z to constrain an axis." },
       { action: "Extrude region", keys: "E", detail: "Extrude selected vertices, edges or faces. Selected faces start along their average normal when available." },

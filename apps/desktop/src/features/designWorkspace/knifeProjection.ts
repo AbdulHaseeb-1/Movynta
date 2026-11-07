@@ -26,6 +26,7 @@ export function knifeGraph(mesh: PolygonMesh): ReturnType<typeof topology> {
 export interface ProjectedVertex {
   screen: Vector2;
   w: number;
+  depth: number;
   local: Vector3;
 }
 export function projectKnife(
@@ -44,6 +45,7 @@ export function projectKnife(
     return {
       local,
       w: p.w,
+      depth: p.z / p.w,
       screen: new Vector2(
         ((p.x / p.w + 1) * width) / 2,
         ((1 - p.y / p.w) * height) / 2,
@@ -77,11 +79,16 @@ export function projectedKnifeSegments(
   projected: ProjectedVertex[],
   start: Vector2,
   end: Vector2,
-): { segment: KnifeSegment; midpoint: Vector2 }[] {
+): { segment: KnifeSegment; midpoint: Vector2; from: Vector2; to: Vector2 }[] {
   const direction = end.clone().sub(start),
     length = direction.length();
   if (length < 0.5) return [];
-  const output: { segment: KnifeSegment; midpoint: Vector2 }[] = [];
+  const output: {
+    segment: KnifeSegment;
+    midpoint: Vector2;
+    from: Vector2;
+    to: Vector2;
+  }[] = [];
   mesh.faces.forEach((face, faceId) => {
     const crossings: Crossing[] = [];
     for (let i = 0; i < face.length; i++) {
@@ -90,7 +97,17 @@ export function projectedKnifeSegments(
       if (from === undefined || to === undefined) continue;
       const a = projected[from],
         b = projected[to];
-      if (!a || !b || a.w <= 0 || b.w <= 0) continue;
+      if (
+        !a ||
+        !b ||
+        a.w <= 0 ||
+        b.w <= 0 ||
+        a.depth < -1 ||
+        a.depth > 1 ||
+        b.depth < -1 ||
+        b.depth > 1
+      )
+        continue;
       const edge = b.screen.clone().sub(a.screen),
         delta = a.screen.clone().sub(start),
         divisor = cross(direction, edge);
@@ -141,6 +158,8 @@ export function projectedKnifeSegments(
       output.push({
         segment: { face: faceId, start: a.endpoint, end: b.endpoint },
         midpoint: a.screen.clone().add(b.screen).multiplyScalar(0.5),
+        from: a.screen,
+        to: b.screen,
       });
     }
   });
@@ -159,13 +178,20 @@ export function snapKnife(
   projected: ProjectedVertex[],
   cursor: Vector2,
   midpoint: boolean,
+  visible: (point: Vector3) => boolean = () => true,
 ): Vector2 {
   let best = 12,
     result = cursor.clone();
   if (!midpoint)
     projected.forEach((vertex) => {
       const distance = vertex.screen.distanceTo(cursor);
-      if (vertex.w > 0 && distance < best) {
+      if (
+        vertex.w > 0 &&
+        vertex.depth >= -1 &&
+        vertex.depth <= 1 &&
+        distance < best &&
+        visible(vertex.local)
+      ) {
         best = distance;
         result = vertex.screen.clone();
       }
@@ -176,7 +202,17 @@ export function snapKnife(
     if (!half) continue;
     const a = projected[half.from],
       b = projected[half.to];
-    if (!a || !b || a.w <= 0 || b.w <= 0) continue;
+    if (
+      !a ||
+      !b ||
+      a.w <= 0 ||
+      b.w <= 0 ||
+      a.depth < -1 ||
+      a.depth > 1 ||
+      b.depth < -1 ||
+      b.depth > 1
+    )
+      continue;
     const delta = b.screen.clone().sub(a.screen);
     const u = midpoint
       ? b.w / (a.w + b.w)
@@ -189,7 +225,8 @@ export function snapKnife(
         );
     const target = a.screen.clone().addScaledVector(delta, u),
       distance = target.distanceTo(cursor);
-    if (distance < best) {
+    const t = perspectiveEdgeFactor(u, a.w, b.w);
+    if (distance < best && visible(a.local.clone().lerp(b.local, t))) {
       best = distance;
       result = target;
     }

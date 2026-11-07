@@ -38,8 +38,17 @@ export function cutKnifeStroke(
       let changed = false;
       for (const candidate of candidates) {
         if (allowed && !allowed[candidate.segment.face]) continue;
-        if (!visible(mesh, candidate.segment.face, candidate.midpoint))
-          continue;
+        const samples = [
+          0.001, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 0.999,
+        ].map((t) => candidate.from.clone().lerp(candidate.to, t));
+        const visibility = samples.map((sample) =>
+          visible(mesh, candidate.segment.face, sample),
+        );
+        if (visibility.some(Boolean) && visibility.some((v) => !v))
+          throw new Error(
+            "Partially occluded Knife cut: change view or enable cut-through",
+          );
+        if (!visibility[0]) continue;
         try {
           session.append(candidate.segment);
         } catch (error) {

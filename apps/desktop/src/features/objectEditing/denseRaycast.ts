@@ -63,16 +63,16 @@ function inDrawRange(geometry: BufferGeometry, elementCount: number, triangle: n
 }
 
 /** Groups the triangles in file order and boxes each group. Rebuilt when positions or indices change. */
-function indexOf(geometry: BufferGeometry): ChunkIndex | null {
+function indexOf(geometry: BufferGeometry, minimumTriangles = DENSE_TRIANGLES): ChunkIndex | null {
   const position = positionOf(geometry);
   const cached = indexes.get(geometry);
   const positionVersion = position?.version ?? -1;
   const indexVersion = geometry.getIndex()?.version ?? 0;
   if (cached && cached.positionVersion === positionVersion && cached.indexVersion === indexVersion) return cached;
-  if (cached === null) return null;
+  if (cached === null && minimumTriangles >= DENSE_TRIANGLES) return null;
   const indices = geometry.getIndex();
   const triangles = indices ? indices.count / 3 : position ? position.count / 3 : 0;
-  if (!position || triangles < DENSE_TRIANGLES) {
+  if (!position || triangles < minimumTriangles) {
     indexes.set(geometry, null);
     return null;
   }
@@ -207,10 +207,9 @@ function raycastDense(this: Mesh, raycaster: Raycaster, intersects: Intersection
  * Makes ray tests against `root` and its parts fast for dense meshes. Safe to call on every click: a
  * mesh is changed once, and only if it is dense, a plain mesh with its own geometry and one material.
  */
-export function accelerateRaycasts(root: Object3D): void {
+export function accelerateRaycasts(root: Object3D, minimumTriangles = DENSE_TRIANGLES): void {
   root.traverse((node) => {
     if (!isMesh(node) || patched.has(node) || "isSkinnedMesh" in node || "isInstancedMesh" in node) return;
-    patched.add(node);
-    if (indexOf(node.geometry) !== null) node.raycast = raycastDense;
+    if (indexOf(node.geometry, minimumTriangles) !== null) { patched.add(node); node.raycast = raycastDense; }
   });
 }

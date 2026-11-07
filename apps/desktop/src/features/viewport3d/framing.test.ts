@@ -68,6 +68,11 @@ describe("boxToFrame", () => {
     expect(boxToFrame(source(objects, []))).toBeNull();
   });
 
+  it("ignores hidden descendants when framing a group", () => {
+    const group=new Group(), shown=cube(0,2), hidden=cube(100,2);hidden.visible=false;group.add(shown,hidden);
+    const result=boxToFrame({selectedIds:["g"],getObject:()=>group,pickables:()=>[group]});
+    expect(result?.min.x).toBeCloseTo(-1);expect(result?.max.x).toBeCloseTo(1);
+  });
   it("frames an empty group at its position", () => {
     const group = new Group();
     group.position.set(3, 0, 0);

@@ -50,6 +50,12 @@ describe("accelerated ray tests on dense meshes", () => {
     expect(big.geometry.getAttribute("position").count / 3).toBeGreaterThan(DENSE_TRIANGLES);
   });
 
+  it("can promote a previously inspected medium mesh for repeated selection rays", () => {
+    const mesh=new Mesh(new BoxGeometry(1,1,1,20,20,20),new MeshStandardMaterial());mesh.updateMatrixWorld(true);
+    const ray=new Raycaster(new Vector3(0,0,5),new Vector3(0,0,-1));const expected=nearestDistance(mesh,ray);
+    accelerateRaycasts(mesh);expect(Object.keys(mesh)).not.toContain("raycast");
+    accelerateRaycasts(mesh,1000);expect(Object.keys(mesh)).toContain("raycast");expect(nearestDistance(mesh,ray)).toBeCloseTo(expected ?? 0);
+  });
   it.each([
     ["front-facing material", undefined],
     ["double-sided material", DoubleSide],

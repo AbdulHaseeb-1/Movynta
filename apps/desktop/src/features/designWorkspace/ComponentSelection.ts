@@ -11,11 +11,14 @@ import {
   Points,
   PointsMaterial,
   Raycaster,
+  Vector2,
   Vector3,
   type Object3D,
 } from "three";
+import { setCameraRay } from "@/features/viewport3d/cameraRay";
 import type { Viewport } from "@/features/viewport3d";
 import { combineSelection, selectionOperation } from "@/features/viewport3d/selectionOperation";
+import { accelerateRaycasts } from "@/features/objectEditing/denseRaycast";
 import { toNdc } from "@/features/objectEditing/picking";
 import { isEditableTarget } from "@/features/meshGeometry/meshInspection";
 import {
@@ -69,6 +72,8 @@ export class ComponentSelection {
     onSelect: (value: Selection | null) => void,
     canStartBox: () => boolean,
     switchObject: (event: PointerEvent) => boolean,
+    occluders: () => Object3D[] = () => [root],
+    xray: () => boolean = () => false,
   ) {
     this.kind = kind;
     this.onSelect = onSelect;
@@ -143,8 +148,10 @@ export class ComponentSelection {
       const minY = Math.min(a.y, b.y); const maxY = Math.max(a.y, b.y);
       const selectedTarget = this.targets.find((entry) => entry.proxy.visible && entry.path.join("/") === this.selected?.path.join("/"));
       const operation = selectionOperation(event);
-      const point = new Vector3();
-      const hitsFor = (target: Target): string[] => {
+      const point = new Vector3(), worldPoint = new Vector3();
+      const blockers = xray() ? [] : occluders();
+      for (const object of blockers) { object.updateWorldMatrix(true,true); accelerateRaycasts(object,1000); }
+        const hitsFor = (target: Target): string[] => {
         const contains = (vertices: readonly number[]) => {
           point.set(0, 0, 0);
           for (const id of vertices) {
@@ -153,10 +160,20 @@ export class ComponentSelection {
             point.add(position);
           }
           point.divideScalar(vertices.length).applyMatrix4(target.source.matrixWorld);
+          worldPoint.copy(point);
           point.applyMatrix4(viewport.camera.matrixWorldInverse);
           if (point.z >= 0) return false;
           point.applyMatrix4(viewport.camera.projectionMatrix);
-          return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+          if (point.z < -1 || point.z > 1 || point.x < minX || point.x > maxX || point.y < minY || point.y > maxY) return false;
+          if (xray()) return true;
+          setCameraRay(ray,new Vector2(point.x,point.y),viewport.camera);
+          const distance=worldPoint.distanceTo(viewport.camera.position), tolerance=Math.max(1e-5,distance*1e-6);
+          return !ray.intersectObjects(blockers,true).some((hit)=>{
+            const depth=hit.point.clone().project(viewport.camera).z;
+            if(depth < -1 || depth > 1 || hit.distance >= distance-tolerance) return false;
+            for(let node: Object3D | null=hit.object;node;node=node.parent) if(!node.visible) return false;
+            return true;
+          });
         };
         return kind === "vertex" ? target.data.mesh.positions.flatMap((_, index) => contains([index]) ? [String(index)] : [])
           : kind === "edge" ? [...target.data.edges].flatMap(([id, vertices]) => contains(vertices) ? [id] : [])
@@ -185,11 +202,11 @@ export class ComponentSelection {
         this.sync();
         const bounds = dom.getBoundingClientRect();
         const cursor = toNdc(event.clientX, event.clientY, bounds);
-        ray.setFromCamera(cursor, viewport.camera);
+        setCameraRay(ray,cursor,viewport.camera);
         const hit = ray.intersectObjects(
           this.targets.filter((entry) => entry.proxy.visible).map((entry) => entry.proxy),
           false,
-        )[0];
+        ).find((candidate) => { const depth=candidate.point.clone().project(viewport.camera).z; return depth >= -1 && depth <= 1; });
         const target = hit
           ? this.targets.find((entry) => entry.proxy === hit.object)
           : undefined;
