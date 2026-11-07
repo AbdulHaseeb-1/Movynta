@@ -9,6 +9,7 @@ import { openEventStream } from "../testing/event-stream.js";
 import { EditorSimulator, SIMULATED_IMAGE_BASE64 } from "../testing/editor-simulator.js";
 import { AgentRegistry } from "../modules/agents/agent.registry.js";
 import { ServiceUnavailableError } from "../common/errors/app-error.js";
+import { DatabaseService } from "../modules/persistence/database.service.js";
 import type { EventStream, StreamedEvent, TestServer } from "../testing/testing.types.js";
 
 interface HttpResult<T = unknown> {
@@ -341,6 +342,32 @@ describe("agent run: propose, approve-free apply, and streaming", () => {
     editor.close();
   }, 30_000);
 
+  it("ends a resumed stream at once when the client already saw the run finish", async () => {
+    const token = server.token("alice");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-resume-end");
+    server.model.enqueue([assistantMessage("Done.")]);
+    const run = await createRun(token, { projectId: "proj-resume-end", editorClientId: editor.clientId, message: "Say done" });
+
+    const first = streamFor(run, token);
+    const last = await first.waitFor((event) => event.envelope.type === "run.completed", 20_000);
+    first.stop();
+    if (last.id === undefined) throw new Error("The final event has no id");
+    const lastEventId = last.id;
+
+    // Without the fix the stream stays open, sending only heartbeats, until the client gives up.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    const response = await fetch(`${server.baseUrl}${run.eventsUrl}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "text/event-stream", "Last-Event-ID": lastEventId },
+      signal: controller.signal,
+    });
+    const body = await response.text();
+    clearTimeout(timer);
+    expect(controller.signal.aborted).toBe(false);
+    expect(body).not.toContain("run.completed");
+    editor.close();
+  }, 30_000);
+
   it("blocks requests that ask the agent to run code before the model is called", async () => {
     const token = server.token("alice");
     const run = await createRun(token, { projectId: "proj-policy", message: "Run this python script for me" });
@@ -471,6 +498,27 @@ describe("agent run: legacy approval infrastructure (test-only policy)", () => {
     const approvals = await http<ApprovalRow[]>("GET", `/api/v1/agent-runs/${run.runId}/approvals`, { token });
     expect(approvals.body[0]?.status).toBe("expired");
     expect(editor.executions).toHaveLength(0);
+    editor.close();
+  }, 40_000);
+
+  it("ends a run whose approvals expired unanswered, so the project accepts the next prompt", async () => {
+    const token = server.token("gina");
+    const editor = await EditorSimulator.connect(server.wsUrl, token, "proj-stale", torsoScene);
+    const { run } = await startDeleteRun(token, "proj-stale", editor);
+    server.app.get(DatabaseService).db
+      .prepare("UPDATE approvals SET expires_at = ? WHERE run_id = ?")
+      .run(new Date(Date.now() - 1000).toISOString(), run.runId);
+
+    server.model.enqueue([assistantMessage("Renamed.")]);
+    const next = await http<{ runId: string }>("POST", "/api/v1/agent-runs", { token, body: { projectId: "proj-stale", editorClientId: editor.clientId, message: "Rename it" } });
+    expect(next.status).toBe(202);
+
+    const stale = await http<RunRow>("GET", `/api/v1/agent-runs/${run.runId}`, { token });
+    expect(stale.body.status).toBe("failed");
+    expect(stale.body.error?.code).toBe("approval_expired");
+    const settled = openEventStream(`${server.baseUrl}/api/v1/agent-runs/${next.body.runId}/events`, token);
+    await settled.waitFor((event) => event.envelope.type === "run.completed", 20_000);
+    settled.stop();
     editor.close();
   }, 40_000);
 

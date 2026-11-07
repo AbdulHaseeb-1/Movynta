@@ -135,6 +135,7 @@ export class AgentRunsService implements OnModuleInit {
         throw new ValidationFailedError("The selected model does not support that reasoning effort");
     }
     this.projects.assertOwner(user.id, dto.projectId);
+    this.failAbandonedRuns(dto.projectId);
     // Two runs on one project would interleave the conversation and edit the same scene at once.
     if (this.projects.hasActiveRun(dto.projectId))
       throw new ConflictError("The assistant is already working on this project. Wait for it to finish or stop it first.");
@@ -243,6 +244,10 @@ export class AgentRunsService implements OnModuleInit {
       for (const event of this.events.replay(runId, afterSeq)) deliver(event);
       live = true;
       for (const event of buffered) deliver(event);
+      // A client that already saw the end and reconnects gets nothing more; close instead of idling.
+      // A run's status and its final event change together, so a finished run has published that event.
+      const current = this.runs.find(runId);
+      if (current && isTerminal(current.status)) close();
 
       return () => {
         clearInterval(heartbeat);
@@ -361,6 +366,29 @@ export class AgentRunsService implements OnModuleInit {
       approvalStatus: approved ? "approved" : "rejected",
       runStatus: "running",
     };
+  }
+
+  /**
+   * A run paused for approvals whose deadline passed can never resume, yet it would hold the project
+   * as busy. It is ended the same way as when a late decision finds it expired.
+   */
+  private failAbandonedRuns(projectId: string): void {
+    const now = new Date();
+    for (const run of this.runs.listWaitingForApproval(projectId)) {
+      this.approvals.expireDue(run.id, now);
+      if (this.approvals.pendingCount(run.id) > 0) continue;
+      this.runs.transition(
+        run.id,
+        "failed",
+        { errorCode: "approval_expired", errorMessage: "An approval expired before it was decided" },
+        now.toISOString(),
+      );
+      this.events.publish(run.id, "run.failed", {
+        code: "approval_expired",
+        message: "An approval expired before it was decided",
+      });
+      this.logger.warn(`ended run ${run.id}: its approvals expired`);
+    }
   }
 
   private requireRun(userId: string, runId: string): AgentRunRecord {
