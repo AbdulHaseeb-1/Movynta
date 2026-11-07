@@ -135,5 +135,6 @@ flowchart LR
 ## Related
 
 - [`editor.apply_proposal`](editor.apply_proposal.md)
+- [`editor.describe_commands`](editor.describe_commands.md)
 - [`modeling.propose_generated`](modeling.propose_generated.md)
 - [`viewport.capture`](viewport.capture.md)

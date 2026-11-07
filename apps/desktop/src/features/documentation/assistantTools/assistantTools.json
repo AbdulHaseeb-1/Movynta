@@ -84,6 +84,29 @@
       "related": ["editor.get_context"]
     },
     {
+      "name": "editor.describe_commands", "type": "read", "group": "Inspect",
+      "provider": "editor__describe_commands", "permission": "read", "approval": "Never", "needsEditor": false, "verify": "code",
+      "source": "apps/backend/src/modules/tools/editor/command-reference.ts", "doc": "editor.describe_commands.md",
+      "summary": "Returns the full rules of the editor commands asked for: fields, limits, batching and what each refuses. editor.propose_commands lists every command in one line, so the details are read only when needed.",
+      "when": ["Before the first geometry or material command of a kind in a run.", "When a proposal was refused and the issue does not make the fix clear."],
+      "input": { "rows": [
+        { "name": "types", "type": "1–12 command types", "required": true, "meaning": "Command types such as geometry.bisect. Repeats are answered once." }
+      ] },
+      "result": { "rows": [
+        { "field": "commands[]", "meaning": "For each known type: type, summary (the line editor.propose_commands shows) and rules." },
+        { "field": "unknown[]", "meaning": "Types that are not commands, each with the three closest valid types." }
+      ] },
+      "request": {"types": ["geometry.flip_normals", "geometry.flip_faces"]},
+      "response": {"commands": [{"type": "geometry.flip_normals", "summary": "Reverses whole connected surfaces: omit ids for all, or list base faces and each surface containing one flips.", "rules": "IDs are unchanged, so it can share a component-edit batch."}], "unknown": [{"type": "geometry.flip_faces", "closest": ["geometry.flip_normals", "geometry.inset_faces", "geometry.slide_edges"]}]},
+      "visual": { "kind": "lists", "caption": "One known command and one misspelled type.", "groups": [
+        { "title": "Described", "items": ["geometry.flip_normals"], "tone": "ok" },
+        { "title": "Unknown, with suggestions", "items": ["geometry.flip_faces → geometry.flip_normals"], "tone": "warn" }
+      ] },
+      "tips": ["Ask for every type a batch will use in one call.", "The command list in editor.propose_commands and these rules come from the same table, so they always agree."],
+      "limits": ["Reads nothing from the scene; use editor.inspect_mesh or editor.get_context for ids and revisions.", "At most 12 types per call."],
+      "related": ["editor.propose_commands", "editor.inspect_mesh"]
+    },
+    {
       "name": "editor.inspect_mesh", "type": "read", "group": "Inspect",
       "provider": "editor__inspect_mesh", "permission": "read", "approval": "Never", "needsEditor": true, "verify": "live",
       "source": "apps/backend/src/modules/tools/editor/editor.tools.ts", "doc": "editor.inspect_mesh.md",
@@ -595,7 +618,7 @@
         { "message": "No planned batch has this planId in this run", "cause": "The result is rejected and lists availablePlanIds. Plan the batch again." },
         { "message": "The arguments do not match this tool's schema", "cause": "A command has the wrong shape. issues gives each path, such as commands[0] (commandId \"raise\").delta, and what is wrong there." }
       ],
-      "related": ["editor.apply_proposal", "modeling.propose_generated", "viewport.capture"]
+      "related": ["editor.apply_proposal", "editor.describe_commands", "modeling.propose_generated", "viewport.capture"]
     },
     {
       "name": "modeling.propose_generated", "type": "propose", "group": "",

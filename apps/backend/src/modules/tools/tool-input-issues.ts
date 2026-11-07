@@ -62,10 +62,23 @@ function distance(a: string, b: string): number {
   return previous[b.length] ?? 0;
 }
 
-/** The valid values closest to what was sent, nearest first. */
+/**
+ * The valid values closest to what was sent, nearest first. A value that contains the one sent, or is contained in it,
+ * comes first: the usual slips are an added suffix (geometry.extrude_faces) or a dropped prefix (transform_object).
+ * After that, a longer shared start counts for more than the letters that differ.
+ */
 export function closestValues(received: string, options: readonly string[]): string[] {
+  const sent = received.toLowerCase();
+  const score = (option: string) => {
+    const value = option.toLowerCase();
+    const contained = sent.includes(value) || value.includes(sent);
+    // The start of a name (geometry.flip_) is usually right even when the rest is not.
+    let shared = 0;
+    while (shared < sent.length && sent[shared] === value[shared]) shared += 1;
+    return distance(sent, value) - shared / 2 - (contained ? 1000 : 0);
+  };
   return [...options]
-    .map((option) => ({ option, score: distance(received.toLowerCase(), option.toLowerCase()) }))
+    .map((option) => ({ option, score: score(option) }))
     .sort((left, right) => left.score - right.score || left.option.localeCompare(right.option))
     .slice(0, MAX_SUGGESTIONS)
     .map((entry) => entry.option);
