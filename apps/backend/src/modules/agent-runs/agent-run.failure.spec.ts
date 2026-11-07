@@ -38,7 +38,10 @@ describe("classifyFailure", () => {
   });
 
   it("reports a run stopped for its total time or for going quiet", () => {
-    expect(classifyFailure(new Error("anything"), "timeout").code).toBe("run_timeout");
+    const timeout = classifyFailure(new Error("anything"), "timeout");
+    expect(timeout.code).toBe("run_timeout");
+    expect(timeout.message).toContain("AGENT_RUN_TIMEOUT_MS");
+    expect(timeout.message).toContain("check the scene");
     expect(classifyFailure(new Error("anything"), "stalled").code).toBe("run_stalled");
   });
 

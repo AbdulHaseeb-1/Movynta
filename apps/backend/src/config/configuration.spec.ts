@@ -3,6 +3,11 @@ import { loadAppConfig } from "./configuration.js";
 const validEnv = { NODE_ENV: "test", AUTH_SECRET: "x".repeat(32), AGENTS_ENABLED: "false" };
 
 describe("loadAppConfig", () => {
+  it("allows long modeling runs by default while honoring configured timeouts", () => {
+    expect(loadAppConfig(validEnv).agents).toMatchObject({ runTimeoutMs: 7_200_000, runIdleTimeoutMs: 300_000 });
+    expect(loadAppConfig({ ...validEnv, AGENT_RUN_TIMEOUT_MS: "60000" }).agents.runTimeoutMs).toBe(60_000);
+  });
+
   it("rejects a short auth secret with a readable message", () => {
     expect(() => loadAppConfig({ ...validEnv, AUTH_SECRET: "short" })).toThrow(/AUTH_SECRET/);
   });

@@ -86,7 +86,7 @@ export function describeError(error: unknown): string {
 
 /** Maps failures to stable codes and messages that are safe to show to clients. */
 export function classifyFailure(error: unknown, stop?: RunStop): RunFailure {
-  if (stop === "timeout") return { code: "run_timeout", message: "The agent run exceeded its time limit" };
+  if (stop === "timeout") return { code: "run_timeout", message: "The agent run reached its configured time limit. Some changes may already be saved; check the scene before continuing. The backend setting AGENT_RUN_TIMEOUT_MS controls this limit." };
   if (stop === "stalled") return { code: "run_stalled", message: "The agent stopped making progress and was stopped" };
   if (error instanceof InputGuardrailTripwireTriggered)
     return { code: "guardrail_blocked", message: "This request cannot be processed" };
