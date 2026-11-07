@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ASSISTANT_NAME } from "@/features/assistant";
 import { ProjectsSection } from "@/features/projects";
+import { SHORTCUTS_PATH } from "@/features/documentation/guideLinks";
+import { KeyCombo } from "@/features/documentation/components";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -69,8 +71,11 @@ export default function Home() {
             <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-muted text-foreground"><BookOpen size={19} /></span>
             <div>
               <h2 className="text-base font-semibold tracking-tight">Tool documentation</h2>
-              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">Learn the workspace tools, shortcuts, and modeling workflows.</p>
-              <Link to="/documentation" className="mt-3 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">Explore the guide <ArrowUpRight className="size-3.5" /></Link>
+              <p className="mt-1.5 text-xs leading-5 text-muted-foreground">Learn the workspace tools and shortcuts, and try the basics in live examples. Press <KeyCombo keys="?" className="align-middle" /> anywhere for the shortcut list.</p>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                <Link to="/documentation" className="inline-flex items-center gap-1 rounded-sm text-xs font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">Explore the guide <ArrowUpRight className="size-3.5" /></Link>
+                <Link to={SHORTCUTS_PATH} className="inline-flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">Look up a key <ArrowUpRight className="size-3.5" /></Link>
+              </div>
             </div>
           </div>
         </Card>

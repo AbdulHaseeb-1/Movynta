@@ -10,6 +10,7 @@ import { assistantSelectionReducer } from "@/features/assistant/selectionSlice";
 import { saveSelection } from "@/features/assistant/selectionStorage";
 import { designWorkspaceReducer } from "@/features/designWorkspace";
 import { savePanelVisibility } from "@/features/designWorkspace/panelStorage";
+import { helpReducer } from "@/features/documentation/shortcuts/helpSlice";
 
 export const store = configureStore({
   reducer: {
@@ -19,6 +20,7 @@ export const store = configureStore({
     viewport: viewportReducer,
     assistantSelection: assistantSelectionReducer,
     designWorkspace: designWorkspaceReducer,
+    help: helpReducer,
   },
 });
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LoaderCircle, Ruler, SlidersHorizontal, Wrench } from "lucide-react";
+import { Keyboard, LoaderCircle, Ruler, SlidersHorizontal, Wrench } from "lucide-react";
 import { MeasurementPanel } from "@/features/measurements";
 import { Link, useNavigate, useParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -36,6 +36,7 @@ import {
   useObjectEditing,
 } from "@/features/objectEditing";
 import { useViewCapture } from "@/features/viewCapture";
+import { setShortcutsOpen } from "@/features/documentation/shortcuts";
 import { createSerialQueue } from "@/lib";
 import {
   createProject,
@@ -367,7 +368,10 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
         />
         </div>
         {viewport && <OrientationGizmo viewport={viewport} />}
-        <Button variant="ghost" size="icon" className={cn("pointer-events-auto size-8 rounded-xl border border-border bg-card/95 text-muted-foreground shadow-xl", measurementOpen && "bg-accent text-foreground")} title={measurementOpen ? "Close measurements" : "Open measurements"} aria-label={measurementOpen ? "Close measurements" : "Open measurements"} aria-expanded={measurementOpen} aria-controls="measurement-panel" onClick={() => setMeasurementOpen((open) => !open)}><Ruler className="size-4" /></Button>
+        <div className="pointer-events-auto flex gap-2">
+        <Button variant="ghost" size="icon" className="size-8 rounded-xl border border-border bg-card/95 text-muted-foreground shadow-xl" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" aria-keyshortcuts="? F1" onClick={() => dispatch(setShortcutsOpen(true))}><Keyboard className="size-4" /></Button>
+        <Button variant="ghost" size="icon" className={cn("size-8 rounded-xl border border-border bg-card/95 text-muted-foreground shadow-xl", measurementOpen && "bg-accent text-foreground")} title={measurementOpen ? "Close measurements" : "Open measurements"} aria-label={measurementOpen ? "Close measurements" : "Open measurements"} aria-expanded={measurementOpen} aria-controls="measurement-panel" onClick={() => setMeasurementOpen((open) => !open)}><Ruler className="size-4" /></Button>
+        </div>
         {editorScene && viewport && <div id="measurement-panel" inert={!measurementOpen} className={cn("pointer-events-auto w-full shrink-0", !measurementOpen && "hidden")}>
           <MeasurementPanel scene={editorScene} viewport={viewport} projectId={project?.id} disabled={!measurementOpen || run.busy || modifierBusy || opening !== "ready"} onPickingChange={setMeasurementPicking} />
         </div>}
