@@ -871,7 +871,7 @@
         { "severity": "warning", "objectId": "arm_right", "message": "Shares the name \"Arm\" with another object under the same parent" },
         { "severity": "info", "objectId": "props", "message": "Group has no children" }
       ] },
-      "tips": ["A warning does not stop an edit. But a later move under or out of an unevenly scaled group is refused, so fix that warning first."],
+      "tips": ["Run it after each chunk: a new batch is refused once three have been applied without it.", "A warning does not stop an edit. But a later move under or out of an unevenly scaled group is refused, so fix that warning first."],
       "limits": ["It reads the snapshot only. It cannot find self-intersections or overlaps; use editor.measure or viewport.capture for those."],
       "related": ["editor.get_context", "editor.apply_proposal", "viewport.capture"]
     },
@@ -1112,9 +1112,10 @@
         { "title": "Review from the front", "tool": "viewport.capture", "description": "Capture a front view to check spacing and height." },
         { "title": "Apply and check", "tool": "editor.apply_proposal", "description": "Apply the stored proposal, then run the scene check." }
       ] },
-      "tips": ["Keep steps small: each should map to one tool call.", "A newer plan replaces the current one, and stepId is checked against the latest plan only."],
+      "tips": ["Keep steps small: each is one chunk of work (one part, or one edit to one object) that is applied and checked before the next begins.", "A newer plan replaces the current one, and stepId is checked against the latest plan only."],
       "limits": ["A plan lasts for the run. It is not saved with the project.", "Up to 30 steps."],
       "errors": [
+        { "message": "Each step needs its own id, because batches are matched to steps by id.", "cause": "Two steps share an id. The result lists duplicateStepIds and the plan is not recorded." },
         { "message": "Plan references unknown tools. Each step's toolName must be one of the available tools.", "cause": "A step names a tool that is not registered. The result lists unknownTools and availableTools." }
       ],
       "related": ["editor.propose_commands", "skills.load_skill"]
@@ -1177,8 +1178,10 @@
           { "label": "Applied", "detail": "saved in history", "state": "next" }
         ] },
       "tips": ["Set expectedRevision whenever the batch depends on what was read. A strict proposal fails instead of being rebased.", "Use scene.move_object for \"move by\". scene.transform_object sets absolute values, so it would overwrite a move the user made meanwhile."],
-      "limits": ["At most 200 commands per proposal.", "Batches with geometry, material or hierarchy-copy commands are always strict.", "Collections and scene-graph features need an editor that supports them."],
+      "limits": ["At most 200 commands per proposal, and at most 40 when written by hand. A batch from a planId is not held to the 40.", "A new batch is refused once three have been applied since the last validation.check_scene.", "Batches with geometry, material or hierarchy-copy commands are always strict.", "Collections and scene-graph features need an editor that supports them."],
       "errors": [
+        { "message": "3 batches have been applied since the scene was last checked. Verify this chunk before starting the next.", "cause": "The result is rejected with a nextAction: run validation.check_scene, measure or capture what was built, then propose the next chunk. Nothing is stored." },
+        { "message": "This batch has 41 commands; a hand-written batch may have at most 40. Split the work into chunks, one part of the model each.", "cause": "A hand-written batch is more than one chunk. Propose the parts one at a time, or calculate repeated parts with editor.plan_duplicates or modeling.generate_commands." },
         { "message": "stepId does not match a step of the latest plan. Record a plan first, or leave stepId out.", "cause": "The result is rejected and lists availableStepIds. Nothing is stored." },
         { "message": "Proposal conflicts with the current scene", "cause": "A command does not fit the scene. The error lists each commandId and what to fix." },
         { "message": "Scene changed since these commands were calculated: they were written for revision 12, and the scene is at revision 13.", "cause": "expectedRevision is older than the scene. details gives both revisions." },
@@ -1219,7 +1222,7 @@
           { "label": "Apply next", "detail": "editor.apply_proposal", "state": "next" }
         ] },
       "tips": ["Inspect faces with faceQuery and includeSamples false, then pass the ids in the program through mesh.faceMatches.ids.", "Check faceMatches.hasMore before using a page."],
-      "limits": ["Same sandbox limits as modeling.generate_commands.", "At most 200 commands per proposal. Programs cannot reach files, the network or the host."],
+      "limits": ["Same sandbox limits as modeling.generate_commands.", "At most 200 commands per proposal. Programs cannot reach files, the network or the host.", "Refused like editor.propose_commands once three batches have been applied without a validation.check_scene. A generated batch is not held to the 40-command limit."],
       "related": ["modeling.generate_commands", "viewport.capture", "editor.apply_proposal"]
     },
     {
@@ -1292,14 +1295,14 @@
       ] },
       "request": { "skillId": "mesh-editing" },
       "response": {
-        "status": "loaded", "skillId": "mesh-editing", "version": "1.10.0",
+        "status": "loaded", "skillId": "mesh-editing", "version": "1.11.0",
         "instructions": "# Mesh editing workflow\n\n1. Call `editor.get_context` and confirm every target object exists.\n2. Describe the change in plain language, then build the smallest set of commands that achieves it.\n… (the rest of the workflow is in skills/mesh-editing/SKILL.md)",
         "toolNames": ["editor.get_context", "editor.read_branch", "editor.find_repeats", "editor.query_objects", "editor.inspect_mesh", "editor.inspect_materials", "editor.measure", "editor.plan_placement", "editor.plan_duplicates", "viewport.capture", "modeling.generate_commands", "modeling.propose_generated", "editor.propose_commands", "editor.apply_proposal", "validation.check_scene"],
-        "validation": ["Each target object id exists in the latest editor context.", "Transforms use finite numbers, and scale values are positive.", "Replacing geometry is an explicit destructive command and applies automatically through a proposal."],
-        "errorHandling": ["If a target object is missing, stop and ask the user which object to change.", "If the user rejects a destructive proposal, do not retry it. Propose a non-destructive alternative instead.", "Report revision conflicts, read the current context, and recalculate before proposing corrected commands."]
+        "validation": ["Each target object id exists in the latest editor context.", "Transforms use finite numbers, and scale values are positive.", "Replacing geometry is an explicit destructive command and applies automatically through a proposal.", "Each proposal edits one object with one kind of operation. Several objects or several kinds of change are several chunks, each applied and checked before the next.", "Before an edit the target is inspected, and after it the same property is measured or inspected again and compared with what the request asked for."],
+        "errorHandling": ["If a target object is missing, stop and ask the user which object to change.", "If the user rejects a destructive proposal, do not retry it. Propose a non-destructive alternative instead.", "Report revision conflicts, read the current context, and recalculate before proposing corrected commands.", "If an edit does not give the expected result, do not stack another edit on it. Read the result, undo or correct that edit, and check it again.", "If the same command is refused twice, change the cause (ids, revision, modifiers, geometry limits) or report that it cannot be done; do not resend it."]
       },
       "flow": ["The request matches a skill's when_to_use", "The skill is selected for the run", "The assistant calls load_skill", "The workflow comes back and the assistant follows it"],
-      "visual": { "kind": "lists", "caption": "mesh-editing, version 1.10.0, status loaded.", "groups": [
+      "visual": { "kind": "lists", "caption": "mesh-editing, version 1.11.0, status loaded.", "groups": [
         { "title": "Tools the workflow names", "items": ["editor.get_context", "editor.read_branch", "editor.find_repeats", "editor.query_objects", "editor.inspect_mesh", "editor.inspect_materials", "editor.measure", "editor.plan_placement", "editor.plan_duplicates", "viewport.capture", "modeling.generate_commands", "modeling.propose_generated", "editor.propose_commands", "editor.apply_proposal", "validation.check_scene"], "tone": "neutral" },
         { "title": "Validation", "items": ["Each target object id exists in the latest editor context.", "Transforms use finite numbers, and scale values are positive."], "tone": "ok" },
         { "title": "Error handling", "items": ["If a target object is missing, stop and ask the user which object to change.", "Report revision conflicts, read the current context, and recalculate before proposing corrected commands."], "tone": "warn" }

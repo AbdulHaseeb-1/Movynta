@@ -1,5 +1,6 @@
 import type { AgentInputItem } from "@openai/agents";
 import { assistantMessage, modelResponder } from "@openai/agents/testing";
+import { MAX_ATTACHMENTS } from "@movynta/contracts";
 import { startTestServer } from "../testing/test-app.js";
 import { openEventStream } from "../testing/event-stream.js";
 import { EditorSimulator } from "../testing/editor-simulator.js";
@@ -130,8 +131,8 @@ describe("images attached to a request", () => {
     const user = "alice-large";
     const editor = await EditorSimulator.connect(server.wsUrl, server.token(user), "proj-large");
     server.model.enqueue([assistantMessage("Got them.")]);
-    // Four pictures of 1 MB each: over 5 MB of base64, where an ordinary request stops at 256 kB.
-    const attachments = Array.from({ length: 4 }, (_, index) => pictureUpload("image/png", 1024 * 1024, `big-${index}.png`));
+    // A full set of pictures of 2 MB each: over 20 MB of base64, where an ordinary request stops at 256 kB.
+    const attachments = Array.from({ length: MAX_ATTACHMENTS }, (_, index) => pictureUpload("image/png", 2 * 1024 * 1024, `big-${index}.png`));
     try {
       const run = await http<Accepted>("POST", "/api/v1/agent-runs", user, {
         projectId: "proj-large",
@@ -144,6 +145,13 @@ describe("images attached to a request", () => {
     } finally {
       editor.close();
     }
+  }, 40_000);
+
+  it("are cut off at the transport when together they are far past the total limit", async () => {
+    // Each picture is within its own limit, but eight of them are well over the 24 MB total.
+    const attachments = Array.from({ length: MAX_ATTACHMENTS }, (_, index) => pictureUpload("image/png", 3.5 * 1024 * 1024, `huge-${index}.png`));
+    const response = await http<ErrorBody>("POST", "/api/v1/agent-runs", "alice-huge", { projectId: "proj-huge", message: "Look", attachments });
+    expect(response.status).toBe(413);
   }, 40_000);
 
   it("leave every other route with the ordinary size limit", async () => {
@@ -162,11 +170,11 @@ describe("images attached to a request", () => {
     expect(response.body.error.message).toContain('"photo.png" is not a PNG image');
   });
 
-  it("are refused beyond the limit of four, and for formats the models cannot read", async () => {
+  it("are refused beyond the limit, and for formats the models cannot read", async () => {
     const tooMany = await http<ErrorBody>("POST", "/api/v1/agent-runs", "alice-bad", {
       projectId: "proj-bad",
       message: "Look",
-      attachments: Array.from({ length: 5 }, () => pictureUpload("image/png")),
+      attachments: Array.from({ length: MAX_ATTACHMENTS + 1 }, () => pictureUpload("image/png")),
     });
     // The request shape is checked before the pictures are: too many is a malformed request.
     expect(tooMany.status).toBe(400);

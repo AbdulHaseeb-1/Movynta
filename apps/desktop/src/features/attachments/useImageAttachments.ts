@@ -1,6 +1,7 @@
 import { MAX_ATTACHMENTS } from "@movynta/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { mediaTypeOf } from "./imagePlan";
+import { MAX_ATTACHMENT_TOTAL_BYTES } from "@movynta/contracts";
+import { fitsTotal, mediaTypeOf } from "./imagePlan";
 import { prepareImage, unsupportedMessage } from "./prepareImage";
 import { AttachmentError, type AttachmentUpload, type ComposerImage } from "./types";
 
@@ -68,6 +69,9 @@ export function useImageAttachments(): ImageAttachments {
       try {
         // eslint-disable-next-line no-await-in-loop -- One picture at a time keeps memory use flat.
         const image = await prepareImage(file, position);
+        if (isCurrent() && !fitsTotal(taken.current, image.bytes)) {
+          throw new AttachmentError(`"${image.name}" would take the images past ${MAX_ATTACHMENT_TOTAL_BYTES / (1024 * 1024)} MB together. Remove one or choose a smaller picture.`);
+        }
         if (isCurrent()) {
           taken.current = [...taken.current, image];
           setImages(taken.current);

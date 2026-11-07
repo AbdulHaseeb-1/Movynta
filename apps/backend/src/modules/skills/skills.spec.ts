@@ -149,6 +149,28 @@ describe("SkillsRegistry.selectRelevant", () => {
     }
   });
 
+  it("holds every repository skill to working in chunks, each checked before the next", () => {
+    const skills = registry.all();
+    expect(skills.map((skill) => skill.id).sort()).toEqual([
+      "character-modeling",
+      "mesh-editing",
+      "model-design-principles",
+      "pbr-materials-and-color",
+      "props-hard-surface",
+      "topology-and-subdivision",
+    ]);
+    const missing: string[] = [];
+    for (const skill of skills) {
+      // A rule in the front matter, which the model reads in every list of skills, and a section with the steps.
+      if (!skill.validation.some((rule) => /chunk|one slot at a time/i.test(rule))) missing.push(`${skill.id}: no chunk rule in validation`);
+      if (!skill.errorHandling.some((rule) => /do not|never|stop/i.test(rule) && /fail|expected|refused|worse/i.test(rule))) missing.push(`${skill.id}: no stop rule in error handling`);
+      if (!/^## (Chunks and gates|Working in chunks)$/m.test(skill.instructions)) missing.push(`${skill.id}: no chunks section`);
+      if (!/gate|check/i.test(skill.instructions)) missing.push(`${skill.id}: no gate`);
+      if (Buffer.byteLength(skill.instructions) >= 64 * 1024) missing.push(`${skill.id}: too large`);
+    }
+    expect(missing).toEqual([]);
+  });
+
   it("selects nothing for an unrelated request", () => {
     expect(registry.selectRelevant({ message: "What is the weather today?" })).toEqual([]);
   });

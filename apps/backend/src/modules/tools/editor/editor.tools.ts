@@ -10,7 +10,7 @@ import { createDuplicationTool } from "./duplication.tools.js";
 import { createSceneTools } from "../scene/scene.tools.js";
 import { COMMAND_REFERENCE, COMMAND_TYPES, isCommandType, proposeCommandsDescription } from "./command-reference.js";
 import { closestValues } from "../tool-input-issues.js";
-import { applyProposal, afterApply, proposalRun, recordProposal, resolvePlanStep } from "./proposal-flow.js";
+import { applyProposal, afterApply, chunkRejection, proposalRun, recordProposal, resolvePlanStep } from "./proposal-flow.js";
 import { findPlannedBatch } from "../../agent-runs/run-progress.js";
 import { AppError } from "../../../common/errors/app-error.js";
 
@@ -164,6 +164,8 @@ export function createEditorTools(dependencies: EditorToolDependencies): ToolDef
         if (!step.ok) return step.rejection;
         const batch = resolveBatch(context, input);
         if (!batch.ok) return batch.rejection;
+        const tooMuch = chunkRejection(context, { handWrittenCommands: input.commands?.length ?? 0 });
+        if (tooMuch) return tooMuch;
         const proposal = await proposals.propose(proposalRun(context), {
           summary: input.summary,
           commands: batch.commands,

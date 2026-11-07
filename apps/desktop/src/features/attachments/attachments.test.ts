@@ -1,7 +1,7 @@
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_EDGE } from "@movynta/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { dragHasFiles, pictureFiles, picturesFromClipboard } from "./imageFiles";
-import { attachmentName, canSendUnchanged, fitWithin, mediaTypeOf, toBase64, withExtension } from "./imagePlan";
+import { attachmentName, canSendUnchanged, fitsTotal, fitWithin, mediaTypeOf, toBase64, withExtension } from "./imagePlan";
 import { prepareImage, type ImageCodec, MAX_SOURCE_BYTES } from "./prepareImage";
 import { AttachmentError } from "./types";
 import { savedExchangesToMessages } from "../assistant/conversationMessages";
@@ -200,5 +200,19 @@ describe("a reopened chat", () => {
   it("adds nothing to a request without pictures", () => {
     const [user] = savedExchangesToMessages([{ runId: "run_2", prompt: "Hi", status: "completed", createdAt: "2026-01-01T00:00:00Z" }]);
     expect(user).not.toHaveProperty("attachments");
+  });
+});
+
+describe("fitsTotal", () => {
+  const MB = 1024 * 1024;
+  it("accepts pictures up to the total limit and refuses one more byte", () => {
+    expect(fitsTotal([], 24 * MB)).toBe(true);
+    expect(fitsTotal([{ bytes: 20 * MB }], 4 * MB)).toBe(true);
+    expect(fitsTotal([{ bytes: 20 * MB }], 4 * MB + 1)).toBe(false);
+  });
+  it("counts every picture already taken", () => {
+    const taken = Array.from({ length: 8 }, () => ({ bytes: 3 * MB }));
+    expect(fitsTotal(taken, 0)).toBe(true);
+    expect(fitsTotal(taken, 1)).toBe(false);
   });
 });

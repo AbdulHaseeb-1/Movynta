@@ -101,6 +101,8 @@ export const runProgressSchema = z.object({
   proposals: z.array(proposalRecordSchema),
   /** True after a batch was applied and before validation.check_scene ran again. */
   unverifiedChanges: z.boolean(),
+  /** Batches applied since the last scene check. Proposing stops at `MAX_UNCHECKED_BATCHES` until a check runs. */
+  batchesSinceCheck: z.number().int().nonnegative().default(0),
   /** Error-severity issues in the last scene check. */
   sceneErrors: z.number().int().nonnegative(),
   /** Visual evidence and the model's assessment; older paused runs have no quality state. */
@@ -118,7 +120,7 @@ export type ProposalRecord = RunProgress["proposals"][number];
 
 /** Returns the state where nothing has been planned, proposed or changed. */
 export function emptyRunProgress(): RunProgress {
-  return { plans: [], proposals: [], unverifiedChanges: false, sceneErrors: 0, quality: qualityReviewSchema.parse({}), brief: briefStateSchema.parse({}), plannedBatches: [], nextPlannedBatch: 1 };
+  return { plans: [], proposals: [], unverifiedChanges: false, batchesSinceCheck: 0, sceneErrors: 0, quality: qualityReviewSchema.parse({}), brief: briefStateSchema.parse({}), plannedBatches: [], nextPlannedBatch: 1 };
 }
 
 /** Keeps a validated batch for a later editor.propose_commands call and returns the planId to name it by. */

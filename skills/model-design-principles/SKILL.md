@@ -1,6 +1,6 @@
 ---
 name: model-design-principles
-version: 1.2.0
+version: 1.3.0
 description: Applies professional 3D design principles (silhouette, proportion, shape language, big-medium-small, real-world scale and an iterative blockout-to-detail review loop) to plan and judge any model.
 dimensions:
   - 3d
@@ -49,15 +49,30 @@ validation:
   - Overall size matches the brief or the real-world reference table within about 10 percent, checked with editor.measure.
   - Every part has a role name and sits under one group for the model, so it can be moved and judged as a whole.
   - validation.check_scene reports no error-severity issues after each applied change.
+  - Each pass (primary, secondary, tertiary) is split into chunks, one part or feature per chunk, and every chunk has a stated check before the next is built.
+  - A pass is not started until the pass before it has been measured against the brief and captured from at least two views.
 error_handling:
   - If the brief is missing the object's purpose or style, pick a sensible default, state it in the plan, and invite the user to change it rather than stopping.
   - If a capture shows the silhouette does not read, fix the primary forms with a new proposal before adding detail; never hide a weak silhouette with small details.
   - If a size is unknown and not in the reference table, scale from the nearest known neighbour in the scene (a character, a door, a table) and say so.
+  - If a pass fails its check, rebuild that pass. Do not move to the next pass, and do not cover a weak form with detail.
+  - When the request is large, say how it is split into chunks before the first change, so the user can see the order of work.
 ---
 
 # Model design principles
 
 Use this skill as the design brain on top of the editing skills. It says *what* good looks like and *in what order* to build; `mesh-editing`, `props-hard-surface`, `topology-and-subdivision` and `pbr-materials-and-color` say *how* to do each step with the editor.
+
+## Working in chunks
+
+Quality comes from small steps that are checked, not from one large step that is hoped right.
+
+- **Split first.** After the brief, list the chunks: one per major part in the primary pass, one per feature in the secondary pass, one per cluster in the tertiary pass. Record them as plan steps with their own `stepId`. A chunk that needs more than about 40 commands is two chunks.
+- **One chunk, one loop.** State the check (a size, a gap, a count, how it should read in a capture), propose and apply the chunk, run `validation.check_scene`, measure or capture exactly that part, fix it, and only then start the next chunk.
+- **Gate each pass.** Before secondary forms: `validation.check_brief` has no failing check and the front, side and top views read as the object. Before tertiary detail: every secondary form is present, attached and measured.
+- **Do not skip ahead** because a part is simple, and do not repeat a step that already passed.
+- **Stop rules.** If two corrections to one chunk fail, change the approach or report what is wrong. If a tool or an image is unavailable, say which check could not be made; do not report a part as verified that was not.
+- **Report honestly.** End with the chunks done and checked, the checks that could not be made, and what remains.
 
 ## 1. Write a design brief first
 

@@ -142,6 +142,7 @@ export function createValidationTools({ bridge }: { readonly bridge: EditorBridg
         const check = checkScene(scene);
         // Only the latest check counts: the run is finished once it has seen the scene without errors.
         context.progress.unverifiedChanges = false;
+        context.progress.batchesSinceCheck = 0;
         context.progress.sceneErrors = check.issues.filter((issue) => issue.severity === "error").length;
         return check;
       },

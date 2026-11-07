@@ -108,7 +108,7 @@ flowchart LR
 
 ## Tips
 
-- Keep steps small: each should map to one tool call.
+- Keep steps small: each is one chunk of work (one part, or one edit to one object) that is applied and checked before the next begins.
 - A newer plan replaces the current one, and stepId is checked against the latest plan only.
 
 ## Limits
@@ -120,6 +120,7 @@ flowchart LR
 
 | Message | Cause |
 | --- | --- |
+| `Each step needs its own id, because batches are matched to steps by id.` | Two steps share an id. The result lists duplicateStepIds and the plan is not recorded. |
 | `Plan references unknown tools. Each step's toolName must be one of the available tools.` | A step names a tool that is not registered. The result lists unknownTools and availableTools. |
 
 ## Related

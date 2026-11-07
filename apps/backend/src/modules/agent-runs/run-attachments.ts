@@ -1,6 +1,7 @@
 import {
   base64Length,
   MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_TOTAL_BYTES,
   MAX_ATTACHMENT_NAME_LENGTH,
   MAX_ATTACHMENTS,
   type AttachmentMediaType,
@@ -56,7 +57,7 @@ function decodedBytes(data: string): number {
 export function checkAttachments(uploads: readonly AttachmentUpload[]): RunAttachment[] {
   if (uploads.length > MAX_ATTACHMENTS)
     throw new ValidationFailedError(`A request can carry at most ${MAX_ATTACHMENTS} images`);
-  return uploads.map((upload) => {
+  const checked = uploads.map((upload) => {
     const name = cleanAttachmentName(upload.name);
     const { data } = upload;
     if (data.length > base64Length(MAX_ATTACHMENT_BYTES) || data.length % 4 !== 0 || !BASE64.test(data))
@@ -69,6 +70,10 @@ export function checkAttachments(uploads: readonly AttachmentUpload[]): RunAttac
       throw new ValidationFailedError(`"${name}" is not a ${upload.mediaType.slice("image/".length).toUpperCase()} image`);
     return { name, mediaType: upload.mediaType, bytes, data };
   });
+  const total = checked.reduce((sum, picture) => sum + picture.bytes, 0);
+  if (total > MAX_ATTACHMENT_TOTAL_BYTES)
+    throw new ValidationFailedError(`The images add up to more than ${MAX_ATTACHMENT_TOTAL_BYTES / (1024 * 1024)} MB; send fewer or smaller ones`);
+  return checked;
 }
 
 /** What is kept of the pictures once the run has them: names, types and sizes. */

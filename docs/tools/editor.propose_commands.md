@@ -118,7 +118,8 @@ flowchart LR
 
 ## Limits
 
-- At most 200 commands per proposal.
+- At most 200 commands per proposal, and at most 40 when written by hand. A batch from a planId is not held to the 40.
+- A new batch is refused once three have been applied since the last validation.check_scene.
 - Batches with geometry, material or hierarchy-copy commands are always strict.
 - Collections and scene-graph features need an editor that supports them.
 
@@ -126,6 +127,8 @@ flowchart LR
 
 | Message | Cause |
 | --- | --- |
+| `3 batches have been applied since the scene was last checked. Verify this chunk before starting the next.` | The result is rejected with a nextAction: run validation.check_scene, measure or capture what was built, then propose the next chunk. Nothing is stored. |
+| `This batch has 41 commands; a hand-written batch may have at most 40. Split the work into chunks, one part of the model each.` | A hand-written batch is more than one chunk. Propose the parts one at a time, or calculate repeated parts with editor.plan_duplicates or modeling.generate_commands. |
 | `stepId does not match a step of the latest plan. Record a plan first, or leave stepId out.` | The result is rejected and lists availableStepIds. Nothing is stored. |
 | `Proposal conflicts with the current scene` | A command does not fit the scene. The error lists each commandId and what to fix. |
 | `Scene changed since these commands were calculated: they were written for revision 12, and the scene is at revision 13.` | expectedRevision is older than the scene. details gives both revisions. |

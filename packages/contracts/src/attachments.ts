@@ -8,10 +8,13 @@ export const ATTACHMENT_MEDIA_TYPES = ["image/png", "image/jpeg", "image/webp", 
 export type AttachmentMediaType = (typeof ATTACHMENT_MEDIA_TYPES)[number];
 
 /** Pictures one request can carry. More would cost context without helping the assistant. */
-export const MAX_ATTACHMENTS = 4;
+export const MAX_ATTACHMENTS = 8;
 
 /** The largest picture, in bytes, after the desktop has shrunk it. */
 export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+/** The most bytes all the pictures of one request may add up to. A request is sent as one body, so this bounds it. */
+export const MAX_ATTACHMENT_TOTAL_BYTES = 24 * 1024 * 1024;
 
 /**
  * The longest side, in pixels, a picture keeps. Larger pictures are scaled down before they are sent: models

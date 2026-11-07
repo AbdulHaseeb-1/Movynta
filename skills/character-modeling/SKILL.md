@@ -1,6 +1,6 @@
 ---
 name: character-modeling
-version: 1.5.0
+version: 1.6.0
 description: Builds and refines 3D characters with head-unit proportions, landmarks, shape language and joint pivots, using a blockout only as the starting point for detailed or realistic requests.
 dimensions:
   - 3d
@@ -37,11 +37,15 @@ validation:
   - validation.check_brief shows no failing check after the last change: height, feet on the floor, left and right limbs mirrored, hands and head attached.
   - A structural check is not evidence that the character looks realistic.
   - For explicit realism, detail or refinement requests, take fresh live images from at least two distinct viewpoints yourself and fix what they show. An independent reviewer examines the finished result; you do not grade it.
+  - The work is done in chunks, one body part or one feature at a time, and each chunk passes its gate (see Chunks and gates) before the next starts.
+  - Left and right are built one side at a time: the first side is verified, then the second is made from it and checked as a mirror.
 error_handling:
   - If the editor is not connected, report that the editor must be open.
   - On a revision conflict, inspect the latest context and make a new proposal.
   - If images or required modeling capabilities are unavailable, say what remains unverified or unfinished instead of implying the character was checked.
   - Never delete existing objects to make room for new ones unless the user asked for it.
+  - If a gate fails, fix that chunk and run its gate again. Do not start the next chunk, and do not hide the problem with later detail.
+  - If the same fix fails twice, stop adding to the figure, say what is wrong, and ask or choose a different approach.
 ---
 
 # Character modeling workflow
@@ -53,6 +57,25 @@ Read `editor.get_context`. Identify the requested style, subject, view and any a
 Record the measurable parts of the goal with `modeling.record_brief` before building. For a figure of height H: `size` of the figure group on y between 0.95 H and 1.05 H; `position` of its low edge (`anchor: "min"`, axis y) exactly 0; `symmetric` for each left and right pair (`Arm.L` and `Arm.R`, `Leg.L` and `Leg.R`) across x; `contained` for the head inside the figure group; `gap` on y from feet to legs and head to neck between -0.02 and 0.02 so no part floats or sinks. Pick the head-unit proportions from the style table below. Names must match what you create.
 
 Use `modeling.generate_model_plan` with steps appropriate to the requested result. For a realistic or detailed character, include: a proportion blockout; silhouette and anatomy; characteristic head, face, hands, feet and clothing as applicable; surface and material refinement; and visual review with targeted corrections. For a user who explicitly requests only a blockout, stop at the requested stage and describe it as such.
+
+## Chunks and gates
+
+Work strictly in the order below. A chunk is one plan step (give each its own `stepId`). Propose at most 40 commands for it, apply it, then pass its gate before the next chunk. The gate is always `validation.check_scene` with no errors, then the measurement or capture named here. Never build two chunks in one batch, and never start a chunk while the gate before it is failing.
+
+| # | Chunk | Gate before the next one |
+| --- | --- | --- |
+| 0 | Brief and plan. No scene change. | `modeling.record_brief` and `modeling.generate_model_plan` recorded; style, head units H, total height and every part name decided. |
+| 1 | Figure group, pelvis and torso. | Group has scale 1; torso height and width match the landmark table (`editor.measure`); front capture reads as a torso. |
+| 2 | Neck and head. | Head height = H, chin at 1 H below the crown; side capture shows the head sits over the neck, not forward of the feet. |
+| 3 | One arm, shoulder to hand block, pivot at the shoulder. | Length against the table; pivot at the joint; then make the other arm and check `symmetric` across x. |
+| 4 | One leg, hip to foot block, pivot at the hip. | Feet bottom at y = 0 (`gap` check); then the other leg, mirrored. |
+| 5 | Hands and feet. | Sizes match the table (hand about 3/4 H, foot about 1 H); capture of each. |
+| 6 | Face and characteristic features, one feature per batch. | Close-up capture of the head from front and side after each feature. |
+| 7 | Clothing, hair, accessories, one item per chunk. | Each item sits on the body without floating or sinking (`gap` or `clearance`) and has a role name. |
+| 8 | Materials, one slot at a time (`pbr-materials-and-color`). | Solid capture shows light, mid and dark groups. |
+| 9 | Review: `validation.check_brief` passes, live front, side and three-quarter captures, and you fix what they show. | Every brief check passes on the final scene; remaining shortcomings are listed. |
+
+A request for only a blockout ends after chunk 4 and is described as a blockout. For a realistic or detailed request, do not stop before chunk 7.
 
 ## Build in stages
 

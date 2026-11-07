@@ -1,6 +1,6 @@
 ---
 name: props-hard-surface
-version: 1.2.0
+version: 1.3.0
 description: Builds hard-surface props, furniture, products, vehicles and machines from blockout to detail with consistent bevels, booleans, insets, mirror and array modifiers in the right stack order.
 dimensions:
   - 3d
@@ -53,15 +53,34 @@ validation:
   - Modifier stacks are ordered mirror or array first, then boolean, then bevel, then subdivision.
   - Every boolean cutter is a closed solid, named Cutter.<Purpose>, hidden after the cut is checked, and kept in the scene.
   - validation.check_scene reports no error-severity issues, and a normals capture shows no flipped or shading-broken faces.
+  - Work is done in chunks (see Chunks and gates): each pass, feature or cutter is one chunk that is applied and checked before the next begins.
+  - Every boolean is its own chunk: one cutter is made, cut, checked and hidden before another cutter is made.
 error_handling:
   - If a boolean is rejected for an open or invalid operand, close the cutter (use a primitive instead of a sheet) and try once more; otherwise model the recess with inset and extrude.
   - If a bevel overlaps itself on thin parts, reduce the width below half the thinnest wall and retry rather than replacing the part.
   - If a topology edit is refused because modifiers are enabled, disable them with geometry.set_modifiers, make the edit alone, then restore the same stack.
+  - If a gate fails, fix that chunk and check it again before moving on. Never stack more work on a part that failed its gate.
+  - If the same boolean, bevel or inset is refused twice, stop and change the method, as the recovery rules above say, instead of retrying the same call.
 ---
 
 # Hard-surface and prop workflow
 
 Load `model-design-principles` for the brief and critique loop if it was selected too. This skill turns that brief into clean manufactured shapes.
+
+## Chunks and gates
+
+A chunk is one plan step with its own `stepId`, holding at most 40 commands. After applying it, pass its gate before the next chunk: `validation.check_scene` with no errors, then the check named here. Do not combine chunks in one batch.
+
+1. **Brief.** No scene change. Record the brief and plan. Gate: real-world size, style, bevel scale and part names are fixed.
+2. **Blockout, one assembly at a time.** The group and the main volumes of one assembly (for a table: top, then legs, then apron). Gate: `editor.measure` against the brief, parts touch where they should (`clearance` 0), and `front`, `right`, `top` and `isometric` captures read as the object. Fix proportions here; nothing later can rescue them.
+3. **Secondary forms, one feature per chunk.** One recess, extrusion or panel group. Gate: capture of that feature close up; `editor.inspect_mesh` shows the face count you expected.
+4. **Booleans, one cutter per chunk.** Create the closed cutter, preview the candidate with `viewport.capture` and its `proposalId`, apply the cut, check the result, then hide the cutter. Gate: the cut is clean (no coplanar leftovers) in a `normals` capture.
+5. **Bevels, one size level at a time.** Large, then medium, then small, each on the parts it belongs to. Gate: width within 40% of the thinnest wall; captures show no overlap or pinch.
+6. **Detail, one cluster at a time.** Fasteners, seams, vents, labels. Gate: grouped near the focal point and on an exact grid; the count matches the plan.
+7. **Materials, one slot at a time.** Gate: solid capture shows distinct materials and a value structure.
+8. **Close.** `validation.check_brief` passes on the final scene; report parts, bevel scale and what remains.
+
+Never skip a gate because the change was small. A failed gate is fixed in its own chunk before anything new is added.
 
 ## Core ideas
 

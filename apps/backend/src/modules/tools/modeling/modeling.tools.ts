@@ -22,6 +22,12 @@ export function createModelingTools({ knownToolNames }: ModelingToolDependencies
             availableTools: knownToolNames,
           };
         }
+        // Batches are tied to a plan by step id, so two steps with one id could never both be shown done.
+        const ids = plan.steps.map((step) => step.id);
+        const duplicates = [...new Set(ids.filter((id, at) => ids.indexOf(id) !== at))];
+        if (duplicates.length > 0) {
+          return { status: "rejected", reason: "Each step needs its own id, because batches are matched to steps by id.", duplicateStepIds: duplicates };
+        }
         context.progress.plans.push(plan);
         return { status: "recorded", planNumber: context.progress.plans.length, stepCount: plan.steps.length };
       },

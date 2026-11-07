@@ -52,6 +52,48 @@ export function recordProposal(
   });
 }
 
+/**
+ * How many batches may be applied before the scene is checked. A chunk of work is one part of the model, which often
+ * takes a few batches (make it, place it, shape it); what follows must wait for the check of what came before.
+ */
+export const MAX_UNCHECKED_BATCHES = 3;
+
+/**
+ * The most commands a hand-written batch may hold. A bigger batch is several parts at once, and a mistake in it
+ * cannot be told from the rest. Batches a tool calculated (a planId, or a generated proposal) are not held to this.
+ */
+export const MAX_HAND_WRITTEN_COMMANDS = 40;
+
+export interface ChunkRejection {
+  readonly status: "rejected";
+  readonly reason: string;
+  readonly nextAction: string;
+}
+
+/**
+ * Refuses a new batch while earlier work is unchecked, or when a hand-written batch is too big to be one chunk.
+ * The refusal says what to do, so the run goes on after the step it asks for.
+ */
+export function chunkRejection(context: AgentRunContext, batch: { readonly handWrittenCommands?: number }): ChunkRejection | undefined {
+  const { batchesSinceCheck } = context.progress;
+  if (batchesSinceCheck >= MAX_UNCHECKED_BATCHES) {
+    return {
+      status: "rejected",
+      reason: `${batchesSinceCheck} batches have been applied since the scene was last checked. Verify this chunk before starting the next.`,
+      nextAction: "Call validation.check_scene, then measure or capture what you just built and fix anything wrong. Then propose the next chunk.",
+    };
+  }
+  const size = batch.handWrittenCommands ?? 0;
+  if (size > MAX_HAND_WRITTEN_COMMANDS) {
+    return {
+      status: "rejected",
+      reason: `This batch has ${size} commands; a hand-written batch may have at most ${MAX_HAND_WRITTEN_COMMANDS}. Split the work into chunks, one part of the model each.`,
+      nextAction: "Propose the first part alone, apply it, check it, then propose the next. For many identical parts use editor.plan_duplicates or modeling.generate_commands, which are not held to this limit.",
+    };
+  }
+  return undefined;
+}
+
 /** What the model is told about an apply attempt. */
 export interface ApplyView {
   readonly proposalId: string;
@@ -74,6 +116,7 @@ export async function applyProposal(
   const result = await proposals.apply(proposalRun(context), proposalId);
   if (result.status === "applied") {
     context.progress.unverifiedChanges = true;
+    context.progress.batchesSinceCheck += 1;
     context.progress.brief.stale = true;
     const quality = context.progress.quality;
     quality.changes += 1;
@@ -95,6 +138,6 @@ export async function applyProposal(
 /** The next step after an apply, so the model does not have to work it out from the status. */
 export function afterApply(view: ApplyView): string {
   return view.status === "applied"
-    ? "Applied. Run validation.check_scene once you have made the changes this step needs."
+    ? "Applied. Finish what this chunk needs, then verify it before starting the next: validation.check_scene, then measure or capture the part you built."
     : "Not applied. Read message and each result, fix those commands and propose again.";
 }

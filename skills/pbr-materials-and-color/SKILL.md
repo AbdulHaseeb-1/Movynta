@@ -1,6 +1,6 @@
 ---
 name: pbr-materials-and-color
-version: 1.0.0
+version: 1.1.0
 description: Designs believable PBR materials and readable colour palettes (value structure, 60-30-10, hue harmony, physically plausible albedo, metalness and roughness) and applies them through material slots.
 dimensions:
   - 3d
@@ -49,10 +49,14 @@ validation:
   - Metalness is 0 or 1 except for deliberate dirty or coated metal.
   - Distinct real materials use distinct slots; existing imported maps and shaders are kept unless the user asked to replace them.
   - A solid capture after applying shows the intended light, mid and dark value structure.
+  - Materials are changed one slot at a time: one slot is edited, applied and captured before the next slot is touched.
+  - Only the properties the request names are changed on a slot; every other property keeps its value.
 error_handling:
   - If a slot is not editable (an unsupported shader), report it and offer material.replace_slot only if the user wants a new Standard material there.
   - If faces for a new slot cannot be found by a face query, assign the slot to the whole part and say so, or ask the user to select the faces in Edit mode.
   - Never replace imported shaders or maps without explicit intent; prefer material.set_properties.
+  - If a slot fails its check (the capture does not read as intended, or the values did not stick), correct it before touching another slot, and never stack further changes on it.
+  - Do not recolour objects the request did not mention, and never replace imported shaders or maps without being asked.
 ---
 
 # PBR materials and colour
@@ -97,6 +101,15 @@ The editor's Standard material uses a metal/roughness model. Colours are sRGB `#
 | Clear glass | `#F2F6F7` | 0.03 | 0, opacity 0.25 |
 
 Adjust these to the style: stylized work often lifts saturation and lightens darks, but keep the same metalness and roughness logic.
+
+## Chunks and gates
+
+A chunk is one slot, or one group of parts that must share one material. Do the chunks in order of visual weight: the largest surface first, the focal accent last.
+
+1. Read the slot with `editor.inspect_materials` and note its revision and editable flag. Decide the target value, roughness and metalness as numbers.
+2. Change that slot only, with `material.set_properties` (or `material.add_slot` and `material.assign` for a second material), naming only the properties that change.
+3. Apply, run `validation.check_scene`, then capture the part in `solid` mode and check it against the plan. Read the slot again to confirm the values stuck.
+4. Only then take the next slot. After the last slot, capture the whole model from the front and an isometric view and check the light, mid and dark structure.
 
 ## Workflow
 

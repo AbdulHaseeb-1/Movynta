@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { identifierSchema, meshInspectionRequestSchema } from "@movynta/editor-protocol";
 import { rememberPlannedBatch } from "../../agent-runs/run-progress.js";
-import { afterApply, applyProposal, proposalRun, recordProposal, resolvePlanStep } from "../editor/proposal-flow.js";
+import { afterApply, applyProposal, chunkRejection, proposalRun, recordProposal, resolvePlanStep } from "../editor/proposal-flow.js";
 import type { EditorToolDependencies } from "../editor/editor.types.js";
 import type { CommandProposalService } from "../../editor-bridge/proposals/command-proposal.service.js";
 import { validateAgainstContext } from "../../editor-bridge/proposals/command-proposal.service.js";
@@ -56,6 +56,8 @@ export function createProceduralTools({ bridge, proposals }: Pick<EditorToolDepe
       bridge.assertConnection(context.userId, context.projectId, context.clientId);
       const step = resolvePlanStep(context, stepId);
       if (!step.ok) return step.rejection;
+      const unchecked = chunkRejection(context, {});
+      if (unchecked) return unchecked;
       const scene = await bridge.getContext(context.clientId, inspection);
       if (inspection && scene.meshInspection?.status !== "ok") return { status: "rejected", message: scene.meshInspection?.message ?? "Mesh inspection unavailable", sourceRevision: scene.revision };
       let commands;

@@ -72,6 +72,7 @@ Result:
 
 ## Tips
 
+- Run it after each chunk: a new batch is refused once three have been applied without it.
 - A warning does not stop an edit. But a later move under or out of an unevenly scaled group is refused, so fix that warning first.
 
 ## Limits

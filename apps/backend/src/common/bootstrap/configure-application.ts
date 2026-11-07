@@ -2,7 +2,7 @@ import { ValidationPipe, VersioningType, type INestApplication } from "@nestjs/c
 import type { NodeAdapter } from "@nestjs/platform-node";
 import { WsAdapter } from "@nestjs/platform-ws";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import { base64Length, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "@movynta/contracts";
+import { base64Length, MAX_ATTACHMENT_TOTAL_BYTES } from "@movynta/contracts";
 import type { AppConfig } from "../../config/config.types.js";
 import { MAX_ASSET_BYTES } from "../../modules/projects/projects.types.js";
 
@@ -12,8 +12,8 @@ const MODEL_UPLOAD_PATH = /^\/api\/v1\/projects\/[^/?]+\/assets(\?|$)/;
 
 /** The one JSON route whose body can hold pictures: a new agent run. */
 const RUN_CREATE_PATH = /^\/api\/v1\/agent-runs(\?|$)/;
-/** Room for the largest set of pictures as base64 text, plus the message and the rest of the request. */
-const RUN_CREATE_BODY_LIMIT = MAX_ATTACHMENTS * base64Length(MAX_ATTACHMENT_BYTES) + 256 * 1024;
+/** Room for the most pictures a request may carry as base64 text, plus the message and the rest of the request. */
+const RUN_CREATE_BODY_LIMIT = base64Length(MAX_ATTACHMENT_TOTAL_BYTES) + 256 * 1024;
 
 /**
  * Applies the HTTP and WebSocket configuration shared by the server and the

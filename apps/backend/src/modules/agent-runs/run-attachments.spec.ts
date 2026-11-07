@@ -1,4 +1,4 @@
-import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "@movynta/contracts";
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TOTAL_BYTES, MAX_ATTACHMENTS } from "@movynta/contracts";
 import { ValidationFailedError } from "../../common/errors/app-error.js";
 import { pictureUpload as upload } from "../../testing/pictures.js";
 import { checkAttachments, cleanAttachmentName, messageWithAttachments, summarizeAttachments } from "./run-attachments.js";
@@ -33,8 +33,16 @@ describe("checkAttachments", () => {
 
   it("rejects more pictures than a request may carry", () => {
     const many = Array.from({ length: MAX_ATTACHMENTS + 1 }, () => upload("image/png"));
-    expect(() => checkAttachments(many)).toThrow(/at most 4 images/);
+    expect(() => checkAttachments(many)).toThrow(new RegExp(`at most ${MAX_ATTACHMENTS} images`));
     expect(checkAttachments(many.slice(0, MAX_ATTACHMENTS))).toHaveLength(MAX_ATTACHMENTS);
+  });
+
+  it("accepts a full set of pictures that fit together, and refuses a set that is too large together", () => {
+    const each = Math.floor(MAX_ATTACHMENT_TOTAL_BYTES / MAX_ATTACHMENTS);
+    expect(checkAttachments(Array.from({ length: MAX_ATTACHMENTS }, () => upload("image/png", each)))).toHaveLength(MAX_ATTACHMENTS);
+    // Each picture is within its own limit; together they are not.
+    const heavy = Array.from({ length: 5 }, () => upload("image/png", MAX_ATTACHMENT_BYTES));
+    expect(() => checkAttachments(heavy)).toThrow(/add up to more than 24 MB/);
   });
 
   it("names the picture that failed", () => {

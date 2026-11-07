@@ -1,6 +1,7 @@
 import {
   isAttachmentMediaType,
   MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_TOTAL_BYTES,
   MAX_ATTACHMENT_EDGE,
   type AttachmentMediaType,
 } from "@movynta/contracts";
@@ -51,6 +52,11 @@ export function canSendUnchanged(file: Pick<File, "size">, mediaType: Attachment
   if (mediaType === "image/gif") return false;
   const fitted = fitWithin(size);
   return file.size <= MAX_ATTACHMENT_BYTES && fitted.width === size.width && fitted.height === size.height;
+}
+
+/** Whether one more picture of `bytes` still keeps the pictures of a message within their total size limit. */
+export function fitsTotal(taken: readonly { readonly bytes: number }[], bytes: number): boolean {
+  return taken.reduce((sum, picture) => sum + picture.bytes, bytes) <= MAX_ATTACHMENT_TOTAL_BYTES;
 }
 
 /** A file name for the picture, with a name for pictures that have none, such as ones pasted from the clipboard. */
