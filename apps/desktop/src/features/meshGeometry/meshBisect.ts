@@ -6,6 +6,9 @@ import { channels, faceNormal, type PolygonMesh } from "./meshTopology";
 import { topologyResult } from "./meshTopologyEdit";
 import { blend, type Weights } from "./meshWeights";
 
+/** What an assistant needs to hear when the cut cannot be capped because the mesh itself has a gap where the plane passes. */
+const OPEN_OUTLINE = "The cut outline does not close, so it cannot be capped: the mesh is open where the plane passes (a face is missing there). Close the opening first with geometry.fill_hole, move the plane clear of it, or leave fill off";
+
 export type BisectKeep = "both" | "positive" | "negative";
 /** A plane in mesh-local space: a point on it and the direction that counts as its positive side. */
 export interface BisectPlane { point: Vector3; normal: Vector3 }
@@ -184,11 +187,11 @@ export function bisectMesh(mesh: PolygonMesh, source: BufferGeometry, plane: Bis
       for (let vertex: number | undefined = start; vertex !== undefined && !visited.has(vertex); ) {
         visited.add(vertex);
         const edge = rim.get(vertex);
-        if (!edge) throw new Error("The cut outline does not close, so it cannot be capped");
+        if (!edge) throw new Error(OPEN_OUTLINE);
         ids.push(vertex); edges.push(edge);
         vertex = edge.from;
       }
-      if (rim.get(ids[ids.length - 1] ?? -1)?.from !== start) throw new Error("The cut outline does not close, so it cannot be capped");
+      if (rim.get(ids[ids.length - 1] ?? -1)?.from !== start) throw new Error(OPEN_OUTLINE);
       loops.push({ ids, edges });
     }
     assertNoNestedOutlines(positions, loops.map((entry) => entry.ids), normal);

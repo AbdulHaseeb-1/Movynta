@@ -140,3 +140,42 @@ export const INSIDE_OUT: QualityScenario = {
     ];
   },
 };
+
+/**
+ * Beveling one edge of a box. Left to its default, the faces at the ends of the edge keep their sharp corner and a second set
+ * of faces covers the same patch, which bounds, volume and closedness do not show but a face count does.
+ */
+export const CHAMFER_EDGE: QualityScenario = {
+  id: "chamfer-edge",
+  title: "Chamfer one edge of a block",
+  prompt: "Chamfer the vertical edge of the Block at its largest x and largest z, cutting the corner flat 0.1 deep. Keep it a clean closed solid.",
+  setup: BLOCK_SETUP,
+  checks: [
+    { kind: "size", label: "Same size", target: { id: "block" }, axis: "x", min: 0.99, max: 1.01 },
+  ],
+  meshChecks: [
+    { kind: "has-vertex", objectId: "block", label: "Cut at the right-front corner", point: [0.4, 1, 0.5] },
+    { kind: "volume", objectId: "block", label: "Corner cut 0.1 deep", min: 0.994, max: 0.996 },
+    { kind: "faces", objectId: "block", label: "Clean faces, nothing doubled", min: 7, max: 7 },
+    { kind: "closed", objectId: "block" },
+  ],
+  defects: [
+    { id: "no-trim", description: "The bevel left the top and bottom with their sharp corner and a second patch over it.", fails: ["Clean faces, nothing doubled"] },
+    { id: "wrong-corner", description: "The opposite vertical edge was chamfered.", fails: ["Cut at the right-front corner"] },
+    { id: "too-deep", description: "The corner was cut 0.2 deep.", fails: ["Cut at the right-front corner", "Corner cut 0.1 deep"] },
+    { id: "untouched", description: "Nothing was done.", fails: ["Cut at the right-front corner", "Corner cut 0.1 deep", "Clean faces, nothing doubled"] },
+    { id: "squashed", description: "The edge was chamfered, then the block was squashed to half its width.", fails: ["Same size", "Cut at the right-front corner"] },
+    { id: "holed", description: "The edge was chamfered, then a face was deleted.", fails: ["Corner cut 0.1 deep", "Clean faces, nothing doubled", "block is still a closed solid"] },
+  ],
+  solution(defect?: string): readonly ScenarioCommand[] {
+    if (defect === "untouched") return [];
+    return [
+      {
+        commandId: "chamfer", type: "geometry.bevel_edges", objectId: "block", ids: [defect === "wrong-corner" ? "4_5" : "0_1"],
+        width: defect === "too-deep" ? 0.2 : 0.1, segments: 1, profile: "chamfer", trimEndFaces: defect !== "no-trim",
+      },
+      ...(defect === "squashed" ? [{ commandId: "squash", type: "scene.transform_object", objectId: "block", transform: { scale: [0.5, 1, 1] } }] : []),
+      ...(defect === "holed" ? [{ commandId: "hole", type: "geometry.delete_components", objectId: "block", kind: "face", ids: ["0"] }] : []),
+    ];
+  },
+};

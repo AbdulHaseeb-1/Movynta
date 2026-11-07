@@ -14,7 +14,9 @@ export type MeshCheck =
   | { readonly kind: "openings"; readonly objectId: string; readonly label: string; readonly count: number }
   /** Some hole has its center within the range on an axis (world coordinates). */
   | { readonly kind: "opening-at"; readonly objectId: string; readonly label: string; readonly axis: "x" | "y" | "z"; readonly min: number; readonly max: number }
-  | { readonly kind: "faces"; readonly objectId: string; readonly label: string; readonly min?: number; readonly max?: number };
+  | { readonly kind: "faces"; readonly objectId: string; readonly label: string; readonly min?: number; readonly max?: number }
+  /** Some vertex lies within `tolerance` (default 0.02) of the point, in world coordinates. */
+  | { readonly kind: "has-vertex"; readonly objectId: string; readonly label: string; readonly point: readonly [number, number, number]; readonly tolerance?: number };
 
 /** A way a build can go wrong, with the checks it must trip and no others, so each check proves it can fail. */
 export interface ScenarioDefect {
@@ -60,6 +62,8 @@ export interface MeshMeasure {
   readonly openingCenters: readonly (readonly [number, number, number])[];
   /** Signed volume enclosed by the base cage: negative when the faces point inward. */
   readonly volume: number;
+  /** World-space position of each vertex of the base cage, up to the first 2,048. */
+  readonly vertices: readonly (readonly [number, number, number])[];
 }
 
 /** What a run left behind: the scene it started from, the scene it ended in, and the meshes the checks read. */

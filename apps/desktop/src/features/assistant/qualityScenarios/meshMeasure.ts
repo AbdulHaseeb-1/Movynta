@@ -5,6 +5,8 @@ import { boundaryLoops } from "../../meshGeometry/meshRegions";
 import { readTopology, topology } from "../../meshGeometry/meshTopology";
 import type { MeshMeasure } from "./types";
 
+const MAX_VERTICES = 2048;
+
 function isMesh(object: Object3D | undefined): object is Mesh {
   return object instanceof Mesh;
 }
@@ -41,5 +43,6 @@ export function measureMesh(editor: EditorScene, objectId: string): MeshMeasure 
     openings: loops.length,
     openingCenters,
     volume,
+    vertices: cage.positions.slice(0, MAX_VERTICES).map((position) => position.clone().applyMatrix4(object.matrixWorld).toArray()),
   };
 }

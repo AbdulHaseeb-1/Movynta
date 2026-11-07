@@ -59,6 +59,11 @@ function meshResult(index: number, check: MeshCheck, outcome: ScenarioOutcome) {
     return extraResult(index, check.label, centers.some((value) => within(value, check.min, check.max)),
       mesh ? (centers.length === 0 ? "no openings" : `openings at ${check.axis} ${centers.map(format).join(", ")}`) : unknown, `an opening ${rangeText(check.min, check.max)} on ${check.axis}`);
   }
+  if (check.kind === "has-vertex") {
+    const tolerance = check.tolerance ?? 0.02;
+    const found = mesh?.vertices.some((vertex) => vertex.every((value, axis) => Math.abs(value - (check.point[axis] ?? NaN)) <= tolerance));
+    return extraResult(index, check.label, found === true, mesh ? (found ? "found" : "no vertex there") : unknown, `a vertex at ${check.point.map(format).join(", ")}`);
+  }
   return extraResult(index, check.label, mesh !== undefined && within(mesh.faces, check.min, check.max), mesh ? `${mesh.faces} faces` : unknown, rangeText(check.min, check.max));
 }
 

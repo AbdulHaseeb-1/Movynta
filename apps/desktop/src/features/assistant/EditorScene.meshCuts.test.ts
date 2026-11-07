@@ -45,6 +45,23 @@ describe("assistant mesh cuts", () => {
     expect(editor.currentRevision).toBeGreaterThan(1);
   });
 
+  it("triangulates a cylinder whose seam was beveled, and says why when a filled cut meets the hole it leaves", () => {
+    // Bevelling a seam puts a vertex exactly on each straight edge of the caps; clipping those as ears left triangles with no area.
+    const editor = new EditorScene(new Scene(), "project");
+    editor.execute("make", 0, [{ commandId: "tube", type: "geometry.create_primitive", objectId: "tube", primitive: "cylinder", size: 1,
+      options: { radiusTop: 0.3, radiusBottom: 0.3, height: 1, radialSegments: 8 } }]);
+    expect(editor.execute("bevel", editor.currentRevision, [{ commandId: "b", type: "geometry.bevel_edges", objectId: "tube", ids: ["2_3"], width: 0.03, segments: 2, profile: "round" }]).status).toBe("applied");
+    const triangulated = editor.execute("tri", editor.currentRevision, [{ commandId: "t", type: "geometry.triangulate_faces", objectId: "tube" }]);
+    expect(triangulated.status).toBe("applied");
+    // A cut that cannot be capped because a face is missing tells the assistant what to do about it.
+    const open = new EditorScene(new Scene(), "project");
+    open.execute("make", 0, [{ commandId: "box", type: "geometry.create_primitive", objectId: "box", primitive: "box", size: 1 }]);
+    open.execute("hole", open.currentRevision, [{ commandId: "d", type: "geometry.delete_components", objectId: "box", kind: "face", ids: ["5"] }]);
+    const refused = open.execute("cut", open.currentRevision, [{ commandId: "c", type: "geometry.bisect", objectId: "box", plane: { axis: "x", offset: 0.1 }, space: "local", keep: "positive", fill: true }]);
+    expect(refused.status).toBe("failed");
+    expect(JSON.stringify(refused.results)).toContain("geometry.fill_hole");
+  });
+
   it("replays the same command to the same cage", () => {
     const command = bisect({ plane: { axis: "x", offset: 0.1 }, keep: "negative", fill: true });
     const first = editorWithBox(), second = editorWithBox();

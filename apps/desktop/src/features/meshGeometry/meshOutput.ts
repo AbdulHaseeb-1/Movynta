@@ -48,7 +48,67 @@ export function triangulate(mesh: PolygonMesh, face: readonly number[]): number[
     return a && b && c && b.clone().sub(a).cross(c.clone().sub(a)).dot(normal) < 0 ? [...triangle].reverse() : triangle;
   });
   if (face.length === 4 && projected.length !== 2) return [];
-  return projected;
+  return face.length > 4 ? repairFlatTriangles(mesh, face, projected) : projected;
+}
+
+/**
+ * A triangle whose height is under this fraction of its longest side has a corner in line with the other two. Positions are
+ * stored as 32-bit floats, so points put exactly on an edge are only on it to about 1e-7 of its length; a triangle a
+ * millionth as high as it is long draws nothing, and the edge checks call it collapsed.
+ */
+const FLAT_TRIANGLE = 1e-6;
+
+/**
+ * Removes triangles with no area. A polygon may have a vertex exactly on a straight edge (a bevel puts one there so the
+ * neighbouring face has no gap), and ear clipping then cuts that vertex off as a flat ear: a triangle that draws nothing
+ * but that the edit checks rightly call collapsed. Such a triangle (u, v, w) has w on the segment u-v, so it and the
+ * triangle across u-v, (v, u, d), together are the triangle u-v-d with w on one edge; splitting it at w gives
+ * (w, u, d) and (v, w, d). The triangle count and the winding are unchanged. A flat triangle on the outline of the
+ * polygon, or one whose neighbour is also flat, is left as it was.
+ */
+function repairFlatTriangles(mesh: PolygonMesh, face: readonly number[], triangles: number[][]): number[][] {
+  const at = (corner: number): Vector3 | undefined => point(mesh, face[corner]);
+  const flat = (triangle: readonly number[]): { u: number; v: number; w: number } | undefined => {
+    const [i, j, k] = triangle;
+    if (i === undefined || j === undefined || k === undefined) return undefined;
+    const a = at(i), b = at(j), c = at(k);
+    if (!a || !b || !c) return undefined;
+    const lengths = [a.distanceToSquared(b), b.distanceToSquared(c), c.distanceToSquared(a)];
+    const longest = Math.max(...lengths);
+    const area = b.clone().sub(a).cross(c.clone().sub(a)).lengthSq() / 4;
+    if (!(longest > 0) || area > longest * longest * FLAT_TRIANGLE * FLAT_TRIANGLE) return undefined;
+    // The long side is opposite the vertex that lies between the other two.
+    const side = lengths.indexOf(longest);
+    return side === 0 ? { u: i, v: j, w: k } : side === 1 ? { u: j, v: k, w: i } : { u: k, v: i, w: j };
+  };
+  const result = triangles.map((triangle) => [...triangle]);
+  for (let pass = 0; pass < result.length; pass += 1) {
+    let changed = false;
+    for (let index = 0; index < result.length; index += 1) {
+      const triangle = result[index];
+      const found = triangle ? flat(triangle) : undefined;
+      if (!found) continue;
+      const { u, v, w } = found;
+      // The triangle across the long side runs that side the other way: v to u.
+      const other = result.findIndex((candidate, position) => {
+        if (position === index) return false;
+        for (let corner = 0; corner < 3; corner += 1) if (candidate[corner] === v && candidate[(corner + 1) % 3] === u) return true;
+        return false;
+      });
+      const neighbour = result[other];
+      if (!neighbour) continue;
+      const d = neighbour.find((corner) => corner !== u && corner !== v);
+      if (d === undefined) continue;
+      // Keep the winding of the flat triangle's own order: u -> v is its long side, so the boundary reads v, w, u, d.
+      const first = [w, u, d], second = [v, w, d];
+      if (flat(first) || flat(second)) continue;
+      result[index] = first;
+      result[other] = second;
+      changed = true;
+    }
+    if (!changed) break;
+  }
+  return result;
 }
 
 /**
