@@ -8,11 +8,9 @@ import {
 function stubStorage(initial?: string) {
   const data = new Map<string, string>();
   if (initial !== undefined) data.set("movynta.assistantSelection", initial);
-  vi.stubGlobal("window", {
-    localStorage: {
-      getItem: (key: string) => data.get(key) ?? null,
-      setItem: (key: string, value: string) => void data.set(key, value),
-    },
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => void data.set(key, value),
   });
 }
 
@@ -50,7 +48,7 @@ describe("assistant selection storage", () => {
   });
 
   it("falls back when storage is unavailable", () => {
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("localStorage", undefined);
     expect(loadSelection()).toEqual(emptySelection);
     expect(() => saveSelection(emptySelection)).not.toThrow();
   });

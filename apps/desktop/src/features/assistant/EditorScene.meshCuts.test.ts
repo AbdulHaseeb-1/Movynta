@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Mesh, Scene, Vector3, type Object3D } from "three";
+import { type Mesh, Scene, Vector3 } from "three";
 import { checkManifold } from "../meshGeometry/meshManifold";
 import { readTopology, topology } from "../meshGeometry/meshTopology";
 import { measureSurface } from "../meshGeometry/meshTestSupport";
 import { EditorScene } from "./EditorScene";
+import { isMesh } from "@/lib/three";
 
 function editorWithBox(transform: Record<string, number[]> = {}) {
   const editor = new EditorScene(new Scene(), "project");
@@ -11,7 +12,6 @@ function editorWithBox(transform: Record<string, number[]> = {}) {
   expect(created.status).toBe("applied");
   return editor;
 }
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 function meshOf(editor: EditorScene): Mesh {
   const object = editor.getObject("box");
   if (!isMesh(object)) throw new Error("Missing mesh");

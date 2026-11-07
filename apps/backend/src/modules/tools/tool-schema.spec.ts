@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { measurementRequestSchema, meshInspectionRequestSchema, saveMeasurementsSchema } from "@movynta/editor-protocol";
-import { editorCommandListSchema, MAX_COMMANDS_PER_PROPOSAL } from "../../shared/schemas/editor-command.schema.js";
-import type { EditorContext } from "../../shared/types/editor-context.types.js";
-import { editorContextSchema } from "../../shared/schemas/editor-context.schema.js";
+import { measurementRequestSchema, meshInspectionRequestSchema, saveMeasurementsSchema, editorCommandListSchema, MAX_COMMANDS_PER_PROPOSAL, type EditorContext, editorContextSchema } from "@movynta/editor-protocol";
+
+
+
 import { validateAgainstContext } from "../editor-bridge/proposals/command-proposal.service.js";
 import { defineTool, toProviderToolName } from "./tool.types.js";
 import { checkScene } from "./validation/validation.tools.js";

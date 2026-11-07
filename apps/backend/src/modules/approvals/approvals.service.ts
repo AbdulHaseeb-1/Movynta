@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { NotFoundError } from "../../common/errors/app-error.js";
 import { AgentRunRepository } from "../agent-runs/agent-run.repository.js";
 import type { AgentRunRecord } from "../agent-runs/agent-runs.types.js";
 import { ApprovalsRepository } from "./approvals.repository.js";
 import type { ApprovalDecision, ApprovalRecord, NewApproval } from "./approvals.types.js";
+import { newId } from "../../common/ids/index.js";
 
 export const APPROVAL_TTL_MS = 10 * 60 * 1000;
 
@@ -18,7 +18,7 @@ export class ApprovalsService {
 
   create(run: AgentRunRecord, request: NewApproval, now: Date = new Date()): ApprovalRecord {
     const record = {
-      id: `apr_${randomUUID()}`,
+      id: newId("apr"),
       runId: run.id,
       userId: run.userId,
       callId: request.callId,

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { Mesh, Scene, Vector3, type Object3D } from "three";
+import { Mesh, Scene, Vector3 } from "three";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { createPolygonMesh } from "./createPolygonMesh";
 import { readTopology } from "./meshTopology";
 import { distanceGroups, mergeByDistance } from "./meshMergeDistance";
+import { isMesh } from "@/lib/three";
 
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 function source() { return createPolygonMesh([[0,0,0],[0.1,0,0],[1,1,0],[0,1,0],[3,0,0],[3.1,0,0],[4,1,0],[3,1,0]], [[0,1,2,3],[4,5,6,7]]); }
 describe("merge by distance", () => {
   it("merges separate groups together in one validated result", () => {

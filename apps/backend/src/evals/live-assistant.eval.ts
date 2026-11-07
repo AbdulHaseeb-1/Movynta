@@ -5,7 +5,7 @@ import { z } from "zod";
 import { TERMINAL_RUN_STATUSES } from "../modules/agent-runs/agent-run.state-machine.js";
 import { ProvidersService } from "../modules/providers/providers.service.js";
 import type { SecretProtector } from "../modules/providers/secret-protector.js";
-import type { EditorObject } from "../shared/types/editor-context.types.js";
+import type { EditorObject } from "@movynta/editor-protocol";
 import { EditorSimulator } from "../testing/editor-simulator.js";
 import { openEventStream } from "../testing/event-stream.js";
 import { startTestServer } from "../testing/test-app.js";

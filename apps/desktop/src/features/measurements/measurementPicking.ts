@@ -1,10 +1,10 @@
-import { Mesh, Plane, Raycaster, Vector2, Vector3, type Object3D } from "three";
+import { Plane, Raycaster, Vector2, Vector3, type Object3D } from "three";
 import type { EditorScene } from "@/features/assistant";
 import type { Viewport } from "@/features/viewport3d";
 import { accelerateRaycasts } from "@/features/objectEditing/denseRaycast";
+import { isMesh } from "@/lib/three";
 
 export type MeasurementSnap = "surface" | "vertex" | "grid";
-function isMesh(node: Object3D): node is Mesh { return node instanceof Mesh; }
 
 export function measurementCursor(viewport: Viewport): () => void {
   const element = viewport.renderer.domElement;

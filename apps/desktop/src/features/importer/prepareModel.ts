@@ -1,5 +1,6 @@
-import { Box3, BufferAttribute, Mesh, SkinnedMesh, Vector3, type BufferGeometry, type Material, type Object3D } from "three";
+import { Box3, BufferAttribute, SkinnedMesh, Vector3, type BufferGeometry, type Material, type Object3D } from "three";
 import { wrap } from "./parseModel";
+import { isMesh } from "@/lib/three";
 
 /** Models smaller or larger than this (in scene units) are scaled to {@link TARGET_SIZE}. */
 const MIN_SIZE = 0.25;
@@ -24,9 +25,6 @@ export function scaleNotice(name: string, scaleFactor: number, originalSize: num
 }
 
 /** Narrows to a mesh with the standard geometry and material types. */
-function isMesh(node: Object3D): node is Mesh {
-  return node instanceof Mesh;
-}
 
 function trianglesOf(geometry: BufferGeometry): number {
   const position = geometry.getAttribute("position");

@@ -1,4 +1,4 @@
-import type { EditorCommand } from "../../../shared/types/editor-command.types.js";
+import type { EditorCommand } from "@movynta/editor-protocol";
 import type { PROPOSAL_STATUSES } from "./command-proposal.repository.js";
 import type { CommandExecutionResult } from "../editor-bridge.types.js";
 

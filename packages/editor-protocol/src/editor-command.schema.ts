@@ -398,3 +398,5 @@ export const editorCommandListSchema = z.array(editorCommandSchema).min(1).max(M
 
 /** One command as a type. */
 export type EditorCommand = z.infer<typeof editorCommandSchema>;
+/** The kind of a command, such as "geometry.bevel_edges". */
+export type EditorCommandType = EditorCommand["type"];

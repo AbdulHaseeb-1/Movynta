@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { BoxGeometry, BufferGeometry, Float32BufferAttribute, Mesh, Scene, Vector3, type Object3D } from "three";
+import { BoxGeometry, BufferGeometry, Float32BufferAttribute, Mesh, Scene, Vector3 } from "three";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { assertManifold, channels, readTopology, topology } from "./meshTopology";
 import { correctNormals } from "./meshCorrectNormals";
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
+import { isMesh } from "@/lib/three";
 describe("normal correction", () => {
   it("corrects winding on an open surface while preserving the first face", () => {
     const mesh = { positions: [new Vector3(0,0,0),new Vector3(1,0,0),new Vector3(1,1,0),new Vector3(0,1,0)], faces: [[0,1,2],[0,3,2]] };

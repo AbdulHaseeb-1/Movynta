@@ -21,6 +21,7 @@ import { createShadingRenderer, type ShadingMode } from "./shading";
 import { framePose } from "./framing";
 import { viewPosition, type ViewPreset } from "./viewPresets";
 import { createOutlineRenderer } from "./outline";
+import { isTypingTarget } from "@/lib/dom";
 
 export type FrameListener = (deltaSeconds: number) => void;
 
@@ -75,13 +76,6 @@ const ORBIT_DAMPING = 0.08;
 const EASE_SECONDS = 0.35;
 const ASSISTANT_PANEL_SHIFT_FRACTION = 0.12;
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable ||
-      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-  );
-}
 
 interface SpacePanCallbacks {
   // Called when Space is pressed or released outside a text field.

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { BufferGeometry, Float32BufferAttribute, Mesh, Scene, type Object3D } from "three";
+import { BufferGeometry, Float32BufferAttribute, Mesh, Scene } from "three";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { readTopology } from "./meshTopology";
 import { removeDuplicateFaces } from "./meshDuplicateFaces";
+import { isMesh } from "@/lib/three";
 function meshGeometry(reverse = false) {
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new Float32BufferAttribute([0,0,0, 1,0,0, 0,1,0, 0,0,0, 1,0,0, 0,1,0], 3));
   geometry.setIndex(reverse ? [0,1,2,3,5,4] : [0,1,2,3,4,5]);
   return geometry;
 }
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 describe("remove duplicate faces", () => {
   it("removes matching duplicates and keeps a valid surface", () => {
     const source = meshGeometry(); const result = removeDuplicateFaces(readTopology(source), source);

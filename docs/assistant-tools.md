@@ -242,7 +242,7 @@ Automatic application retains command validation, strict revisions for geometry/
 
 ## Editor commands
 
-`editor.propose_commands` accepts a list of commands, at most **200** (`MAX_COMMANDS_PER_PROPOSAL`). Commands run in order, and a later command may use an object created or moved earlier in the same batch. The schema lives in `packages/editor-protocol/src/editor-command.schema.ts`, and the backend re-exports it from `apps/backend/src/shared/schemas/editor-command.schema.ts`.
+`editor.propose_commands` accepts a list of commands, at most **200** (`MAX_COMMANDS_PER_PROPOSAL`). Commands run in order, and a later command may use an object created or moved earlier in the same batch. The schema lives in `packages/editor-protocol/src/editor-command.schema.ts`, and the backend imports it from `@movynta/editor-protocol`.
 
 | Command `type` | Purpose | Destructive |
 | --- | --- | --- |

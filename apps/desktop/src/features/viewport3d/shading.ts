@@ -1,8 +1,8 @@
 import { DoubleSide, Line, Mesh, MeshBasicMaterial, MeshStandardMaterial, Points, type Material, type Object3D, type Scene, type WebGLRenderer, type Camera } from "three";
+import { isMesh } from "@/lib/three";
 
 export type ShadingMode = "default" | "solid" | "wireframe";
 
-function isMesh(object: Object3D): object is Mesh { return object instanceof Mesh; }
 
 /** How much of a surface shows in Solid X-ray; the rest lets what is behind it through. */
 export const SOLID_XRAY_OPACITY = 0.35;

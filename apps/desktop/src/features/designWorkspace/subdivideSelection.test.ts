@@ -1,17 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { BoxGeometry, Mesh, Scene, type Object3D } from "three";
+import { BoxGeometry, Mesh, Scene } from "three";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { faceNormal, readTopology } from "@/features/meshGeometry/meshTopology";
 import { createSerialQueue } from "@/lib/serialQueue";
 import { takeComponentSelection } from "./componentRestore";
 import { subdivideSelectedFaces } from "./subdivideSelection";
+import { isMesh } from "@/lib/three";
 
 // Only the network call that records the edit is replaced. The prepare, commit and rebuild steps run for real.
 vi.mock("@/features/objectEditing/sceneEditApi", () => ({ recordSceneEdit: vi.fn(async () => undefined) }));
 
-function isMesh(object: Object3D | undefined): object is Mesh {
-  return object instanceof Mesh;
-}
 
 describe("Edit-mode Subdivide", () => {
   it("subdivides the chosen face through a saved edit and leaves the rest of the object alone", async () => {

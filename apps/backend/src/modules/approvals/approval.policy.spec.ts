@@ -1,5 +1,5 @@
-import type { EditorCommand } from "../../shared/types/editor-command.types.js";
-import { MAX_COMMANDS_PER_PROPOSAL } from "@movynta/editor-protocol";
+import { type EditorCommand, MAX_COMMANDS_PER_PROPOSAL } from "@movynta/editor-protocol";
+
 import { ApprovalPolicy } from "./approval.policy.js";
 
 const policy = new ApprovalPolicy();

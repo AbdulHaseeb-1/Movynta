@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
-import type { MeasurementRequest, MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult } from "@movynta/editor-protocol";
+import type { MeasurementRequest, MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult, EditorContext } from "@movynta/editor-protocol";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { APP_CONFIG } from "../../config/config.module.js";
 import type { AppConfig } from "../../config/config.types.js";
 import { ForbiddenError, ServiceUnavailableError } from "../../common/errors/app-error.js";
-import type { EditorContext } from "../../shared/types/editor-context.types.js";
+
 import {
   type CommandExecutionRequest,
   type CommandExecutionResult,

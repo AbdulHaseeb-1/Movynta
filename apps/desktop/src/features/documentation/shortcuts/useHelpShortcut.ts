@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useAppDispatch } from "@/app/hooks";
-import { isTypingTarget } from "@/features/viewport3d/viewportShortcuts";
+import { isTypingTarget } from "@/lib/dom";
 import { isHelpShortcut } from "./helpShortcut";
 import { setShortcutsOpen } from "./helpSlice";
 

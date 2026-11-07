@@ -1,6 +1,7 @@
-import { Mesh, type BufferGeometry, type Object3D } from "three";
+import { type Mesh, type BufferGeometry, type Object3D } from "three";
 import type { EditorScene } from "../EditorScene";
 import { modifierStack } from "../../meshGeometry/modifierStack";
+import { isMesh } from "@/lib/three";
 
 /**
  * What a scene is, written so that two scenes can be compared: the objects and their places, and every mesh with a
@@ -53,9 +54,6 @@ function fingerprint(values: ArrayLike<number>): string {
   return hash.toString(16).padStart(8, "0");
 }
 
-function isMesh(object: Object3D | undefined): object is Mesh {
-  return object instanceof Mesh;
-}
 
 /** Every mesh in an object, the object itself first, then its children in order. */
 function meshesOf(root: Object3D): Mesh[] {

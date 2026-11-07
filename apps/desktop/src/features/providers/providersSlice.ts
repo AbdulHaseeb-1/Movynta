@@ -1,14 +1,15 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import { z } from "zod";
-export const providerIdSchema = z.enum([
-  "openai",
-  "anthropic",
-  "google",
-  "openai-compatible",
-  "anthropic-compatible",
-  "chatgpt",
-]);
-export type ProviderId = z.infer<typeof providerIdSchema>;
+import {
+  isCompatibleProvider,
+  isSubscriptionProvider,
+  PROVIDER_IDS,
+  providerIdSchema,
+  type ProviderId,
+} from "@movynta/contracts";
+
+export { isCompatibleProvider, isSubscriptionProvider, providerIdSchema, type ProviderId };
+
 export const providerSchema = z.object({
   id: providerIdSchema,
   model: z.string(),
@@ -41,21 +42,7 @@ const slice = createSlice({
 export const { providersLoaded, backendDisconnected } = slice.actions;
 export const providersReducer = slice.reducer;
 
-export const providerIds: ProviderId[] = [
-  "openai",
-  "anthropic",
-  "google",
-  "openai-compatible",
-  "anthropic-compatible",
-  "chatgpt",
-];
-/** The ChatGPT provider signs in with a subscription in the browser instead of taking an API key. */
-export function isSubscriptionProvider(id: ProviderId) {
-  return id === "chatgpt";
-}
-export function isCompatibleProvider(id: ProviderId) {
-  return id === "openai-compatible" || id === "anthropic-compatible";
-}
+export const providerIds = PROVIDER_IDS;
 export const providerNames: Record<ProviderId, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",

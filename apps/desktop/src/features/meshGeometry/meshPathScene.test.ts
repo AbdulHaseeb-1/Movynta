@@ -1,16 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Scene, Vector3, type BufferGeometry, type Object3D } from "three";
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Scene, Vector3, type BufferGeometry } from "three";
 import { meshInspectionRequestSchema, type MeshStep } from "@movynta/editor-protocol";
 import { EditorScene, type SceneStep } from "../assistant/EditorScene";
 import { ensureManifold } from "./meshBoolean";
+import { isMesh } from "@/lib/three";
 
 beforeAll(async () => {
   await ensureManifold();
 });
 
-function isMesh(object: Object3D | undefined): object is Mesh {
-  return object instanceof Mesh;
-}
 
 /** The volume of a closed mesh, from its triangles. */
 function volumeOf(geometry: BufferGeometry): number {

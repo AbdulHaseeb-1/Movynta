@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { BufferGeometry, Mesh, Scene, type Object3D } from "three";
+import { BufferGeometry, Mesh, Scene } from "three";
 import { EditorScene } from "@/features/assistant/EditorScene";
 import { createPolygonMesh } from "./createPolygonMesh";
 import { readTopology } from "./meshTopology";
 import { KnifeSession } from "./meshKnifeSession";
+import { isMesh } from "@/lib/three";
 
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 describe("knife stroke preview", () => {
   it("cuts across neighboring faces and undoes each segment", () => {
     const geometry = createPolygonMesh([[0,0,0],[1,0,0],[2,0,0],[0,1,0],[1,1,0],[2,1,0]], [[0,1,4,3],[1,2,5,4]]);

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { editorCommandListSchema } from "../../shared/schemas/editor-command.schema.js";
+import { editorCommandListSchema } from "@movynta/editor-protocol";
 
 /**
  * What an approver sees for a paused tool call. The processor builds it from stored

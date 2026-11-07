@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { EditorBridge } from "../../editor-bridge/editor-bridge.types.js";
-import type { EditorContext } from "../../../shared/types/editor-context.types.js";
+import type { EditorContext } from "@movynta/editor-protocol";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 import type { SceneCheckResult, SceneIssue } from "./validation.types.js";
 

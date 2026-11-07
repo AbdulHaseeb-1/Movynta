@@ -4,16 +4,11 @@ import { combineSelection, selectionOperation } from "@/features/viewport3d/sele
 import { idsInRect, rectBetween } from "./boxSelect";
 import type { GizmoView } from "./ObjectGizmo";
 import { pickObjectId, toNdc } from "./picking";
+import { isTypingTarget } from "@/lib/dom";
 
 /** A drag shorter than this, in pixels, is a click that missed, not a rectangle. */
 const MIN_BOX_PX = 4;
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-  );
-}
 
 /**
  * Selecting many objects at once, with the keys Blender uses: A selects everything, Alt+A selects

@@ -1,7 +1,7 @@
 import type { INestApplication } from "@nestjs/common";
 import type { ScriptedModel } from "@openai/agents/testing";
 import type { z } from "zod";
-import type { editorCommandListSchema } from "../shared/schemas/editor-command.schema.js";
+import type { editorCommandListSchema } from "@movynta/editor-protocol";
 import type { outboundSchema } from "./editor-simulator.js";
 import type { envelopeSchema } from "./event-stream.js";
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readStored, writeStored } from "@/lib/storage";
 import { providerIdSchema } from "@/features/providers";
 import { reasoningEffortSchema } from "./reasoningEfforts";
 
@@ -21,21 +22,10 @@ export const emptySelection: AssistantSelection = {
 
 /** Reads the last provider and model the user picked. Anything missing or malformed counts as no choice. */
 export function loadSelection(): AssistantSelection {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return emptySelection;
-    const parsed = storedSelectionSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : emptySelection;
-  } catch {
-    return emptySelection;
-  }
+  return readStored(STORAGE_KEY, storedSelectionSchema) ?? emptySelection;
 }
 
 /** Remembers the selection across restarts. Storage can be unavailable, in which case it is skipped. */
 export function saveSelection(selection: AssistantSelection) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
-  } catch {
-    // The selection still works for this session.
-  }
+  writeStored(STORAGE_KEY, selection);
 }

@@ -1,14 +1,14 @@
-import { randomUUID } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { isCageEditCommand, usesBaseIds, validateAgainstContext, withAssistantDefaults } from "@movynta/editor-protocol";
+import { isCageEditCommand, usesBaseIds, validateAgainstContext, withAssistantDefaults, type EditorContext } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError, ValidationFailedError } from "../../../common/errors/app-error.js";
 import { ApprovalPolicy } from "../../approvals/approval.policy.js";
-import type { EditorContext } from "../../../shared/types/editor-context.types.js";
+
 import { EDITOR_BRIDGE } from "../editor-bridge.tokens.js";
 import type { CommandExecutionResult, EditorBridge } from "../editor-bridge.types.js";
 import { ProjectScenesService } from "../../projects/project-scenes.service.js";
 import { CommandProposalRepository } from "./command-proposal.repository.js";
 import type { CommandProposalRecord, ProposalInput, ProposalRun } from "./proposals.types.js";
+import { newId } from "../../../common/ids/index.js";
 
 /** What one apply attempt produced, and whether the batch ran on a newer scene than the one it was written for. */
 interface ApplyAttempt {
@@ -63,7 +63,7 @@ export class CommandProposalService {
     }
 
     const proposal = {
-      id: `prp_${randomUUID()}`,
+      id: newId("prp"),
       runId: run.id,
       projectId: run.projectId,
       clientId: run.clientId,

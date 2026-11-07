@@ -1,6 +1,7 @@
-import { Mesh, SkinnedMesh, type BufferGeometry, type Object3D } from "three";
+import { type Mesh, SkinnedMesh, type BufferGeometry, type Object3D } from "three";
 import { resolveMeshPath, type MeshModifierSpec, type MeshPath } from "@movynta/editor-protocol";
 import { evaluateBase, modifierStack, type ModifierEvalContext, type ModifierStackState } from "./modifierStack";
+import { isMesh } from "@/lib/three";
 
 export interface SceneMesh {
   objectId: string;
@@ -29,9 +30,6 @@ function operandSlot(slots: readonly SceneMesh[], objectId: string, path: MeshPa
   return target === undefined ? undefined : slots.find((entry) => entry.objectId === objectId && entry.mesh === target);
 }
 
-function isMesh(node: Object3D): node is Mesh {
-  return node instanceof Mesh;
-}
 
 /** Every mesh in the scene, including child parts, in child-index order. */
 export function sceneMeshes(objects: ReadonlyMap<string, Object3D>): SceneMesh[] {

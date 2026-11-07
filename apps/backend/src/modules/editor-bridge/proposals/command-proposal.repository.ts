@@ -3,7 +3,7 @@ import { z } from "zod";
 import { DatabaseService } from "../../persistence/database.service.js";
 import { optionalTextColumn, textColumn } from "../../persistence/row.js";
 import type { SqlRow } from "../../persistence/persistence.types.js";
-import { editorCommandListSchema } from "../../../shared/schemas/editor-command.schema.js";
+import { editorCommandListSchema } from "@movynta/editor-protocol";
 import { requireOneOf } from "../../../shared/guards/enum.guard.js";
 import type { CommandExecutionResult } from "../editor-bridge.types.js";
 import type { CommandProposalRecord, NewProposal, ProposalStatus } from "./proposals.types.js";

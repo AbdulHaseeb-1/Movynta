@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial, Scene, SphereGeometry, Texture, type Object3D } from "three";
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial, Scene, SphereGeometry, Texture } from "three";
 import { EditorScene } from "../assistant/EditorScene";
 import { readTopology } from "../meshGeometry/meshTopology";
 import { modifierStack } from "../meshGeometry/modifierStack";
+import { isMesh } from "@/lib/three";
 
-function isMesh(object: Object3D | undefined): object is Mesh { return object instanceof Mesh; }
 function setup(material = new MeshStandardMaterial({ color: "#123456", roughness: 0.7 })) {
   const editor = new EditorScene(new Scene(), "p"); editor.importObject("box", new Mesh(new BoxGeometry(), material));
   const mesh = (): Mesh => { const object = editor.getObject("box"); if (!isMesh(object)) throw new Error("Missing mesh"); return object; };

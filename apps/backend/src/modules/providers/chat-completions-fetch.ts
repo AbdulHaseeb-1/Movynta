@@ -4,14 +4,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Readable text from a string or from the objects gateways use for hidden reasoning. */
-function textFrom(value: unknown, seen: Set<object>): string {
+/** Readable text from a string or from the objects gateways use for hidden reasoning. Parsed JSON has no cycles to guard against. */
+function textFrom(value: unknown): string {
   if (typeof value === "string") return value;
-  if (typeof value !== "object" || value === null || seen.has(value)) return "";
-  seen.add(value);
-  if (Array.isArray(value)) return value.map((part) => textFrom(part, seen)).join("");
+  if (Array.isArray(value)) return value.map((part) => textFrom(part)).join("");
   if (!isRecord(value)) return "";
-  return ["text", "summary", "content"].map((key) => textFrom(value[key], seen)).join("");
+  return ["text", "summary", "content"].map((key) => textFrom(value[key])).join("");
 }
 
 /**
@@ -20,13 +18,12 @@ function textFrom(value: unknown, seen: Set<object>): string {
  * Without this, a length stop that only filled those fields looks like an empty reply.
  */
 export function liftChatCompletionReasoning(part: Record<string, unknown>): void {
-  const seen = new Set<object>();
-  const current = typeof part["reasoning"] === "string" ? part["reasoning"] : textFrom(part["reasoning"], seen);
+  const current = typeof part["reasoning"] === "string" ? part["reasoning"] : textFrom(part["reasoning"]);
   if (current.length > 0) {
     if (part["reasoning"] !== current) part["reasoning"] = current;
     return;
   }
-  const extra = textFrom(part["reasoning_content"], seen) + textFrom(part["reasoning_details"], seen);
+  const extra = textFrom(part["reasoning_content"]) + textFrom(part["reasoning_details"]);
   if (extra.length > 0) part["reasoning"] = extra;
 }
 

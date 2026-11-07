@@ -11,6 +11,7 @@ import {
   type Object3D,
   type Raycaster,
 } from "three";
+import { isMesh } from "@/lib/three";
 
 /** Meshes with fewer triangles than this are fast enough for three.js's own ray test. */
 export const DENSE_TRIANGLES = 20_000;
@@ -38,9 +39,6 @@ const point = new Vector3();
 const bestPoint = new Vector3();
 const worldPoint = new Vector3();
 
-function isMesh(node: Object3D): node is Mesh {
-  return node instanceof Mesh;
-}
 
 function positionOf(geometry: BufferGeometry): BufferAttribute | undefined {
   const position = geometry.getAttribute("position");

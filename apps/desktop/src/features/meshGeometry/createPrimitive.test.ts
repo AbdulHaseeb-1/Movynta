@@ -4,11 +4,9 @@ import { assertManifold, readTopology, topology } from "./meshTopology";
 import { createPrimitive } from "./createPrimitive";
 import { createPolygonMesh } from "./createPolygonMesh";
 import { EditorScene } from "../assistant/EditorScene";
-import { Mesh, Scene, type Object3D } from "three";
+import { Mesh, Scene } from "three";
+import { isMesh } from "@/lib/three";
 
-function isMesh(object: Object3D | undefined): object is Mesh {
-  return object instanceof Mesh;
-}
 
 describe("parameterized primitives", () => {
   it("builds requested box dimensions into geometry", () => {

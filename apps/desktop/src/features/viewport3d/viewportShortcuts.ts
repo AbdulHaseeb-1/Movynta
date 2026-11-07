@@ -36,12 +36,3 @@ export function viewportShortcut(event: ShortcutKey): ViewportShortcut | undefin
   if (event.key === "Home") return { kind: "frame", scope: "all" };
   return undefined;
 }
-
-/** Whether a key press goes to a text field instead of the viewport. */
-export function isTypingTarget(target: EventTarget | null): boolean {
-  return (
-    typeof HTMLElement !== "undefined" &&
-    target instanceof HTMLElement &&
-    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-  );
-}

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { EditorCommand } from "../../shared/types/editor-command.types.js";
+import type { EditorCommand } from "@movynta/editor-protocol";
 
 /** Assistant proposals apply automatically; validation, ownership and strict revisions still apply. */
 @Injectable()

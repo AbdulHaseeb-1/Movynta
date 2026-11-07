@@ -5,7 +5,7 @@ import {
   DirectionalLight,
   DoubleSide,
   GridHelper,
-  Mesh,
+  type Mesh,
   MeshNormalMaterial,
   OrthographicCamera,
   PerspectiveCamera,
@@ -29,6 +29,7 @@ import { captureNear, frameView, guidePlacement, subjectOf, type CameraPose, typ
 import { drawOverlay, type OverlayItem } from "./overlay";
 import { isInFrame, projectBounds } from "./screenBounds";
 import type { CaptureOptions, CaptureScene } from "./types";
+import { isMesh } from "@/lib/three";
 
 const DEFAULT_WIDTH = 768;
 const DEFAULT_HEIGHT = 576;
@@ -44,9 +45,6 @@ interface Entry {
   object: Object3D;
 }
 
-function isMesh(node: Object3D): node is Mesh {
-  return node instanceof Mesh;
-}
 
 function isLight(node: Object3D): boolean {
   return "isLight" in node && node.isLight === true;
