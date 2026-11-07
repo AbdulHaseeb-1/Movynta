@@ -435,6 +435,30 @@ describe("edits made by the user", () => {
     const redo = scenes.previewHistory(project.id, "redo"); scenes.commitHistory(project.id, "redo", redo.version, "cleanupRedo");
     expect(scenes.list(project.id)).toHaveLength(8);
   });
+  it("records the Edit-mode mesh tools as manual edits with ownership checks and undo/redo", async () => {
+    const project = await create(); const scenes = server.app.get(ProjectScenesService);
+    scenes.append(project.id, "base", [box("base", "mesh")]);
+    const commands = [
+      { commandId: "cut", type: "geometry.bisect", objectId: "mesh", plane: { axis: "y", offset: 0.25 }, space: "world", keep: "positive", fill: true },
+      { commandId: "delete", type: "geometry.delete_components", objectId: "mesh", kind: "face", ids: ["0"] },
+      { commandId: "flip", type: "geometry.flip_normals", objectId: "mesh", ids: ["0"] },
+      { commandId: "triangulate", type: "geometry.triangulate_faces", objectId: "mesh", ids: ["0"] },
+      { commandId: "shade", type: "geometry.set_shading", objectId: "mesh", mode: "smooth", angle: 30 },
+      { commandId: "bridge", type: "geometry.bridge_edge_loops", objectId: "mesh", ids: ["0_1", "1_2", "0_2", "3_4", "4_5", "3_5"], twist: 1 },
+      { commandId: "separate", type: "geometry.separate_faces", objectId: "mesh", ids: ["0"], newObjectId: "part_1" },
+    ];
+    for (const command of commands) {
+      expect((await recordEdit(project.id, [command])).status).toBe(201);
+      expect((await recordEdit(project.id, [{ ...command, objectId: "missing" }])).status).toBe(422);
+      expect((await recordEdit(project.id, [command], "intruder")).status).toBe(404);
+    }
+    const undo = scenes.previewHistory(project.id, "undo"); scenes.commitHistory(project.id, "undo", undo.version, "toolsUndo");
+    expect(scenes.list(project.id)).toHaveLength(commands.length);
+    const redo = scenes.previewHistory(project.id, "redo"); scenes.commitHistory(project.id, "redo", redo.version, "toolsRedo");
+    expect(scenes.list(project.id)).toHaveLength(commands.length + 1);
+    // The separated object's id is now taken, so a second separation into it is refused.
+    expect((await recordEdit(project.id, [{ ...commands[6], commandId: "again" }])).status).toBe(422);
+  });
   it("records merge by distance as one undoable manual edit", async () => {
     const project = await create(); const scenes = server.app.get(ProjectScenesService);
     scenes.append(project.id, "base", [box("base", "mesh")]);
@@ -583,6 +607,18 @@ describe("the object index of older projects", () => {
     const copy = (await (await request(`/projects/${project.id}/duplicate`, "POST")).json()) as ProjectView;
     expect((await recordEdit(copy.id, [move("m4", "crate")])).status).toBe(201);
     expect((await recordEdit(copy.id, [move("m5", "lid")])).status).toBe(422);
+  });
+
+  it("indexes the object a separation creates, so its id is taken and a hand edit can reach it", async () => {
+    const project = await create(), scenes = server.app.get(ProjectScenesService);
+    scenes.append(project.id, "prp_1", [box("a", "crate")]);
+    const split: EditorCommand = { commandId: "split", type: "geometry.separate_faces", objectId: "crate", meshPath: [], componentView: "base", ids: ["0"], newObjectId: "lid" };
+    scenes.append(project.id, "prp_2", [split]);
+    const ids = server.app.get(DatabaseService).db.prepare("SELECT object_id FROM project_objects WHERE project_id = ? ORDER BY object_id").all(project.id).map((row) => row["object_id"]);
+    expect(ids).toEqual(["crate", "lid"]);
+    // A hand edit can reach the new object (an unknown id is refused), and the id is taken for the next creation.
+    expect((await recordEdit(project.id, [move("m1", "lid")])).status).toBe(201);
+    expect((await recordEdit(project.id, [move("m2", "ghost")])).status).toBe(422);
   });
 
   it("is removed with the project", async () => {

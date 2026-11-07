@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync, StatementSync } from "node:sqlite";
 import { Injectable } from "@nestjs/common";
+import { editsExistingGeometry } from "@movynta/editor-protocol";
 import { ConflictError, NotFoundError } from "../../common/errors/app-error.js";
 import { DatabaseService } from "../persistence/database.service.js";
 import { blobColumn, integerColumn, textColumn } from "../persistence/row.js";
@@ -82,7 +83,7 @@ function changesExistingObject(command: EditorCommand): boolean {
     command.type === "scene.set_collection_visibility" ||
     command.type === "scene.move_collection" ||
     command.type === "scene.move_to_collection" ||
-    command.type === "scene.transform_object" || command.type === "scene.move_object" || command.type === "geometry.bevel_edges" || command.type === "geometry.bevel" || command.type === "geometry.boolean" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.add_slot" || command.type === "material.replace_slot" || command.type === "material.set_properties" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers") ||
+    command.type === "scene.transform_object" || command.type === "scene.move_object" || editsExistingGeometry(command) ||
     command.type === "scene.rename_object" ||
     command.type === "scene.set_visibility" ||
     command.type === "scene.set_parent"
@@ -94,6 +95,10 @@ function trackObjects(db: DatabaseSync, projectId: string, commands: readonly Ed
   for (const command of commands) {
     if (command.type === "scene.duplicate_hierarchy") {
       for (const copy of command.copies) for (const id of [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]) statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, id);
+      continue;
+    }
+    if (command.type === "geometry.separate_faces") {
+      statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, command.newObjectId);
       continue;
     }
     if (command.type === "scene.create_collection") {

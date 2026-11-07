@@ -1,4 +1,5 @@
 import { createEditorTools } from "./editor/editor.tools.js";
+import { createBriefTools } from "./modeling/brief.tools.js";
 import { createModelingTools } from "./modeling/modeling.tools.js";
 import { toSdkTool } from "./tool.sdk-adapter.js";
 
@@ -18,6 +19,7 @@ describe("tool schemas sent to model providers", () => {
   const tools = [
     ...createEditorTools({ bridge: {} as never, proposals: {} as never }),
     ...createModelingTools({ knownToolNames: [] }),
+    ...createBriefTools({} as never),
   ];
 
   it.each(tools.map((definition) => [definition.name, definition] as const))("%s has a provider-compatible schema", (_name, definition) => {

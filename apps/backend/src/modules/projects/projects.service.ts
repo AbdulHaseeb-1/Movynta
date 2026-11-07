@@ -199,6 +199,7 @@ export class ProjectsService {
         const keys: string[] = [];
         if (command.type === "scene.duplicate_hierarchy") keys.push(command.sourceId, ...command.copies.flatMap((copy) => [copy.objectId, ...copy.descendants.flatMap((entry) => [entry.sourceId, entry.objectId])]));
         if ("objectId" in command) keys.push(command.objectId);
+        if (command.type === "geometry.separate_faces") keys.push(command.newObjectId);
         if ("parentId" in command && typeof command.parentId === "string") keys.push(command.parentId);
         for (const id of [("collectionId" in command ? command.collectionId : undefined), ("parentCollectionId" in command ? command.parentCollectionId : undefined)]) {
           if (typeof id === "string") keys.push(collectionKey(id));
@@ -250,6 +251,11 @@ export class ProjectsService {
       }
       if (!("objectId" in command) || !known.has(command.objectId)) {
         throw new ValidationFailedError(`Object "${"objectId" in command ? command.objectId : ""}" is not in this project`);
+      }
+      if (command.type === "geometry.separate_faces") {
+        // The new object takes an id of its own, which later commands of this batch can name.
+        if (known.has(command.newObjectId)) throw new ValidationFailedError(`Object "${command.newObjectId}" is already in this project; use a new id`);
+        known.add(command.newObjectId);
       }
       if (command.type === "scene.move_to_collection") requireCollection(command.collectionId);
       // Later commands of the same batch see the scene as the earlier ones leave it.

@@ -16,8 +16,8 @@ The backend test `apps/backend/src/modules/tools/tool-docs.spec.ts` runs the too
 
 | Type | What it does | Tools |
 | --- | --- | --- |
-| **Read** | These tools look at the scene or calculate a result. Nothing changes. | [`editor.get_context`](editor.get_context.md), [`editor.get_scene_summary`](editor.get_scene_summary.md), [`editor.inspect_mesh`](editor.inspect_mesh.md), [`editor.inspect_materials`](editor.inspect_materials.md), [`viewport.capture`](viewport.capture.md), [`validation.check_scene`](validation.check_scene.md), [`editor.measure`](editor.measure.md), [`editor.plan_placement`](editor.plan_placement.md), [`editor.plan_duplicates`](editor.plan_duplicates.md), [`modeling.generate_commands`](modeling.generate_commands.md) |
-| **Plan** | Records intent and the steps for a task. It changes nothing. | [`modeling.generate_model_plan`](modeling.generate_model_plan.md), [`modeling.assess_quality`](modeling.assess_quality.md) |
+| **Read** | These tools look at the scene or calculate a result. Nothing changes. | [`editor.get_context`](editor.get_context.md), [`editor.get_scene_summary`](editor.get_scene_summary.md), [`editor.inspect_mesh`](editor.inspect_mesh.md), [`editor.inspect_materials`](editor.inspect_materials.md), [`viewport.capture`](viewport.capture.md), [`validation.check_scene`](validation.check_scene.md), [`editor.measure`](editor.measure.md), [`editor.plan_placement`](editor.plan_placement.md), [`editor.plan_duplicates`](editor.plan_duplicates.md), [`modeling.generate_commands`](modeling.generate_commands.md), [`validation.check_brief`](validation.check_brief.md) |
+| **Plan** | Records intent and the steps for a task. It changes nothing. | [`modeling.generate_model_plan`](modeling.generate_model_plan.md), [`modeling.assess_quality`](modeling.assess_quality.md), [`modeling.record_brief`](modeling.record_brief.md) |
 | **Propose** | Stores a batch of changes for review. The scene is still unchanged. | [`editor.propose_commands`](editor.propose_commands.md), [`modeling.propose_generated`](modeling.propose_generated.md) |
 | **Apply** | Changes the scene by applying a stored proposal. | [`editor.apply_proposal`](editor.apply_proposal.md) |
 | **Skill** | Loads the workflow for a skill selected for this request. | [`skills.load_skill`](skills.load_skill.md) |
@@ -60,11 +60,13 @@ Every example uses this scene, at revision 12, with `crate` selected.
 - [`editor.plan_placement`](editor.plan_placement.md): Works out the moves that align, space or snap objects, using the world bounds of evaluated geometry. It returns scene.move_object commands and changes nothing.
 - [`editor.plan_duplicates`](editor.plan_duplicates.md): Plans independent copies of an object and everything under it. Each copy gets fresh ids and an offset. It returns one scene.duplicate_hierarchy command.
 - [`modeling.generate_commands`](modeling.generate_commands.md): Runs a short JavaScript function in an isolated sandbox and returns the editor commands it calculates. Nothing is applied or proposed.
+- [`validation.check_brief`](validation.check_brief.md): Measures the recorded brief against the current scene and reports each check as pass, fail or unresolved, with what was measured and what was needed.
 
 ### Plan
 
 - [`modeling.generate_model_plan`](modeling.generate_model_plan.md): Writes down the goal and the ordered steps, and the tool each step will use. Recording a plan changes nothing in the scene.
-- [`modeling.assess_quality`](modeling.assess_quality.md): Records the assistant’s task-specific self-review of a changed scene; it does not change geometry or guarantee visual quality.
+- [`modeling.assess_quality`](modeling.assess_quality.md): Records the independent reviewer's verdict on the finished work. Only the reviewer has this tool; the assistant that builds cannot grade itself.
+- [`modeling.record_brief`](modeling.record_brief.md): Writes down what the finished work must be as checks that code can pass or fail: sizes, placement, symmetry and counts. Recording a brief changes nothing in the scene.
 
 ### Propose
 

@@ -93,6 +93,15 @@ export type AgentRunEventPayloads = {
     readonly attempt: number;
     readonly reasons: readonly string[];
   };
+  /** A separate agent is examining the finished work. */
+  readonly "review.started": { readonly attempt: number };
+  /** The reviewer's verdict. `summary` is short; the findings go to the builder, not to the stream. */
+  readonly "review.completed": {
+    readonly attempt: number;
+    readonly outcome: "ready" | "needs_refinement" | "blocked";
+    readonly summary: string;
+    readonly findingCount: number;
+  };
   readonly "run.completed": { readonly usage: number };
   readonly "run.failed": { readonly code: string; readonly message: string };
   readonly "run.cancelled": { readonly runId: string };

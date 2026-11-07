@@ -32,4 +32,11 @@ export const HAND_EDIT_COMMAND_TYPES: ReadonlySet<string> = new Set([
   "geometry.knife_path",
   "geometry.dissolve_edges",
   "geometry.fill_hole",
+  "geometry.bisect",
+  "geometry.delete_components",
+  "geometry.flip_normals",
+  "geometry.triangulate_faces",
+  "geometry.set_shading",
+  "geometry.bridge_edge_loops",
+  "geometry.separate_faces",
 ]);

@@ -29,6 +29,8 @@ export class EditorSimulator {
   private readonly waiters: (() => void)[] = [];
   private revision = 0;
   private readonly objects: EditorObject[] = [];
+  /** Half the edge of the cube that stands in for each created shape, so its bounds can be reported. */
+  private readonly halfExtent = new Map<string, number>();
 
   private constructor(
     private readonly socket: WebSocket,
@@ -185,6 +187,13 @@ export class EditorSimulator {
         });
         break;
       }
+      case "geometry.separate_faces": {
+        const source = this.objects.find((object) => object.id === command.objectId);
+        if (!source) throw new Error("Missing separation source");
+        this.objects.push({ ...source, id: command.newObjectId, name: command.name ?? `${source.name} part` });
+        this.collectionModel.assign(command.newObjectId, this.collectionModel.collectionOf(command.objectId));
+        break;
+      }
       case "scene.create_object":
       case "geometry.create_mesh":
       case "geometry.create_primitive": {
@@ -198,6 +207,13 @@ export class EditorSimulator {
           collectionId: command.collectionId ?? (command.parentId === undefined ? null : this.collectionModel.collectionOf(command.parentId)),
           transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
         });
+        // Every shape is reported as a cube of edge `size`, placed by its transform and ignoring parents: close enough
+        // to give the assistant's measured checks something real to read, without a geometry engine.
+        if (command.type === "geometry.create_primitive") {
+          this.halfExtent.set(id, command.size / 2);
+          const created = this.objects.find((object) => object.id === id);
+          if (created) this.place(created, command.transform?.position, command.transform?.scale);
+        }
         break;
       }
       case "scene.delete_object": {
@@ -229,7 +245,11 @@ export class EditorSimulator {
         }
         break;
       }
-      case "scene.transform_object":
+      case "scene.transform_object": {
+        const moved = this.objects.find((object) => object.id === command.objectId);
+        if (moved) this.place(moved, command.transform.position, command.transform.scale);
+        break;
+      }
       case "scene.move_object":
       case "geometry.boolean":
       case "geometry.bevel":
@@ -237,6 +257,12 @@ export class EditorSimulator {
       case "geometry.set_modifiers":
       case "geometry.knife_path":
       case "geometry.knife_chord":
+      case "geometry.bisect":
+      case "geometry.delete_components":
+      case "geometry.flip_normals":
+      case "geometry.set_shading":
+      case "geometry.bridge_edge_loops":
+      case "geometry.triangulate_faces":
       case "geometry.correct_normals":
       case "geometry.remove_duplicate_faces":
       case "geometry.merge_by_distance":
@@ -268,6 +294,16 @@ export class EditorSimulator {
         break;
       }
     }
+  }
+
+  /** Sets an object's position and scale where given and recomputes the bounds of a shape the simulator knows the size of. */
+  private place(object: EditorObject, position: readonly number[] | undefined, scale: readonly number[] | undefined): void {
+    const [px = 0, py = 0, pz = 0] = position ?? object.transform.position;
+    const [sx = 1, sy = 1, sz = 1] = scale ?? object.transform.scale;
+    object.transform = { ...object.transform, position: [px, py, pz], scale: [sx, sy, sz] };
+    const half = this.halfExtent.get(object.id);
+    if (half === undefined) return;
+    object.worldBounds = { min: [px - half * sx, py - half * sy, pz - half * sz], max: [px + half * sx, py + half * sy, pz + half * sz] };
   }
 
   private snapshot(): EditorContext {

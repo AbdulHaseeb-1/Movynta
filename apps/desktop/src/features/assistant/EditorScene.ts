@@ -13,7 +13,7 @@ import {
   type Quaternion,
   type Scene,
 } from "three";
-import { CollectionModel, editorCommandListSchema, isWithinBranch, resolveMeshPath, resolveSiblingName, SiblingNames, stableMeshPath, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
+import { CollectionModel, editorCommandListSchema, isCageEditCommand as isCageEditType, isTopologyEditCommand, isWithinBranch, resolveMeshPath, resolveSiblingName, SiblingNames, stableMeshPath, type CollectionEntry, type designFocusSchema, type MeshModifierSpec } from "@movynta/editor-protocol";
 import type { z } from "zod";
 import { sceneBounds } from "./sceneBounds";
 import { measureScene } from "./measureScene";
@@ -37,6 +37,14 @@ import { mergeVertices } from "../meshGeometry/meshMerge";
 import { dissolveEdges } from "../meshGeometry/meshDissolve";
 import { slideEdges } from "../meshGeometry/meshSlide";
 import { loopCut } from "../meshGeometry/meshLoopCut";
+import { bisectMesh } from "../meshGeometry/meshBisect";
+import { resolveBisectPlane } from "../meshGeometry/bisectPlane";
+import { deleteComponents } from "../meshGeometry/meshDelete";
+import { flipNormals } from "../meshGeometry/meshFlip";
+import { bridgeEdgeLoops } from "../meshGeometry/meshBridge";
+import { writeShadedGeometry } from "../meshGeometry/meshOutput";
+import type { ShadingChoice } from "../meshGeometry/meshShading";
+import { triangulateFaces } from "../meshGeometry/meshTriangulateFaces";
 import { applyMaterialEdit, assignMaterial, isMaterialEdit, materialSlots } from "../materials";
 import { transformComponents } from "../meshGeometry/meshComponentTransform";
 import { transformFaces } from "../meshGeometry/meshFaceTransform";
@@ -55,12 +63,13 @@ export type DesignFocus = z.infer<typeof designFocusSchema>;
 type Command = z.infer<typeof editorCommandListSchema>[number];
 type GeometryCommand = Extract<Command, { type: "geometry.bevel" | "geometry.subdivide" | "geometry.set_modifiers" | "geometry.boolean" }>;
 /** Commands that rewrite the base cage of one mesh part. They share a batch and the same rules about modifiers. */
-type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.inset_faces" | "geometry.bevel_edges" | "geometry.subdivide_faces" | "geometry.fill_hole" | "material.assign" | "geometry.merge_vertices" | "geometry.merge_by_distance" | "geometry.remove_duplicate_faces" | "geometry.correct_normals" | "geometry.knife_chord" | "geometry.knife_path" | "geometry.dissolve_edges" | "geometry.slide_edges" | "geometry.loop_cut" | "geometry.transform_components" | "geometry.transform_faces" }>;
+type CageEditCommand = Extract<Command, { type: "geometry.extrude" | "geometry.inset_faces" | "geometry.bevel_edges" | "geometry.subdivide_faces" | "geometry.fill_hole" | "material.assign" | "geometry.merge_vertices" | "geometry.merge_by_distance" | "geometry.remove_duplicate_faces" | "geometry.correct_normals" | "geometry.knife_chord" | "geometry.knife_path" | "geometry.dissolve_edges" | "geometry.slide_edges" | "geometry.loop_cut" | "geometry.transform_components" | "geometry.transform_faces" | "geometry.bisect" | "geometry.delete_components" | "geometry.flip_normals" | "geometry.triangulate_faces" | "geometry.set_shading" | "geometry.bridge_edge_loops" }>;
 function isGeometryCommand(command: Command): command is GeometryCommand {
   return command.type === "geometry.bevel" || command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers" || command.type === "geometry.boolean";
 }
+/** The protocol's list of cage edits decides; the type above only narrows it for the compiler. */
 function isCageEditCommand(command: Command): command is CageEditCommand {
-  return command.type === "material.assign" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.bevel_edges" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole" || command.type === "geometry.transform_faces" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "geometry.transform_components";
+  return isCageEditType(command) && command.type !== "geometry.separate_faces";
 }
 /** Rewrites the base cage for one command: extrude moves a region, subdivide-faces splits only the selected faces. */
 function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, source: BufferGeometry): ExtrudeResult {
@@ -70,11 +79,30 @@ function cageEdit(command: CageEditCommand, cage: PolygonMesh, mesh: Mesh, sourc
     return assignMaterial(cage, command.ids, command.slot);
   }
   if (command.type === "geometry.knife_path") {
-    const session = new KnifeSession(cage, source);
-    for (const segment of command.segments) session.append({ ...segment, face: Number(segment.face) });
-    return { mesh: session.mesh, selection: session.selection, walls: [] };
+    const session = new KnifeSession(cage, source, { deferValidation: true });
+    command.segments.forEach((segment, index) => {
+      try { session.append({ ...segment, face: Number(segment.face) }); }
+      catch (error) {
+        // Say which cut failed; the same error goes on, so its stack and cause are kept.
+        if (error instanceof Error) error.message = `Segment ${index + 1} of ${command.segments.length}: ${error.message}`;
+        throw error;
+      }
+    });
+    return session.finish();
   }
   if (command.type === "geometry.knife_chord") return knifeChord(cage, Number(command.face), command.start, command.end, source);
+  if (command.type === "geometry.bisect") {
+    mesh.updateWorldMatrix(true, false);
+    const plane = resolveBisectPlane(command.plane, command.space, mesh.matrixWorld);
+    return bisectMesh(cage, source, plane, { keep: command.keep, fill: command.fill,
+      ...(command.ids ? { faces: new Set(command.ids.map(Number)) } : {}),
+      ...(command.snapDistance === undefined ? {} : { snapDistance: command.snapDistance }) });
+  }
+  if (command.type === "geometry.delete_components") return deleteComponents(cage, command.kind, command.ids);
+  if (command.type === "geometry.flip_normals") return flipNormals(cage, command.ids);
+  if (command.type === "geometry.bridge_edge_loops") return bridgeEdgeLoops(cage, command.ids, command.twist);
+  if (command.type === "geometry.set_shading") return { mesh: cage, selection: [], walls: [], shading: { mode: command.mode, ...(command.angle === undefined ? {} : { angle: command.angle }) } };
+  if (command.type === "geometry.triangulate_faces") return triangulateFaces(cage, command.ids);
   if (command.type === "geometry.correct_normals") return correctNormals(cage, command.mode);
   if (command.type === "geometry.remove_duplicate_faces") return removeDuplicateFaces(cage, source);
   if (command.type === "geometry.merge_by_distance") return mergeByDistance(cage, command.ids, command.distance);
@@ -206,6 +234,15 @@ function isCollectionCommand(command: Command): command is CollectionCommand {
  * kept in `userData`. An object that was never hidden by a collection has no record: its flag is the one three.js has.
  */
 const OWN_VISIBLE = "ownVisible";
+/** Where a mesh remembers how it was last shaded, so a later cage edit does not undo it. */
+const SHADING_CHOICE = "shadingChoice";
+function storedShading(mesh: Mesh): ShadingChoice | undefined {
+  const value: unknown = mesh.userData[SHADING_CHOICE];
+  if (typeof value !== "object" || value === null || !("mode" in value)) return undefined;
+  const mode = value.mode, angle = "angle" in value ? value.angle : undefined;
+  if (mode !== "flat" && mode !== "smooth") return undefined;
+  return typeof angle === "number" ? { mode, angle } : { mode };
+}
 function storedOwnVisible(object: Object3D): unknown {
   return object.userData[OWN_VISIBLE];
 }
@@ -938,6 +975,7 @@ export class EditorScene {
     if (commands.some((command) => command.type === "scene.duplicate_hierarchy")) return this.applyDuplication(proposalId, commands, results);
     if (commands.some(isMaterialEdit)) return this.applyMaterialBatch(proposalId, commands, results);
     if (commands.some(isGeometryCommand)) return this.applyGeometryBatch(proposalId, commands, results);
+    if (commands.some((command) => command.type === "geometry.separate_faces")) return this.applySeparation(proposalId, commands, results);
     if (commands.some(isCageEditCommand)) return this.applyCageEditBatch(proposalId, commands, results);
     // Moving, turning, resizing and deleting are the common edits, and need no copy of the scene to be safe.
     if (commands.every(isInPlace)) return this.applyInPlace(proposalId, commands, results);
@@ -1120,9 +1158,72 @@ export class EditorScene {
     }
   }
 
+  /**
+   * Moves chosen faces of one mesh into a new object of their own. Both halves are built and checked first, the new
+   * object is made under the same parent, collection, transform and visibility with its own copies of the material
+   * slots (so slot numbers still mean the same thing), and the displayed scene changes only when everything worked.
+   */
+  private applySeparation(proposalId: string, commands: Command[], results: AppliedResult[]) {
+    let candidate: EditorScene | undefined;
+    const command = commands[0];
+    try {
+      if (commands.length !== 1 || command?.type !== "geometry.separate_faces") throw new Error("Separate faces in a proposal of their own");
+      if (this.objects.has(command.newObjectId)) throw new Error(`Object "${command.newObjectId}" already exists; use a fresh newObjectId`);
+      candidate = this.fork();
+      const mesh = candidate.objects.get(command.objectId);
+      if (!mesh) throw new Error(`Object "${command.objectId}" does not exist`);
+      if (!isMesh(mesh)) throw new Error("Only a mesh object can be split into parts");
+      assertEditableMesh(mesh);
+      if (mesh instanceof SkinnedMesh) throw new Error("Component edits on skinned meshes are not supported yet.");
+      if ((modifierStack(mesh)?.modifiers.length ?? 0) > 0) throw new Error("Clear the modifier stack first: separating renumbers the faces its modifiers refer to");
+      const source = mesh.geometry, cage = readTopology(source);
+      const chosen = new Set<number>();
+      for (const id of command.ids) {
+        const face = Number(id);
+        if (!cage.faces[face]) throw new Error(`Face ${id} does not exist; inspect the base cage for current face IDs`);
+        chosen.add(face);
+      }
+      if (chosen.size === cage.faces.length) throw new Error("Every face is chosen, so nothing would stay behind; rename the object instead");
+      const everyOther = cage.faces.flatMap((_, face) => (chosen.has(face) ? [] : [String(face)]));
+      let stays, leaves;
+      try {
+        stays = deleteComponents(cage, "face", command.ids).mesh;
+        leaves = deleteComponents(cage, "face", everyOther).mesh;
+      } catch (error) {
+        // The same error goes on, with a message that says what to change.
+        if (error instanceof Error) error.message = `These faces cannot be separated into two clean meshes (${error.message}). Choose a region whose faces share edges and whose removal leaves one connected piece.`;
+        throw error;
+      }
+      const keptGeometry = writeShadedGeometry(source, stays), partGeometry = writeShadedGeometry(source, leaves);
+      source.dispose();
+      mesh.geometry = keptGeometry;
+      const part = new Mesh(partGeometry, Array.isArray(mesh.material) ? mesh.material.map((material) => material.clone()) : mesh.material.clone());
+      part.position.copy(mesh.position); part.quaternion.copy(mesh.quaternion); part.scale.copy(mesh.scale);
+      part.visible = mesh.visible; part.castShadow = mesh.castShadow; part.receiveShadow = mesh.receiveShadow;
+      const own = storedOwnVisible(mesh);
+      if (typeof own === "boolean") part.userData[OWN_VISIBLE] = own;
+      const parentObject = mesh.parent;
+      const registeredParent = parentObject ? candidate.ids.get(parentObject) : undefined;
+      part.name = candidate.uniqueName(candidate.objects, registeredParent && parentObject ? parentObject : null, command.name ?? `${mesh.name || command.objectId} part`);
+      parentObject?.add(part);
+      candidate.objects.set(command.newObjectId, part);
+      candidate.ids.set(part, command.newObjectId);
+      const refused = candidate.collectionModel.assign(command.newObjectId, candidate.collectionModel.collectionOf(command.objectId));
+      if (refused) throw new Error(refused);
+      candidate.applied.add(proposalId);
+      this.replaceFrom(candidate);
+      return { status: "applied" as const, revision: this.revision, results: results.map((entry) => ({ ...entry, name: part.name })) };
+    } catch (error) {
+      candidate?.reset();
+      const reason = error instanceof Error ? error.message : "Separating faces failed";
+      return { status: "failed" as const, revision: this.revision, message: reason.slice(0, 400),
+        results: commands.map((entry) => ({ commandId: entry.commandId, status: "failed" as const, message: entry === command ? reason.slice(0, 400) : "Not applied: the batch was rolled back" })) };
+    }
+  }
+
   /** Rewrites the base cage, then evaluates the same modifier list. A failure leaves the live mesh untouched. */
   private applyCageEditBatch(proposalId: string, commands: Command[], results: AppliedResult[]) {
-    interface Staged { base: BufferGeometry; display: BufferGeometry; modifiers: ModifierStackState["modifiers"]; reveal: boolean }
+    interface Staged { base: BufferGeometry; display: BufferGeometry; modifiers: ModifierStackState["modifiers"]; reveal: boolean; shading?: ShadingChoice | undefined }
     const staged = new Map<Mesh, Staged>();
     let current: Command | undefined;
     let dependent: Map<Mesh, ModifierStackState> | undefined;
@@ -1146,7 +1247,7 @@ export class EditorScene {
         const live = modifierStack(mesh);
         const previous = staged.get(mesh);
         const modifiers = previous?.modifiers ?? live?.modifiers ?? [];
-        const topologyChange = command.type === "geometry.bevel_edges" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut";
+        const topologyChange = isTopologyEditCommand(command);
         if (topologyChange && (commands.length !== 1 || modifiers.some((modifier) => modifier.enabled))) throw new Error("Use one topology edit per proposal and disable modifiers first");
         const liveExtrusion = modifiers.find((modifier) => modifier.kind === "extrusion");
         if (liveExtrusion && command.type !== "geometry.fill_hole" && command.type !== "material.assign" &&
@@ -1166,7 +1267,9 @@ export class EditorScene {
         if (liveExtrusion && (command.type === "geometry.extrude" || command.type === "geometry.transform_faces" || command.type === "geometry.transform_components" || command.type === "geometry.slide_edges") && !retainsFaces(cage, extruded.mesh, liveExtrusion.ids)) {
           throw new Error("This edit changes a face used by the live extrusion. Adjust or remove that modifier first.");
         }
-        const base = writeExtrudedGeometry(source, extruded);
+        // An edit keeps how the mesh was shaded last: set_shading chooses, every other edit repeats the choice.
+        const shading = extruded.shading ?? previous?.shading ?? storedShading(mesh);
+        const base = writeExtrudedGeometry(source, shading && !extruded.shading ? { ...extruded, shading } : extruded);
         let display = base;
         let nextModifiers = modifiers;
         try {
@@ -1186,7 +1289,7 @@ export class EditorScene {
           if (previous.base !== live?.base && previous.base !== mesh.geometry) previous.base.dispose();
           if (previous.display !== previous.base && previous.display !== mesh.geometry && previous.display !== live?.geometry) previous.display.dispose();
         }
-        staged.set(mesh, { base, display, modifiers: nextModifiers, reveal: (previous?.reveal ?? false) || (command.type === "geometry.extrude" && command.kind !== "face") });
+        staged.set(mesh, { base, display, modifiers: nextModifiers, shading, reveal: (previous?.reveal ?? false) || (command.type === "geometry.extrude" && command.kind !== "face") });
         if (!refreshDependents) {
           let total = 0;
           for (const state of staged.values()) total += triangleCount(state.display);
@@ -1219,6 +1322,7 @@ export class EditorScene {
       if (live || state.modifiers.length > 0) commitStack(mesh, { base: state.base, modifiers: state.modifiers, geometry: state.display });
       else mesh.geometry = state.base;
       if (state.reveal) revealExtrudeBackfaces(mesh);
+      if (state.shading) mesh.userData[SHADING_CHOICE] = { ...state.shading };
       replaced.delete(state.base);
       replaced.delete(state.display);
     }
@@ -1430,6 +1534,7 @@ export class EditorScene {
     if (isGeometryCommand(command)) throw new Error("Geometry commands require a separate geometry batch");
     if (isMaterialEdit(command)) throw new Error("Material commands require a separate material batch");
     if (command.type === "scene.duplicate_hierarchy") throw new Error("Duplicate hierarchies in a separate proposal");
+    if (command.type === "geometry.separate_faces") throw new Error("Separate faces in a proposal of their own");
     if (isCageEditCommand(command)) throw new Error("Component edit commands require their own batch");
     if (isCollectionCommand(command)) return this.applyCollectionCommand(objects, model, command);
     const existing = objects.get(command.objectId);

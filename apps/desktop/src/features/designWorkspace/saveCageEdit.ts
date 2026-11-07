@@ -17,6 +17,13 @@ export type CageEdit =
   | { type: "geometry.merge_vertices"; ids: string[]; mode: "center" | "first" | "last" }
   | { type: "geometry.dissolve_edges"; ids: string[] }
   | { type: "geometry.fill_hole"; ids: string[] }
+  | { type: "geometry.bisect"; plane: { axis: "x" | "y" | "z"; offset: number }; space: "world" | "local"; keep: "both" | "positive" | "negative"; fill: boolean; ids?: string[] }
+  | { type: "geometry.delete_components"; kind: "face" | "edge" | "vertex"; ids: string[] }
+  | { type: "geometry.flip_normals"; ids?: string[] }
+  | { type: "geometry.triangulate_faces"; ids?: string[] }
+  | { type: "geometry.set_shading"; mode: "flat" | "smooth"; angle?: number }
+  | { type: "geometry.bridge_edge_loops"; ids: string[]; twist?: number }
+  | { type: "geometry.separate_faces"; ids: string[]; newObjectId: string; name?: string }
   | { type: "geometry.extrude"; kind: ExtrudeKind; ids: string[]; offset?: [number, number, number]; normalDistance?: number; normalMode?: "vertex" | "individual"; closeOpenSurface?: true; capScale?: number; twistDegrees?: number; capRotationDegrees?: number[] }
   | { type: "geometry.transform_faces"; ids: string[]; space: "world"; transform: FaceTransform }
   | { type: "geometry.transform_components"; kind: "vertex" | "edge"; ids: string[]; space: "world"; transform: FaceTransform }

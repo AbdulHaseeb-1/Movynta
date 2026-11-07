@@ -36,6 +36,20 @@ describe("applyRunEvent", () => {
     expect(done.activity[0]).toMatchObject({ status: "done", durationMs: 40 });
   });
 
+  it("shows the independent review as one step that ends with its verdict", () => {
+    const started = applyRunEvent(empty, { type: "review.started", payload: { attempt: 1 } });
+    expect(started.activity[0]).toMatchObject({ kind: "review", label: "Independent review of the result", status: "running" });
+    const failed = applyRunEvent(started, { type: "review.completed", payload: { attempt: 1, outcome: "needs_refinement", summary: "The backrest floats.", findingCount: 2 } });
+    expect(failed.activity[0]).toMatchObject({ label: "Review found 2 problems to fix", status: "failed", detail: "The backrest floats." });
+    const again = applyRunEvent(failed, { type: "review.started", payload: { attempt: 2 } });
+    expect(again.activity[1]).toMatchObject({ label: "Reviewing the fixes", status: "running" });
+    const passed = applyRunEvent(again, { type: "review.completed", payload: { attempt: 2, outcome: "ready", summary: "Matches the request.", findingCount: 2 } });
+    expect(passed.activity[1]).toMatchObject({ label: "Review passed", status: "done" });
+    const blocked = applyRunEvent(applyRunEvent(empty, { type: "review.started", payload: { attempt: 1 } }), { type: "review.completed", payload: { attempt: 1, outcome: "blocked", summary: "", findingCount: 0 } });
+    expect(blocked.activity[0]).toMatchObject({ label: "Review could not judge the result", status: "failed" });
+    expect(blocked.activity[0]?.detail).toBeUndefined();
+  });
+
   it("attaches the pictures the assistant looked at to the step that took them", () => {
     const started = applyRunEvent(empty, {
       type: "tool.started",

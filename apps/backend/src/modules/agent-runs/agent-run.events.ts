@@ -5,6 +5,8 @@ export const AGENT_RUN_EVENT_TYPES = [
   "agent.message.delta",
   "agent.message.completed",
   "agent.continued",
+  "review.started",
+  "review.completed",
   "skill.loaded",
   "tool.started",
   "tool.completed",

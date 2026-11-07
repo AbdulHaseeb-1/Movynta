@@ -1,4 +1,5 @@
 import { CollectionModel } from "./collection-graph.js";
+import { isCageEditCommand, isModifierCommand, isTopologyEditCommand } from "./command-traits.js";
 import type { EditorCommand } from "./editor-command.schema.js";
 import type { EditorContext } from "./editor-context.schema.js";
 import { PlacementTracker } from "./placement-tracker.js";
@@ -53,16 +54,16 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
   if (materialEdits.length && (materialEdits.length !== commands.length || commands.length > 20)) {
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use a separate batch of at most 20 material property/slot commands; assign faces in a following proposal" }];
   }
-  if (commands.length !== 1 && commands.some((command) => command.type === "geometry.bevel_edges" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.loop_cut")) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use one topology-changing bevel, merge, dissolve or loop cut per proposal; inspect the resulting IDs before the next edit" }];
+  if (commands.length !== 1 && commands.some(isTopologyEditCommand)) {
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Use one topology-changing edit (bevel_edges, merge, dissolve, loop cut, knife, bisect, delete, triangulate and similar) per proposal; inspect the resulting IDs before the next edit" }];
   }
-  const modifiers = commands.filter((command) => command.type === "geometry.bevel" || command.type === "geometry.boolean" || (command.type === "geometry.subdivide" || command.type === "geometry.set_modifiers"));
-  const cageEdits = commands.filter((command) => command.type === "geometry.bevel_edges" || (command.type === "geometry.merge_vertices" || command.type === "geometry.merge_by_distance" || command.type === "geometry.remove_duplicate_faces" || command.type === "geometry.correct_normals" || command.type === "geometry.knife_chord" || command.type === "geometry.knife_path") || command.type === "geometry.dissolve_edges" || command.type === "geometry.slide_edges" || command.type === "geometry.loop_cut" || command.type === "material.assign" || command.type === "geometry.transform_components" || command.type === "geometry.transform_faces" || command.type === "geometry.extrude" || command.type === "geometry.inset_faces" || command.type === "geometry.subdivide_faces" || command.type === "geometry.fill_hole");
+  const modifiers = commands.filter(isModifierCommand);
+  const cageEdits = commands.filter(isCageEditCommand);
   if (modifiers.length > 0 && (modifiers.length !== commands.length || commands.length > 20)) {
     return [{ commandId: commands[0]?.commandId ?? "batch", message: "Geometry batches accept only bevel/subdivision and Boolean modifier commands, at most 20; create/transform in separate proposals" }];
   }
   if (cageEdits.length > 0 && (cageEdits.length !== commands.length || commands.length > 20)) {
-    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Component edit batches accept only extrude, transform_components, transform_faces, fill_hole, inset_faces, and subdivide_faces commands, at most 20. Create or transform objects in a separate proposal." }];
+    return [{ commandId: commands[0]?.commandId ?? "batch", message: "Component edit batches accept only extrude, inset_faces, bevel_edges, transform_components, transform_faces, fill_hole, subdivide_faces and the other base-cage edits (knife, bisect, delete, flip, triangulate, merge, dissolve, slide, loop cut, material.assign), at most 20; a topology-changing edit runs alone. Create or transform objects in a separate proposal." }];
   }
   const issue = (commandId: string, message: string) => issues.push({ commandId, message });
   /** A zero or negative scale collapses or mirrors an object and breaks parenting and bounds, so it is refused. */
@@ -121,6 +122,13 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
           }
         }
         if (context.objects.length + added > 2000) issue(command.commandId, "Copies exceed the 2000-object scene limit");
+        break;
+      }
+      case "geometry.separate_faces": {
+        if (!parents.has(command.objectId)) { missing(command.commandId, command.objectId); break; }
+        if (parents.has(command.newObjectId)) issue(command.commandId, existsMessage(command.newObjectId, createdInBatch, "geometry.separate_faces"));
+        // The new object is a sibling of the one it is split from.
+        placeCreated(command.commandId, command.newObjectId, parents.get(command.objectId) ?? undefined, false);
         break;
       }
       case "scene.create_object":
@@ -200,6 +208,12 @@ export function validateAgainstContext(commands: readonly EditorCommand[], conte
       case "geometry.set_modifiers":
       case "geometry.knife_path":
       case "geometry.knife_chord":
+      case "geometry.bisect":
+      case "geometry.delete_components":
+      case "geometry.flip_normals":
+      case "geometry.set_shading":
+      case "geometry.bridge_edge_loops":
+      case "geometry.triangulate_faces":
       case "geometry.correct_normals":
       case "geometry.remove_duplicate_faces":
       case "geometry.merge_by_distance":

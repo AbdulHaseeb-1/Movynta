@@ -11,6 +11,7 @@ import { agentRuntimeProviders } from "./agent-runtime.providers.js";
 import { AgentsController } from "./agents.controller.js";
 import type { AgentDefinition } from "./definitions/definitions.types.js";
 import { createModelingCoordinatorDefinition } from "./definitions/modeling-coordinator.agent.js";
+import { createQualityReviewerDefinition } from "./definitions/quality-reviewer.agent.js";
 
 /**
  * Startup check: every tool a skill references must exist, otherwise the
@@ -44,6 +45,7 @@ export class SkillToolReferenceValidator implements OnModuleInit {
       inject: [ToolRegistry, SkillsRegistry, APP_CONFIG],
       useFactory: (tools: ToolRegistry, skills: SkillsRegistry, config: AppConfig): AgentDefinition[] => [
         createModelingCoordinatorDefinition({ model: config.agents.model, tools, skills }),
+        createQualityReviewerDefinition({ model: config.agents.model, tools }),
       ],
     },
     AgentRegistry,

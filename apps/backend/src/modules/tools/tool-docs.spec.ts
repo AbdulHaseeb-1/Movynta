@@ -17,6 +17,7 @@ import { parseSkillDocument } from "../skills/skill-document.parser.js";
 import type { SkillsRegistry } from "../skills/skills.registry.js";
 import { createEditorTools } from "./editor/editor.tools.js";
 import { createModelingTools, MODELING_PLAN_TOOL_NAME } from "./modeling/modeling.tools.js";
+import { createBriefTools } from "./modeling/brief.tools.js";
 import { createQualityTools } from "./modeling/quality.tools.js";
 import { createProceduralTools } from "./procedural/procedural.tools.js";
 import { createSkillTools } from "./skills/skills.tools.js";
@@ -135,7 +136,7 @@ function buildTools(scene: EditorContext, state: { nextId: string; revision: num
   const skillTools = createSkillTools({ skills });
   const proceduralTools = createProceduralTools({ bridge, proposals });
   const viewportTools = createViewportTools({ bridge, proposals });
-  const qualityTools = createQualityTools(bridge);
+  const qualityTools = [...createQualityTools(bridge), ...createBriefTools(bridge)];
   const knownToolNames = [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools, ...qualityTools].map((tool) => tool.name);
   const modelingTools = createModelingTools({ knownToolNames: [...knownToolNames, MODELING_PLAN_TOOL_NAME] });
   return [...editorTools, ...validationTools, ...skillTools, ...proceduralTools, ...viewportTools, ...qualityTools, ...modelingTools];
@@ -183,7 +184,15 @@ describe("tool documentation examples", () => {
         state.nextId = typeof (demo.response as { proposalId?: unknown }).proposalId === "string"
           ? (demo.response as { proposalId: string }).proposalId
           : "";
-        const result = await definition.execute(demo.request, runContext(scene));
+        const context = runContext(scene);
+        // Measuring needs a brief; the example for recording one is the brief that is measured.
+        if (demo.name === "validation.check_brief") {
+          const record = byName.get("modeling.record_brief");
+          const recorded = demos.find((item) => item.name === "modeling.record_brief");
+          if (!record || !recorded) throw new Error("The brief example is missing");
+          await record.execute(recorded.request, context);
+        }
+        const result = await definition.execute(demo.request, context);
         const actual = demo.name === "skills.load_skill" ? pickSkillFields(result) : result;
         const expected = demo.name === "skills.load_skill" ? pickSkillFields(expectedResult(demo, data.scene)) : expectedResult(demo, data.scene);
         expect(normalize(asJson(actual))).toEqual(normalize(asJson(expected)));

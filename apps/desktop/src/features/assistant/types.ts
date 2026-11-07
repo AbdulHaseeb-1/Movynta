@@ -2,7 +2,7 @@ export type ChatRole = "user" | "assistant";
 
 export type MessageState = "streaming" | "done" | "error" | "cancelled";
 
-export type ActivityKind = "skill" | "tool" | "proposal" | "approval";
+export type ActivityKind = "skill" | "tool" | "proposal" | "approval" | "review";
 
 export type ActivityStatus = "running" | "done" | "failed";
 

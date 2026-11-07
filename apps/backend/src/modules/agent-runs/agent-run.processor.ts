@@ -15,6 +15,7 @@ import {
 import { APP_CONFIG } from "../../config/config.module.js";
 import type { AppConfig } from "../../config/config.types.js";
 import { AgentRegistry } from "../agents/agent.registry.js";
+import { QUALITY_REVIEWER_ID } from "../agents/definitions/quality-reviewer.agent.js";
 import { AGENT_RUNNER } from "../agents/agent.tokens.js";
 import type { AppAgent } from "../agents/definitions/definitions.types.js";
 import type { ApprovalPreview } from "../approvals/approvals.types.js";
@@ -25,6 +26,7 @@ import { CommandProposalService } from "../editor-bridge/proposals/command-propo
 import { SessionsService } from "../sessions/sessions.service.js";
 import { AgentRunEventsService } from "./agent-run-events.service.js";
 import { classifyFailure, describeError } from "./agent-run.failure.js";
+import { buildReviewRequest } from "./review-request.js";
 import { AgentRunRepository } from "./agent-run.repository.js";
 import { ProvidersService } from "../providers/providers.service.js";
 import { ProviderTransport } from "../providers/provider-transport.js";
@@ -44,8 +46,9 @@ import {
   emptyRunProgress,
   invalidateStaleQualityReview,
   openWorkReasons,
-  qualityCompletionNotice,
+  completionNotice,
   requiresQualityReview,
+  reviewDue,
   serializeRunProgress,
   type RunProgress,
 } from "./run-progress.js";
@@ -119,7 +122,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
   /** Starts a run in the background. Failures are recorded on the run, never thrown to the caller. */
   start(run: AgentRunRecord): void {
     const progress = emptyRunProgress();
-    progress.quality.required = requiresQualityReview(run.input, run.dimension);
+    progress.quality.required = requiresQualityReview(run.input, run.dimension, this.config.agents.reviewMode);
     this.launch(run, progress, (context, signal) =>
       this.turn(run, context, signal, run.input),
     );
@@ -291,9 +294,17 @@ export class AgentRunProcessor implements OnModuleDestroy {
           }
           invalidateStaleQualityReview(context.progress, revision);
         }
-        const reasons = openWorkReasons(context.progress, (proposalId) =>
-          this.proposalStatus(run.id, proposalId),
-        );
+        const reasonsNow = () =>
+          openWorkReasons(context.progress, (proposalId) => this.proposalStatus(run.id, proposalId));
+        let reasons = reasonsNow();
+        // The builder has nothing left open, so a different agent looks at the result before the run may end. What it
+        // finds comes back as work for the builder, in the same way as an unfinished step.
+        if (reasons.length === 0 && reviewDue(context.progress, this.config.agents.reviewLimit)) {
+          // The reviewer's model calls are part of what this run cost.
+          totals = addTotals(totals, await this.review(run, context, signal));
+          if (this.isCancelled(run.id)) return;
+          reasons = reasonsNow();
+        }
         // A continuation that answers again without a tool call has chosen to stop, most likely to ask the user
         // something. The run ends with that reply instead of repeating the request until the limit.
         const acted = result.newItems.some((item) => item.type === "tool_call_item");
@@ -302,7 +313,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
           continuations >= this.config.agents.continuationLimit ||
           (continuations > 0 && !acted)
         ) {
-          this.complete(run.id, result, totals, qualityCompletionNotice(context.progress, context.supportsToolImages));
+          this.complete(run.id, result, totals, completionNotice(context.progress, context.supportsToolImages));
           return;
         }
 
@@ -327,6 +338,60 @@ export class AgentRunProcessor implements OnModuleDestroy {
     } finally {
       this.disarm(run.id);
     }
+  }
+
+  /**
+   * Has the independent reviewer judge the finished work. It starts with no history and no memory of the build, with
+   * read-only tools, and records its verdict through the same quality tool the builder no longer has. A review that cannot
+   * run is recorded as blocked, never as approval.
+   */
+  private async review(run: AgentRunRecord, context: AgentRunContext, signal: AbortSignal): Promise<RunTotals> {
+    const quality = context.progress.quality;
+    quality.reviews += 1;
+    const attempt = quality.reviews;
+    // Written before anything is cleared: a later review is told what the earlier one asked for.
+    const request = buildReviewRequest(run.input, context.progress);
+    // Pictures the builder took do not count: the reviewer has to look for itself, at the scene as it is now.
+    quality.captureRevision = null;
+    quality.viewpoints = [];
+    quality.findings = [];
+    quality.summary = "";
+    quality.viewportUnavailable = false;
+    this.events.publish(run.id, "review.started", { attempt });
+    const blocked = (summary: string) => {
+      quality.outcome = "blocked";
+      quality.summary = summary;
+    };
+    let result: RunResult | undefined;
+    try {
+      const runner = await this.runnerFor(run);
+      // Streamed, so a slow model call still counts as activity and does not trip the idle limit. The reviewer's words are
+      // not forwarded: the user reads the builder's reply, and sees the review as one step.
+      result = await runner.run(this.agents.agent(QUALITY_REVIEWER_ID), request, {
+        stream: true,
+        context,
+        signal,
+        maxTurns: this.config.agents.reviewMaxTurns,
+      });
+      for await (const event of result) {
+        void event;
+        this.active.get(run.id)?.clock.touch();
+      }
+      await result.completed;
+    } catch (error) {
+      // A stop, a timeout and a cancellation end the whole run; anything else only ends the review.
+      if (signal.aborted || this.isCancelled(run.id)) throw error;
+      this.logger.warn(`run ${run.id} review ${attempt} failed: ${describeError(error)}`);
+      if (quality.outcome === null) blocked("The independent review could not be completed.");
+    }
+    if (quality.outcome === null) blocked("The reviewer finished without recording a verdict.");
+    this.events.publish(run.id, "review.completed", {
+      attempt,
+      outcome: quality.outcome ?? "blocked",
+      summary: quality.summary.slice(0, 300),
+      findingCount: quality.findings.length,
+    });
+    return result ? addTotals(NO_TOTALS, result.state.usage) : NO_TOTALS;
   }
 
   /** Stops the clock and forgets the run. Safe to call more than once. */

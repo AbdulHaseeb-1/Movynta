@@ -20,7 +20,7 @@ export class AgentRegistry {
   }
 
   list(): AgentSummary[] {
-    return [...this.definitions.values()].map(({ id, name, description, version }) => ({
+    return [...this.definitions.values()].filter((definition) => definition.internal !== true).map(({ id, name, description, version }) => ({
       id,
       name,
       description,
@@ -28,9 +28,10 @@ export class AgentRegistry {
     }));
   }
 
+  /** The public description of an agent. Internal agents do not exist as far as clients can tell. */
   summary(agentId: string): AgentSummary {
     const definition = this.definitions.get(agentId);
-    if (!definition) throw new NotFoundError("Agent not found");
+    if (!definition || definition.internal === true) throw new NotFoundError("Agent not found");
     return { id: definition.id, name: definition.name, description: definition.description, version: definition.version };
   }
 

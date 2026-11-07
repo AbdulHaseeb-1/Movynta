@@ -7,6 +7,7 @@ import {
 } from "@/lib/backend";
 import { rememberCapture, type ViewCaptureHandler } from "@/features/viewCapture";
 import type { EditorScene } from "./EditorScene";
+import { executionSchema, executeSafely } from "./commandExecution";
 import { waitForAbortable } from "./waitForAbortable";
 import { recoverSavedScene } from "../objectEditing/sceneHistory";
 
@@ -14,33 +15,6 @@ const messageSchema = z.object({
   event: z.string(),
   data: z.record(z.string(), z.unknown()),
 });
-const executionSchema = z.object({
-  requestId: z.string(),
-  proposalId: z.string(),
-  expectedRevision: z.number().int(),
-  commands: z.unknown(),
-  phase: z.enum(["prepare", "commit", "discard"]).optional(),
-});
-type ExecutionRequest = z.infer<typeof executionSchema>;
-
-/** Runs a batch, turning a batch the editor cannot even parse into a failed result. */
-function executeSafely(editor: EditorScene, request: ExecutionRequest) {
-  try {
-    if (request.phase) return editor.executePrepared(request.proposalId, request.expectedRevision, request.commands, request.phase);
-    return editor.execute(
-      request.proposalId,
-      request.expectedRevision,
-      request.commands,
-    );
-  } catch {
-    return {
-      status: "failed" as const,
-      results: [],
-      message: "The editor could not read this command batch",
-    };
-  }
-}
-
 /**
  * Answers a request to look at the scene. A view that cannot be drawn is an answer, not a reason to drop the
  * connection, so the assistant is told why and can ask differently.

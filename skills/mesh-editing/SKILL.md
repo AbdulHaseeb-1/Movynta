@@ -1,7 +1,7 @@
 ---
 name: mesh-editing
-version: 1.7.0
-description: Inspects mesh geometry and edits transforms, bevels, subdivision surfaces, booleans, replacements, and cleanup through validated proposals with automatic application.
+version: 1.9.0
+description: Inspects mesh geometry and edits transforms, bevels, subdivision surfaces, booleans, plane cuts, deletion, shading, bridging, separating parts, replacements, and cleanup through validated proposals with automatic application.
 dimensions:
   - 2d
   - 2.5d
@@ -14,6 +14,8 @@ tags:
   - bevel
   - subdivision
   - boolean
+  - cut
+  - bisect
 when_to_use:
   - The user asks to move, scale, rotate, extrude, cut, boolean, replace, or clean up existing geometry.
   - The user asks to change the topology of an object that already exists.
@@ -84,7 +86,19 @@ For `geometry.merge_vertices`, supply at least two unique base vertex IDs and mo
 
 `geometry.loop_cut` follows opposite edges through a quad strip from one canonical `edge`. Use `cuts` 1–16, default 1. For one cut, `factor` strictly between 0 and 1 offsets it along the seed edge from its lower-numbered vertex. Multiple cuts use even spacing with factor 0.5. The ring stops at open boundaries; nonquad faces, crossing rings and inconsistent orientation are rejected. New vertex and corner attributes interpolate independently, preserving seams.
 
-Merge, dissolve and loop cut each require a single-command proposal, disabled enabled modifiers, and removal of live extrusion. IDs change, so inspect again after applying. All use base IDs and the inspection's expectedRevision. `geometry.slide_edges` preserves IDs: provide selected edge `ids`, `factor` strictly between 0 and 1, and exactly one `rails` entry `{vertex,toward}` per unique selected endpoint. A rail is an existing edge to an unselected neighbor. Select the other rail for the opposite direction. Sliding moves geometry in mesh-local space and keeps UV/corner attributes attached; UV correction is not included. All four operations use automatic application and saved undo/redo.
+Cut a mesh with `geometry.bisect`, the plane cut, whenever the request is a straight cut: "cut it in half", "slice off the top", "add an edge loop across the wall", "split at x = 0.3". Name the plane as `{ axis: "y", offset: 1.2 }` or as `{ point, normal }`; `normal` points to the `positive` side. Use `space: "world"` for a height or position the user stated in the scene, and `space: "local"` (default) for coordinates read from `editor.inspect_mesh`. Read `localBounds` or the world bounds first so the plane falls inside the mesh; if the plane misses, the error reports the distance range of the mesh from the plane, so choose a value inside it. To remove a side, set `keep` to `positive` or `negative`, and set `fill: true` so the opening is capped and the solid stays closed; leave `fill` off for an open shell or when the cut passes through a ring (nested outlines are refused). Add `ids` (base face IDs, for example from a `faceQuery`) to cut only part of the mesh. Cut faces must be flat; if a face is reported as not cuttable, run `geometry.triangulate_faces` on it and cut again. Use `geometry.loop_cut` only for rings of quads, and `geometry.knife_chord` or `geometry.knife_path` only to join known boundary points; do not predict IDs for several knife segments when one plane does the job. After a cut, face IDs shift up (pieces are consecutive) and new vertices are last, so inspect again before the next edit.
+
+Use `geometry.delete_components` with `kind` `face`, `edge` or `vertex` to take geometry away: faces go alone, an edge or vertex takes every face touching it. It keeps the order of what remains and may open a closed mesh; follow it with `geometry.fill_hole` (boundary edge IDs from a new inspection) when the object must stay closed. Deleting everything is refused (delete the object with `scene.delete_object`), as is leaving faces that touch only at a corner. Use `geometry.flip_normals` to make a surface face the other way (omit `ids` for every surface, or name one face per surface to flip; a surface flips as a whole), for example a one-sided layer plane that faces away from the camera. Use `geometry.triangulate_faces` to split polygons into triangles (omit `ids` for all).
+
+Use `geometry.set_shading` when a surface looks faceted or too soft: `flat` for a crisp faceted look, `smooth` to blend everything, or `smooth` with an `angle` (30 to 40 degrees suits most hard-surface props) to keep sharper edges crisp while rounding the rest. It changes only how the surface is shaded, keeps every ID, and is remembered, so later cuts, extrudes and bevels do not undo it.
+
+Use `geometry.bridge_edge_loops` to connect two openings, such as two pipe ends or a handle to a body. Inspect the base, collect the canonical edge IDs of every edge of both boundary loops (an edge with a single face is on a boundary), and pass them all in `ids`. The loops may have different numbers of edges; the extra edges of the longer loop become triangles spread around the ring. If the connecting edges cross or twist, repeat with `twist` 1, 2 or -1. Capture the result to check it. Existing IDs stay and the new faces are last.
+
+Use `geometry.separate_faces` to make a region its own object (to move, hide or give it a different material). Choose the faces with `editor.inspect_mesh` and a `faceQuery`, give a fresh `newObjectId` and optionally a `name`, clear the modifier stack first, and send it alone. The new object sits beside the source with the same transform, collection and material slots. Faces that touch only at a corner cannot be separated; choose a connected region. Inspect the source again afterward because its IDs change.
+
+Merge, dissolve, loop cut, bisect, delete, separate and triangulate each require a single-command proposal, disabled enabled modifiers, and removal of live extrusion. IDs change, so inspect again after applying. All use base IDs and the inspection's expectedRevision. `geometry.slide_edges` preserves IDs: provide selected edge `ids`, `factor` strictly between 0 and 1, and exactly one `rails` entry `{vertex,toward}` per unique selected endpoint. A rail is an existing edge to an unselected neighbor. Select the other rail for the opposite direction. Sliding moves geometry in mesh-local space and keeps UV/corner attributes attached; UV correction is not included. All four operations use automatic application and saved undo/redo.
+
+To find openings and parts without paging through edges, call `editor.inspect_mesh` with `view: "base"` and `openings: {}` and/or `shells: {}`. `openings.loops` lists each opening's `edges` (canonical IDs, ready to pass whole to `geometry.fill_hole`, or two loops joined end to end to `geometry.bridge_edge_loops`), its `edgeCount`, its `center` and its bounds, so you can tell which opening is which. A loop with `truncated: true` has more edges than are listed and cannot be passed whole. `shells` lists the connected parts with `faceCount`, `closed`, their bounds and a `firstFace` that names the whole part (for `geometry.flip_normals`).
 
 Use `geometry.fill_hole` to close a single opening whose boundary has a simple projection using 3–256 canonical base boundary-edge IDs. With enabled modifiers, pass `componentView: base` and `expectedRevision` from base inspection.
 

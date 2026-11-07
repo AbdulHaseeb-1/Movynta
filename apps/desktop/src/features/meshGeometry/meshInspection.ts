@@ -2,9 +2,11 @@ import { Mesh, Vector3, type Object3D } from "three";
 import { resolveMeshPath, stableMeshPath, stableSteps, type MeshInspection, type MeshInspectionRequest, type MeshPath, type MeshStep } from "@movynta/editor-protocol";
 import { cageKey, faceNormal, readTopology, topology, type PolygonMesh, type Topology } from "./meshTopology";
 import { modifierStack } from "./modifierStack";
+import { boundaryLoops, shellSummaries } from "./meshRegions";
 import { inspectMaterials, materialSlots } from "../materials/materialEdits";
 const inspectionGraphs = new WeakMap<PolygonMesh, Topology>();
 const inspectionNormals = new WeakMap<PolygonMesh, Vector3[]>();
+const inspectionRegions = new WeakMap<PolygonMesh, { loops: ReturnType<typeof boundaryLoops>; shells: ReturnType<typeof shellSummaries> }>();
 
 export function isEditableTarget(node: Object3D | undefined): node is Mesh { return node instanceof Mesh; }
 /** The mesh a path leads to, whether it is written with part names or with child indices. */
@@ -113,6 +115,27 @@ export function inspectMesh(root: Object3D | undefined, request: MeshInspectionR
         total += 1;
       });
       result.faceMatches = { ids, total, offset, hasMore: offset + ids.length < total };
+    }
+    if (request.openings || request.shells) {
+      // Both walks are made once per cage: an assistant often asks for them on every look at the same mesh.
+      let regions = inspectionRegions.get(mesh);
+      if (!regions) { regions = { loops: boundaryLoops(graph), shells: shellSummaries(mesh, graph) }; inspectionRegions.set(mesh, regions); }
+      if (request.openings) {
+        const offset = request.openings.offset ?? 0, limit = request.openings.limit ?? 20, all = regions.loops.loops;
+        result.openings = {
+          loops: all.slice(offset, offset + limit).map((loop) => {
+            const min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity);
+            for (const vertex of loop.vertices) { const p = mesh.positions[vertex]; if (p) { min.min(p); max.max(p); } }
+            return { edges: loop.edges.slice(0, 256), edgeCount: loop.edges.length, truncated: loop.edges.length > 256,
+              center: min.clone().add(max).multiplyScalar(0.5).toArray(), min: min.toArray(), max: max.toArray() };
+          }),
+          total: all.length, offset, hasMore: offset + limit < all.length, irregularEdges: regions.loops.irregular,
+        };
+      }
+      if (request.shells) {
+        const offset = request.shells.offset ?? 0, limit = request.shells.limit ?? 20, all = regions.shells;
+        result.shells = { shells: all.slice(offset, offset + limit), total: all.length, offset, hasMore: offset + limit < all.length };
+      }
     }
     result.status = "ok";
   } catch (error) {

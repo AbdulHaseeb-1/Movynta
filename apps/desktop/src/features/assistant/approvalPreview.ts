@@ -51,6 +51,17 @@ const commandSchema = z.looseObject({
   modifiers: z.array(z.unknown()).optional(),
   vertices: z.array(z.unknown()).optional(),
   faces: z.array(z.unknown()).optional(),
+  plane: z.looseObject({
+    point: z.array(z.number()).length(3).optional(),
+    normal: z.array(z.number()).length(3).optional(),
+    axis: z.enum(["x", "y", "z"]).optional(),
+    offset: z.number().optional(),
+  }).optional(),
+  keep: z.enum(["both", "positive", "negative"]).optional(),
+  angle: z.number().optional(),
+  twist: z.number().optional(),
+  newObjectId: z.string().optional(),
+  fill: z.boolean().optional(),
 });
 
 const previewSchema = z.looseObject({
@@ -141,6 +152,24 @@ function describeCommand(command: Command): string {
       return `Cut a sequence of faces on ${target}`;
     case "geometry.knife_chord":
       return `Cut one face of ${target} between two edge points`;
+    case "geometry.bisect": {
+      const plane = command.plane;
+      const where = plane?.axis !== undefined ? `at ${plane.axis} = ${plane.offset ?? 0}` : plane?.point && plane.normal ? `along the plane through [${plane.point.join(", ")}] facing [${plane.normal.join(", ")}]` : "along a plane";
+      const sides = command.keep === "positive" || command.keep === "negative" ? `, keep the ${command.keep} side${command.fill ? " and cap the opening" : ""}` : "";
+      return `Cut ${target} ${where} (${command.space ?? "local"} space)${sides}${command.ids ? ` · ${command.ids.length} faces only` : ""}`;
+    }
+    case "geometry.delete_components":
+      return `Delete ${command.ids?.length ?? 0} ${command.kind ?? "component"}${(command.ids?.length ?? 0) === 1 ? "" : "s"} of ${target}`;
+    case "geometry.flip_normals":
+      return command.ids ? `Flip the surfaces of ${target} that contain ${command.ids.length} chosen face${command.ids.length === 1 ? "" : "s"}` : `Flip every surface of ${target} to face the other way`;
+    case "geometry.separate_faces":
+      return `Move ${command.ids?.length ?? 0} face${command.ids?.length === 1 ? "" : "s"} of ${target} into a new object “${command.name ?? command.newObjectId ?? "part"}”`;
+    case "geometry.bridge_edge_loops":
+      return `Bridge two boundary loops of ${target} (${command.ids?.length ?? 0} edges)${command.twist ? ` · twist ${command.twist}` : ""}`;
+    case "geometry.set_shading":
+      return `Shade ${target} ${command.mode === "flat" ? "flat" : command.angle === undefined ? "smooth" : `smooth with edges sharper than ${command.angle}° kept crisp`}`;
+    case "geometry.triangulate_faces":
+      return command.ids ? `Triangulate ${command.ids.length} face${command.ids.length === 1 ? "" : "s"} of ${target}` : `Triangulate every face of ${target}`;
     case "geometry.correct_normals":
       return `Correct face winding and rebuild normals on ${target} (${command.mode ?? "consistent"})`;
     case "geometry.remove_duplicate_faces":

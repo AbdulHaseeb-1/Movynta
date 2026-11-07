@@ -15,6 +15,16 @@ export const meshInspectionRequestSchema = z.object({
   limit: z.number().int().min(1).max(100).default(25),
   includeSamples: z.boolean().optional(),
   materialsOnly: z.boolean().optional(),
+  /** Lists the mesh's openings (closed chains of boundary edges) with their edge IDs, ready for fill_hole or bridging. */
+  openings: z.object({
+    offset: z.number().int().nonnegative().max(100_000).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  }).strict().optional(),
+  /** Lists the mesh's connected parts, each with a face that names it, its size and its extent. */
+  shells: z.object({
+    offset: z.number().int().nonnegative().max(100_000).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  }).strict().optional(),
   faceQuery: z.object({
     normal: point.optional(),
     minDot: z.number().finite().min(-1).max(1).optional(),
@@ -62,6 +72,32 @@ export const meshInspectionSchema = z.object({
   faceMatches: z.object({
     ids: z.array(z.string()).max(1000), total: z.number().int().nonnegative(),
     offset: z.number().int().nonnegative(), hasMore: z.boolean(),
+  }).strict().optional(),
+  openings: z.object({
+    loops: z.array(z.object({
+      /** Canonical edge IDs in walking order, at most 256. */
+      edges: z.array(z.string()).max(256),
+      edgeCount: z.number().int().positive(),
+      /** True when the loop has more edges than `edges` lists, so it cannot be passed to a command whole. */
+      truncated: z.boolean(),
+      center: point, min: point, max: point,
+    }).strict()).max(50),
+    total: z.number().int().nonnegative(),
+    offset: z.number().int().nonnegative(),
+    hasMore: z.boolean(),
+    /** Boundary edges that are not part of a simple closed loop (a chain that does not close, or openings that touch). */
+    irregularEdges: z.number().int().nonnegative(),
+  }).strict().optional(),
+  shells: z.object({
+    shells: z.array(z.object({
+      faceCount: z.number().int().positive(),
+      firstFace: z.number().int().nonnegative(),
+      closed: z.boolean(),
+      center: point, min: point, max: point,
+    }).strict()).max(50),
+    total: z.number().int().nonnegative(),
+    offset: z.number().int().nonnegative(),
+    hasMore: z.boolean(),
   }).strict().optional(),
   edges: z.array(z.object({ vertices: z.array(z.number().int()).length(2), faces: z.array(z.number().int()).max(20_000) })).max(100),
   vertices: z.array(z.object({ index: z.number().int(), position: point })).max(100),

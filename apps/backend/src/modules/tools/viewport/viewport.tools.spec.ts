@@ -86,6 +86,18 @@ function tool(bridge: EditorBridge, requireProposal: (runId: string, proposalId:
   return definition;
 }
 
+describe("viewport.capture when the viewport cannot draw", () => {
+  it("notes that nothing can be seen, tells the model why, and forgets it once a picture succeeds", async () => {
+    const bridge = new RecordingBridge();
+    const context = contextWith(true);
+    const failing = Object.assign(bridge, { captureViews: () => Promise.reject(new Error("No viewport is available in this run")) });
+    await expect(tool(failing).execute({ views: [{ preset: "front" }] }, context)).rejects.toThrow("No viewport is available");
+    expect(context.progress.quality.viewportUnavailable).toBe(true);
+    await tool(new RecordingBridge()).execute({ views: [{ preset: "front" }] }, context);
+    expect(context.progress.quality.viewportUnavailable).toBe(false);
+  });
+});
+
 describe("viewport.capture", () => {
   it("looks up the run's pending proposal and sends only the stored candidate", async () => {
     const bridge = new RecordingBridge();

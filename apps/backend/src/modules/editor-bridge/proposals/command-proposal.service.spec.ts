@@ -150,6 +150,21 @@ describe("command proposals", () => {
     expect((await service.apply(run, proposal.id)).status).toBe("failed");
     expect(bridge.executions).toHaveLength(1);
   });
+  it("stores a bevel with trimEndFaces on when the assistant leaves it out, so replay never depends on a default", async () => {
+    const { bridge, service, run } = setup();
+    bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
+    const bevel = (commandId: string, extra: Record<string, unknown> = {}) => ({ commandId, type: "geometry.bevel_edges", objectId: "mesh", ids: ["0_1"], width: 0.1, segments: 1, profile: "chamfer", ...extra });
+    const omitted = await service.propose(run, { summary: "Chamfer", expectedRevision: 4, commands: editorCommandListSchema.parse([bevel("a")]) });
+    expect(omitted.commands[0]).toMatchObject({ type: "geometry.bevel_edges", trimEndFaces: true });
+    // What the editor is asked to run is the stored command, explicit as well.
+    expect((await service.apply(run, omitted.id)).status).toBe("applied");
+    expect(bridge.executions[0]?.commands[0]).toMatchObject({ trimEndFaces: true });
+    // A choice the assistant made is kept, in both directions, and other commands are left as they were.
+    const off = await service.propose(run, { summary: "Chamfer, legacy ends", expectedRevision: 4, commands: editorCommandListSchema.parse([bevel("b", { trimEndFaces: false })]) });
+    expect(off.commands[0]).toMatchObject({ trimEndFaces: false });
+    const plain = await service.propose(run, { summary: "Add box", commands: [addBox] });
+    expect(plain.commands).toEqual([addBox]);
+  });
   it("automatically permits but refuses to rebase face subdivision, like the other base-cage edits", async () => {
     const { bridge, service, run } = setup();
     bridge.scene = { ...bridge.scene, objects: [sceneObject("mesh")] };
@@ -208,6 +223,14 @@ describe("command proposals", () => {
     { type: "geometry.knife_path", segments: [{ face: "0", start: { vertex: "0" }, end: { vertex: "2" } }] },
     { type: "geometry.dissolve_edges", ids: ["0_1"] },
     { type: "geometry.loop_cut", edge: "0_1" },
+    { type: "geometry.bisect", plane: { axis: "y", offset: 0.5 } },
+    { type: "geometry.bisect", plane: { point: [0, 0, 0], normal: [1, 0, 0] }, space: "world", keep: "positive", fill: true },
+    { type: "geometry.delete_components", kind: "face", ids: ["0"] },
+    { type: "geometry.flip_normals" },
+    { type: "geometry.set_shading", mode: "smooth", angle: 35 },
+    { type: "geometry.separate_faces", ids: ["0", "1"], newObjectId: "part" },
+    { type: "geometry.bridge_edge_loops", ids: ["0_1", "1_2", "0_2", "3_4", "4_5", "3_5"] },
+    { type: "geometry.triangulate_faces", ids: ["0", "1"] },
     { type: "geometry.slide_edges", ids: ["0_1"], rails: [{ vertex: "0", toward: "2" }, { vertex: "1", toward: "3" }], factor: 0.25 },
   ])("requires a base inspection revision for $type and applies automatically", async (edit) => {
     const { bridge, service, run } = setup();

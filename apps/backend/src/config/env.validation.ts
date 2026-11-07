@@ -30,6 +30,12 @@ export const envSchema = z
     AGENT_RUN_IDLE_TIMEOUT_MS: durationMs(5 * 60 * 1000),
     AGENT_CONTINUATION_LIMIT: z.coerce.number().int().nonnegative().default(5),
     AGENT_MAX_TURNS: z.coerce.number().int().positive().default(500),
+    /** Which runs get an independent review of the finished work: none, those asking for quality, or every build. */
+    AGENT_REVIEW_MODE: z.enum(["off", "quality", "builds"]).default("quality"),
+    /** Most independent reviews of one run; each review that finds problems sends the work back for a fix. */
+    AGENT_REVIEW_LIMIT: z.coerce.number().int().nonnegative().default(2),
+    /** Most model turns one review may take. */
+    AGENT_REVIEW_MAX_TURNS: z.coerce.number().int().positive().default(40),
 
     EDITOR_REQUEST_TIMEOUT_MS: durationMs(15_000),
     SKILLS_DIR: z.string().min(1).default("../../skills"),
