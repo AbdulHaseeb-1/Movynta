@@ -11,7 +11,9 @@ export const API_KEY_PROVIDER_IDS = [
 
 /** Every provider, including the one that signs in with a ChatGPT subscription instead of a key. */
 export const PROVIDER_IDS = [...API_KEY_PROVIDER_IDS, "chatgpt"] as const;
+/** The schema for a provider id. */
 export const providerIdSchema = z.enum(PROVIDER_IDS);
+/** The id of a model provider. */
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 /** The ChatGPT provider signs in with a subscription in the browser instead of taking an API key. */

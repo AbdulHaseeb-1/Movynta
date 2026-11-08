@@ -37,15 +37,21 @@ export function ShortcutReference({ query, headingId, hideHeading = false, onNav
         <div className="flex flex-wrap items-end justify-between gap-3">
           {!hideHeading && (
             <div>
-              <h2 id={headingId} className="text-[17px] font-semibold">Shortcuts</h2>
+              <h2 id={headingId} className="text-[17px] font-semibold">
+                Shortcuts
+              </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Keyboard, mouse and toolbar controls for your workspace. Press <KeyCombo keys="?" className="align-middle" /> on any page to open this list.
+                Keyboard, mouse and toolbar controls for your workspace. Press{" "}
+                <KeyCombo keys="?" className="align-middle" /> on any page to open this list.
               </p>
             </div>
           )}
           {query === undefined && (
             <div className="relative w-full sm:w-56">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
               <Input
                 aria-label="Search shortcuts"
                 placeholder={category === ALL ? "Search shortcuts or keys" : "Search this category"}
@@ -73,7 +79,9 @@ export function ShortcutReference({ query, headingId, hideHeading = false, onNav
           </button>
         ))}
       </nav>
-      {matching.length === 0 && <output className="block py-4 text-sm text-muted-foreground">No controls match your search.</output>}
+      {matching.length === 0 && (
+        <output className="block py-4 text-sm text-muted-foreground">No controls match your search.</output>
+      )}
       {matching.map((group) => (
         <section key={group.id} aria-label={group.name}>
           <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -82,9 +90,15 @@ export function ShortcutReference({ query, headingId, hideHeading = false, onNav
           </div>
           <div className="overflow-hidden rounded-lg border border-border bg-card/50">
             {group.controls.map((control) => (
-              <div key={control.action} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 border-b border-border px-3 py-2 last:border-b-0 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.6fr)_13rem] sm:items-center">
+              <div
+                key={control.action}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 border-b border-border px-3 py-2 last:border-b-0 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.6fr)_13rem] sm:items-center"
+              >
                 <p className="min-w-0 text-xs font-medium">{control.action}</p>
-                <KeyCombo keys={control.keys} className="col-start-2 row-start-1 max-w-52 justify-end sm:col-start-3 sm:max-w-none" />
+                <KeyCombo
+                  keys={control.keys}
+                  className="col-start-2 row-start-1 max-w-52 justify-end sm:col-start-3 sm:max-w-none"
+                />
                 <p className="col-span-2 min-w-0 text-[11px] leading-4 text-muted-foreground sm:col-span-1 sm:col-start-2 sm:row-start-1">
                   {control.detail}
                   {control.guide && (
@@ -95,7 +109,8 @@ export function ShortcutReference({ query, headingId, hideHeading = false, onNav
                         onClick={onNavigate}
                         className="inline-flex items-center gap-0.5 whitespace-nowrap text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
                       >
-                        Learn more<ArrowUpRight aria-hidden className="size-3" />
+                        Learn more
+                        <ArrowUpRight aria-hidden className="size-3" />
                       </Link>
                     </>
                   )}

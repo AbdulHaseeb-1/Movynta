@@ -1,12 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { displayName, PROJECT_NAME_MAX_LENGTH } from "./projectName";
 import type { Project } from "./projectTypes";
@@ -14,23 +9,15 @@ import type { ProjectActions } from "./useProjectActions";
 
 const buttonClass = "h-9 rounded-lg px-4 text-[13px]";
 
-function RenameForm({
-  project,
-  actions,
-}: {
-  project: Project;
-  actions: ProjectActions;
-}) {
+function RenameForm({ project, actions }: { project: Project; actions: ProjectActions }) {
   const [name, setName] = useState(project.name);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void actions.submitRename(name);
   }
   return (
-    <DialogContent className="z-[100] w-[min(420px,calc(100vw-32px))] p-6">
-      <DialogTitle className="pr-6 text-base font-semibold">
-        Rename project
-      </DialogTitle>
+    <DialogContent className="z-[100] w-[min(420px,calc(100vw-32px))] p-6" onCloseAutoFocus={actions.restoreFocus}>
+      <DialogTitle className="pr-6 text-base font-semibold">Rename project</DialogTitle>
       <DialogDescription className="text-xs leading-5 text-muted-foreground">
         Leave the name empty to make it untitled again.
       </DialogDescription>
@@ -49,16 +36,9 @@ function RenameForm({
             onFocus={(event) => event.currentTarget.select()}
           />
         </div>
-        <output className="min-h-4 text-xs text-muted-foreground">
-          {actions.error}
-        </output>
+        <output className="min-h-4 text-xs text-muted-foreground">{actions.error}</output>
         <div className="flex justify-end gap-2 border-t pt-4">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={actions.cancel}
-            className={buttonClass}
-          >
+          <Button type="button" variant="ghost" onClick={actions.cancel} className={buttonClass}>
             Cancel
           </Button>
           <Button type="submit" disabled={actions.busy} className={buttonClass}>
@@ -71,32 +51,17 @@ function RenameForm({
   );
 }
 
-function DeleteConfirmation({
-  project,
-  actions,
-}: {
-  project: Project;
-  actions: ProjectActions;
-}) {
+function DeleteConfirmation({ project, actions }: { project: Project; actions: ProjectActions }) {
   return (
-    <DialogContent className="z-[100] w-[min(420px,calc(100vw-32px))] p-6">
-      <DialogTitle className="pr-6 text-base font-semibold">
-        Delete “{displayName(project)}”?
-      </DialogTitle>
+    <DialogContent className="z-[100] w-[min(420px,calc(100vw-32px))] p-6" onCloseAutoFocus={actions.restoreFocus}>
+      <DialogTitle className="pr-6 text-base font-semibold">Delete “{displayName(project)}”?</DialogTitle>
       <DialogDescription className="text-xs leading-5 text-muted-foreground">
-        This permanently removes the project, its conversation and its 3D scene.
-        You can archive it instead to keep it out of the way.
+        This permanently removes the project, its conversation and its 3D scene. You can archive it instead to keep it
+        out of the way.
       </DialogDescription>
-      <output className="min-h-4 text-xs text-muted-foreground">
-        {actions.error}
-      </output>
+      <output className="min-h-4 text-xs text-muted-foreground">{actions.error}</output>
       <div className="flex justify-end gap-2 border-t pt-4">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={actions.cancel}
-          className={buttonClass}
-        >
+        <Button type="button" variant="ghost" onClick={actions.cancel} className={buttonClass}>
           Cancel
         </Button>
         <Button
@@ -124,13 +89,7 @@ export function ProjectDialogs({ actions }: { actions: ProjectActions }) {
           if (!open) actions.cancel();
         }}
       >
-        {actions.renaming && (
-          <RenameForm
-            key={actions.renaming.id}
-            project={actions.renaming}
-            actions={actions}
-          />
-        )}
+        {actions.renaming && <RenameForm key={actions.renaming.id} project={actions.renaming} actions={actions} />}
       </Dialog>
       <Dialog
         open={actions.deleting !== null}
@@ -138,9 +97,7 @@ export function ProjectDialogs({ actions }: { actions: ProjectActions }) {
           if (!open) actions.cancel();
         }}
       >
-        {actions.deleting && (
-          <DeleteConfirmation project={actions.deleting} actions={actions} />
-        )}
+        {actions.deleting && <DeleteConfirmation project={actions.deleting} actions={actions} />}
       </Dialog>
     </>
   );

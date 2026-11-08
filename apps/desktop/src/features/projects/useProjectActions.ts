@@ -1,24 +1,23 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { errorMessage } from "@/lib/backend";
+import { returnFocus } from "@/lib/dom";
 import { projectPath } from "./projectCategories";
-import {
-  deleteProject,
-  duplicateProject,
-  updateProject,
-} from "./projectsApi";
+import { deleteProject, duplicateProject, updateProject } from "./projectsApi";
 import { projectChanged, projectRemoved } from "./projectsSlice";
-import type { Project, ProjectAction } from "./projectTypes";
+import type { Project, ProjectAction, ProjectActionHandler } from "./projectTypes";
 
+/** Options for the project actions hook. */
 export interface ProjectActionsOptions {
   /** Called with the project after it was renamed, starred, archived or duplicated. */
   onChanged?: (project: Project, action: ProjectAction) => void;
   onRemoved?: (project: Project) => void;
 }
 
+/** The actions the project menus and dialogs can take. */
 export interface ProjectActions {
-  perform: (action: ProjectAction, project: Project) => void;
+  perform: ProjectActionHandler;
   /** The project whose name is being edited in the rename dialog, if any. */
   renaming: Project | null;
   /** The project waiting for delete confirmation, if any. */
@@ -29,15 +28,15 @@ export interface ProjectActions {
   submitRename: (name: string) => Promise<void>;
   confirmDelete: () => Promise<void>;
   cancel: () => void;
+  /** Called as a dialog closes: gives focus back to the control that opened it, if it is still on the page. */
+  restoreFocus: (event: Event) => void;
 }
 
 /**
  * Everything the user can do to a project, shared by the library and the workspace. Quick actions
  * run at once; renaming and deleting open a dialog, which the caller renders from this state.
  */
-export function useProjectActions(
-  options: ProjectActionsOptions = {},
-): ProjectActions {
+export function useProjectActions(options: ProjectActionsOptions = {}): ProjectActions {
   const { onChanged, onRemoved } = options;
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -45,6 +44,7 @@ export function useProjectActions(
   const [deleting, setDeleting] = useState<Project | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const opener = useRef<HTMLElement | null>(null);
 
   const attempt = useCallback(async (work: () => Promise<void>) => {
     setBusy(true);
@@ -69,39 +69,29 @@ export function useProjectActions(
   );
 
   const perform = useCallback(
-    (action: ProjectAction, project: Project) => {
+    (action: ProjectAction, project: Project, from?: HTMLElement | null) => {
       switch (action) {
         case "open":
           void navigate(projectPath(project));
           return;
         case "rename":
           setError("");
+          opener.current = from ?? null;
           setRenaming(project);
           return;
         case "delete":
           setError("");
+          opener.current = from ?? null;
           setDeleting(project);
           return;
         case "star":
-          void attempt(async () =>
-            apply(
-              await updateProject(project.id, { starred: !project.starred }),
-              action,
-            ),
-          );
+          void attempt(async () => apply(await updateProject(project.id, { starred: !project.starred }), action));
           return;
         case "archive":
-          void attempt(async () =>
-            apply(
-              await updateProject(project.id, { archived: !project.archived }),
-              action,
-            ),
-          );
+          void attempt(async () => apply(await updateProject(project.id, { archived: !project.archived }), action));
           return;
         case "duplicate":
-          void attempt(async () =>
-            apply(await duplicateProject(project.id), action),
-          );
+          void attempt(async () => apply(await duplicateProject(project.id), action));
           return;
       }
     },
@@ -112,9 +102,7 @@ export function useProjectActions(
     async (name: string) => {
       if (!renaming) return;
       const target = renaming;
-      const done = await attempt(async () =>
-        apply(await updateProject(target.id, { name }), "rename"),
-      );
+      const done = await attempt(async () => apply(await updateProject(target.id, { name }), "rename"));
       if (done) setRenaming(null);
     },
     [apply, attempt, renaming],
@@ -137,6 +125,12 @@ export function useProjectActions(
     setError("");
   }, []);
 
+  const restoreFocus = useCallback((event: Event) => {
+    const target = opener.current;
+    opener.current = null;
+    returnFocus(target, event);
+  }, []);
+
   return {
     perform,
     renaming,
@@ -147,5 +141,6 @@ export function useProjectActions(
     submitRename,
     confirmDelete,
     cancel,
+    restoreFocus,
   };
 }

@@ -1,14 +1,9 @@
 import { createServer, type ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
-import {
-  ConflictError,
-  ServiceUnavailableError,
-} from "../../../common/errors/app-error.js";
-import {
-  CHATGPT_CALLBACK_PATH,
-  CHATGPT_CALLBACK_PORT,
-} from "./chatgpt.constants.js";
+import { ConflictError, ServiceUnavailableError } from "../../../common/errors/app-error.js";
+import { CHATGPT_CALLBACK_PATH, CHATGPT_CALLBACK_PORT } from "./chatgpt.constants.js";
 
+/** A temporary local listener that receives the ChatGPT sign-in redirect. */
 export interface CallbackListener {
   /** Resolves with the authorization code; rejects on denial, a bad state, cancellation, or timeout. */
   readonly code: Promise<string>;
@@ -41,10 +36,7 @@ function reply(response: ServerResponse, status: number, html: string): void {
  * Listens on the loopback interface for the single OAuth redirect. It answers only the callback
  * path, accepts one matching `state`, and shuts down as soon as it has a result.
  */
-export function listenForCallback(
-  expectedState: string,
-  timeoutMs: number,
-): Promise<CallbackListener> {
+export function listenForCallback(expectedState: string, timeoutMs: number): Promise<CallbackListener> {
   return new Promise((resolveListener, rejectListener) => {
     let finish: (outcome: { code: string } | { error: Error }) => void = () => {};
     const code = new Promise<string>((resolve, reject) => {
@@ -64,28 +56,16 @@ export function listenForCallback(
         return;
       }
       if (!sameState(url.searchParams.get("state"), expectedState)) {
-        reply(
-          response,
-          400,
-          page("Sign-in rejected", "This link is not from your current sign-in."),
-        );
+        reply(response, 400, page("Sign-in rejected", "This link is not from your current sign-in."));
         return;
       }
       const authorization = url.searchParams.get("code");
       if (url.searchParams.has("error") || !authorization) {
-        reply(
-          response,
-          400,
-          page("Sign-in cancelled", "You can close this tab and try again."),
-        );
+        reply(response, 400, page("Sign-in cancelled", "You can close this tab and try again."));
         stop({ error: new ConflictError("The ChatGPT sign-in was cancelled.") });
         return;
       }
-      reply(
-        response,
-        200,
-        page("You are signed in", "You can close this tab and return to Movynta."),
-      );
+      reply(response, 200, page("You are signed in", "You can close this tab and return to Movynta."));
       stop({ code: authorization });
     });
 
@@ -95,9 +75,7 @@ export function listenForCallback(
     const timer = setTimeout(
       () =>
         stop({
-          error: new ServiceUnavailableError(
-            "The ChatGPT sign-in timed out. Start again.",
-          ),
+          error: new ServiceUnavailableError("The ChatGPT sign-in timed out. Start again."),
         }),
       timeoutMs,
     );

@@ -1,18 +1,9 @@
-import {
-  BufferGeometry,
-  Float32BufferAttribute,
-  Vector2,
-  type Camera,
-  type Matrix4,
-} from "three";
-import {
-  readTopology,
-  edgeKey,
-  type PolygonMesh,
-} from "@/features/meshGeometry/meshTopology";
+import { BufferGeometry, Float32BufferAttribute, Vector2, type Camera, type Matrix4 } from "three";
+import { readTopology, edgeKey, type PolygonMesh } from "@/features/meshGeometry/meshTopology";
 import { triangulate } from "@/features/meshGeometry/meshOutput";
 import type { ComponentKind } from "./workspaceSlice";
 
+/** The geometry the component picking and highlighting use, built from a mesh. */
 export interface ComponentGeometry {
   mesh: PolygonMesh;
   picking: BufferGeometry;
@@ -31,16 +22,12 @@ interface PreparedComponents {
 // Weak keys keep cached arrays alive only while their source topology remains reachable.
 const preparedComponents = new WeakMap<PolygonMesh, PreparedComponents>();
 /** Collect the picking triangles for selected polygon faces. */
-export function faceHighlightPositions(
-  data: ComponentGeometry,
-  ids: readonly string[],
-): number[] {
+export function faceHighlightPositions(data: ComponentGeometry, ids: readonly string[]): number[] {
   const positions: number[] = [];
   const attr = data.picking.getAttribute("position");
   for (const id of ids) {
     const face = Number(id);
-    if (!Number.isInteger(face) || face < 0 || face >= data.mesh.faces.length)
-      continue;
+    if (!Number.isInteger(face) || face < 0 || face >= data.mesh.faces.length) continue;
     const start = data.faceTriangleOffsets[face] ?? 0;
     const end = data.faceTriangleOffsets[face + 1] ?? start;
     for (let vertex = start * 3; vertex < end * 3; vertex++)
@@ -84,10 +71,7 @@ export function componentGeometry(source: BufferGeometry): ComponentGeometry {
   }
   const picking = new BufferGeometry();
   // Each picking geometry owns its attribute, so disposing one cannot affect another.
-  picking.setAttribute(
-    "position",
-    new Float32BufferAttribute(prepared.positions, 3),
-  );
+  picking.setAttribute("position", new Float32BufferAttribute(prepared.positions, 3));
   picking.computeBoundingSphere();
   return {
     mesh,
@@ -97,6 +81,7 @@ export function componentGeometry(source: BufferGeometry): ComponentGeometry {
     edges: prepared.edges,
   };
 }
+/** Picks the component of the given kind on a triangle that is nearest the cursor, measured on screen. */
 export function pickComponent(
   data: ComponentGeometry,
   triangle: number,
@@ -112,13 +97,8 @@ export function pickComponent(
   if (!face) return undefined;
   if (kind === "face") return String(faceId);
   const pixels = (id: number) => {
-    const p = data.mesh.positions[id]
-      ?.clone()
-      .applyMatrix4(matrix)
-      .project(camera);
-    return p
-      ? new Vector2((p.x * width) / 2, (p.y * height) / 2)
-      : new Vector2(Infinity, Infinity);
+    const p = data.mesh.positions[id]?.clone().applyMatrix4(matrix).project(camera);
+    return p ? new Vector2((p.x * width) / 2, (p.y * height) / 2) : new Vector2(Infinity, Infinity);
   };
   const point = new Vector2((cursor.x * width) / 2, (cursor.y * height) / 2);
   let best = 12;
@@ -136,13 +116,7 @@ export function pickComponent(
             .clone()
             .addScaledVector(
               delta,
-              Math.max(
-                0,
-                Math.min(
-                  1,
-                  point.clone().sub(a).dot(delta) / (delta.lengthSq() || 1),
-                ),
-              ),
+              Math.max(0, Math.min(1, point.clone().sub(a).dot(delta) / (delta.lengthSq() || 1))),
             );
     const distance = nearest.distanceTo(point);
     if (distance < best) {

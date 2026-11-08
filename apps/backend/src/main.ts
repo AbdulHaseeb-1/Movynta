@@ -27,16 +27,12 @@ async function bootstrap(): Promise<void> {
     () => {
       void connection
         .publish(effectiveConfig.auth.secret)
-        .catch(() =>
-          new Logger("Bootstrap").warn("Could not refresh desktop connection"),
-        );
+        .catch(() => new Logger("Bootstrap").warn("Could not refresh desktop connection"));
     },
     60 * 60 * 1000,
   );
   rotation.unref();
-  new Logger("Bootstrap").log(
-    `Movynta backend listening on http://${config.host}:${config.port}`,
-  );
+  new Logger("Bootstrap").log(`Movynta backend listening on http://${config.host}:${config.port}`);
 }
 
 await bootstrap();

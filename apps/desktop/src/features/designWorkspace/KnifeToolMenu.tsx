@@ -12,11 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { parseSnapAngle } from "./knifeSettings";
 import { setKnifeSettings } from "./workspaceSlice";
 interface Props {
   start: (onlySelected?: boolean) => void;
   disabled: boolean;
 }
+/** The Knife options and the button that starts a Knife stroke. */
 export function KnifeToolMenu({ start, disabled }: Props) {
   const dispatch = useAppDispatch(),
     settings = useAppSelector((state) => state.designWorkspace.knifeSettings);
@@ -35,21 +37,13 @@ export function KnifeToolMenu({ start, disabled }: Props) {
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            className="size-6"
-            disabled={disabled}
-            aria-label="Knife settings"
-          >
+          <Button size="icon-sm" variant="ghost" className="size-6" disabled={disabled} aria-label="Knife settings">
             <ChevronDown className="size-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuLabel>Knife settings</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => start(true)}>
-            Cut selected faces · Shift+K
-          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => start(true)}>Cut selected faces · Shift+K</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={(event) => {
@@ -70,13 +64,10 @@ export function KnifeToolMenu({ start, disabled }: Props) {
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault();
-              dispatch(
-                setKnifeSettings({ measures: (settings.measures + 1) % 4 }),
-              );
+              dispatch(setKnifeSettings({ measures: (settings.measures + 1) % 4 }));
             }}
           >
-            Measurements:{" "}
-            {["Off", "Distance", "Angles", "Both"][settings.measures]} · S
+            Measurements: {["Off", "Distance", "Angles", "Both"][settings.measures]} · S
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Angle snapping · A</DropdownMenuLabel>
@@ -84,15 +75,12 @@ export function KnifeToolMenu({ start, disabled }: Props) {
             value={String(settings.angleMode)}
             onValueChange={(value) => {
               const angleMode = Number(value);
-              if ([0, 1, 2].includes(angleMode))
-                dispatch(setKnifeSettings({ angleMode }));
+              if ([0, 1, 2].includes(angleMode)) dispatch(setKnifeSettings({ angleMode }));
             }}
           >
             <DropdownMenuRadioItem value="0">Off</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="1">Screen</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="2">
-              Relative to surface edge
-            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="2">Relative to surface edge</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
           <label htmlFor="knife-angle" className="grid gap-1 px-2 py-2 text-xs">
             Snap increment (degrees)
@@ -103,18 +91,19 @@ export function KnifeToolMenu({ start, disabled }: Props) {
               max="180"
               step="any"
               defaultValue={settings.angle}
+              onChange={(event) => {
+                // Saved as it is typed: closing the menu removes the field without a blur, which lost the value.
+                const angle = parseSnapAngle(event.target.value);
+                if (angle !== null) dispatch(setKnifeSettings({ angle }));
+              }}
               onBlur={(event) => {
-                const angle = Number(event.target.value);
-                if (angle > 0 && angle <= 180)
-                  dispatch(setKnifeSettings({ angle }));
-                else event.target.value = String(settings.angle);
+                if (parseSnapAngle(event.target.value) === null) event.target.value = String(settings.angle);
               }}
               onKeyDown={(event) => event.stopPropagation()}
             />
           </label>
           <p className="px-2 pb-2 text-[11px] text-muted-foreground">
-            Draw across full faces. Enter confirms; Esc cancels. Interior
-            endpoints and loose edges are unsupported.
+            Draw across full faces. Enter confirms; Esc cancels. Interior endpoints and loose edges are unsupported.
           </p>
         </DropdownMenuContent>
       </DropdownMenu>

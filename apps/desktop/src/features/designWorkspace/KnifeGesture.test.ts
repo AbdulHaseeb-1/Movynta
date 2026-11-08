@@ -198,6 +198,27 @@ describe("interactive Knife", () => {
     expect(knifeIsActive()).toBe(false);
     f.gesture.dispose();
   });
+  it("leaves Ctrl, Cmd and Alt combinations alone, so Ctrl+C or Ctrl+Shift+Z do not toggle or undo", () => {
+    const f = fixture(),
+      original = f.mesh.geometry;
+    f.key("k");
+    f.pointer("pointerdown", 100, 400);
+    f.pointer("pointerup", 700, 400);
+    const drawn = f.mesh.geometry;
+    expect(drawn).not.toBe(original);
+    f.key("a");
+    f.key("c", true);
+    f.key("v", true);
+    f.key("a", true);
+    f.key("z", true, true);
+    expect(f.mesh.geometry).toBe(drawn);
+    const status = f.status.mock.lastCall?.[0] ?? "";
+    expect(status).toContain("C through off");
+    expect(status).toContain("V X-ray on");
+    expect(status).toContain("A screen");
+    f.key("Escape");
+    f.gesture.dispose();
+  });
   it("constrains the drawn line to global and local axes", () => {
     const f = fixture();
     f.mesh.rotation.z = Math.PI / 4;

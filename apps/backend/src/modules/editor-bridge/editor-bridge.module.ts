@@ -8,6 +8,7 @@ import { EditorBridgeService } from "./editor-bridge.service.js";
 import { CommandProposalRepository } from "./proposals/command-proposal.repository.js";
 import { CommandProposalService } from "./proposals/command-proposal.service.js";
 
+/** Connects the backend to the desktop editor over a WebSocket. */
 @Module({
   imports: [AuthModule, ProjectsModule, ApprovalsModule],
   providers: [

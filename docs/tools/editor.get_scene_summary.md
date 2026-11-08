@@ -15,6 +15,7 @@
 ## When the assistant uses it
 
 - When the assistant needs the size and shape of the scene without the full object list.
+- Before choosing how to read a large scene: with more than about 60 objects, continue with editor.read_branch.
 
 ## Input
 
@@ -65,4 +66,5 @@ Result:
 
 ## Related
 
+- [`editor.read_branch`](editor.read_branch.md)
 - [`editor.get_context`](editor.get_context.md)

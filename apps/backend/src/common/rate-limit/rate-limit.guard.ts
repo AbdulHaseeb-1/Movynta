@@ -23,7 +23,8 @@ export class RateLimitGuard implements CanActivate {
     const now = Date.now();
 
     const existing = this.windows.get(client);
-    const window = existing && existing.resetAt > now ? existing : { count: 0, resetAt: now + this.config.rateLimit.windowMs };
+    const window =
+      existing && existing.resetAt > now ? existing : { count: 0, resetAt: now + this.config.rateLimit.windowMs };
     window.count += 1;
     this.windows.set(client, window);
 

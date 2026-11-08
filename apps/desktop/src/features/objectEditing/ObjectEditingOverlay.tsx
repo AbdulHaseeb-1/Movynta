@@ -21,11 +21,7 @@ interface ObjectEditingOverlayProps {
  * The selection's values, with any problem saving a change above them. It is a column that sits where
  * its parent puts it, so it never needs to know where the other controls are.
  */
-export function ObjectEditingOverlay({
-  editing,
-  disabled,
-  className,
-}: ObjectEditingOverlayProps) {
+export function ObjectEditingOverlay({ editing, disabled, className }: ObjectEditingOverlayProps) {
   return (
     <div className={cn("pointer-events-none flex min-h-0 flex-col items-end gap-2", className)}>
       {editing.error && (

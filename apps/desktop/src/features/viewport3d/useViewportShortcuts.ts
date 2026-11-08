@@ -1,13 +1,14 @@
 import { useEffect } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import type { Viewport } from "./viewport";
-import { isTypingTarget } from "@/lib/dom";
+import { isShortcutBlocked } from "@/lib/dom";
 import { viewportShortcut } from "./viewportShortcuts";
 import { toggleWireframe, toggleXray } from "./viewportSlice";
 
 /** How far one zoom key or button moves the camera. */
 export const ZOOM_STEP = 1.35;
 
+/** Options for the viewport keyboard shortcuts hook. */
 export interface ViewportShortcutOptions {
   viewport: Viewport | null;
   /** Moves the camera to show the selection, or the whole scene. Without it, "." and Home do nothing. */
@@ -22,7 +23,7 @@ export function useViewportShortcuts({ viewport, onFrame }: ViewportShortcutOpti
   const dispatch = useAppDispatch();
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isTypingTarget(event.target)) return;
+      if (event.defaultPrevented || isShortcutBlocked(event.target)) return;
       const shortcut = viewportShortcut(event);
       if (!shortcut) return;
       switch (shortcut.kind) {

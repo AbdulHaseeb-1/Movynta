@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AppConfig } from "./config.types.js";
 import { envSchema } from "./env.validation.js";
 
+/** The database location that keeps everything in memory, used by tests. */
 export const MEMORY_DATABASE = ":memory:";
 
 const mcpServersSchema = z.array(

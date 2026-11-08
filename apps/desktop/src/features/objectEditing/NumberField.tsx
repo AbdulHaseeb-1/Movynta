@@ -43,13 +43,19 @@ export function NumberField({
     step,
     ...(min === undefined ? {} : { min }),
     disabled,
-    onPreview: (next) => { setDraft(formatNumber(next)); onPreview?.(next); },
+    onPreview: (next) => {
+      setDraft(formatNumber(next));
+      onPreview?.(next);
+    },
     onCommit: (next) => {
       setDraft(null);
       if (onPreviewEnd) onPreviewEnd(true);
       else if (next !== value) onCommit(next);
     },
-    onCancel: () => { setDraft(null); onPreviewEnd?.(false); },
+    onCancel: () => {
+      setDraft(null);
+      onPreviewEnd?.(false);
+    },
   });
 
   function finish(commit: boolean) {
@@ -74,9 +80,7 @@ export function NumberField({
       event.currentTarget.blur();
     } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
-      const amount =
-        (event.shiftKey ? step * 10 : step) *
-        (event.key === "ArrowUp" ? 1 : -1);
+      const amount = (event.shiftKey ? step * 10 : step) * (event.key === "ArrowUp" ? 1 : -1);
       setDraft(null);
       onCommit(atLeast(Number((value + amount).toFixed(6))));
     }
@@ -110,9 +114,10 @@ export function NumberField({
         onClick={scrub.onClick}
         onKeyDown={(event) => {
           if (disabled || !["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp"].includes(event.key)) return;
-          event.preventDefault(); event.stopPropagation();
+          event.preventDefault();
+          event.stopPropagation();
           const sign = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : -1;
-          onCommit(Math.max(min ?? -Infinity, Number((value + sign * step * (event.shiftKey ? .1 : 1)).toFixed(6))));
+          onCommit(Math.max(min ?? -Infinity, Number((value + sign * step * (event.shiftKey ? 0.1 : 1)).toFixed(6))));
         }}
       >
         {label}

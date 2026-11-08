@@ -20,19 +20,26 @@ export class AgentRegistry {
   }
 
   list(): AgentSummary[] {
-    return [...this.definitions.values()].filter((definition) => definition.internal !== true).map(({ id, name, description, version }) => ({
-      id,
-      name,
-      description,
-      version,
-    }));
+    return [...this.definitions.values()]
+      .filter((definition) => definition.internal !== true)
+      .map(({ id, name, description, version }) => ({
+        id,
+        name,
+        description,
+        version,
+      }));
   }
 
   /** The public description of an agent. Internal agents do not exist as far as clients can tell. */
   summary(agentId: string): AgentSummary {
     const definition = this.definitions.get(agentId);
     if (!definition || definition.internal === true) throw new NotFoundError("Agent not found");
-    return { id: definition.id, name: definition.name, description: definition.description, version: definition.version };
+    return {
+      id: definition.id,
+      name: definition.name,
+      description: definition.description,
+      version: definition.version,
+    };
   }
 
   /** Returns the shared SDK agent for an id. Throws NotFound for unknown ids. */

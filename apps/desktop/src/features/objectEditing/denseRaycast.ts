@@ -39,7 +39,6 @@ const point = new Vector3();
 const bestPoint = new Vector3();
 const worldPoint = new Vector3();
 
-
 function positionOf(geometry: BufferGeometry): BufferAttribute | undefined {
   const position = geometry.getAttribute("position");
   return position instanceof BufferAttribute && position.itemSize === 3 ? position : undefined;
@@ -190,7 +189,10 @@ function raycastDense(this: Mesh, raycaster: Raycaster, intersects: Intersection
   if (best === Infinity) return;
   const first = bestTriangle * 3;
   intersects.push({
-    distance: best, point: bestPoint.clone(), object: this, faceIndex: bestTriangle,
+    distance: best,
+    point: bestPoint.clone(),
+    object: this,
+    faceIndex: bestTriangle,
     face: {
       a: indices ? indices.getX(first) : first,
       b: indices ? indices.getX(first + 1) : first + 1,
@@ -208,6 +210,9 @@ function raycastDense(this: Mesh, raycaster: Raycaster, intersects: Intersection
 export function accelerateRaycasts(root: Object3D, minimumTriangles = DENSE_TRIANGLES): void {
   root.traverse((node) => {
     if (!isMesh(node) || patched.has(node) || "isSkinnedMesh" in node || "isInstancedMesh" in node) return;
-    if (indexOf(node.geometry, minimumTriangles) !== null) { patched.add(node); node.raycast = raycastDense; }
+    if (indexOf(node.geometry, minimumTriangles) !== null) {
+      patched.add(node);
+      node.raycast = raycastDense;
+    }
   });
 }

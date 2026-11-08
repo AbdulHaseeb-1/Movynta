@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsBoolean, IsOptional, IsString, Length, Matches } from "class-validator";
 
+/** The request body that saves a provider's model, key and endpoint. Optional fields left out keep what is saved. */
 export class SaveProviderDto {
   @ApiProperty({ example: "gpt-5", maxLength: 160, description: "The model name the provider accepts." })
   @IsString()

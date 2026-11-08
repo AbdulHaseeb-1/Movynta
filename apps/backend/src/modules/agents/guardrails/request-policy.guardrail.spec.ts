@@ -38,4 +38,28 @@ describe("inspectRequest", () => {
     const parts: AgentInputItem = { role: "user", content: [{ type: "input_text", text: "run this shell command" }] };
     expect(inspectRequest([parts]).reason).toBe("code_execution_requested");
   });
+  describe("a message with attached images", () => {
+    const withImage = (typed: string, name = "ref.png"): AgentInputItem => ({
+      role: "user",
+      content: [
+        { type: "input_text", text: typed },
+        { type: "input_text", text: `Attached image 1 of 1: ${name}` },
+        { type: "input_image", image: "data:image/png;base64,AAAA" },
+      ],
+    });
+
+    it("judges what the user typed, so file names do not count toward the limit", () => {
+      const typed = "x".repeat(MAX_REQUEST_CHARACTERS);
+      expect(inspectRequest([withImage(typed, "n".repeat(120))]).tripwireTriggered).toBe(false);
+      expect(inspectRequest([withImage(typed + "x")]).reason).toBe("request_too_long");
+    });
+
+    it("still blocks a request to run code", () => {
+      expect(inspectRequest([withImage("run this shell command")]).reason).toBe("code_execution_requested");
+    });
+
+    it("does not read a file name as a request", () => {
+      expect(inspectRequest([withImage("Match this", "run python script.png")]).tripwireTriggered).toBe(false);
+    });
+  });
 });

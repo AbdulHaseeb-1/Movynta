@@ -1,13 +1,6 @@
 /** The 3D file formats the app can open. Each is read in the app, not on the backend. */
-export const MODEL_FORMATS = [
-  "glb",
-  "gltf",
-  "obj",
-  "fbx",
-  "stl",
-  "ply",
-  "dae",
-] as const;
+export const MODEL_FORMATS = ["glb", "gltf", "obj", "fbx", "stl", "ply", "dae"] as const;
+/** A 3D model file format the importer can read. */
 export type ModelFormat = (typeof MODEL_FORMATS)[number];
 
 /** The file dialog's filter. */
@@ -27,6 +20,7 @@ export const MODEL_FORMAT_NAMES: Readonly<Record<ModelFormat, string>> = {
   dae: "Collada",
 };
 
+/** Whether a file extension is a model format the importer can read. */
 export function isModelFormat(value: string): value is ModelFormat {
   return MODEL_FORMATS.some((format) => format === value);
 }
@@ -51,6 +45,7 @@ export function unsupportedFileMessage(fileName: string): string {
   return `${extension ? `.${extension} files` : "This file"} cannot be imported. Use ${supported}.`;
 }
 
+/** A file size as text for people: bytes, KB or MB. */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

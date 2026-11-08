@@ -1,20 +1,10 @@
-import {
-  Vector2,
-  Vector4,
-  type Vector3,
-  type Camera,
-  type Matrix4,
-} from "three";
-import {
-  edgeKey,
-  point,
-  topology,
-  type PolygonMesh,
-} from "@/features/meshGeometry/meshTopology";
+import { Vector2, Vector4, type Vector3, type Camera, type Matrix4 } from "three";
+import { edgeKey, point, topology, type PolygonMesh } from "@/features/meshGeometry/meshTopology";
 import type { KnifePoint } from "@/features/meshGeometry/meshKnifeChord";
 import type { KnifeSegment } from "@/features/meshGeometry/meshKnifeSession";
 
 const graphs = new WeakMap<PolygonMesh, ReturnType<typeof topology>>();
+/** The topology of a mesh, computed once and reused for the same mesh object. */
 export function knifeGraph(mesh: PolygonMesh): ReturnType<typeof topology> {
   let graph = graphs.get(mesh);
   if (!graph) {
@@ -23,12 +13,14 @@ export function knifeGraph(mesh: PolygonMesh): ReturnType<typeof topology> {
   }
   return graph;
 }
+/** A mesh vertex projected onto the screen, with its depth. */
 export interface ProjectedVertex {
   screen: Vector2;
   w: number;
   depth: number;
   local: Vector3;
 }
+/** Projects every vertex of a mesh to screen pixels, keeping each vertex's depth and local position. */
 export function projectKnife(
   mesh: PolygonMesh,
   matrix: Matrix4,
@@ -46,10 +38,7 @@ export function projectKnife(
       local,
       w: p.w,
       depth: p.z / p.w,
-      screen: new Vector2(
-        ((p.x / p.w + 1) * width) / 2,
-        ((1 - p.y / p.w) * height) / 2,
-      ),
+      screen: new Vector2(((p.x / p.w + 1) * width) / 2, ((1 - p.y / p.w) * height) / 2),
     };
   });
 }
@@ -60,10 +49,8 @@ function cross(a: Vector2, b: Vector2): number {
 export function perspectiveEdgeFactor(u: number, a: number, b: number): number {
   return (u * a) / ((1 - u) * b + u * a);
 }
-export function knifePointPosition(
-  mesh: PolygonMesh,
-  value: KnifePoint,
-): Vector3 {
+/** The 3D position of a knife point: on a vertex, or on an edge at a factor between its ends. */
+export function knifePointPosition(mesh: PolygonMesh, value: KnifePoint): Vector3 {
   if ("vertex" in value) return point(mesh, Number(value.vertex)).clone();
   const [a, b] = value.edge.split("_").map(Number);
   return point(mesh, a).clone().lerp(point(mesh, b), value.factor);
@@ -97,17 +84,7 @@ export function projectedKnifeSegments(
       if (from === undefined || to === undefined) continue;
       const a = projected[from],
         b = projected[to];
-      if (
-        !a ||
-        !b ||
-        a.w <= 0 ||
-        b.w <= 0 ||
-        a.depth < -1 ||
-        a.depth > 1 ||
-        b.depth < -1 ||
-        b.depth > 1
-      )
-        continue;
+      if (!a || !b || a.w <= 0 || b.w <= 0 || a.depth < -1 || a.depth > 1 || b.depth < -1 || b.depth > 1) continue;
       const edge = b.screen.clone().sub(a.screen),
         delta = a.screen.clone().sub(start),
         divisor = cross(direction, edge);
@@ -115,11 +92,7 @@ export function projectedKnifeSegments(
       const t = cross(delta, edge) / divisor,
         u = cross(delta, direction) / divisor;
       if (t < -1e-7 || t > 1 + 1e-7 || u < -1e-7 || u > 1 + 1e-7) continue;
-      const ratio = perspectiveEdgeFactor(
-        Math.max(0, Math.min(1, u)),
-        a.w,
-        b.w,
-      );
+      const ratio = perspectiveEdgeFactor(Math.max(0, Math.min(1, u)), a.w, b.w);
       const endpoint: KnifePoint =
         ratio <= 1e-8
           ? { vertex: String(from) }
@@ -129,8 +102,7 @@ export function projectedKnifeSegments(
                 edge: edgeKey(from, to),
                 factor: from < to ? ratio : 1 - ratio,
               };
-      if (crossings.some((entry) => Math.abs(entry.along - t) * length < 1e-5))
-        continue;
+      if (crossings.some((entry) => Math.abs(entry.along - t) * length < 1e-5)) continue;
       crossings.push({
         along: t,
         endpoint,
@@ -149,12 +121,7 @@ export function projectedKnifeSegments(
         topologyEdge(face, Number(a.endpoint.vertex), Number(b.endpoint.vertex))
       )
         continue;
-      if (
-        "edge" in a.endpoint &&
-        "edge" in b.endpoint &&
-        a.endpoint.edge === b.endpoint.edge
-      )
-        continue;
+      if ("edge" in a.endpoint && "edge" in b.endpoint && a.endpoint.edge === b.endpoint.edge) continue;
       output.push({
         segment: { face: faceId, start: a.endpoint, end: b.endpoint },
         midpoint: a.screen.clone().add(b.screen).multiplyScalar(0.5),
@@ -167,12 +134,10 @@ export function projectedKnifeSegments(
 }
 function topologyEdge(face: number[], a: number, b: number): boolean {
   return face.some(
-    (v, i) =>
-      v === a &&
-      (face[(i + 1) % face.length] === b ||
-        face[(i + face.length - 1) % face.length] === b),
+    (v, i) => v === a && (face[(i + 1) % face.length] === b || face[(i + face.length - 1) % face.length] === b),
   );
 }
+/** Snaps the cursor to a nearby vertex, or an edge midpoint, on screen when one is within reach. */
 export function snapKnife(
   mesh: PolygonMesh,
   projected: ProjectedVertex[],
@@ -185,13 +150,7 @@ export function snapKnife(
   if (!midpoint)
     projected.forEach((vertex) => {
       const distance = vertex.screen.distanceTo(cursor);
-      if (
-        vertex.w > 0 &&
-        vertex.depth >= -1 &&
-        vertex.depth <= 1 &&
-        distance < best &&
-        visible(vertex.local)
-      ) {
+      if (vertex.w > 0 && vertex.depth >= -1 && vertex.depth <= 1 && distance < best && visible(vertex.local)) {
         best = distance;
         result = vertex.screen.clone();
       }
@@ -202,27 +161,11 @@ export function snapKnife(
     if (!half) continue;
     const a = projected[half.from],
       b = projected[half.to];
-    if (
-      !a ||
-      !b ||
-      a.w <= 0 ||
-      b.w <= 0 ||
-      a.depth < -1 ||
-      a.depth > 1 ||
-      b.depth < -1 ||
-      b.depth > 1
-    )
-      continue;
+    if (!a || !b || a.w <= 0 || b.w <= 0 || a.depth < -1 || a.depth > 1 || b.depth < -1 || b.depth > 1) continue;
     const delta = b.screen.clone().sub(a.screen);
     const u = midpoint
       ? b.w / (a.w + b.w)
-      : Math.max(
-          0,
-          Math.min(
-            1,
-            cursor.clone().sub(a.screen).dot(delta) / (delta.lengthSq() || 1),
-          ),
-        );
+      : Math.max(0, Math.min(1, cursor.clone().sub(a.screen).dot(delta) / (delta.lengthSq() || 1)));
     const target = a.screen.clone().addScaledVector(delta, u),
       distance = target.distanceTo(cursor);
     const t = perspectiveEdgeFactor(u, a.w, b.w);

@@ -14,7 +14,7 @@ export const QUALITY_REVIEWER_INSTRUCTIONS = [
   "",
   "Verdicts:",
   "- ready only when no major defect remains and you have looked at the scene from at least two views. Describe what you checked on at least two different aspects.",
-  "- needs_refinement when a major defect remains. Give each major defect as a finding with a concrete fix the builder can do with scene commands (for example: \"raise the backrest 0.15 so it meets the seat\"), not a feeling. Order findings by how much they matter, and give at most five.",
+  '- needs_refinement when a major defect remains. Give each major defect as a finding with a concrete fix the builder can do with scene commands (for example: "raise the backrest 0.15 so it meets the seat"), not a feeling. Order findings by how much they matter, and give at most five.',
   "- blocked when you cannot judge. Say what could not be checked.",
   "",
   "Major means the result fails the request: a missing or floating part, wrong proportions, wrong scale, a broken silhouette. Minor means polish. Do not invent problems to look thorough, and do not pass work you have not examined. If a previous review's findings are listed in your message, check that each one is fixed.",

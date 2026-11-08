@@ -1,10 +1,4 @@
-import {
-  type BufferGeometry,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-  type Object3D,
-} from "three";
+import { type BufferGeometry, Group, Mesh, MeshStandardMaterial, type Object3D } from "three";
 import type { ModelFormat } from "./modelFormats";
 import { parseObj } from "./objParser";
 
@@ -27,19 +21,13 @@ function meshOf(geometry: BufferGeometry): Mesh {
  * Reads a model file into three.js objects. The readers are loaded on demand, so they cost nothing
  * until the first import. Throws a readable message when the file cannot be understood.
  */
-export async function parseModel(
-  format: ModelFormat,
-  data: ArrayBuffer,
-): Promise<Object3D> {
+export async function parseModel(format: ModelFormat, data: ArrayBuffer): Promise<Object3D> {
   switch (format) {
     case "glb":
     case "gltf": {
       const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
       // A .gltf must hold its own data: references to separate .bin or texture files cannot be followed.
-      const gltf = await new GLTFLoader().parseAsync(
-        format === "gltf" ? decoder.decode(data) : data,
-        "",
-      );
+      const gltf = await new GLTFLoader().parseAsync(format === "gltf" ? decoder.decode(data) : data, "");
       return gltf.scene;
     }
     case "obj":

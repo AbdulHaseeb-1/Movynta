@@ -1,6 +1,6 @@
 ---
 name: topology-and-subdivision
-version: 1.0.0
+version: 1.1.0
 description: Plans and checks clean mesh topology (quad flow, edge loops, poles, support loops, even density) so models subdivide, shade and deform well, and fixes pinching, faceting and wasted polygons.
 dimensions:
   - 3d
@@ -49,10 +49,14 @@ validation:
   - The mesh is re-inspected after each topology edit, because component ids change.
   - Wireframe and normals captures after the change show no new pinching, flipped faces or unintended open boundaries.
   - The final triangle count stays within the stated budget, or the report explains why it does not.
+  - Each topology edit is its own chunk: one object, one edit, applied, re-inspected and captured before the next edit.
+  - Subdivision and other stack changes come last and are added one entry at a time, with a capture after each.
 error_handling:
   - If a loop cut stops early, the ring hit a triangle, n-gon or boundary; report where, and offer a support bevel or face subdivision instead.
   - If an edit is refused for enabled modifiers, disable the stack, make the edit alone, then restore the stack with the same ids and parameters.
   - If a dissolve or merge is refused, do not force it; leave the topology and explain the blocking seam, material boundary or non-manifold result.
+  - If an edit makes the mesh worse (pinching, flipped faces, new open boundaries), correct or undo that edit before making another.
+  - Never edit a second object while the first is failing its check.
 ---
 
 # Topology and subdivision
@@ -81,6 +85,16 @@ Good topology is invisible: the surface shades smoothly, holds its corners, subd
 | Will be animated | Loops around joints (2–3 loops per bending joint), quads only in deforming areas, poles away from joints |
 
 Triangle budgets (rough guides): background prop 100–1,000; mid prop 1,000–10,000; hero prop or character 10,000–20,000 (the editable input limit is 20,000 triangles per generated mesh, so stay well under it before subdivision).
+
+## Chunks and gates
+
+Work on one object and one edit at a time.
+
+1. **Baseline.** Inspect counts, boundaries and winding, and capture `wireframe` and `normals`. Write down the triangle count and what is wrong.
+2. **One edit.** Choose the single edit from the workflow below, propose it alone with the inspection revision and modifiers disabled, preview it with `viewport.capture` and its `proposalId`, then apply.
+3. **Gate.** Inspect again (ids changed), confirm the counts and boundaries are what you expected, and capture `wireframe` and `normals`. The edit passes if it fixed what step 1 listed and added no pinching, flipped faces or open boundaries.
+4. **Next edit** only after the gate passes. Restore the modifier stack once all edits to that object are done, then capture again with the stack on.
+5. **Close.** Report the triangle count before and after and what each edit changed.
 
 ## Workflow
 

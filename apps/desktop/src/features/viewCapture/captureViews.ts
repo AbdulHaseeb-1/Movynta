@@ -45,7 +45,6 @@ interface Entry {
   object: Object3D;
 }
 
-
 function isLight(node: Object3D): boolean {
   return "isLight" in node && node.isLight === true;
 }
@@ -127,7 +126,12 @@ function buildCamera(pose: CameraPose, aspect: number, reach: number): Perspecti
 }
 
 /** Turns what the render target holds (bottom row first) into a JPEG with the overlay drawn on it. */
-function encode(pixels: Uint8Array, width: number, height: number, draw: (context: CanvasRenderingContext2D) => void): string {
+function encode(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+  draw: (context: CanvasRenderingContext2D) => void,
+): string {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -248,7 +252,12 @@ function addGuides(scene: Viewport["scene"], framed: Subject, restorer: Restorer
  * The visible viewport is not touched: the scene is changed only for the moment of drawing (a different
  * background, helpers hidden, a light added) and put back before this returns, even if drawing fails.
  */
-export function captureViews(viewport: Viewport, editor: CaptureScene, request: ViewCaptureRequest, options: CaptureOptions): ViewCaptureResult {
+export function captureViews(
+  viewport: Viewport,
+  editor: CaptureScene,
+  request: ViewCaptureRequest,
+  options: CaptureOptions,
+): ViewCaptureResult {
   const { scene, renderer } = viewport;
   const width = request.width ?? DEFAULT_WIDTH;
   const height = request.height ?? DEFAULT_HEIGHT;
@@ -262,7 +271,9 @@ export function captureViews(viewport: Viewport, editor: CaptureScene, request: 
   const highlight = resolve(request.highlight, editor, missingIds);
   const highlighted = new Set(highlight.map((entry) => entry.id));
 
-  const sceneBox = union(registered.filter(([, object]) => !hasTrackedAncestor(editor, object)).map(([, object]) => boundsOf(object)));
+  const sceneBox = union(
+    registered.filter(([, object]) => !hasTrackedAncestor(editor, object)).map(([, object]) => boundsOf(object)),
+  );
   const boundsById = new Map<string, Box3>();
   const boundsFor = (entry: Entry): Box3 => {
     const known = boundsById.get(entry.id);
@@ -275,8 +286,10 @@ export function captureViews(viewport: Viewport, editor: CaptureScene, request: 
   const subject: Subject = subjectOf(focusBox);
   const sceneSubject = subjectOf(sceneBox);
 
-  const listed: Entry[] = focus.length > 0 ? [...focus] : registered.slice(0, MAX_LISTED_OBJECTS).map(([id, object]) => ({ id, object }));
-  for (const entry of highlight) if (!listed.some((item) => item.id === entry.id) && listed.length < MAX_LISTED_OBJECTS) listed.push(entry);
+  const listed: Entry[] =
+    focus.length > 0 ? [...focus] : registered.slice(0, MAX_LISTED_OBJECTS).map(([id, object]) => ({ id, object }));
+  for (const entry of highlight)
+    if (!listed.some((item) => item.id === entry.id) && listed.length < MAX_LISTED_OBJECTS) listed.push(entry);
 
   const current = {
     position: viewport.camera.position.clone(),
@@ -286,7 +299,9 @@ export function captureViews(viewport: Viewport, editor: CaptureScene, request: 
 
   const restorer = new Restorer();
   const previousTarget = renderer.getRenderTarget();
-  const target = options.withImages ? new WebGLRenderTarget(width, height, { samples: MSAA_SAMPLES, colorSpace: SRGBColorSpace }) : undefined;
+  const target = options.withImages
+    ? new WebGLRenderTarget(width, height, { samples: MSAA_SAMPLES, colorSpace: SRGBColorSpace })
+    : undefined;
   const images: CapturedImage[] = [];
 
   try {
@@ -302,7 +317,8 @@ export function captureViews(viewport: Viewport, editor: CaptureScene, request: 
         for (const [, object] of registered) if (!keep.has(object)) restorer.hide(object);
       }
       // What the assistant asked to look at is shown even if the user hid it.
-      for (const { object } of focus) for (let node: Object3D | null = object; node; node = node.parent) restorer.show(node);
+      for (const { object } of focus)
+        for (let node: Object3D | null = object; node; node = node.parent) restorer.show(node);
       applyMode(scene, mode, restorer);
       if (request.guides !== false) addGuides(scene, subject, restorer);
 
@@ -340,7 +356,9 @@ export function captureViews(viewport: Viewport, editor: CaptureScene, request: 
         const pixels = new Uint8Array(width * height * 4);
         renderer.readRenderTargetPixels(target, 0, 0, width, height, pixels);
         const caption = [label, pose.projection, ...(mode === "solid" ? [] : [mode])].join(" | ");
-        data = encode(pixels, width, height, (context) => drawOverlay(context, width, height, { items, labels: request.labels !== false, caption }));
+        data = encode(pixels, width, height, (context) =>
+          drawOverlay(context, width, height, { items, labels: request.labels !== false, caption }),
+        );
       }
 
       images.push({

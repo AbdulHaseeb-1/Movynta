@@ -3,6 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import {
   chatgptErrorDismissed,
+  chatgptLoginStarted,
   chatgptLoginStartSchema,
   chatgptSessionLoaded,
   chatgptSessionSchema,
@@ -14,6 +15,7 @@ import { backendRequest, errorMessage } from "@/lib/backend";
 
 const POLL_INTERVAL_MS = 1500;
 
+/** What the ChatGPT sign-in hook returns: its state and actions. */
 export interface ChatgptSignIn {
   session: ChatgptSession | null;
   busy: boolean;
@@ -44,22 +46,18 @@ export function useChatgptSignIn(): ChatgptSignIn {
   const sessionError = useAppSelector((state) => state.chatgptSession.error);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
-  const [authorizationUrl, setAuthorizationUrl] = useState("");
+  // Kept in the store, not here, so the page can still be opened after Settings was closed and opened again.
+  const authorizationUrl = useAppSelector((state) => state.chatgptSession.authorizationUrl);
   const polling = useRef(false);
 
   const loadSession = useCallback(async () => {
-    const next = await backendRequest(
-      "/providers/chatgpt/session",
-      chatgptSessionSchema,
-    );
+    const next = await backendRequest("/providers/chatgpt/session", chatgptSessionSchema);
     dispatch(chatgptSessionLoaded(next));
     return next;
   }, [dispatch]);
 
   const reloadProviders = useCallback(async () => {
-    dispatch(
-      providersLoaded(await backendRequest("/providers", providersSchema)),
-    );
+    dispatch(providersLoaded(await backendRequest("/providers", providersSchema)));
   }, [dispatch]);
 
   const pending = session?.state === "pending";
@@ -80,18 +78,21 @@ export function useChatgptSignIn(): ChatgptSignIn {
     return () => window.clearInterval(timer);
   }, [pending, loadSession, reloadProviders]);
 
-  const run = useCallback(async (action: () => Promise<void>) => {
-    setBusy(true);
-    setActionError("");
-    dispatch(chatgptErrorDismissed());
-    try {
-      await action();
-    } catch (error) {
-      setActionError(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  }, [dispatch]);
+  const run = useCallback(
+    async (action: () => Promise<void>) => {
+      setBusy(true);
+      setActionError("");
+      dispatch(chatgptErrorDismissed());
+      try {
+        await action();
+      } catch (error) {
+        setActionError(errorMessage(error));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [dispatch],
+  );
 
   return {
     session,
@@ -99,42 +100,26 @@ export function useChatgptSignIn(): ChatgptSignIn {
     message: actionError || sessionError || "",
     signIn: () =>
       run(async () => {
-        const started = await backendRequest(
-          "/providers/chatgpt/login",
-          chatgptLoginStartSchema,
-          "POST",
-        );
-        setAuthorizationUrl(started.authorizationUrl);
+        const started = await backendRequest("/providers/chatgpt/login", chatgptLoginStartSchema, "POST");
+        dispatch(chatgptLoginStarted(started.authorizationUrl));
         await loadSession();
         await openInBrowser(started.authorizationUrl);
       }),
     reopen: () =>
       run(async () => {
-        if (authorizationUrl) await openInBrowser(authorizationUrl);
+        if (!authorizationUrl)
+          throw new Error("The sign-in page is no longer available here. Cancel the sign-in, then sign in again.");
+        await openInBrowser(authorizationUrl);
       }),
     cancel: () =>
       run(async () => {
         dispatch(
-          chatgptSessionLoaded(
-            await backendRequest(
-              "/providers/chatgpt/login",
-              chatgptSessionSchema,
-              "DELETE",
-            ),
-          ),
+          chatgptSessionLoaded(await backendRequest("/providers/chatgpt/login", chatgptSessionSchema, "DELETE")),
         );
       }),
     signOut: () =>
       run(async () => {
-        dispatch(
-          providersLoaded(
-            await backendRequest(
-              "/providers/chatgpt",
-              providersSchema,
-              "DELETE",
-            ),
-          ),
-        );
+        dispatch(providersLoaded(await backendRequest("/providers/chatgpt", providersSchema, "DELETE")));
         await loadSession();
       }),
   };

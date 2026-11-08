@@ -8,6 +8,7 @@ export interface OverlayItem {
   highlighted: boolean;
 }
 
+/** The options of the labels and highlights drawn on a captured view. */
 export interface OverlayOptions {
   items: readonly OverlayItem[];
   /** Write each object's id next to it. */
@@ -16,6 +17,7 @@ export interface OverlayOptions {
   caption: string;
 }
 
+/** The colour of the highlights drawn on a captured view. */
 export const HIGHLIGHT_COLOR = "#ff9b21";
 const LABEL_TEXT = "#f4f6fa";
 const LABEL_BACKGROUND = "rgba(8, 10, 14, 0.72)";
@@ -49,7 +51,12 @@ function drawTag(
 }
 
 /** Marks objects and names the view on a finished picture, so what the assistant sees can be tied to ids. */
-export function drawOverlay(context: CanvasRenderingContext2D, width: number, height: number, options: OverlayOptions): void {
+export function drawOverlay(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  options: OverlayOptions,
+): void {
   const fontSize = Math.max(11, Math.round(Math.min(width, height) / 48));
   context.save();
   context.font = `${fontSize}px ui-sans-serif, system-ui, sans-serif`;
@@ -68,7 +75,16 @@ export function drawOverlay(context: CanvasRenderingContext2D, width: number, he
     visible.sort((a, b) => area(b.rect) - area(a.rect));
     for (const item of visible.slice(0, MAX_LABELS)) {
       if (!item.rect) continue;
-      drawTag(context, item.id, item.rect.x, item.rect.y, width, height, item.highlighted ? HIGHLIGHT_COLOR : LABEL_TEXT, fontSize);
+      drawTag(
+        context,
+        item.id,
+        item.rect.x,
+        item.rect.y,
+        width,
+        height,
+        item.highlighted ? HIGHLIGHT_COLOR : LABEL_TEXT,
+        fontSize,
+      );
     }
   }
 

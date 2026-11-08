@@ -1,13 +1,16 @@
 import type { EditorCommand } from "@movynta/editor-protocol";
 
-import type { ProjectCategory, ProjectScope, ProjectSort } from "@movynta/contracts";
+import type { AttachmentSummary, ProjectCategory, ProjectScope, ProjectSort } from "@movynta/contracts";
 
 // The category, sort and scope lists are shared with the desktop app; these re-exports keep this module's public names.
 export { PROJECT_CATEGORIES, PROJECT_SCOPES, PROJECT_SORTS } from "@movynta/contracts";
+/** The project category, scope and sort types, shared with the desktop app. */
 export type { ProjectCategory, ProjectScope, ProjectSort } from "@movynta/contracts";
 
+/** The category a new project gets when none is given. */
 export const DEFAULT_PROJECT_CATEGORY: ProjectCategory = "design";
 
+/** The longest project name, in characters. */
 export const PROJECT_NAME_MAX_LENGTH = 80;
 
 /** A project as stored. An empty name means the user has not named it yet. */
@@ -37,6 +40,7 @@ export interface ProjectView {
   readonly firstPrompt: string;
 }
 
+/** The filters and sort used to list projects. */
 export interface ProjectListQuery {
   readonly search: string | undefined;
   readonly category: ProjectCategory | undefined;
@@ -45,6 +49,7 @@ export interface ProjectListQuery {
   readonly sort: ProjectSort;
 }
 
+/** The fields that may change on a project. */
 export interface ProjectPatch {
   readonly name?: string;
   readonly starred?: boolean;
@@ -53,9 +58,11 @@ export interface ProjectPatch {
 
 /** Model formats the app can open. The files are parsed in the app; the backend only keeps them. */
 export const ASSET_FORMATS = ["glb", "gltf", "obj", "fbx", "stl", "ply", "dae"] as const;
+/** The model file formats a project can import. */
 export type AssetFormat = (typeof ASSET_FORMATS)[number];
 /** The largest model file accepted, and how much one project may hold in total. */
 export const MAX_ASSET_BYTES = 64 * 1024 * 1024;
+/** The largest imported model file, in bytes. */
 export const MAX_PROJECT_ASSET_BYTES = 256 * 1024 * 1024;
 
 /** One applied batch of editor commands. */
@@ -77,6 +84,7 @@ export interface SceneImport {
 /** One change to a project's scene. Replaying the steps in order rebuilds it. */
 export type SceneStep = SceneBatch | SceneImport;
 
+/** What is needed to store an imported model file. */
 export interface NewAsset {
   readonly objectId: string;
   readonly name: string;
@@ -84,25 +92,23 @@ export interface NewAsset {
   readonly content: Uint8Array;
 }
 
+/** An imported model file as it is stored. */
 export interface StoredAsset {
   readonly name: string;
   readonly format: AssetFormat;
   readonly content: Uint8Array;
 }
 
-export type ProjectMessageStatus =
-  | "created"
-  | "running"
-  | "waiting_approval"
-  | "completed"
-  | "failed"
-  | "cancelled";
+/** The status of a request in a project's chat. */
+export type ProjectMessageStatus = "created" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled";
 
 /** One request and its reply, which is how a project's chat is restored. */
 export interface ProjectMessage {
   readonly runId: string;
   readonly prompt: string;
   readonly reply: string | undefined;
+  /** The pictures attached to the request, by name; their pixels are not kept. */
+  readonly attachments: readonly AttachmentSummary[];
   readonly status: ProjectMessageStatus;
   readonly error: string | undefined;
   readonly createdAt: string;
@@ -115,6 +121,7 @@ export interface ProjectConversationProvider {
   readonly baseUrl: string;
 }
 
+/** The saved chat of a project: its latest session and its requests, oldest first. */
 export interface ProjectConversation {
   /** The session to continue, or undefined when nothing has been asked yet. */
   readonly sessionId: string | undefined;

@@ -15,11 +15,7 @@ const hits: Intersection[] = [];
  * Only the nearest hit matters, so the objects are tested one at a time and the closest kept, rather
  * than collecting and sorting every hit in the scene. Dense meshes are tested with a spatial index.
  */
-export function pickObjectId(
-  editor: EditorScene,
-  camera: Camera,
-  ndc: Vector2,
-): string | undefined {
+export function pickObjectId(editor: EditorScene, camera: Camera, ndc: Vector2): string | undefined {
   setCameraRay(raycaster, ndc, camera);
   let nearest = Infinity;
   let nearestId: string | undefined;
@@ -32,7 +28,10 @@ export function pickObjectId(
       if (depth < -1 || depth > 1 || hit.distance >= nearest) continue;
       let visible = true;
       for (let node: typeof hit.object | null = hit.object; node; node = node.parent) {
-        if (!node.visible) { visible = false; break; }
+        if (!node.visible) {
+          visible = false;
+          break;
+        }
       }
       if (!visible) continue;
       const id = editor.idOf(hit.object);
@@ -57,7 +56,11 @@ export function pickObjectIds(editor: EditorScene, camera: Camera, ndc: Vector2)
       const depth = hit.point.clone().project(camera).z;
       if (depth < -1 || depth > 1) continue;
       let visible = true;
-      for (let node: typeof hit.object | null = hit.object; node; node = node.parent) if (!node.visible) { visible = false; break; }
+      for (let node: typeof hit.object | null = hit.object; node; node = node.parent)
+        if (!node.visible) {
+          visible = false;
+          break;
+        }
       if (!visible) continue;
       const id = editor.idOf(hit.object);
       if (id !== undefined && hit.distance < (distances.get(id) ?? Infinity)) distances.set(id, hit.distance);

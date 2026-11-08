@@ -1,6 +1,6 @@
 ---
 name: mesh-editing
-version: 1.9.0
+version: 1.11.0
 description: Inspects mesh geometry and edits transforms, bevels, subdivision surfaces, booleans, plane cuts, deletion, shading, bridging, separating parts, replacements, and cleanup through validated proposals with automatic application.
 dimensions:
   - 3d
@@ -22,6 +22,9 @@ required_inputs:
   - The intended change (for example: scale by 1.2, replace with a sphere).
 tools:
   - editor.get_context
+  - editor.read_branch
+  - editor.find_repeats
+  - editor.query_objects
   - editor.inspect_mesh
   - editor.inspect_materials
   - editor.measure
@@ -37,15 +40,19 @@ validation:
   - Each target object id exists in the latest editor context.
   - Transforms use finite numbers, and scale values are positive.
   - Replacing geometry is an explicit destructive command and applies automatically through a proposal.
+  - Each proposal edits one object with one kind of operation. Several objects or several kinds of change are several chunks, each applied and checked before the next.
+  - Before an edit the target is inspected, and after it the same property is measured or inspected again and compared with what the request asked for.
 error_handling:
   - If a target object is missing, stop and ask the user which object to change.
   - If the user rejects a destructive proposal, do not retry it. Propose a non-destructive alternative instead.
   - Report revision conflicts, read the current context, and recalculate before proposing corrected commands.
+  - If an edit does not give the expected result, do not stack another edit on it. Read the result, undo or correct that edit, and check it again.
+  - If the same command is refused twice, change the cause (ids, revision, modifiers, geometry limits) or report that it cannot be done; do not resend it.
 ---
 
 # Mesh editing workflow
 
-1. Call `editor.get_context` and confirm every target object exists.
+1. Call `editor.get_context` and confirm every target object exists. On a scene with more than about 60 objects, read it by branch with `editor.read_branch` instead, select the targets with `editor.query_objects` (name, type, parent, size or position), and call `editor.find_repeats` before editing a repeated part so it is changed as one idea. Matching is by name, size and structure, so confirm copies with `editor.inspect_mesh` first.
 2. Describe the change in plain language, then build the smallest set of commands that achieves it.
 3. Use `scene.transform_object` to set position, rotation, or scale, and `scene.move_object` to move an object by a distance from where it is now. Use `geometry.create_primitive` with `replaceExisting` only when the user asked to replace geometry.
 4. Submit with `editor.propose_commands` and `apply: true`; for batches from `editor.plan_placement`, `editor.plan_duplicates` or `modeling.generate_commands`, pass their `planId` instead of the commands. To preview a geometry candidate first, leave `apply` out, capture it, then call `editor.apply_proposal`.
@@ -102,6 +109,23 @@ Use `geometry.fill_hole` to close a single opening whose boundary has a simple p
 
 Concave and open manifold meshes are supported; open boundaries remain open. UV seams, material assignments, vertex colors, skin weights and morph targets are preserved/interpolated. New bevel strips and corner patches use adjacent materials and interpolated UVs; they do not create an automatic texture unwrap. Both geometric and stack edits apply automatically, use strict scene revisions, and must be submitted separately from creation/transforms (at most 20 commands). Reduce overlapping widths and excessive refinement or explain unsupported topology rather than replacing the model. Users can edit the active mesh part in the manual Modifiers panel; a crease editor is not implemented.
 
+
+## Chunks and gates
+
+Editing existing work is done one chunk at a time. A chunk is one object and one kind of operation (for example "scale the lid", "bevel the top edges of the body", "delete the two spare legs"). It has at most 40 commands.
+
+1. **Read.** `editor.get_context`, or on a large scene `editor.read_branch` and `editor.query_objects`. Note the revision, the target ids and what must not change.
+2. **State the check.** Before proposing, say what will be true afterwards in numbers: a size, a position, a face count, a parent. That is the gate.
+3. **Propose and preview.** One batch with `expectedRevision`. For geometry, preview the candidate with `viewport.capture` and its `proposalId` and compare it with the live scene.
+4. **Apply** and read each command's result.
+5. **Gate.** `validation.check_scene`, then `editor.measure` or `editor.inspect_mesh` on the target, and compare with step 2. Capture it if the change is visible. Only then start the next chunk.
+
+Rules that are never relaxed:
+
+- A destructive or replacing command is only used when the user asked for it, goes in a batch of its own, and names exactly what it removes.
+- Topology edits go one at a time, with modifiers disabled, and the mesh is inspected again after each, because ids change.
+- Do not touch objects the request did not name. If other objects must change to make the request work, say which and why before changing them.
+- A scene that passed its check is not re-edited "to improve it" beyond the request.
 
 ## Material controls
 

@@ -105,7 +105,8 @@ function messageFor(issue: z.core.$ZodIssue, input: unknown): string {
   const options = discriminatorOptions(issue);
   if (options.length > 0) {
     const received = valueAt(input, issue.path);
-    const suggestions = typeof received === "string" ? closestValues(received, options) : options.slice(0, MAX_SUGGESTIONS);
+    const suggestions =
+      typeof received === "string" ? closestValues(received, options) : options.slice(0, MAX_SUGGESTIONS);
     return `Unknown value ${quoted(received)}. Closest valid values: ${suggestions.join(", ")}`;
   }
   if (issue.code === "invalid_value" && issue.values.length > 6) {

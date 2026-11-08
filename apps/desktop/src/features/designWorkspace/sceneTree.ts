@@ -8,15 +8,30 @@ import type { CollectionEntry, OutlineEntry } from "@/features/assistant";
  */
 export type RowKind = "mesh" | "empty" | "collection" | "root";
 
+/** The id of the outliner's root row, which stands for the whole scene. */
 export const ROOT_ROW_ID = ":scene";
 const COLLECTION_PREFIX = "collection:";
+/** The outliner row id for a collection. */
 export const collectionRowId = (collectionId: string): string => `${COLLECTION_PREFIX}${collectionId}`;
 
 /** The thing a line stands for. */
-export type RowTarget = { readonly kind: "object"; readonly id: string } | { readonly kind: "collection"; readonly id: string } | { readonly kind: "root" };
+export type RowTarget =
+  | { readonly kind: "object"; readonly id: string }
+  | { readonly kind: "collection"; readonly id: string }
+  | { readonly kind: "root" };
+/** The object, collection or root that an outliner row stands for. */
 export function rowTarget(rowId: string): RowTarget {
   if (rowId === ROOT_ROW_ID) return { kind: "root" };
-  return rowId.startsWith(COLLECTION_PREFIX) ? { kind: "collection", id: rowId.slice(COLLECTION_PREFIX.length) } : { kind: "object", id: rowId };
+  return rowId.startsWith(COLLECTION_PREFIX)
+    ? { kind: "collection", id: rowId.slice(COLLECTION_PREFIX.length) }
+    : { kind: "object", id: rowId };
+}
+
+/** Whether the scene still has the thing a line stands for. The scene line exists once there is a collection to drop things on. */
+export function rowExists(tree: SceneTree, rowId: string): boolean {
+  const target = rowTarget(rowId);
+  if (target.kind === "root") return tree.collections.size > 0;
+  return target.kind === "collection" ? tree.collections.has(target.id) : tree.entries.has(target.id);
 }
 
 /** Visible object rows in an inclusive range, with the clicked object last as the active selection. */
@@ -24,7 +39,11 @@ export function objectRange(rows: readonly TreeRow[], anchor: string, clicked: s
   const from = rows.findIndex((row) => row.id === anchor);
   const to = rows.findIndex((row) => row.id === clicked);
   if (from < 0 || to < 0 || rowTarget(clicked).kind !== "object") return [];
-  const ids = rows.slice(Math.min(from, to), Math.max(from, to) + 1).map((row) => rowTarget(row.id)).filter((target) => target.kind === "object").map((target) => target.id);
+  const ids = rows
+    .slice(Math.min(from, to), Math.max(from, to) + 1)
+    .map((row) => rowTarget(row.id))
+    .filter((target) => target.kind === "object")
+    .map((target) => target.id);
   return [...ids.filter((id) => id !== clicked), clicked];
 }
 
@@ -60,7 +79,11 @@ export interface TreeRow {
   readonly effectiveVisible: boolean;
 }
 
-export function buildSceneTree(list: readonly OutlineEntry[], collectionList: readonly CollectionEntry[] = []): SceneTree {
+/** Arranges the scene's objects and collections as the outliner's tree, with children under their parents. */
+export function buildSceneTree(
+  list: readonly OutlineEntry[],
+  collectionList: readonly CollectionEntry[] = [],
+): SceneTree {
   const entries = new Map<string, OutlineEntry>();
   for (const entry of list) entries.set(entry.id, entry);
   const collections = new Map<string, CollectionEntry>();
@@ -68,12 +91,20 @@ export function buildSceneTree(list: readonly OutlineEntry[], collectionList: re
 
   const parents = new Map<string, string | null>();
   for (const entry of list) {
-    parents.set(entry.id, entry.parentId !== null && entry.parentId !== entry.id && entries.has(entry.parentId) ? entry.parentId : null);
+    parents.set(
+      entry.id,
+      entry.parentId !== null && entry.parentId !== entry.id && entries.has(entry.parentId) ? entry.parentId : null,
+    );
   }
   cutLoops(parents);
   const collectionParents = new Map<string, string | null>();
   for (const collection of collectionList) {
-    collectionParents.set(collection.id, collection.parentId !== null && collection.parentId !== collection.id && collections.has(collection.parentId) ? collection.parentId : null);
+    collectionParents.set(
+      collection.id,
+      collection.parentId !== null && collection.parentId !== collection.id && collections.has(collection.parentId)
+        ? collection.parentId
+        : null,
+    );
   }
   cutLoops(collectionParents);
 
@@ -97,12 +128,21 @@ export function buildSceneTree(list: readonly OutlineEntry[], collectionList: re
     if (parentEntry && parentEntry.collectionId === entry.collectionId) {
       place(entry.id, parentEntry.id);
     } else {
-      place(entry.id, entry.collectionId !== null && collections.has(entry.collectionId) ? collectionRowId(entry.collectionId) : ROOT_ROW_ID);
+      place(
+        entry.id,
+        entry.collectionId !== null && collections.has(entry.collectionId)
+          ? collectionRowId(entry.collectionId)
+          : ROOT_ROW_ID,
+      );
     }
   }
   // Both hierarchies affect drawing, even where an object is displayed under a different collection.
   // Memoize each walk so deep or wide trees remain linear and do not use the call stack.
-  const visibility = (ids: Iterable<string>, parentOf: (id: string) => string | null | undefined, own: (id: string) => boolean) => {
+  const visibility = (
+    ids: Iterable<string>,
+    parentOf: (id: string) => string | null | undefined,
+    own: (id: string) => boolean,
+  ) => {
     const result = new Map<string, boolean>();
     for (const id of ids) {
       const path: string[] = [];
@@ -121,12 +161,34 @@ export function buildSceneTree(list: readonly OutlineEntry[], collectionList: re
     }
     return result;
   };
-  const collectionVisibility = visibility(collections.keys(), (id) => collectionParents.get(id), (id) => collections.get(id)?.visible ?? true);
-  const objectVisibility = visibility(entries.keys(), (id) => parents.get(id), (id) => {
-    const entry = entries.get(id);
-    return (entry?.visible ?? true) && (entry?.collectionId === null || entry?.collectionId === undefined || (collectionVisibility.get(entry.collectionId) ?? true));
-  });
-  return { entries, collections, parents, collectionParents, displayParent, displayChildren, objectVisibility, roots: displayChildren.get(ROOT_ROW_ID) ?? [] };
+  const collectionVisibility = visibility(
+    collections.keys(),
+    (id) => collectionParents.get(id),
+    (id) => collections.get(id)?.visible ?? true,
+  );
+  const objectVisibility = visibility(
+    entries.keys(),
+    (id) => parents.get(id),
+    (id) => {
+      const entry = entries.get(id);
+      return (
+        (entry?.visible ?? true) &&
+        (entry?.collectionId === null ||
+          entry?.collectionId === undefined ||
+          (collectionVisibility.get(entry.collectionId) ?? true))
+      );
+    },
+  );
+  return {
+    entries,
+    collections,
+    parents,
+    collectionParents,
+    displayParent,
+    displayChildren,
+    objectVisibility,
+    roots: displayChildren.get(ROOT_ROW_ID) ?? [],
+  };
 }
 
 /**
@@ -161,7 +223,8 @@ export function flattenTree(tree: SceneTree, collapsed: ReadonlySet<string>): Tr
   const showRoot = tree.collections.size > 0;
   const stack: { id: string; depth: number; above: boolean }[] = [];
   if (showRoot) stack.push({ id: ROOT_ROW_ID, depth: 0, above: true });
-  else for (let i = tree.roots.length - 1; i >= 0; i -= 1) stack.push({ id: tree.roots[i] ?? "", depth: 0, above: true });
+  else
+    for (let i = tree.roots.length - 1; i >= 0; i -= 1) stack.push({ id: tree.roots[i] ?? "", depth: 0, above: true });
   for (let top = stack.pop(); top; top = stack.pop()) {
     const target = rowTarget(top.id);
     const kids = tree.displayChildren.get(top.id) ?? [];
@@ -185,8 +248,18 @@ export function flattenTree(tree: SceneTree, collapsed: ReadonlySet<string>): Tr
       kind = entry.kind;
       visible = entry.visible;
     }
-    const effectiveVisible = target.kind === "object" ? (tree.objectVisibility.get(target.id) ?? true) : top.above && visible;
-    rows.push({ id: top.id, name, kind, depth: top.depth, hasChildren: kids.length > 0, collapsed: isCollapsed, visible, effectiveVisible });
+    const effectiveVisible =
+      target.kind === "object" ? (tree.objectVisibility.get(target.id) ?? true) : top.above && visible;
+    rows.push({
+      id: top.id,
+      name,
+      kind,
+      depth: top.depth,
+      hasChildren: kids.length > 0,
+      collapsed: isCollapsed,
+      visible,
+      effectiveVisible,
+    });
     if (isCollapsed) continue;
     for (let i = kids.length - 1; i >= 0; i -= 1) {
       const kid = kids[i];
@@ -224,13 +297,18 @@ export function dropAction(tree: SceneTree, dragged: string, onto: string | null
   const source = rowTarget(dragged);
   if (source.kind === "root") return undefined;
   if (onto === null) {
-    return source.kind === "object" && canMoveUnder(tree, source.id, null) ? { kind: "parent", objectId: source.id, parentId: null } : undefined;
+    return source.kind === "object" && canMoveUnder(tree, source.id, null)
+      ? { kind: "parent", objectId: source.id, parentId: null }
+      : undefined;
   }
   const target = rowTarget(onto);
   if (source.kind === "object") {
     const entry = tree.entries.get(source.id);
     if (!entry) return undefined;
-    if (target.kind === "object") return canMoveUnder(tree, source.id, target.id) ? { kind: "parent", objectId: source.id, parentId: target.id } : undefined;
+    if (target.kind === "object")
+      return canMoveUnder(tree, source.id, target.id)
+        ? { kind: "parent", objectId: source.id, parentId: target.id }
+        : undefined;
     const into = target.kind === "root" ? null : target.id;
     if (into !== null && !tree.collections.has(into)) return undefined;
     return entry.collectionId === into ? undefined : { kind: "collect", objectId: source.id, collectionId: into };
@@ -247,7 +325,11 @@ export function dropAction(tree: SceneTree, dragged: string, onto: string | null
 export function revealed(tree: SceneTree, collapsed: ReadonlySet<string>, id: string): ReadonlySet<string> {
   let next: Set<string> | undefined;
   const seen = new Set<string>([id]);
-  for (let above = tree.displayParent.get(id); above !== undefined && !seen.has(above); above = tree.displayParent.get(above)) {
+  for (
+    let above = tree.displayParent.get(id);
+    above !== undefined && !seen.has(above);
+    above = tree.displayParent.get(above)
+  ) {
     seen.add(above);
     if (!collapsed.has(above)) continue;
     next ??= new Set(collapsed);
@@ -257,7 +339,13 @@ export function revealed(tree: SceneTree, collapsed: ReadonlySet<string>, id: st
 }
 
 /** The lines to draw for a list scrolled to `scrollTop`: the ones in view and a few either side of them. */
-export function visibleRange(scrollTop: number, viewport: number, rowHeight: number, count: number, overscan = 6): { start: number; end: number } {
+export function visibleRange(
+  scrollTop: number,
+  viewport: number,
+  rowHeight: number,
+  count: number,
+  overscan = 6,
+): { start: number; end: number } {
   const first = Math.floor(Math.max(0, scrollTop) / rowHeight);
   const last = Math.ceil((Math.max(0, scrollTop) + Math.max(0, viewport)) / rowHeight);
   return { start: Math.max(0, first - overscan), end: Math.min(count, last + overscan) };
@@ -273,17 +361,61 @@ export function scrollToRow(scrollTop: number, viewport: number, rowHeight: numb
 
 /** The commands a change in the list saves. They are the same commands the assistant proposes. */
 export const outlineCommands = {
-  rename: (objectId: string, name: string) => ({ commandId: `rename_${crypto.randomUUID()}`, type: "scene.rename_object", objectId, name }),
-  move: (objectId: string, parentId: string | null) => ({ commandId: `parent_${crypto.randomUUID()}`, type: "scene.set_parent", objectId, parentId }),
-  show: (objectId: string, visible: boolean) => ({ commandId: `visibility_${crypto.randomUUID()}`, type: "scene.set_visibility", objectId, visible }),
-  makeCollection: (collectionId: string, name: string, parentCollectionId: string | null) => ({
-    commandId: `collection_${crypto.randomUUID()}`, type: "scene.create_collection", collectionId, name, ...(parentCollectionId === null ? {} : { parentCollectionId }),
+  rename: (objectId: string, name: string) => ({
+    commandId: `rename_${crypto.randomUUID()}`,
+    type: "scene.rename_object",
+    objectId,
+    name,
   }),
-  renameCollection: (collectionId: string, name: string) => ({ commandId: `rename_${crypto.randomUUID()}`, type: "scene.rename_collection", collectionId, name }),
-  showCollection: (collectionId: string, visible: boolean) => ({ commandId: `visibility_${crypto.randomUUID()}`, type: "scene.set_collection_visibility", collectionId, visible }),
-  nestCollection: (collectionId: string, parentCollectionId: string | null) => ({ commandId: `nest_${crypto.randomUUID()}`, type: "scene.move_collection", collectionId, parentCollectionId }),
-  deleteCollection: (collectionId: string) => ({ commandId: `delete_${crypto.randomUUID()}`, type: "scene.delete_collection", collectionId }),
-  collect: (objectId: string, collectionId: string | null) => ({ commandId: `collect_${crypto.randomUUID()}`, type: "scene.move_to_collection", objectId, collectionId, includeChildren: true }),
+  move: (objectId: string, parentId: string | null) => ({
+    commandId: `parent_${crypto.randomUUID()}`,
+    type: "scene.set_parent",
+    objectId,
+    parentId,
+  }),
+  show: (objectId: string, visible: boolean) => ({
+    commandId: `visibility_${crypto.randomUUID()}`,
+    type: "scene.set_visibility",
+    objectId,
+    visible,
+  }),
+  makeCollection: (collectionId: string, name: string, parentCollectionId: string | null) => ({
+    commandId: `collection_${crypto.randomUUID()}`,
+    type: "scene.create_collection",
+    collectionId,
+    name,
+    ...(parentCollectionId === null ? {} : { parentCollectionId }),
+  }),
+  renameCollection: (collectionId: string, name: string) => ({
+    commandId: `rename_${crypto.randomUUID()}`,
+    type: "scene.rename_collection",
+    collectionId,
+    name,
+  }),
+  showCollection: (collectionId: string, visible: boolean) => ({
+    commandId: `visibility_${crypto.randomUUID()}`,
+    type: "scene.set_collection_visibility",
+    collectionId,
+    visible,
+  }),
+  nestCollection: (collectionId: string, parentCollectionId: string | null) => ({
+    commandId: `nest_${crypto.randomUUID()}`,
+    type: "scene.move_collection",
+    collectionId,
+    parentCollectionId,
+  }),
+  deleteCollection: (collectionId: string) => ({
+    commandId: `delete_${crypto.randomUUID()}`,
+    type: "scene.delete_collection",
+    collectionId,
+  }),
+  collect: (objectId: string, collectionId: string | null) => ({
+    commandId: `collect_${crypto.randomUUID()}`,
+    type: "scene.move_to_collection",
+    objectId,
+    collectionId,
+    includeChildren: true,
+  }),
 } as const;
 
 /** The commands for a drop that `dropAction` allowed. */

@@ -1,11 +1,29 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, StreamableFile } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  StreamableFile,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiNotFoundResponse, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator.js";
 import { ResourceIdPipe } from "../../common/pipes/resource-id.pipe.js";
 import { ValidationFailedError } from "../../common/errors/app-error.js";
 import { ASSET_RESOURCE_ID_PATTERN, PROJECT_RESOURCE_ID_PATTERN } from "../../shared/constants/resource-ids.js";
 import type { AuthUser } from "../auth/auth.types.js";
-import { CreateProjectDto, ImportModelQueryDto, ListProjectsQueryDto, RecordSceneEditDto, UpdateProjectDto } from "./dto/index.js";
+import {
+  CreateProjectDto,
+  ImportModelQueryDto,
+  ListProjectsQueryDto,
+  RecordSceneEditDto,
+  UpdateProjectDto,
+} from "./dto/index.js";
 import { ProjectsService } from "./projects.service.js";
 import type { ProjectConversation, ProjectView, SceneImport, SceneStep } from "./projects.types.js";
 import { SceneHistoryDto, CommitSceneHistoryDto } from "./dto/index.js";
@@ -13,6 +31,7 @@ import { SceneHistoryDto, CommitSceneHistoryDto } from "./dto/index.js";
 const projectIdPipe = new ResourceIdPipe(PROJECT_RESOURCE_ID_PATTERN);
 const assetIdPipe = new ResourceIdPipe(ASSET_RESOURCE_ID_PATTERN);
 
+/** HTTP endpoints for projects, their scenes, history, measurements and conversations. The logic lives in ProjectsService. */
 @ApiTags("projects")
 @ApiBearerAuth()
 @Controller({ path: "projects", version: "1" })
@@ -61,7 +80,11 @@ export class ProjectsController {
   }
 
   @Patch(":projectId/measurements")
-  saveMeasurements(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string, @Body() input: unknown) {
+  saveMeasurements(
+    @CurrentUser() user: AuthUser,
+    @Param("projectId", projectIdPipe) projectId: string,
+    @Body() input: unknown,
+  ) {
     return this.projects.saveMeasurements(user.id, projectId, input);
   }
 
@@ -77,17 +100,28 @@ export class ProjectsController {
     @CurrentUser() user: AuthUser,
     @Param("projectId", projectIdPipe) projectId: string,
   ): { steps: SceneStep[]; recoveryRequired: boolean } {
-    return { steps: this.projects.scene(user.id, projectId), recoveryRequired: this.projects.recoveryRequired(user.id, projectId) };
+    return {
+      steps: this.projects.scene(user.id, projectId),
+      recoveryRequired: this.projects.recoveryRequired(user.id, projectId),
+    };
   }
 
   /** Records moves, rotations and scale changes the user made by hand. */
   @Post(":projectId/scene/history/preview")
-  previewHistory(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string, @Body() dto: SceneHistoryDto) {
+  previewHistory(
+    @CurrentUser() user: AuthUser,
+    @Param("projectId", projectIdPipe) projectId: string,
+    @Body() dto: SceneHistoryDto,
+  ) {
     return this.projects.previewHistory(user.id, projectId, dto.direction);
   }
 
   @Post(":projectId/scene/history/commit")
-  commitHistory(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string, @Body() dto: CommitSceneHistoryDto) {
+  commitHistory(
+    @CurrentUser() user: AuthUser,
+    @Param("projectId", projectIdPipe) projectId: string,
+    @Body() dto: CommitSceneHistoryDto,
+  ) {
     this.projects.commitHistory(user.id, projectId, dto.direction, dto.version, dto.operationId);
     return { committed: true };
   }

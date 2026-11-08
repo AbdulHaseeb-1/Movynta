@@ -60,4 +60,19 @@ describe("Edit-mode Subdivide", () => {
     expect(failure.message).toContain("Disable modifiers");
     expect(scene.currentRevision).toBe(revision);
   });
+
+  it("says when it is done, whether the save worked or not, so the button can take another click", async () => {
+    const scene = new EditorScene(new Scene(), "project");
+    scene.importObject("box", new Mesh(new BoxGeometry(2, 2, 2)));
+    const saves = createSerialQueue();
+    const settled = vi.fn();
+    subdivideSelectedFaces(scene, { objectId: "box", meshPath: [], ids: ["0"] }, saves, vi.fn(), settled);
+    expect(settled).not.toHaveBeenCalled();
+    await saves.flush();
+    expect(settled).toHaveBeenCalledOnce();
+    // A selection that is refused before any save is settled at once.
+    const refused = vi.fn();
+    subdivideSelectedFaces(scene, { objectId: "box", meshPath: [], ids: ["99"] }, saves, vi.fn(), refused);
+    expect(refused).toHaveBeenCalledOnce();
+  });
 });

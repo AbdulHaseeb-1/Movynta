@@ -13,18 +13,30 @@ function isStoredItem(value: unknown): value is AgentInputItem {
 
 const IMAGE_PLACEHOLDER =
   "[An image was shown here. Images are not kept in the conversation history; capture the view again to see it.]";
+const ATTACHMENT_PLACEHOLDER =
+  "[The image the user attached here is not kept in the conversation history. Ask the user to attach it again if you need to look at it.]";
 
 /**
- * Pictures a tool returned are base64 text, and the whole history is sent to the model on every later turn.
- * They are kept for the run that took them, but not in the stored history, where they would grow it by
- * hundreds of kilobytes per picture. The text next to them is kept, so the conclusions and measurements stay.
+ * Pictures are base64 text, and the whole history is sent to the model on every later turn. They are kept for the
+ * run that received them, but not in the stored history, where each would grow it by hundreds of kilobytes. The
+ * text next to them is kept, so the conclusions, measurements and the names of attached images stay.
+ * This covers the pictures a tool returned and the ones the user attached to a message.
  */
 export function withoutImages(item: AgentInputItem): AgentInputItem {
-  if (!("type" in item) || item.type !== "function_call_result" || !Array.isArray(item.output)) return item;
-  const output = item.output.map((part) =>
-    part.type === "input_image" ? { type: "input_text" as const, text: IMAGE_PLACEHOLDER } : part,
-  );
-  return { ...item, output };
+  if ("type" in item && item.type === "function_call_result" && Array.isArray(item.output)) {
+    const output = item.output.map((part) =>
+      part.type === "input_image" ? { type: "input_text" as const, text: IMAGE_PLACEHOLDER } : part,
+    );
+    return { ...item, output };
+  }
+  if ("role" in item && item.role === "user" && Array.isArray(item.content)) {
+    if (!item.content.some((part) => part.type === "input_image")) return item;
+    const content = item.content.map((part) =>
+      part.type === "input_image" ? { type: "input_text" as const, text: ATTACHMENT_PLACEHOLDER } : part,
+    );
+    return { ...item, content };
+  }
+  return item;
 }
 
 function parseItem(row: SqlRow): AgentInputItem {

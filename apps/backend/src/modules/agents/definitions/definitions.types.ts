@@ -7,6 +7,7 @@ import type { ToolRegistry } from "../../tools/tool.registry.js";
 /** The SDK agent type used throughout the backend. */
 export type AppAgent = Agent<AgentRunContext, AgentOutputType>;
 
+/** An agent as listed to the client: its id, name and version. */
 export interface AgentSummary {
   readonly id: string;
   readonly name: string;
@@ -24,12 +25,14 @@ export interface AgentDefinition extends AgentSummary {
   createAgent(): AppAgent;
 }
 
+/** The services the modeling coordinator agent is built from. */
 export interface ModelingCoordinatorDependencies {
   readonly model: string | undefined;
   readonly tools: ToolRegistry;
   readonly skills: SkillsRegistry;
 }
 
+/** The facts an agent's instructions are written from for one run. */
 export interface InstructionInputs {
   readonly skills: readonly SkillSummary[];
   readonly toolNameMap: readonly { readonly name: string; readonly providerName: string }[];

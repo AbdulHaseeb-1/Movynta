@@ -45,7 +45,10 @@ function Shape({ shape, ghost }: { readonly shape: PlaygroundShape; readonly gho
         strokeDasharray={ghost ? "4 3" : undefined}
       />
       {/* The notch shows which way is up, so rotation is visible. */}
-      <path d={`M ${-0.22} ${HALF - 0.32} L 0 ${HALF - 0.08} L 0.22 ${HALF - 0.32} Z`} className={ghost ? "fill-muted-foreground" : "fill-foreground"} />
+      <path
+        d={`M ${-0.22} ${HALF - 0.32} L 0 ${HALF - 0.08} L 0.22 ${HALF - 0.32} Z`}
+        className={ghost ? "fill-muted-foreground" : "fill-foreground"}
+      />
     </g>
   );
 }
@@ -113,8 +116,17 @@ export function TransformExample() {
       status={transformStatus(state)}
       onReset={() => dispatch({ type: "reset" })}
       onKeyDown={onKeyDown}
-      onFocusChange={(focused) => { if (!focused) dispatch({ type: "cancel" }); }}
-      footnote={<>Try <strong className="font-medium text-foreground">G</strong>, then <strong className="font-medium text-foreground">X</strong>, type <strong className="font-medium text-foreground">2</strong> and press Enter: the shape moves exactly 2 units right. In the workspace Z works too.</>}
+      onFocusChange={(focused) => {
+        if (!focused) dispatch({ type: "cancel" });
+      }}
+      footnote={
+        <>
+          Try <strong className="font-medium text-foreground">G</strong>, then{" "}
+          <strong className="font-medium text-foreground">X</strong>, type{" "}
+          <strong className="font-medium text-foreground">2</strong> and press Enter: the shape moves exactly 2 units
+          right. In the workspace Z works too.
+        </>
+      }
     >
       <svg
         ref={svgRef}
@@ -126,13 +138,49 @@ export function TransformExample() {
       >
         <g transform="scale(1 -1)">
           {Array.from({ length: VIEW.width + 1 }, (_, index) => index - VIEW.width / 2).map((x) => (
-            <line key={`x${x}`} x1={x} y1={-VIEW.height} x2={x} y2={VIEW.height} className="stroke-border" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            <line
+              key={`x${x}`}
+              x1={x}
+              y1={-VIEW.height}
+              x2={x}
+              y2={VIEW.height}
+              className="stroke-border"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
           ))}
           {Array.from({ length: VIEW.height + 1 }, (_, index) => index - Math.floor(VIEW.height / 2)).map((y) => (
-            <line key={`y${y}`} x1={-VIEW.width} y1={y} x2={VIEW.width} y2={y} className="stroke-border" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            <line
+              key={`y${y}`}
+              x1={-VIEW.width}
+              y1={y}
+              x2={VIEW.width}
+              y2={y}
+              className="stroke-border"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
           ))}
-          <line x1={-VIEW.width} y1={0} x2={VIEW.width} y2={0} style={{ stroke: "var(--axis-x)" }} strokeOpacity={0.45} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          <line x1={0} y1={-VIEW.height} x2={0} y2={VIEW.height} style={{ stroke: "var(--axis-y)" }} strokeOpacity={0.45} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          <line
+            x1={-VIEW.width}
+            y1={0}
+            x2={VIEW.width}
+            y2={0}
+            style={{ stroke: "var(--axis-x)" }}
+            strokeOpacity={0.45}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+          <line
+            x1={0}
+            y1={-VIEW.height}
+            x2={0}
+            y2={VIEW.height}
+            style={{ stroke: "var(--axis-y)" }}
+            strokeOpacity={0.45}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
           {axisLine && (
             <line
               x1={axisLine === "x" ? -VIEW.width : state.shape.x}

@@ -83,7 +83,9 @@ function changesExistingObject(command: EditorCommand): boolean {
     command.type === "scene.set_collection_visibility" ||
     command.type === "scene.move_collection" ||
     command.type === "scene.move_to_collection" ||
-    command.type === "scene.transform_object" || command.type === "scene.move_object" || editsExistingGeometry(command) ||
+    command.type === "scene.transform_object" ||
+    command.type === "scene.move_object" ||
+    editsExistingGeometry(command) ||
     command.type === "scene.rename_object" ||
     command.type === "scene.set_visibility" ||
     command.type === "scene.set_parent"
@@ -94,25 +96,46 @@ function changesExistingObject(command: EditorCommand): boolean {
 function trackObjects(db: DatabaseSync, projectId: string, commands: readonly EditorCommand[]): void {
   for (const command of commands) {
     if (command.type === "scene.duplicate_hierarchy") {
-      for (const copy of command.copies) for (const id of [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]) statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, id);
+      for (const copy of command.copies)
+        for (const id of [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)])
+          statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(
+            projectId,
+            id,
+          );
       continue;
     }
     if (command.type === "geometry.separate_faces") {
-      statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, command.newObjectId);
+      statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(
+        projectId,
+        command.newObjectId,
+      );
       continue;
     }
     if (command.type === "scene.create_collection") {
-      statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, collectionKey(command.collectionId));
+      statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(
+        projectId,
+        collectionKey(command.collectionId),
+      );
       continue;
     }
     if (command.type === "scene.delete_collection") {
-      statement(db, "DELETE FROM project_objects WHERE project_id = ? AND object_id = ?").run(projectId, collectionKey(command.collectionId));
+      statement(db, "DELETE FROM project_objects WHERE project_id = ? AND object_id = ?").run(
+        projectId,
+        collectionKey(command.collectionId),
+      );
       continue;
     }
     if (changesExistingObject(command) || !("objectId" in command)) continue;
     if (command.type === "scene.delete_object")
-      statement(db, "DELETE FROM project_objects WHERE project_id = ? AND object_id = ?").run(projectId, command.objectId);
-    else statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, command.objectId);
+      statement(db, "DELETE FROM project_objects WHERE project_id = ? AND object_id = ?").run(
+        projectId,
+        command.objectId,
+      );
+    else
+      statement(db, "INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(
+        projectId,
+        command.objectId,
+      );
   }
 }
 
@@ -130,12 +153,22 @@ export class ProjectScenesService {
   append(projectId: string, proposalId: string, commands: readonly EditorCommand[], actionId?: string): void {
     this.database.transaction((db) => {
       this.appendInTransaction(db, projectId, proposalId, commands);
-      if (actionId) db.prepare("UPDATE project_scene_batches SET action_id = ? WHERE project_id = ? AND proposal_id = ?").run(actionId, projectId, proposalId);
+      if (actionId)
+        db.prepare("UPDATE project_scene_batches SET action_id = ? WHERE project_id = ? AND proposal_id = ?").run(
+          actionId,
+          projectId,
+          proposalId,
+        );
     });
   }
 
   /** Append as part of a caller's transaction, so proposal status and history commit together. */
-  appendInTransaction(db: DatabaseSync, projectId: string, proposalId: string, commands: readonly EditorCommand[]): void {
+  appendInTransaction(
+    db: DatabaseSync,
+    projectId: string,
+    proposalId: string,
+    commands: readonly EditorCommand[],
+  ): void {
     // One lookup both confirms the project exists and tells whether its object index is built.
     const project = statement(db, "SELECT objects_indexed FROM projects WHERE id = ?").get(projectId);
     if (!project) return;
@@ -158,7 +191,9 @@ export class ProjectScenesService {
         .prepare("SELECT COALESCE(SUM(size), 0) AS used FROM project_assets WHERE project_id = ?")
         .get(projectId);
       if ((used ? integerColumn(used, "used") : 0) + asset.content.byteLength > MAX_PROJECT_ASSET_BYTES) {
-        throw new ConflictError("This project has reached its limit for imported models, including models needed by undo history. Undo an import and make a new edit, or start a new project.");
+        throw new ConflictError(
+          "This project has reached its limit for imported models, including models needed by undo history. Undo an import and make a new edit, or start a new project.",
+        );
       }
       const taken = db
         .prepare("SELECT 1 AS found FROM project_assets WHERE project_id = ? AND object_id = ? AND history_state = 0")
@@ -177,7 +212,10 @@ export class ProjectScenesService {
         asset.content,
         new Date().toISOString(),
       );
-      db.prepare("INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, asset.objectId);
+      db.prepare("INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(
+        projectId,
+        asset.objectId,
+      );
     });
     return { kind: "import", assetId, objectId: asset.objectId, name: asset.name, format: asset.format };
   }
@@ -206,7 +244,11 @@ export class ProjectScenesService {
     if (!flag || integerColumn(flag, "objects_indexed") === 1) return;
     db.prepare("DELETE FROM project_objects WHERE project_id = ?").run(projectId);
     for (const step of this.listFrom(db, projectId)) {
-      if (step.kind === "import") db.prepare("INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(projectId, step.objectId);
+      if (step.kind === "import")
+        db.prepare("INSERT OR IGNORE INTO project_objects (project_id, object_id) VALUES (?, ?)").run(
+          projectId,
+          step.objectId,
+        );
       else trackObjects(db, projectId, step.commands);
     }
     db.prepare("UPDATE projects SET objects_indexed = 1 WHERE id = ?").run(projectId);
@@ -229,7 +271,11 @@ export class ProjectScenesService {
     return this.listFrom(this.database.db, projectId);
   }
   recoveryRequired(projectId: string): boolean {
-    return this.database.db.prepare("SELECT 1 FROM editor_proposals WHERE project_id = ? AND delivery_pending = 1 LIMIT 1").get(projectId) !== undefined;
+    return (
+      this.database.db
+        .prepare("SELECT 1 FROM editor_proposals WHERE project_id = ? AND delivery_pending = 1 LIMIT 1")
+        .get(projectId) !== undefined
+    );
   }
 
   /** State 0 is active, 1 is redoable, 2 belongs to an abandoned redo branch. */
@@ -246,11 +292,19 @@ export class ProjectScenesService {
   history(projectId: string, direction?: "undo" | "redo") {
     const db = this.database.db;
     const row = db.prepare("SELECT scene_version FROM projects WHERE id = ?").get(projectId);
-    const entries = db.prepare(`SELECT b.seq, b.history_state, COALESCE(p.run_id, b.action_id, b.proposal_id) AS action FROM project_scene_batches b
+    const entries = db
+      .prepare(
+        `SELECT b.seq, b.history_state, COALESCE(p.run_id, b.action_id, b.proposal_id) AS action FROM project_scene_batches b
       LEFT JOIN editor_proposals p ON p.id = b.proposal_id WHERE b.project_id = ? AND b.history_state < 2
-      UNION ALL SELECT seq, history_state, id AS action FROM project_assets WHERE project_id = ? AND history_state < 2 ORDER BY seq`).all(projectId, projectId);
-    const target = direction === "undo" ? entries.filter((entry) => Number(entry["history_state"]) === 0).at(-1)
-      : direction === "redo" ? entries.find((entry) => Number(entry["history_state"]) === 1) : undefined;
+      UNION ALL SELECT seq, history_state, id AS action FROM project_assets WHERE project_id = ? AND history_state < 2 ORDER BY seq`,
+      )
+      .all(projectId, projectId);
+    const target =
+      direction === "undo"
+        ? entries.filter((entry) => Number(entry["history_state"]) === 0).at(-1)
+        : direction === "redo"
+          ? entries.find((entry) => Number(entry["history_state"]) === 1)
+          : undefined;
     const targets: number[] = [];
     if (target) {
       const ordered = direction === "undo" ? [...entries].reverse() : entries;
@@ -262,10 +316,13 @@ export class ProjectScenesService {
         targets.push(Number(entry["seq"]));
       }
     }
-    return { version: Number(row?.["scene_version"] ?? 0), targets,
+    return {
+      version: Number(row?.["scene_version"] ?? 0),
+      targets,
       canUndo: entries.some((entry) => Number(entry["history_state"]) === 0),
       canRedo: entries.some((entry) => Number(entry["history_state"]) === 1),
-      target: target ? Number(target["seq"]) : null };
+      target: target ? Number(target["seq"]) : null,
+    };
   }
 
   /** Preview does not mutate storage: the desktop can load every required asset before committing. */
@@ -277,28 +334,55 @@ export class ProjectScenesService {
 
   commitHistory(projectId: string, direction: "undo" | "redo", version: number, operationId: string): void {
     this.database.transaction((db) => {
-      if (db.prepare("SELECT 1 FROM scene_history_requests WHERE project_id = ? AND operation_id = ?").get(projectId, operationId)) return;
+      if (
+        db
+          .prepare("SELECT 1 FROM scene_history_requests WHERE project_id = ? AND operation_id = ?")
+          .get(projectId, operationId)
+      )
+        return;
       const state = this.history(projectId, direction);
-      if (state.version !== version || state.target === null) throw new ConflictError("Scene history changed; reload before trying again");
+      if (state.version !== version || state.target === null)
+        throw new ConflictError("Scene history changed; reload before trying again");
       for (const table of ["project_scene_batches", "project_assets"]) {
-        for (const seq of state.targets) db.prepare(`UPDATE ${table} SET history_state = ? WHERE project_id = ? AND seq = ?`).run(direction === "undo" ? 1 : 0, projectId, seq);
+        for (const seq of state.targets)
+          db.prepare(`UPDATE ${table} SET history_state = ? WHERE project_id = ? AND seq = ?`).run(
+            direction === "undo" ? 1 : 0,
+            projectId,
+            seq,
+          );
       }
-      db.prepare("UPDATE projects SET objects_indexed = 0, scene_version = scene_version + 1 WHERE id = ?").run(projectId);
+      db.prepare("UPDATE projects SET objects_indexed = 0, scene_version = scene_version + 1 WHERE id = ?").run(
+        projectId,
+      );
       this.ensureObjectsIndexed(db, projectId);
-      db.prepare("INSERT INTO scene_history_requests(project_id, operation_id) VALUES (?, ?)").run(projectId, operationId);
+      db.prepare("INSERT INTO scene_history_requests(project_id, operation_id) VALUES (?, ?)").run(
+        projectId,
+        operationId,
+      );
     });
   }
 
-  private listFrom(db: DatabaseSync, projectId: string, preview?: { sequences: number[]; direction: "undo" | "redo" }): SceneStep[] {
+  private listFrom(
+    db: DatabaseSync,
+    projectId: string,
+    preview?: { sequences: number[]; direction: "undo" | "redo" },
+  ): SceneStep[] {
     const sequences = preview?.sequences.join(",") ?? "NULL";
-    const active = preview ? (preview.direction === "undo" ? `history_state = 0 AND seq NOT IN (${sequences})` : `(history_state = 0 OR (history_state = 1 AND seq IN (${sequences})))`) : "history_state = 0";
+    const active = preview
+      ? preview.direction === "undo"
+        ? `history_state = 0 AND seq NOT IN (${sequences})`
+        : `(history_state = 0 OR (history_state = 1 AND seq IN (${sequences})))`
+      : "history_state = 0";
     const commands = db
       .prepare(`SELECT seq, proposal_id, commands_json FROM project_scene_batches WHERE project_id = ? AND ${active}`)
       .all(projectId)
       .map((row): [number, SceneStep] => {
         const parsed: unknown = JSON.parse(textColumn(row, "commands_json"));
         if (!isStoredCommandList(parsed)) throw new Error("A saved scene step is damaged");
-        return [integerColumn(row, "seq"), { kind: "commands", proposalId: textColumn(row, "proposal_id"), commands: parsed }];
+        return [
+          integerColumn(row, "seq"),
+          { kind: "commands", proposalId: textColumn(row, "proposal_id"), commands: parsed },
+        ];
       });
     const imports = db
       .prepare(`SELECT seq, id, object_id, name, format FROM project_assets WHERE project_id = ? AND ${active}`)

@@ -2,12 +2,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { backendRequest } from "@/lib/backend";
-import {
-  effortKey,
-  reasoningEffortSchema,
-  resolveEffort,
-  type ReasoningEffort,
-} from "./reasoningEfforts";
+import { effortKey, reasoningEffortSchema, resolveEffort, type ReasoningEffort } from "./reasoningEfforts";
 import { selectAssistantEffort } from "./selectionSlice";
 import { useAssistantSelection } from "./useAssistantSelection";
 
@@ -33,9 +28,7 @@ export function useReasoningEffort() {
     efforts: readonly ReasoningEffort[];
     failed: boolean;
   }>({ key: "", efforts: NONE, failed: false });
-  const saved = useAppSelector((state) =>
-    key ? state.assistantSelection.efforts[key] : undefined,
-  );
+  const saved = useAppSelector((state) => (key ? state.assistantSelection.efforts[key] : undefined));
 
   useEffect(() => {
     if (!key || !providerId || !connected) return undefined;
@@ -61,8 +54,7 @@ export function useReasoningEffort() {
   }, [key, providerId, model, connected]);
 
   // Ignore an answer that belongs to a model that is no longer selected.
-  const efforts =
-    capabilityCache.get(key) ?? (loaded.key === key ? loaded.efforts : NONE);
+  const efforts = capabilityCache.get(key) ?? (loaded.key === key ? loaded.efforts : NONE);
   return {
     failed: loaded.key === key && loaded.failed,
     efforts,

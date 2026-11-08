@@ -5,6 +5,7 @@ import { ProjectsController } from "./projects.controller.js";
 import { ProjectsRepository } from "./projects.repository.js";
 import { ProjectsService } from "./projects.service.js";
 
+/** The projects feature: the project library, scenes and history. */
 @Module({
   controllers: [ProjectsController],
   providers: [ProjectAccessService, ProjectsRepository, ProjectsService, ProjectScenesService],

@@ -8,16 +8,24 @@ import { fillHole } from "@/features/meshGeometry/meshFillHole";
 import { saveCageEdit, type CageEdit } from "./saveCageEdit";
 import type { ComponentChoice } from "./subdivideSelection";
 
+/** A cleanup action on the selected components, such as merging or deleting them. */
 export type CleanupAction = "merge-center" | "merge-first" | "merge-last" | "dissolve" | "fill";
 
 /** Called inside the save queue; the IDs must still name the cage the user selected. */
-export async function cleanupSelection(scene: EditorScene, choice: ComponentChoice, revision: number, action: CleanupAction): Promise<void> {
-  if (scene.currentRevision !== revision) throw new Error("The mesh changed. Select the components again before editing.");
+export async function cleanupSelection(
+  scene: EditorScene,
+  choice: ComponentChoice,
+  revision: number,
+  action: CleanupAction,
+): Promise<void> {
+  if (scene.currentRevision !== revision)
+    throw new Error("The mesh changed. Select the components again before editing.");
   const mesh = meshAtPath(scene.getObject(choice.objectId), choice.meshPath);
   if (mesh instanceof SkinnedMesh) throw new Error("Component edits on skinned meshes are not supported yet.");
   const modifiers = modifierStack(mesh)?.modifiers ?? [];
   if (modifiers.some((entry) => entry.enabled)) throw new Error("Disable modifiers before editing the base mesh.");
-  if (modifiers.some((entry) => entry.kind === "extrusion")) throw new Error("Remove the live extrusion before changing mesh topology.");
+  if (modifiers.some((entry) => entry.kind === "extrusion"))
+    throw new Error("Remove the live extrusion before changing mesh topology.");
   const cage = readTopology(mesh.geometry);
   const ids = [...choice.ids];
   let edit: CageEdit;

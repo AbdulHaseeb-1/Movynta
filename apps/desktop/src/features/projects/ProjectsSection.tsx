@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Folder, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { libraryToggleVisible } from "./libraryToggle";
 import { NewProjectButton } from "./NewProjectButton";
 import { ProjectCard } from "./ProjectCard";
 import { ProjectDialogs } from "./ProjectDialogs";
@@ -40,9 +41,7 @@ export function ProjectsSection() {
   const [filters, setFilters] = useState<ProjectFilters>(defaultProjectFilters);
   const [search, setSearch] = useState("");
   // The short row always shows the latest projects, whatever the library was last filtered to.
-  const { projects, status, error, connected, reload } = useProjectLibrary(
-    expanded ? filters : defaultProjectFilters,
-  );
+  const { projects, status, error, connected, reload } = useProjectLibrary(expanded ? filters : defaultProjectFilters);
   const actions = useProjectActions({
     onChanged: () => void reload(),
     onRemoved: () => void reload(),
@@ -51,10 +50,7 @@ export function ProjectsSection() {
   // Search as the user types, but ask the backend only once they pause.
   useEffect(() => {
     const timer = window.setTimeout(
-      () =>
-        setFilters((current) =>
-          current.search === search ? current : { ...current, search },
-        ),
+      () => setFilters((current) => (current.search === search ? current : { ...current, search })),
       SEARCH_DELAY_MS,
     );
     return () => window.clearTimeout(timer);
@@ -63,8 +59,7 @@ export function ProjectsSection() {
   const filtered = filters.search !== "" || filters.category !== "all";
   const loading = status === "loading" || status === "idle";
   const visible = expanded ? projects : projects.slice(0, COLLAPSED_COUNT);
-  const notice =
-    actions.renaming || actions.deleting ? "" : actions.error || error || "";
+  const notice = actions.renaming || actions.deleting ? "" : actions.error || error || "";
 
   function clearFilters() {
     setSearch("");
@@ -79,19 +74,13 @@ export function ProjectsSection() {
   }
 
   return (
-    <section
-      aria-labelledby="projects-heading"
-      className="col-span-full flex flex-col gap-4"
-    >
+    <section aria-labelledby="projects-heading" className="col-span-full flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
-        <h2
-          id="projects-heading"
-          className="flex items-center gap-3 text-[17px] font-semibold tracking-[-0.02em]"
-        >
+        <h2 id="projects-heading" className="flex items-center gap-3 text-[17px] font-semibold tracking-[-0.02em]">
           <Folder className="size-5 text-muted-foreground" aria-hidden="true" />
           Projects
         </h2>
-        {connected && status === "ready" && (
+        {libraryToggleVisible(connected, status) && (
           <button
             type="button"
             onClick={() => setExpanded((current) => !current)}
@@ -99,21 +88,13 @@ export function ProjectsSection() {
             className="inline-flex items-center gap-1.5 rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
           >
             {expanded ? "Show less" : "View all"}
-            <ArrowRight
-              className={cn("size-3.5 transition-transform", expanded && "-rotate-90")}
-              aria-hidden="true"
-            />
+            <ArrowRight className={cn("size-3.5 transition-transform", expanded && "-rotate-90")} aria-hidden="true" />
           </button>
         )}
       </div>
 
       {expanded && (
-        <ProjectsToolbar
-          search={search}
-          onSearchChange={setSearch}
-          filters={filters}
-          onFiltersChange={setFilters}
-        />
+        <ProjectsToolbar search={search} onSearchChange={setSearch} filters={filters} onFiltersChange={setFilters} />
       )}
 
       {notice && (
@@ -169,11 +150,7 @@ export function ProjectsSection() {
       ) : (
         <div className={cn(GRID, "transition-opacity", loading && "opacity-60")}>
           {visible.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onAction={actions.perform}
-            />
+            <ProjectCard key={project.id} project={project} onAction={actions.perform} />
           ))}
           <NewProjectTile />
         </div>

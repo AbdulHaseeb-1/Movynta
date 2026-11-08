@@ -14,10 +14,7 @@ import {
 } from "three";
 import { triangulate } from "@/features/meshGeometry/meshOutput";
 import { edgeKey } from "@/features/meshGeometry/meshTopology";
-import type {
-  ExtrudeKind,
-  ExtrudeResult,
-} from "@/features/meshGeometry/meshExtrude";
+import type { ExtrudeKind, ExtrudeResult } from "@/features/meshGeometry/meshExtrude";
 
 interface Layer {
   geometry: BufferGeometry;
@@ -33,12 +30,7 @@ export class ExtrudePreviewOverlay {
   private readonly group = new Group();
   private readonly layers: Layer[] = [];
   private readonly result: ExtrudeResult;
-  constructor(
-    scene: Scene,
-    source: Object3D,
-    result: ExtrudeResult,
-    kind: ExtrudeKind,
-  ) {
+  constructor(scene: Scene, source: Object3D, result: ExtrudeResult, kind: ExtrudeKind) {
     this.result = result;
     const edges = new Map<string, [number, number]>();
     for (const face of result.mesh.faces)
@@ -47,12 +39,7 @@ export class ExtrudePreviewOverlay {
         if (b !== undefined) edges.set(edgeKey(a, b), [a, b]);
       });
     const wire = this.layer([...edges.values()].flat());
-    this.group.add(
-      new LineSegments(
-        wire,
-        new LineBasicMaterial({ color: 0x000000, depthTest: true }),
-      ),
-    );
+    this.group.add(new LineSegments(wire, new LineBasicMaterial({ color: 0x000000, depthTest: true })));
     if (kind === "vertex") {
       this.group.add(
         new Points(
@@ -130,10 +117,7 @@ export class ExtrudePreviewOverlay {
   }
   private layer(vertices: number[]): BufferGeometry {
     const geometry = new BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new Float32BufferAttribute(new Float32Array(vertices.length * 3), 3),
-    );
+    geometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(vertices.length * 3), 3));
     this.layers.push({ geometry, vertices });
     return geometry;
   }
@@ -153,9 +137,7 @@ export class ExtrudePreviewOverlay {
     this.group.traverse((object) => {
       if (isDrawable(object)) {
         object.geometry.dispose();
-        const materials = Array.isArray(object.material)
-          ? object.material
-          : [object.material];
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.forEach((material) => material.dispose());
       }
     });

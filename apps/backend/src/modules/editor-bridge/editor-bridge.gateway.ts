@@ -60,7 +60,8 @@ export class EditorBridgeGateway implements OnGatewayConnection, OnGatewayDiscon
   @SubscribeMessage("auth")
   handleAuth(@ConnectedSocket() client: EditorSocket, @MessageBody() body: unknown): void {
     const state = this.requireState(client);
-    if (state.authenticated) return this.sendError(client, "already_authenticated", "Connection is already authenticated");
+    if (state.authenticated)
+      return this.sendError(client, "already_authenticated", "Connection is already authenticated");
 
     const parsed = authMessageSchema.safeParse(body);
     if (!parsed.success) return this.fail(client, "invalid_message", "Invalid auth message", 4400);
@@ -85,7 +86,14 @@ export class EditorBridgeGateway implements OnGatewayConnection, OnGatewayDiscon
     state.authenticated = true;
     state.clientId = clientId;
     clearTimeout(state.authTimer);
-    this.bridge.sendRaw(clientId, { event: "auth.ok", data: { clientId, projectId: parsed.data.projectId, recoveryRequired: this.proposals.needsRecovery(parsed.data.projectId) } });
+    this.bridge.sendRaw(clientId, {
+      event: "auth.ok",
+      data: {
+        clientId,
+        projectId: parsed.data.projectId,
+        recoveryRequired: this.proposals.needsRecovery(parsed.data.projectId),
+      },
+    });
     this.logger.log(`editor connected for project ${parsed.data.projectId}`);
   }
 

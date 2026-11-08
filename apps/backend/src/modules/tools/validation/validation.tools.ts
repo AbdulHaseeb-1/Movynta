@@ -4,6 +4,7 @@ import type { EditorContext } from "@movynta/editor-protocol";
 import { defineTool, type ToolDefinition } from "../tool.types.js";
 import type { SceneCheckResult, SceneIssue } from "./validation.types.js";
 
+/** The object count above which the scene check adds a warning that its results may be slow to review. */
 export const LARGE_SCENE_WARNING_THRESHOLD = 500;
 
 /** Pure checks over an editor snapshot. Used by the tool and by unit tests. */
@@ -65,10 +66,20 @@ function collectionIssues(scene: EditorContext): SceneIssue[] {
   for (const collection of collections) {
     if (collection.parentId !== null) {
       used.add(collection.parentId);
-      if (!byId.has(collection.parentId)) issues.push({ severity: "error", objectId: null, message: `Collection "${collection.id}" sits in "${collection.parentId}", which does not exist` });
+      if (!byId.has(collection.parentId))
+        issues.push({
+          severity: "error",
+          objectId: null,
+          message: `Collection "${collection.id}" sits in "${collection.parentId}", which does not exist`,
+        });
     }
     const key = `${collection.parentId ?? ""}\u0000${collection.name}`;
-    if (names.has(key)) issues.push({ severity: "warning", objectId: null, message: `Collection "${collection.id}" shares the name "${collection.name}" with another collection in the same place; rename one` });
+    if (names.has(key))
+      issues.push({
+        severity: "warning",
+        objectId: null,
+        message: `Collection "${collection.id}" shares the name "${collection.name}" with another collection in the same place; rename one`,
+      });
     names.add(key);
     const seen = new Set<string>();
     for (let current: string | null = collection.id; current !== null; current = byId.get(current)?.parentId ?? null) {
@@ -82,10 +93,20 @@ function collectionIssues(scene: EditorContext): SceneIssue[] {
   for (const object of scene.objects) {
     if (object.collectionId === undefined || object.collectionId === null) continue;
     used.add(object.collectionId);
-    if (!byId.has(object.collectionId)) issues.push({ severity: "error", objectId: object.id, message: `Is in collection "${object.collectionId}", which does not exist` });
+    if (!byId.has(object.collectionId))
+      issues.push({
+        severity: "error",
+        objectId: object.id,
+        message: `Is in collection "${object.collectionId}", which does not exist`,
+      });
   }
   for (const collection of collections) {
-    if (!used.has(collection.id)) issues.push({ severity: "info", objectId: null, message: `Collection "${collection.id}" (${collection.name}) is empty` });
+    if (!used.has(collection.id))
+      issues.push({
+        severity: "info",
+        objectId: null,
+        message: `Collection "${collection.id}" (${collection.name}) is empty`,
+      });
   }
   return issues;
 }
@@ -99,7 +120,11 @@ function structureIssues(scene: EditorContext): SceneIssue[] {
     if (object.parentId !== null) hasChildren.add(object.parentId);
     const key = `${object.parentId ?? ""}\u0000${object.name}`;
     if (object.name.length > 0 && names.has(key)) {
-      issues.push({ severity: "warning", objectId: object.id, message: `Shares the name "${object.name}" with another object under the same parent; rename one so each can be told apart` });
+      issues.push({
+        severity: "warning",
+        objectId: object.id,
+        message: `Shares the name "${object.name}" with another object under the same parent; rename one so each can be told apart`,
+      });
     }
     names.add(key);
   }
@@ -108,7 +133,8 @@ function structureIssues(scene: EditorContext): SceneIssue[] {
       issues.push({
         severity: "warning",
         objectId: object.id,
-        message: "Has children and is scaled by different amounts on different axes, so a turned child cannot be moved under it or out of it and stay where it is. Give it the same scale on every axis and scale the parts instead",
+        message:
+          "Has children and is scaled by different amounts on different axes, so a turned child cannot be moved under it or out of it and stay where it is. Give it the same scale on every axis and scale the parts instead",
       });
     }
     if (object.type === "empty" && !hasChildren.has(object.id)) {
@@ -129,11 +155,13 @@ function hasParentCycle(startId: string, byId: ReadonlyMap<string, EditorContext
   return false;
 }
 
+/** Builds validation.check_scene, which checks the scene for errors. */
 export function createValidationTools({ bridge }: { readonly bridge: EditorBridge }): ToolDefinition[] {
   return [
     defineTool({
       name: "validation.check_scene",
-      description: "Check the current scene for duplicate ids, missing parents, parent cycles, and invalid scale (errors), names shared by objects under one parent or collections in one place and groups scaled unevenly (warnings), and empty groups and collections (information). Also checks that every collection an object is in exists and that collections do not sit inside themselves.",
+      description:
+        "Check the current scene for duplicate ids, missing parents, parent cycles, and invalid scale (errors), names shared by objects under one parent or collections in one place and groups scaled unevenly (warnings), and empty groups and collections (information). Also checks that every collection an object is in exists and that collections do not sit inside themselves.",
       permission: "read",
       parameters: z.object({}).strict(),
       execute: async (_input, context) => {
@@ -142,6 +170,7 @@ export function createValidationTools({ bridge }: { readonly bridge: EditorBridg
         const check = checkScene(scene);
         // Only the latest check counts: the run is finished once it has seen the scene without errors.
         context.progress.unverifiedChanges = false;
+        context.progress.batchesSinceCheck = 0;
         context.progress.sceneErrors = check.issues.filter((issue) => issue.severity === "error").length;
         return check;
       },

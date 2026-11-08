@@ -8,6 +8,7 @@ import { requireOneOf } from "../../../shared/guards/enum.guard.js";
 import type { CommandExecutionResult } from "../editor-bridge.types.js";
 import type { CommandProposalRecord, NewProposal, ProposalStatus } from "./proposals.types.js";
 
+/** The statuses a proposal can have. */
 export const PROPOSAL_STATUSES = ["proposed", "applying", "applied", "failed", "rejected", "superseded"] as const;
 
 // JSON storage drops undefined fields, so optional values may be absent or null.
@@ -18,7 +19,12 @@ const storedResultSchema = z.object({
   message: z.string().nullish(),
   rebased: z.boolean().nullish(),
   results: z.array(
-    z.object({ commandId: z.string(), status: z.enum(["applied", "failed"]), message: z.string().nullish(), name: z.string().nullish() }),
+    z.object({
+      commandId: z.string(),
+      status: z.enum(["applied", "failed"]),
+      message: z.string().nullish(),
+      name: z.string().nullish(),
+    }),
   ),
 });
 
@@ -59,13 +65,14 @@ function toRecord(row: SqlRow): CommandProposalRecord {
   };
 }
 
+/** Stores command proposals and their status in the database. */
 @Injectable()
 export class CommandProposalRepository {
   constructor(private readonly database: DatabaseService) {}
 
   insert(proposal: NewProposal): void {
-    this.database
-      .db.prepare(
+    this.database.db
+      .prepare(
         `INSERT INTO editor_proposals (id, run_id, project_id, client_id, base_revision, summary, commands_json, requires_approval, status, created_at, updated_at, strict_revision)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?)`,
       )
@@ -96,18 +103,26 @@ export class CommandProposalRepository {
       if (!this.transition(proposalId, ["applying"], "applied", new Date().toISOString(), result)) {
         throw new Error("Proposal is no longer being applied");
       }
-      this.database.db.prepare("UPDATE editor_proposals SET delivery_pending = ? WHERE id = ?").run(deliveryPending ? 1 : 0, proposalId);
+      this.database.db
+        .prepare("UPDATE editor_proposals SET delivery_pending = ? WHERE id = ?")
+        .run(deliveryPending ? 1 : 0, proposalId);
     });
   }
   markDelivered(proposalId: string): void {
     this.database.db.prepare("UPDATE editor_proposals SET delivery_pending = 0 WHERE id = ?").run(proposalId);
   }
   needsRecovery(projectId: string): boolean {
-    return this.database.db.prepare("SELECT 1 FROM editor_proposals WHERE project_id = ? AND delivery_pending = 1 LIMIT 1").get(projectId) !== undefined;
+    return (
+      this.database.db
+        .prepare("SELECT 1 FROM editor_proposals WHERE project_id = ? AND delivery_pending = 1 LIMIT 1")
+        .get(projectId) !== undefined
+    );
   }
 
   /** Share this repository's connection with a transaction participant. */
-  get connection() { return this.database.db; }
+  get connection() {
+    return this.database.db;
+  }
 
   /** Moves a proposal from one of `from` to `to` in one conditional write. */
   transition(

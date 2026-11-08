@@ -1,8 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import {
-  chatgptSessionReducer,
-  providersReducer,
-} from "@/features/providers";
+import { chatgptSessionReducer, providersReducer } from "@/features/providers";
 import { projectsReducer } from "@/features/projects";
 import { viewportReducer } from "@/features/viewport3d/viewportSlice";
 import { saveViewportDisplay } from "@/features/viewport3d/viewportStorage";
@@ -12,6 +9,7 @@ import { designWorkspaceReducer } from "@/features/designWorkspace";
 import { savePanelVisibility } from "@/features/designWorkspace/panelStorage";
 import { helpReducer } from "@/features/documentation/shortcuts/helpSlice";
 
+/** The app's Redux store, with its slices and the saving of settings to local storage. */
 export const store = configureStore({
   reducer: {
     providers: providersReducer,
@@ -24,7 +22,9 @@ export const store = configureStore({
   },
 });
 
+/** The whole state of the app's store. */
 export type RootState = ReturnType<typeof store.getState>;
+/** The dispatch function of the app's store. */
 export type AppDispatch = typeof store.dispatch;
 
 // Persist the chosen provider and model, the open panels and the view's shading, so they are restored on the next launch.
@@ -33,7 +33,16 @@ let savedPanels = store.getState().designWorkspace.panels;
 let savedDisplay = store.getState().viewport.display;
 store.subscribe(() => {
   const { assistantSelection, designWorkspace, viewport } = store.getState();
-  if (viewport.display !== savedDisplay) { savedDisplay = viewport.display; saveViewportDisplay(savedDisplay); }
-  if (assistantSelection !== savedSelection) { savedSelection = assistantSelection; saveSelection(assistantSelection); }
-  if (designWorkspace.panels !== savedPanels) { savedPanels = designWorkspace.panels; savePanelVisibility(savedPanels); }
+  if (viewport.display !== savedDisplay) {
+    savedDisplay = viewport.display;
+    saveViewportDisplay(savedDisplay);
+  }
+  if (assistantSelection !== savedSelection) {
+    savedSelection = assistantSelection;
+    saveSelection(assistantSelection);
+  }
+  if (designWorkspace.panels !== savedPanels) {
+    savedPanels = designWorkspace.panels;
+    savePanelVisibility(savedPanels);
+  }
 });

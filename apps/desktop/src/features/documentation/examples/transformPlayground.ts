@@ -5,14 +5,18 @@
  * pointer, and scale factors must be from 0.001 to 100. Units are scene units with Y pointing up.
  */
 
+/** A transform operation in the example: move, rotate or scale. */
 export type TransformOperation = "move" | "rotate" | "scale";
+/** An axis in the transform example. */
 export type PlaygroundAxis = "x" | "y";
 
+/** A point on the transform example's grid. */
 export interface Point {
   readonly x: number;
   readonly y: number;
 }
 
+/** The shape moved by the transform example. */
 export interface PlaygroundShape {
   readonly x: number;
   readonly y: number;
@@ -22,6 +26,7 @@ export interface PlaygroundShape {
   readonly scaleY: number;
 }
 
+/** A transform in progress in the example. */
 export interface TransformSession {
   readonly operation: TransformOperation;
   readonly axis: PlaygroundAxis | null;
@@ -31,6 +36,7 @@ export interface TransformSession {
   readonly numeric: string;
 }
 
+/** The whole state of the transform example. */
 export interface TransformPlayground {
   readonly shape: PlaygroundShape;
   readonly session: TransformSession | null;
@@ -40,8 +46,10 @@ export interface TransformPlayground {
   readonly message: string;
 }
 
+/** The shape's position before the example is touched. */
 export const INITIAL_SHAPE: PlaygroundShape = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 };
 
+/** The state of the transform example before it is touched. */
 export const INITIAL_PLAYGROUND: TransformPlayground = {
   shape: INITIAL_SHAPE,
   session: null,
@@ -74,7 +82,8 @@ export function numericError(session: TransformSession): string | undefined {
   if (session.numeric === "") return undefined;
   const value = typedNumber(session);
   if (value === null) return "Enter a valid number";
-  if (session.operation === "scale" && (value < MIN_SCALE || value > MAX_SCALE)) return "Enter a valid number from 0.001 to 100";
+  if (session.operation === "scale" && (value < MIN_SCALE || value > MAX_SCALE))
+    return "Enter a valid number from 0.001 to 100";
   return undefined;
 }
 
@@ -110,9 +119,13 @@ export function previewShape(state: TransformPlayground): PlaygroundShape {
     }
     case "scale": {
       const startDistance = Math.hypot(session.start.x - pivot.x, session.start.y - pivot.y);
-      const dragged = startDistance > 1e-6
-        ? Math.max(MIN_DRAG_SCALE, Math.hypot(session.pointer.x - pivot.x, session.pointer.y - pivot.y) / startDistance)
-        : 1;
+      const dragged =
+        startDistance > 1e-6
+          ? Math.max(
+              MIN_DRAG_SCALE,
+              Math.hypot(session.pointer.x - pivot.x, session.pointer.y - pivot.y) / startDistance,
+            )
+          : 1;
       const factor = typed ?? dragged;
       return {
         ...shape,
@@ -138,6 +151,7 @@ export function transformStatus(state: TransformPlayground): string {
   return `${LABEL[session.operation]}${axis}${typed}  ·  Type a value · X/Y constrain  ·  Click or Enter confirm  ·  Esc cancel`;
 }
 
+/** The actions that change the transform example's state. */
 export type PlaygroundAction =
   | { readonly type: "start"; readonly operation: TransformOperation; readonly pointer: Point }
   | { readonly type: "pointer"; readonly pointer: Point }
@@ -163,7 +177,13 @@ export function transformReducer(state: TransformPlayground, action: PlaygroundA
       if (session) return state;
       return {
         ...state,
-        session: { operation: action.operation, axis: null, start: action.pointer, pointer: action.pointer, numeric: "" },
+        session: {
+          operation: action.operation,
+          axis: null,
+          start: action.pointer,
+          pointer: action.pointer,
+          numeric: "",
+        },
       };
     case "pointer":
       return session ? { ...state, session: { ...session, pointer: action.pointer } } : state;
@@ -184,15 +204,27 @@ export function transformReducer(state: TransformPlayground, action: PlaygroundA
     case "confirm": {
       if (!session || numericError(session)) return state;
       const shape = previewShape(state);
-      return { shape, session: null, history: [...state.history, state.shape], message: `${LABEL[session.operation]} confirmed: ${describe(shape)}. Ctrl+Z undoes it.` };
+      return {
+        shape,
+        session: null,
+        history: [...state.history, state.shape],
+        message: `${LABEL[session.operation]} confirmed: ${describe(shape)}. Ctrl+Z undoes it.`,
+      };
     }
     case "cancel":
-      return session ? { ...state, session: null, message: `${LABEL[session.operation]} cancelled; the shape is back where it was.` } : state;
+      return session
+        ? { ...state, session: null, message: `${LABEL[session.operation]} cancelled; the shape is back where it was.` }
+        : state;
     case "undo": {
       if (session) return state;
       const previous = state.history[state.history.length - 1];
       if (!previous) return { ...state, message: "Nothing to undo." };
-      return { shape: previous, session: null, history: state.history.slice(0, -1), message: `Undone: ${describe(previous)}.` };
+      return {
+        shape: previous,
+        session: null,
+        history: state.history.slice(0, -1),
+        message: `Undone: ${describe(previous)}.`,
+      };
     }
     case "reset":
       return INITIAL_PLAYGROUND;

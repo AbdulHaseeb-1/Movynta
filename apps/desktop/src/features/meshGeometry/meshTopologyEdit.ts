@@ -5,8 +5,10 @@ import { triangulate } from "./meshOutput";
 import type { Vector3 } from "three";
 import type { PolygonMesh } from "./meshTopology";
 
+/** Throws unless enough ids are given, with no id repeated. */
 export function requireIds(ids: readonly string[], minimum = 1): void {
-  if (ids.length < minimum || ids.length > 4096 || new Set(ids).size !== ids.length) throw new Error(`Select ${minimum}–4096 unique components`);
+  if (ids.length < minimum || ids.length > 4096 || new Set(ids).size !== ids.length)
+    throw new Error(`Select ${minimum}–4096 unique components`);
 }
 
 /**
@@ -16,6 +18,7 @@ export function requireIds(ids: readonly string[], minimum = 1): void {
  */
 const faceChecked = new WeakMap<readonly (readonly number[])[], WeakSet<readonly Vector3[]>>();
 
+/** The options of a topology edit, such as which faces it must keep. */
 export interface TopologyEditOptions {
   /** The edit may open a closed mesh (delete, or a cut that keeps one side). Otherwise a closed mesh must stay closed. */
   allowOpening?: boolean;
@@ -23,7 +26,8 @@ export interface TopologyEditOptions {
 
 /** An order-independent hash of a face's vertices, so coincident faces meet without building a string per face. */
 function faceHash(face: readonly number[]): number {
-  let sum = 0, mix = 0;
+  let sum = 0,
+    mix = 0;
   for (const vertex of face) {
     const scrambled = Math.imul(vertex + 1, 0x9e3779b1);
     sum = (sum + scrambled) | 0;
@@ -33,7 +37,8 @@ function faceHash(face: readonly number[]): number {
 }
 function sameVertices(a: readonly number[], b: readonly number[]): boolean {
   if (a.length !== b.length) return false;
-  const left = a.slice().sort((x, y) => x - y), right = b.slice().sort((x, y) => x - y);
+  const left = a.slice().sort((x, y) => x - y),
+    right = b.slice().sort((x, y) => x - y);
   return left.every((vertex, index) => vertex === right[index]);
 }
 
@@ -47,7 +52,10 @@ export function validateTopologyEdit(before: PolygonMesh, after: PolygonMesh, op
   const seen = new Map<number, number | number[]>();
   const positions = after.positions;
   // A face of the base that is unchanged, with every vertex where it was, passed these checks already.
-  const trusted = after !== before && faceChecked.get(before.faces)?.has(before.positions) ? new Set<readonly number[]>(before.faces) : undefined;
+  const trusted =
+    after !== before && faceChecked.get(before.faces)?.has(before.positions)
+      ? new Set<readonly number[]>(before.faces)
+      : undefined;
   for (let index = 0; index < after.faces.length; index += 1) {
     const face = after.faces[index] ?? [];
     const hash = faceHash(face);
@@ -55,22 +63,37 @@ export function validateTopologyEdit(before: PolygonMesh, after: PolygonMesh, op
     if (previous === undefined) seen.set(hash, index);
     else {
       const candidates = typeof previous === "number" ? [previous] : previous;
-      if (candidates.some((other) => sameVertices(after.faces[other] ?? [], face))) throw new Error("Topology edit creates coincident faces");
+      if (candidates.some((other) => sameVertices(after.faces[other] ?? [], face)))
+        throw new Error("Topology edit creates coincident faces");
       seen.set(hash, [...candidates, index]);
     }
     if (trusted?.has(face) && face.every((vertex) => positions[vertex] === before.positions[vertex])) continue;
-    if (face.length < 3 || new Set(face).size !== face.length) throw new Error("Topology edit creates a collapsed, repeated or untriangulatable face");
+    if (face.length < 3 || new Set(face).size !== face.length)
+      throw new Error("Topology edit creates a collapsed, repeated or untriangulatable face");
     // Newell area vector, inline: this runs for every face of every topology edit.
-    let nx = 0, ny = 0, nz = 0, collapsed = false;
+    let nx = 0,
+      ny = 0,
+      nz = 0,
+      collapsed = false;
     for (let i = 0; i < face.length; i += 1) {
-      const a = positions[face[i] ?? -1], b = positions[face[(i + 1) % face.length] ?? -1];
+      const a = positions[face[i] ?? -1],
+        b = positions[face[(i + 1) % face.length] ?? -1];
       if (!a || !b) throw new Error("Mesh contains an invalid vertex reference");
       nx += (a.y - b.y) * (a.z + b.z);
       ny += (a.z - b.z) * (a.x + b.x);
       nz += (a.x - b.x) * (a.y + b.y);
-      if (!Number.isFinite(a.x + a.y + a.z) || (Math.fround(a.x) === Math.fround(b.x) && Math.fround(a.y) === Math.fround(b.y) && Math.fround(a.z) === Math.fround(b.z))) collapsed = true;
+      if (
+        !Number.isFinite(a.x + a.y + a.z) ||
+        (Math.fround(a.x) === Math.fround(b.x) &&
+          Math.fround(a.y) === Math.fround(b.y) &&
+          Math.fround(a.z) === Math.fround(b.z))
+      )
+        collapsed = true;
     }
-    if (nx * nx + ny * ny + nz * nz < 1e-20 || (face.length > 3 && triangulate(after, face).length !== face.length - 2)) {
+    if (
+      nx * nx + ny * ny + nz * nz < 1e-20 ||
+      (face.length > 3 && triangulate(after, face).length !== face.length - 2)
+    ) {
       throw new Error("Topology edit creates a collapsed, repeated or untriangulatable face");
     }
     if (collapsed) throw new Error("Topology edit collapses an edge at Float32 precision");
@@ -80,7 +103,13 @@ export function validateTopologyEdit(before: PolygonMesh, after: PolygonMesh, op
   faceChecked.set(after.faces, checkedWith);
 }
 
-export function topologyResult(before: PolygonMesh, after: PolygonMesh, selection: string[], options: TopologyEditOptions = {}): ExtrudeResult {
+/** Checks a topology edit and returns its result, with the selection carried onto the new faces. */
+export function topologyResult(
+  before: PolygonMesh,
+  after: PolygonMesh,
+  selection: string[],
+  options: TopologyEditOptions = {},
+): ExtrudeResult {
   validateTopologyEdit(before, after, options);
   return { mesh: after, selection, walls: [] };
 }

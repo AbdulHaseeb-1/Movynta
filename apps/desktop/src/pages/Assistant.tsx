@@ -21,24 +21,18 @@ import {
   LOGO_SRC,
   PromptSuggestions,
   useAssistantRun,
+  useAssistantSelection,
   UNSAVED_PROJECT_ID,
   type SceneStep,
 } from "@/features/assistant";
-import {
-  ImportButton,
-  loadSavedModel,
-  useModelImport,
-} from "@/features/importer";
-import {
-  ObjectEditingOverlay,
-  ModifierPanel,
-  ToolHint,
-  useObjectEditing,
-} from "@/features/objectEditing";
+import { ImportButton, loadSavedModel, useModelImport } from "@/features/importer";
+import { ObjectEditingOverlay, ModifierPanel, ToolHint, useObjectEditing } from "@/features/objectEditing";
+import { useImageAttachments } from "@/features/attachments";
 import { useViewCapture } from "@/features/viewCapture";
 import { setShortcutsOpen } from "@/features/documentation/shortcuts";
 import { createSerialQueue } from "@/lib";
 import {
+  createdAfterNavigation,
   createProject,
   getProject,
   getProjectConversation,
@@ -47,6 +41,7 @@ import {
   ProjectDialogs,
   projectChanged,
   projectPath,
+  projectToOpen,
   updateProject,
   useProjectActions,
   type Project,
@@ -56,7 +51,18 @@ import { errorMessage } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { ObjectActions } from "@/features/objectEditing/ObjectActions";
-import { AddShapeMenu, ComponentToolbar, useComponentSelection, useDesignFocus, useExtrude, useKnife, DesignModeMenu, DesignWorkspacePanel, setDesignMode, setPanelOpen as setWorkspacePanelOpen } from "@/features/designWorkspace";
+import {
+  AddShapeMenu,
+  ComponentToolbar,
+  useComponentSelection,
+  useDesignFocus,
+  useExtrude,
+  useKnife,
+  DesignModeMenu,
+  DesignWorkspacePanel,
+  setDesignMode,
+  setPanelOpen as setWorkspacePanelOpen,
+} from "@/features/designWorkspace";
 
 /** A saved project, fetched in full before the workspace shows it. */
 interface SavedProject {
@@ -85,7 +91,10 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const [measurementPicking, setMeasurementPicking] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const panelOpen = useAppSelector((state) => state.designWorkspace.panels.assistant);
-  const setPanelOpen = useCallback((open: boolean) => dispatch(setWorkspacePanelOpen({ id: "assistant", open })), [dispatch]);
+  const setPanelOpen = useCallback(
+    (open: boolean) => dispatch(setWorkspacePanelOpen({ id: "assistant", open })),
+    [dispatch],
+  );
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [editorScene, setEditorScene] = useState<EditorScene | null>(null);
   useEffect(() => {
@@ -93,11 +102,11 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     viewport.setShadingModelPredicate((object) => editorScene.idOf(object) !== undefined);
     return () => viewport.setShadingModelPredicate(() => false);
   }, [viewport, editorScene]);
-  useEffect(() => { viewport?.setShadingMode(shadingMode, xray); }, [viewport, shadingMode, xray]);
+  useEffect(() => {
+    viewport?.setShadingMode(shadingMode, xray);
+  }, [viewport, shadingMode, xray]);
   const [project, setProject] = useState<Project | undefined>(undefined);
-  const [opening, setOpening] = useState<OpeningState>(
-    openProjectId ? "loading" : "ready",
-  );
+  const [opening, setOpening] = useState<OpeningState>(openProjectId ? "loading" : "ready");
   const [openError, setOpenError] = useState("");
   const loading = useRef(0);
   const editorRef = useRef<EditorScene | null>(null);
@@ -116,14 +125,19 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       return created.id;
     });
     creatingProject.current = pending;
-    try { return await pending; }
-    finally { if (creatingProject.current === pending) creatingProject.current = null; }
+    try {
+      return await pending;
+    } finally {
+      if (creatingProject.current === pending) creatingProject.current = null;
+    }
   }, [onProjectCreated]);
 
   // The assistant looks at the scene through the same viewport the user sees, from any point of view.
   const viewCapture = useViewCapture(viewport, editorRef);
   const [saves] = useState(createSerialQueue);
   const run = useAssistantRun(editorRef, ensureProject, viewCapture, saves.flush);
+  const attachments = useImageAttachments();
+  const { provider: selectedProvider } = useAssistantSelection();
   const hydrate = useRef(run.hydrate);
   useEffect(() => {
     hydrate.current = run.hydrate;
@@ -138,15 +152,28 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     historyDisabled: run.busy || modifierBusy || opening !== "ready" || measurementPicking,
     saves,
   });
-  const knife = useKnife(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking, saves);
-  const extrude = useExtrude(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking, saves);
+  const knife = useKnife(
+    viewport,
+    editorScene,
+    run.busy || modifierBusy || opening !== "ready" || measurementPicking,
+    saves,
+  );
+  const extrude = useExtrude(
+    viewport,
+    editorScene,
+    run.busy || modifierBusy || opening !== "ready" || measurementPicking,
+    saves,
+  );
   useDesignFocus(editorScene);
   useComponentSelection(viewport, editorScene, run.busy || modifierBusy || opening !== "ready" || measurementPicking);
 
-  const frame = useCallback((scope: "selection" | "all") => {
-    const box = editorScene ? boxToFrame(editorScene, scope) : null;
-    if (box) viewport?.frameBox(box);
-  }, [editorScene, viewport]);
+  const frame = useCallback(
+    (scope: "selection" | "all") => {
+      const box = editorScene ? boxToFrame(editorScene, scope) : null;
+      if (box) viewport?.frameBox(box);
+    },
+    [editorScene, viewport],
+  );
   // Views, zoom, framing and shading keys work in Object and Edit mode alike.
   useViewportShortcuts({ viewport, onFrame: frame });
 
@@ -179,17 +206,14 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
     if (!data || !editor || restored.current) return;
     restored.current = true;
     try {
-      await editor.restore(data.steps, (step) =>
-        loadSavedModel(data.project.id, step),
-      );
+      await editor.restore(data.steps, (step) => loadSavedModel(data.project.id, step));
     } catch (failure) {
       setOpenError(errorMessage(failure));
       setOpening("error");
       return;
     }
     hydrate.current(data.conversation);
-    const hasContent =
-      data.conversation.messages.length > 0 || data.steps.length > 0;
+    const hasContent = data.conversation.messages.length > 0 || data.steps.length > 0;
     setSubmitted(hasContent);
     setOpening("ready");
   }, []);
@@ -198,11 +222,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   const fetchProject = useCallback(() => {
     if (!openProjectId) return;
     const request = ++loading.current;
-    Promise.all([
-      getProject(openProjectId),
-      getProjectConversation(openProjectId),
-      getProjectScene(openProjectId),
-    ])
+    Promise.all([getProject(openProjectId), getProjectConversation(openProjectId), getProjectScene(openProjectId)])
       .then(([loaded, conversation, scene]) => {
         if (request !== loading.current) return;
         saved.current = { project: loaded, conversation, steps: scene.steps };
@@ -238,15 +258,19 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
   }, [dispatch]);
 
   function handleSubmit() {
-    const message = prompt.trim();
-    if (!message || run.busy) return;
+    const images = attachments.images;
+    const typed = prompt.trim();
+    if ((!typed && images.length === 0) || run.busy || attachments.preparing) return;
+    // Pictures alone are a complete request: they are the reference to work from.
+    const message =
+      typed ||
+      (images.length === 1 ? "Use the attached image as a reference." : "Use the attached images as a reference.");
     setSubmitted(true);
     setPrompt("");
+    attachments.clear();
     // Mount the launcher first, then open on the next frame so the pane grows out of it.
-    window.requestAnimationFrame(() =>
-      window.requestAnimationFrame(() => setPanelOpen(true)),
-    );
-    void run.submit(message);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setPanelOpen(true)));
+    void run.submit(message, images);
   }
 
   function handleSuggestion(suggestion: string) {
@@ -270,6 +294,8 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
       onStop={() => void run.cancel()}
       busy={run.busy}
       ready={run.ready}
+      attachments={attachments}
+      picturesAllowed={selectedProvider?.acceptsImages !== false}
     />
   );
 
@@ -279,10 +305,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
         className="absolute inset-0"
         showGrid={showGrid}
         onReady={(ready) => {
-          const created = new EditorScene(
-            ready.scene,
-            openProjectId ?? UNSAVED_PROJECT_ID,
-          );
+          const created = new EditorScene(ready.scene, openProjectId ?? UNSAVED_PROJECT_ID);
           editorRef.current = created;
           setEditorScene(created);
           setViewport(ready);
@@ -295,18 +318,12 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
             aria-label="Design prompt"
           >
             <div className="absolute right-0 bottom-full left-0 mb-[34px] flex flex-col items-center max-[600px]:mb-7">
-              <img
-                src={LOGO_SRC}
-                alt=""
-                draggable={false}
-                className="mb-5 h-12 w-auto select-none max-[600px]:h-10"
-              />
+              <img src={LOGO_SRC} alt="" draggable={false} className="mb-5 h-12 w-auto select-none max-[600px]:h-10" />
               <h1 className="text-[clamp(24px,3vw,30px)] leading-[1.2] font-[750] tracking-[-0.045em]">
                 What do you want to design?
               </h1>
               <p className="mt-2 text-[13px] leading-[1.5] text-muted-foreground">
-                Describe a character or an object and {ASSISTANT_NAME} will
-                shape it in 3D.
+                Describe a character or an object and {ASSISTANT_NAME} will shape it in 3D.
               </p>
             </div>
             {composer("hero")}
@@ -316,7 +333,8 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
           </section>
         )}
       </CoordinateViewport>
-      {((submitted && designMode === "object") || (designMode === "edit" && (extrude.hint !== "" || knife.hint !== ""))) && (
+      {((submitted && designMode === "object") ||
+        (designMode === "edit" && (extrude.hint !== "" || knife.hint !== ""))) && (
         // The tools sit at the bottom of the free part of the view: clear of the chat on the left and of
         // the object's values on the right, and centered under the work.
         <div
@@ -325,7 +343,16 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
             panelOpen ? "left-[340px]" : "left-4",
           )}
         >
-          {knife.hint || extrude.hint || editing.transformHint ? <output aria-live="off" className="pointer-events-none max-w-3xl rounded-lg bg-popover px-3 py-2 text-center text-xs text-popover-foreground shadow-xl">{knife.hint || extrude.hint || editing.transformHint}</output> : <ToolHint hasSelection={editing.selected !== null} />}
+          {knife.hint || extrude.hint || editing.transformHint ? (
+            <output
+              aria-live="off"
+              className="pointer-events-none max-w-3xl rounded-lg bg-popover px-3 py-2 text-center text-xs text-popover-foreground shadow-xl"
+            >
+              {knife.hint || extrude.hint || editing.transformHint}
+            </output>
+          ) : (
+            <ToolHint hasSelection={editing.selected !== null} />
+          )}
           {designMode === "object" && (
             <ViewportToolbar
               viewport={viewport}
@@ -337,7 +364,13 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
               onRedo={editing.redo}
               orientation="horizontal"
               className="animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none"
-            ><ObjectActions scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} /></ViewportToolbar>
+            >
+              <ObjectActions
+                scene={editorScene}
+                saves={saves}
+                disabled={run.busy || modifierBusy || opening !== "ready"}
+              />
+            </ViewportToolbar>
           )}
         </div>
       )}
@@ -351,43 +384,130 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
         />
       )}
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
-        <ProjectBar project={project} onAction={actions.perform} onRename={renameProject} />
+        <ProjectBar
+          project={project}
+          onAction={actions.perform}
+          onRename={renameProject}
+          // The rename and delete dialogs show their own errors.
+          error={actions.renaming || actions.deleting ? "" : actions.error}
+          onDismissError={actions.clearError}
+        />
         <DesignModeMenu />
 
-        <AddShapeMenu scene={editorScene} ensureProject={ensureProject} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} onAdded={() => setSubmitted(true)} />
+        <AddShapeMenu
+          scene={editorScene}
+          ensureProject={ensureProject}
+          saves={saves}
+          disabled={run.busy || modifierBusy || opening !== "ready"}
+          onBusyChange={setModifierBusy}
+          onAdded={() => setSubmitted(true)}
+        />
       </div>
-      {designMode === "edit" && <div className={cn("absolute top-14 right-4 z-20 w-fit max-w-[calc(100vw_-_2rem)]", panelOpen ? "left-[340px] max-w-[calc(100vw_-_356px)]" : "left-4")}><ComponentToolbar scene={editorScene} saves={saves} start={extrude.start} startKnife={knife.start} disabled={run.busy || modifierBusy || opening !== "ready"} /></div>}
+      {designMode === "edit" && (
+        <div
+          className={cn(
+            "absolute top-14 right-4 z-20 w-fit max-w-[calc(100vw_-_2rem)]",
+            panelOpen ? "left-[340px] max-w-[calc(100vw_-_356px)]" : "left-4",
+          )}
+        >
+          <ComponentToolbar
+            scene={editorScene}
+            saves={saves}
+            start={extrude.start}
+            startKnife={knife.start}
+            disabled={run.busy || modifierBusy || opening !== "ready"}
+          />
+        </div>
+      )}
       {/* Panel launchers stay compact until opened. */}
       <div className="pointer-events-none absolute top-4 right-4 bottom-20 z-20 flex w-[272px] flex-col items-end gap-3 overflow-y-auto">
         <div className="pointer-events-auto flex w-full shrink-0 items-start justify-end gap-2">
-        <ShadingMenu />
-        <ImportButton
-          importer={importer}
-          disabled={run.busy || modifierBusy || opening !== "ready"}
-          className="min-w-0"
-        />
+          <ShadingMenu />
+          <ImportButton
+            importer={importer}
+            disabled={run.busy || modifierBusy || opening !== "ready"}
+            className="min-w-0"
+          />
         </div>
         {viewport && <OrientationGizmo viewport={viewport} />}
         <div className="pointer-events-auto flex gap-2">
-        <Button variant="ghost" size="icon" className="size-8 rounded-xl border border-border bg-card/95 text-muted-foreground shadow-xl" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" aria-keyshortcuts="? F1" onClick={() => dispatch(setShortcutsOpen(true))}><Keyboard className="size-4" /></Button>
-        <Button variant="ghost" size="icon" className={cn("size-8 rounded-xl border border-border bg-card/95 text-muted-foreground shadow-xl", measurementOpen && "bg-accent text-foreground")} title={measurementOpen ? "Close measurements" : "Open measurements"} aria-label={measurementOpen ? "Close measurements" : "Open measurements"} aria-expanded={measurementOpen} aria-controls="measurement-panel" onClick={() => setMeasurementOpen((open) => !open)}><Ruler className="size-4" /></Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-xl border border-border bg-card/95 text-muted-foreground shadow-xl"
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+            aria-keyshortcuts="? F1"
+            onClick={() => dispatch(setShortcutsOpen(true))}
+          >
+            <Keyboard className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "size-8 rounded-xl border border-border bg-card/95 text-muted-foreground shadow-xl",
+              measurementOpen && "bg-accent text-foreground",
+            )}
+            title={measurementOpen ? "Close measurements" : "Open measurements"}
+            aria-label={measurementOpen ? "Close measurements" : "Open measurements"}
+            aria-expanded={measurementOpen}
+            aria-controls="measurement-panel"
+            onClick={() => setMeasurementOpen((open) => !open)}
+          >
+            <Ruler className="size-4" />
+          </Button>
         </div>
-        {editorScene && viewport && <div id="measurement-panel" inert={!measurementOpen} className={cn("pointer-events-auto w-full shrink-0", !measurementOpen && "hidden")}>
-          <MeasurementPanel scene={editorScene} viewport={viewport} projectId={project?.id} disabled={!measurementOpen || run.busy || modifierBusy || opening !== "ready"} onPickingChange={setMeasurementPicking} />
-        </div>}
-        <DesignWorkspacePanel scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} />
-        <WorkspacePanel panelId="modifiers" label="modifiers" icon={Wrench} forceOpen={modifierBusy}>
-          {editing.selected ? <ModifierPanel scene={editorScene} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} /> : <p className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">Select an object to view its modifiers.</p>}
-        </WorkspacePanel>
-        {designMode === "object" && <WorkspacePanel panelId="properties" label="properties" icon={SlidersHorizontal} forceOpen={Boolean(editing.error)}>
-          {editing.selected || editing.error ? (
-        <ObjectEditingOverlay
-          editing={editing}
-          disabled={run.busy || modifierBusy}
-          className="w-full"
+        {editorScene && viewport && (
+          <div
+            id="measurement-panel"
+            inert={!measurementOpen}
+            className={cn("pointer-events-auto w-full shrink-0", !measurementOpen && "hidden")}
+          >
+            <MeasurementPanel
+              scene={editorScene}
+              viewport={viewport}
+              projectId={project?.id}
+              disabled={!measurementOpen || run.busy || modifierBusy || opening !== "ready"}
+              onPickingChange={setMeasurementPicking}
+            />
+          </div>
+        )}
+        <DesignWorkspacePanel
+          scene={editorScene}
+          saves={saves}
+          disabled={run.busy || modifierBusy || opening !== "ready"}
         />
-          ) : <p className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">Select an object to view its properties.</p>}
-        </WorkspacePanel>}
+        <WorkspacePanel panelId="modifiers" label="modifiers" icon={Wrench} forceOpen={modifierBusy}>
+          {editing.selected ? (
+            <ModifierPanel
+              scene={editorScene}
+              saves={saves}
+              disabled={run.busy || modifierBusy || opening !== "ready"}
+              onBusyChange={setModifierBusy}
+            />
+          ) : (
+            <p className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+              Select an object to view its modifiers.
+            </p>
+          )}
+        </WorkspacePanel>
+        {designMode === "object" && (
+          <WorkspacePanel
+            panelId="properties"
+            label="properties"
+            icon={SlidersHorizontal}
+            forceOpen={Boolean(editing.error)}
+          >
+            {editing.selected || editing.error ? (
+              <ObjectEditingOverlay editing={editing} disabled={run.busy || modifierBusy} className="w-full" />
+            ) : (
+              <p className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+                Select an object to view its properties.
+              </p>
+            )}
+          </WorkspacePanel>
+        )}
       </div>
       {opening !== "ready" && (
         <div
@@ -402,12 +522,8 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
           ) : (
             <div className="flex max-w-[360px] flex-col items-center gap-4 px-6 text-center">
               <div>
-                <h2 className="text-sm font-medium">
-                  This project could not be opened
-                </h2>
-                <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-                  {openError}
-                </p>
+                <h2 className="text-sm font-medium">This project could not be opened</h2>
+                <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{openError}</p>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -424,13 +540,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
                 >
                   Try again
                 </Button>
-                <Link
-                  to="/"
-                  className={cn(
-                    buttonVariants(),
-                    "h-9 rounded-lg px-4 text-[13px]",
-                  )}
-                >
+                <Link to="/" className={cn(buttonVariants(), "h-9 rounded-lg px-4 text-[13px]")}>
                   Back to home
                 </Link>
               </div>
@@ -458,12 +568,12 @@ export default function Assistant() {
     if (created) void navigate(projectPath({ id: created, category: "design" }), { replace: true });
   }, [created, navigate]);
 
-  const openProjectId = projectId && projectId !== created ? projectId : undefined;
+  // Leaving the created project for another one (a duplicate) must not leave the workspace thinking it still shows it.
+  const remembered = createdAfterNavigation(projectId, created);
+  if (remembered !== created) setCreated(remembered);
+
+  const openProjectId = projectToOpen(projectId, created);
   return (
-    <StudioWorkspace
-      key={openProjectId ?? instance}
-      openProjectId={openProjectId}
-      onProjectCreated={setCreated}
-    />
+    <StudioWorkspace key={openProjectId ?? instance} openProjectId={openProjectId} onProjectCreated={setCreated} />
   );
 }

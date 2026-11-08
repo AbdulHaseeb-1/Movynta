@@ -10,9 +10,7 @@ export class ChatgptLoginRepository {
 
   find(userId: string): StoredChatgptLogin | undefined {
     const row = this.database.db
-      .prepare(
-        "SELECT encrypted_tokens, email, plan, connected_at, expires_at FROM chatgpt_logins WHERE user_id = ?",
-      )
+      .prepare("SELECT encrypted_tokens, email, plan, connected_at, expires_at FROM chatgpt_logins WHERE user_id = ?")
       .get(userId);
     if (!row) return undefined;
     return {
@@ -32,14 +30,7 @@ export class ChatgptLoginRepository {
          ON CONFLICT(user_id) DO UPDATE SET encrypted_tokens = excluded.encrypted_tokens, email = excluded.email,
            plan = excluded.plan, connected_at = excluded.connected_at, expires_at = excluded.expires_at`,
       )
-      .run(
-        userId,
-        login.encryptedTokens,
-        login.email ?? null,
-        login.plan ?? null,
-        login.connectedAt,
-        login.expiresAt,
-      );
+      .run(userId, login.encryptedTokens, login.email ?? null, login.plan ?? null, login.connectedAt, login.expiresAt);
   }
 
   /** Stores rotated tokens without changing the sign-in's 30-day window. */
@@ -50,8 +41,6 @@ export class ChatgptLoginRepository {
   }
 
   delete(userId: string): void {
-    this.database.db
-      .prepare("DELETE FROM chatgpt_logins WHERE user_id = ?")
-      .run(userId);
+    this.database.db.prepare("DELETE FROM chatgpt_logins WHERE user_id = ?").run(userId);
   }
 }

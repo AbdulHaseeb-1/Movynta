@@ -3,6 +3,7 @@ import { z } from "zod";
 
 /** The tool types, one tab each. They follow the permissions declared in `TOOL_PERMISSIONS` (modules/tools/tool.types.ts). */
 export const assistantToolTypeSchema = z.enum(["read", "plan", "propose", "apply", "skill"]);
+/** The type of an assistant tool: read, plan, propose, apply or skill. */
 export type AssistantToolType = z.infer<typeof assistantToolTypeSchema>;
 
 const inputRowSchema = z.object({
@@ -69,24 +70,36 @@ export const assistantToolVisualSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("frames"),
     caption: z.string().optional(),
-    views: z.array(z.object({
-      label: z.string().min(1),
-      projection: z.string().min(1),
-      width: z.number().positive(),
-      height: z.number().positive(),
-      boxes: z.array(z.object({ name: z.string().min(1), x: z.number(), y: z.number(), width: z.number().nonnegative(), height: z.number().nonnegative() })),
-    })),
+    views: z.array(
+      z.object({
+        label: z.string().min(1),
+        projection: z.string().min(1),
+        width: z.number().positive(),
+        height: z.number().positive(),
+        boxes: z.array(
+          z.object({
+            name: z.string().min(1),
+            x: z.number(),
+            y: z.number(),
+            width: z.number().nonnegative(),
+            height: z.number().nonnegative(),
+          }),
+        ),
+      }),
+    ),
   }),
   z.object({
     kind: z.literal("issues"),
     caption: z.string().optional(),
     ok: z.boolean(),
     objectCount: z.number().int().nonnegative(),
-    issues: z.array(z.object({
-      severity: z.enum(["error", "warning", "info"]),
-      objectId: z.string().nullable(),
-      message: z.string().min(1),
-    })),
+    issues: z.array(
+      z.object({
+        severity: z.enum(["error", "warning", "info"]),
+        objectId: z.string().nullable(),
+        message: z.string().min(1),
+      }),
+    ),
   }),
   z.object({
     kind: z.literal("top-view"),
@@ -111,26 +124,36 @@ export const assistantToolVisualSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("batch"),
     caption: z.string().optional(),
-    rows: z.array(z.object({
-      type: z.string().min(1),
-      target: z.string(),
-      detail: z.string(),
-      tone: z.enum(["neutral", "ok"]).optional(),
-    })),
-    stages: z.array(z.object({ label: z.string().min(1), detail: z.string(), state: z.enum(["done", "current", "next"]) })),
+    rows: z.array(
+      z.object({
+        type: z.string().min(1),
+        target: z.string(),
+        detail: z.string(),
+        tone: z.enum(["neutral", "ok"]).optional(),
+      }),
+    ),
+    stages: z.array(
+      z.object({ label: z.string().min(1), detail: z.string(), state: z.enum(["done", "current", "next"]) }),
+    ),
   }),
   z.object({
     kind: z.literal("lists"),
     caption: z.string().optional(),
-    groups: z.array(z.object({
-      title: z.string().min(1),
-      items: z.array(z.string()),
-      tone: z.enum(["neutral", "ok", "warn"]),
-    })).min(1),
+    groups: z
+      .array(
+        z.object({
+          title: z.string().min(1),
+          items: z.array(z.string()),
+          tone: z.enum(["neutral", "ok", "warn"]),
+        }),
+      )
+      .min(1),
   }),
 ]);
+/** The picture shown beside a tool in the documentation. */
 export type AssistantToolVisual = z.infer<typeof assistantToolVisualSchema>;
 
+/** The schema for one tool's documentation entry. */
 export const assistantToolSchema = z.object({
   name: z.string().regex(/^[a-z_]+\.[a-z_]+$/),
   type: assistantToolTypeSchema,
@@ -159,11 +182,16 @@ export const assistantToolSchema = z.object({
   errors: z.array(z.object({ message: z.string().min(1), cause: z.string().min(1) })).optional(),
   related: z.array(z.string()),
 });
+/** One tool's documentation entry. */
 export type AssistantTool = z.infer<typeof assistantToolSchema>;
+/** One row of a tool's input table. */
 export type AssistantToolInputRow = z.infer<typeof inputRowSchema>;
+/** One row of a tool's result table. */
 export type AssistantToolResultRow = z.infer<typeof resultRowSchema>;
+/** A section of a tool's documentation with its own rows. */
 export type AssistantToolDetail = z.infer<typeof detailSectionSchema>;
 
+/** The schema for the whole assistant tools document. */
 export const assistantToolDocumentSchema = z.object({
   intro: z.string().min(1),
   rules: z.array(z.string().min(1)).min(1),
@@ -172,4 +200,5 @@ export const assistantToolDocumentSchema = z.object({
   scene: editorContextSchema,
   tools: z.array(assistantToolSchema).min(1),
 });
+/** The whole assistant tools document: its intro, rules and tools. */
 export type AssistantToolDocument = z.infer<typeof assistantToolDocumentSchema>;

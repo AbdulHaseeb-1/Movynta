@@ -1,6 +1,7 @@
 import { useAppSelector } from "@/app/hooks";
 import { useMemo } from "react";
 
+/** The provider and model chosen for the assistant, and the providers that are configured. */
 export function useAssistantSelection() {
   const items = useAppSelector((state) => state.providers.items);
   const selection = useAppSelector((state) => state.assistantSelection);
@@ -11,10 +12,7 @@ export function useAssistantSelection() {
       configured.find((item) => item.id === selection.providerId) ??
       configured.find((item) => item.active) ??
       configured[0];
-    const model =
-      provider?.id === selection.providerId
-        ? selection.model
-        : (provider?.model ?? "");
+    const model = provider?.id === selection.providerId ? selection.model : (provider?.model ?? "");
     return {
       provider,
       model,

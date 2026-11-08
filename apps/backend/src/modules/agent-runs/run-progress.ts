@@ -28,6 +28,7 @@ const plannedBatchSchema = z.object({
   sourceRevision: z.number().int().nonnegative(),
   commands: z.array(z.unknown()).min(1).max(200),
 });
+/** A batch of commands the planning tools calculated and kept under a planId. */
 export type PlannedBatch = z.infer<typeof plannedBatchSchema>;
 
 /** One thing the independent reviewer found wrong or right, with what to change. */
@@ -37,10 +38,12 @@ const reviewFindingSchema = z.object({
   severity: z.enum(["major", "minor"]),
   fix: z.string().max(240).optional(),
 });
+/** One finding of the independent review, with a severity and, optionally, a fix. */
 export type ReviewFinding = z.infer<typeof reviewFindingSchema>;
 
 /** Which runs are reviewed by a separate agent: none, those that ask for quality, or every build. */
 export const REVIEW_MODES = ["off", "quality", "builds"] as const;
+/** When the independent review runs: never, for quality requests, or for every build. */
 export type ReviewMode = (typeof REVIEW_MODES)[number];
 
 const qualityReviewSchema = z.object({
@@ -67,27 +70,40 @@ const briefStateSchema = z.object({
   /** True after the brief was recorded or a change was applied, and before its checks ran again. */
   stale: z.boolean().default(false),
   /** The latest measurement of the checks, kept short. */
-  last: z.object({
-    revision: z.number().int().nonnegative(),
-    measurable: z.boolean(),
-    total: z.number().int().nonnegative(),
-    passed: z.number().int().nonnegative(),
-    /** One line for each check that did not pass: what it is, what was measured and what was needed. */
-    failing: z.array(z.string().max(400)).max(40),
-  }).nullable().default(null),
+  last: z
+    .object({
+      revision: z.number().int().nonnegative(),
+      measurable: z.boolean(),
+      total: z.number().int().nonnegative(),
+      passed: z.number().int().nonnegative(),
+      /** One line for each check that did not pass: what it is, what was measured and what was needed. */
+      failing: z.array(z.string().max(400)).max(40),
+    })
+    .nullable()
+    .default(null),
 });
 
 /**
  * Whether the finished work is reviewed by a separate agent. By default that is for explicit realism and refinement
  * requests, not ordinary small edits or questions; "builds" reviews every 3D request that is not a simple transform.
  */
-export function requiresQualityReview(input: string, dimension: string | undefined, mode: ReviewMode = "quality"): boolean {
+export function requiresQualityReview(
+  input: string,
+  dimension: string | undefined,
+  mode: ReviewMode = "quality",
+): boolean {
   if (mode === "off" || dimension !== "3d") return false;
   if (/\b(?:only|just)\s+(?:an?\s+)?(?:rough\s+)?(?:block[ -]?out|draft|prototype)\b/i.test(input)) return false;
   // A realistic object can be the target of a simple transform; that does not ask for a quality upgrade.
-  if (/^\s*(?:please\s+)?(?:move|rotate|scale|delete|rename|hide|show|select)\b/i.test(input) && !/\b(?:refine|improve|make .{0,40}(?:realistic|detailed|better))\b/i.test(input)) return false;
+  if (
+    /^\s*(?:please\s+)?(?:move|rotate|scale|delete|rename|hide|show|select)\b/i.test(input) &&
+    !/\b(?:refine|improve|make .{0,40}(?:realistic|detailed|better))\b/i.test(input)
+  )
+    return false;
   if (mode === "builds") return true;
-  return /\b(?:photo[ -]?real(?:istic|ism)?|realistic|realism|lifelike|life[ -]?like|high[ -]?detail(?:ed)?|highly detailed|detailed|high[ -]?quality|refine|refinement|improve|make (?:it|this|the model) better|more detailed)\b/i.test(input);
+  return /\b(?:photo[ -]?real(?:istic|ism)?|realistic|realism|lifelike|life[ -]?like|high[ -]?detail(?:ed)?|highly detailed|detailed|high[ -]?quality|refine|refinement|improve|make (?:it|this|the model) better|more detailed)\b/i.test(
+    input,
+  );
 }
 
 /**
@@ -101,6 +117,8 @@ export const runProgressSchema = z.object({
   proposals: z.array(proposalRecordSchema),
   /** True after a batch was applied and before validation.check_scene ran again. */
   unverifiedChanges: z.boolean(),
+  /** Batches applied since the last scene check. Proposing stops at `MAX_UNCHECKED_BATCHES` until a check runs. */
+  batchesSinceCheck: z.number().int().nonnegative().default(0),
   /** Error-severity issues in the last scene check. */
   sceneErrors: z.number().int().nonnegative(),
   /** Visual evidence and the model's assessment; older paused runs have no quality state. */
@@ -113,12 +131,24 @@ export const runProgressSchema = z.object({
   nextPlannedBatch: z.number().int().positive().default(1),
 });
 
+/** What a run has done so far: plans, batches, checks, brief and review. It is kept across an approval pause. */
 export type RunProgress = z.infer<typeof runProgressSchema>;
+/** One proposal a run made, with the plan step it carries out. */
 export type ProposalRecord = RunProgress["proposals"][number];
 
 /** Returns the state where nothing has been planned, proposed or changed. */
 export function emptyRunProgress(): RunProgress {
-  return { plans: [], proposals: [], unverifiedChanges: false, sceneErrors: 0, quality: qualityReviewSchema.parse({}), brief: briefStateSchema.parse({}), plannedBatches: [], nextPlannedBatch: 1 };
+  return {
+    plans: [],
+    proposals: [],
+    unverifiedChanges: false,
+    batchesSinceCheck: 0,
+    sceneErrors: 0,
+    quality: qualityReviewSchema.parse({}),
+    brief: briefStateSchema.parse({}),
+    plannedBatches: [],
+    nextPlannedBatch: 1,
+  };
 }
 
 /** Keeps a validated batch for a later editor.propose_commands call and returns the planId to name it by. */
@@ -147,10 +177,12 @@ export function summarizeEvaluation(evaluation: BriefEvaluation): NonNullable<Ru
   };
 }
 
+/** Turns run progress into the text stored with a paused run, so the run can resume after an approval. */
 export function serializeRunProgress(progress: RunProgress): string {
   return JSON.stringify(progress);
 }
 
+/** Reads run progress stored by serializeRunProgress, checking its shape. */
 export function parseRunProgress(json: string): RunProgress {
   return runProgressSchema.parse(JSON.parse(json));
 }
@@ -170,9 +202,7 @@ export function openWorkReasons(progress: RunProgress, statusOf: ProposalStatusL
   // never name a step is not held to step names, so an unnamed batch does not keep the run open.
   const namesSteps =
     latestPlan !== undefined &&
-    progress.proposals.some(
-      (proposal) => latestPlan.steps.some((step) => step.id === proposal.stepId),
-    );
+    progress.proposals.some((proposal) => latestPlan.steps.some((step) => step.id === proposal.stepId));
   if (latestPlan && (namesSteps || progress.proposals.length === 0)) {
     const applied = new Set(
       progress.proposals
@@ -209,7 +239,8 @@ export function openWorkReasons(progress: RunProgress, statusOf: ProposalStatusL
 
 /** The reviewer's findings as work for the builder: major ones to fix, then the minor ones worth a look. */
 function refinementReasons(quality: RunProgress["quality"]): string[] {
-  const line = (finding: ReviewFinding) => `  - ${finding.aspect}: ${finding.observation}${finding.fix ? ` Fix: ${finding.fix}` : ""}`;
+  const line = (finding: ReviewFinding) =>
+    `  - ${finding.aspect}: ${finding.observation}${finding.fix ? ` Fix: ${finding.fix}` : ""}`;
   const major = quality.findings.filter((finding) => finding.severity === "major");
   const minor = quality.findings.filter((finding) => finding.severity === "minor");
   return [
@@ -236,21 +267,36 @@ function briefReasons(progress: RunProgress): string[] {
   const { brief, quality } = progress;
   if (quality.changes === 0) return [];
   if (brief.current === null) {
-    return quality.required ? ["no brief was recorded: call modeling.record_brief with measurable checks for this request, then validation.check_brief"] : [];
+    return quality.required
+      ? [
+          "no brief was recorded: call modeling.record_brief with measurable checks for this request, then validation.check_brief",
+        ]
+      : [];
   }
-  if (brief.stale || brief.last === null) return ["the scene changed after the brief was last measured, so run validation.check_brief"];
+  if (brief.stale || brief.last === null)
+    return ["the scene changed after the brief was last measured, so run validation.check_brief"];
   if (!brief.last.measurable || brief.last.failing.length === 0) return [];
   const shown = brief.last.failing.slice(0, 5).map((line) => `  - ${line}`);
-  const more = brief.last.failing.length > shown.length ? [`  - and ${brief.last.failing.length - shown.length} more`] : [];
-  return [`${brief.last.failing.length} of ${brief.last.total} brief checks do not pass; fix the model (change a check only if it was wrong, and say so):`, ...shown, ...more];
+  const more =
+    brief.last.failing.length > shown.length ? [`  - and ${brief.last.failing.length - shown.length} more`] : [];
+  return [
+    `${brief.last.failing.length} of ${brief.last.total} brief checks do not pass; fix the model (change a check only if it was wrong, and say so):`,
+    ...shown,
+    ...more,
+  ];
 }
 
 /** Why the brief rules out calling the work ready, or undefined when it does not. */
 export function briefBlocksReady(progress: RunProgress): string | undefined {
   const { brief, quality } = progress;
-  if (brief.current === null) return quality.required ? "Record the brief with modeling.record_brief and check it with validation.check_brief before marking the result ready." : undefined;
-  if (brief.stale || brief.last === null) return "Run validation.check_brief on the current scene before marking the result ready.";
-  if (brief.last.measurable && brief.last.failing.length > 0) return `${brief.last.failing.length} brief check${brief.last.failing.length === 1 ? "" : "s"} still fail: ${brief.last.failing.slice(0, 3).join("; ")}`;
+  if (brief.current === null)
+    return quality.required
+      ? "Record the brief with modeling.record_brief and check it with validation.check_brief before marking the result ready."
+      : undefined;
+  if (brief.stale || brief.last === null)
+    return "Run validation.check_brief on the current scene before marking the result ready.";
+  if (brief.last.measurable && brief.last.failing.length > 0)
+    return `${brief.last.failing.length} brief check${brief.last.failing.length === 1 ? "" : "s"} still fail: ${brief.last.failing.slice(0, 3).join("; ")}`;
   return undefined;
 }
 
@@ -280,8 +326,12 @@ export function invalidateStaleQualityReview(progress: RunProgress, revision: nu
 export function qualityCompletionNotice(progress: RunProgress, supportsImages: boolean): string | undefined {
   const quality = progress.quality;
   if (!quality.required || quality.changes === 0 || quality.outcome === "ready") return undefined;
-  if (quality.outcome === "blocked") return `Quality review was blocked: ${quality.summary}${supportsImages ? "" : " Images were not available to the model, so the result was not visually verified."}`;
-  const issue = quality.outcome === "needs_refinement" ? ` The last review found: ${quality.summary}` : " An independent review of the final result was not completed.";
+  if (quality.outcome === "blocked")
+    return `Quality review was blocked: ${quality.summary}${supportsImages ? "" : " Images were not available to the model, so the result was not visually verified."}`;
+  const issue =
+    quality.outcome === "needs_refinement"
+      ? ` The last review found: ${quality.summary}`
+      : " An independent review of the final result was not completed.";
   return `The requested quality is not verified; the result may still be unfinished.${issue}${supportsImages ? "" : " Images were not available to the model, so the result was not visually verified."}`;
 }
 
@@ -291,14 +341,23 @@ export function briefCompletionNotice(progress: RunProgress): string | undefined
   if (brief.current === null || quality.changes === 0) return undefined;
   const lines: string[] = [];
   if (brief.stale || brief.last === null) lines.push("The brief's checks were not measured on the final scene.");
-  else if (!brief.last.measurable) lines.push("The editor could not measure the brief's checks, so they are unverified.");
-  else if (brief.last.failing.length > 0) lines.push(`${brief.last.failing.length} of ${brief.last.total} brief checks do not pass: ${brief.last.failing.slice(0, 5).join("; ")}.`);
-  if (brief.revisions > 0) lines.push(`The brief was revised ${brief.revisions} time${brief.revisions === 1 ? "" : "s"} after it was first recorded.`);
+  else if (!brief.last.measurable)
+    lines.push("The editor could not measure the brief's checks, so they are unverified.");
+  else if (brief.last.failing.length > 0)
+    lines.push(
+      `${brief.last.failing.length} of ${brief.last.total} brief checks do not pass: ${brief.last.failing.slice(0, 5).join("; ")}.`,
+    );
+  if (brief.revisions > 0)
+    lines.push(
+      `The brief was revised ${brief.revisions} time${brief.revisions === 1 ? "" : "s"} after it was first recorded.`,
+    );
   return lines.length === 0 ? undefined : lines.join(" ");
 }
 
 /** Everything the run must disclose at its end: the brief and the quality review. */
 export function completionNotice(progress: RunProgress, supportsImages: boolean): string | undefined {
-  const notices = [briefCompletionNotice(progress), qualityCompletionNotice(progress, supportsImages)].filter((notice): notice is string => notice !== undefined);
+  const notices = [briefCompletionNotice(progress), qualityCompletionNotice(progress, supportsImages)].filter(
+    (notice): notice is string => notice !== undefined,
+  );
   return notices.length === 0 ? undefined : notices.join("\n\n");
 }

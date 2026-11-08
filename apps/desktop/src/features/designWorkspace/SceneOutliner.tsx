@@ -1,11 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { MAX_COMMANDS_PER_PROPOSAL } from "@movynta/editor-protocol";
-import { Box, ChevronDown, ChevronRight, Eye, EyeOff, Ellipsis, Folder, FolderOpen, FolderPlus, Group, Layers3, Trash2 } from "lucide-react";
+import {
+  Box,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Ellipsis,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  Group,
+  Layers3,
+  Trash2,
+} from "lucide-react";
 import type { EditorScene } from "@/features/assistant";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { saveManualCommands } from "@/features/objectEditing/saveManualCommands";
 import { errorMessage, type SerialQueue } from "@/lib";
 import {
@@ -17,6 +35,7 @@ import {
   outlineCommands,
   objectRange,
   revealed,
+  rowExists,
   ROOT_ROW_ID,
   rowTarget,
   scrollToRow,
@@ -69,7 +88,7 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [scrollTop, setScrollTop] = useState(0);
   /** The collection or scene line that is chosen, when an object is not. */
-  const [chosenRow, setChosenRow] = useState<string | null>(null);
+  const [chosenLine, setChosenRow] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,6 +97,8 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   const cancelled = useRef(false);
   const scrolledTo = useRef<string | null>(null);
   const keyboardMoved = useRef(false);
+  /** The line whose name was just edited with the keyboard: it takes the focus back once the name field is gone. */
+  const refocusRow = useRef<string | null>(null);
   /** A collection just made, whose name is asked for as soon as it appears. */
   const startRenaming = useRef<string | null>(null);
   const focusInput = useFocusOnMount();
@@ -95,7 +116,9 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
         tree = buildSceneTree(scene.outline(), scene.collections());
       }
       const selected = scene.selectedIds;
-      setModel((previous) => (previous.tree === tree && previous.selected === selected ? previous : { tree, selected }));
+      setModel((previous) =>
+        previous.tree === tree && previous.selected === selected ? previous : { tree, selected },
+      );
       if (scene.selection !== active) {
         active = scene.selection;
         if (active !== null) {
@@ -127,7 +150,10 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   const viewport = Math.min(rows.length * ROW_HEIGHT, MAX_LIST_HEIGHT);
   const range = visibleRange(scrollTop, viewport, ROW_HEIGHT, rows.length);
   const shown = rows.slice(range.start, range.end);
-  const tabStop = active !== null && rows.some((row) => row.id === active) ? active : (chosenRow ?? rows[0]?.id);
+  // The chosen line may have gone (undo, the assistant, a deletion elsewhere); then nothing is chosen.
+  const chosenRow = chosenLine !== null && rowExists(tree, chosenLine) ? chosenLine : null;
+  const inView = (id: string | null) => id !== null && rows.some((row) => row.id === id);
+  const tabStop = inView(active) ? active : inView(chosenRow) ? chosenRow : rows[0]?.id;
 
   const run = useCallback(
     (commands: readonly unknown[]) => {
@@ -184,6 +210,16 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
     }
   }, [active, chosenRow, rows, viewport, range.start, range.end]);
 
+  // A name field that ends with Enter or Escape would leave the focus on the page; give it back to its line.
+  useEffect(() => {
+    if (editing !== null || refocusRow.current === null) return;
+    const id = refocusRow.current;
+    refocusRow.current = null;
+    listRef.current
+      ?.querySelector<HTMLElement>(`[${ROW_ATTRIBUTE}="${CSS.escape(id)}"]`)
+      ?.focus({ preventScroll: true });
+  }, [editing]);
+
   function toggleCollapsed(id: string) {
     setCollapsed((current) => (current.has(id) ? without(current, id) : new Set(current).add(id)));
   }
@@ -208,7 +244,10 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
       const anchor = selectionAnchor.current ?? scene.selection;
       const ids = anchor === null ? [] : objectRange(rows, anchor, row.id);
       if (ids.length) scene.selectMany(ids);
-      else { scene.select(target.id); selectionAnchor.current = target.id; }
+      else {
+        scene.select(target.id);
+        selectionAnchor.current = target.id;
+      }
     } else {
       if (target.kind === "object" && (event.ctrlKey || event.metaKey)) scene.toggleSelection(target.id);
       else choose(row);
@@ -223,11 +262,20 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
       for (let parent = tree.parents.get(id); parent; parent = tree.parents.get(parent)) protectedIds.add(parent);
     }
     const commands: unknown[] = [...tree.entries.values()]
-      .filter((entry) => action === "reveal" ? !entry.visible : entry.visible && (action === "selected" ? selectedSet.has(entry.id) : !protectedIds.has(entry.id)))
+      .filter((entry) =>
+        action === "reveal"
+          ? !entry.visible
+          : entry.visible && (action === "selected" ? selectedSet.has(entry.id) : !protectedIds.has(entry.id)),
+      )
       .map((entry) => outlineCommands.show(entry.id, action === "reveal"));
-    if (action === "reveal") for (const collection of tree.collections.values()) if (!collection.visible) commands.push(outlineCommands.showCollection(collection.id, true));
+    if (action === "reveal")
+      for (const collection of tree.collections.values())
+        if (!collection.visible) commands.push(outlineCommands.showCollection(collection.id, true));
     if (!commands.length) return;
-    if (commands.length > MAX_COMMANDS_PER_PROPOSAL) { setError(`Change at most ${MAX_COMMANDS_PER_PROPOSAL} visibility settings at once.`); return; }
+    if (commands.length > MAX_COMMANDS_PER_PROPOSAL) {
+      setError(`Change at most ${MAX_COMMANDS_PER_PROPOSAL} visibility settings at once.`);
+      return;
+    }
     run(commands);
   }
 
@@ -265,6 +313,12 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
   }
 
   function renameKey(event: KeyboardEvent<HTMLInputElement>) {
+    // Enter or Escape that picks an input-method candidate belongs to the input method, not to the name field.
+    if (event.nativeEvent.isComposing) {
+      event.stopPropagation();
+      return;
+    }
+    if (event.key === "Enter" || event.key === "Escape") refocusRow.current = editing?.id ?? null;
     if (event.key === "Enter") event.currentTarget.blur();
     if (event.key === "Escape") {
       cancelled.current = true;
@@ -295,8 +349,12 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
       choose(next);
     };
     switch (event.key) {
-      case "ArrowDown": go(index + 1); break;
-      case "ArrowUp": go(index - 1); break;
+      case "ArrowDown":
+        go(index + 1);
+        break;
+      case "ArrowUp":
+        go(index - 1);
+        break;
       case "ArrowRight":
         if (row.hasChildren && row.collapsed) toggleCollapsed(row.id);
         else if (row.hasChildren) go(index + 1);
@@ -309,18 +367,25 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
           if (at >= 0) go(at);
         }
         break;
-      case "Home": go(0); break;
-      case "End": go(rows.length - 1); break;
+      case "Home":
+        go(0);
+        break;
+      case "End":
+        go(rows.length - 1);
+        break;
       case "Enter":
       case " ":
         choose(row);
         break;
-      case "F2": beginRename(row); break;
+      case "F2":
+        beginRename(row);
+        break;
       case "Delete":
         if (row.kind !== "collection") return;
         removeCollection(row);
         break;
-      default: return;
+      default:
+        return;
     }
     event.preventDefault();
   }
@@ -330,12 +395,30 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
       <div className="mb-2 flex items-center gap-2">
         <Layers3 className="size-4 text-muted-foreground" aria-hidden="true" />
         <h2 className="flex-1 text-xs font-medium">Scene</h2>
-        <span className="text-[11px] text-muted-foreground">{selected.length ? `${selected.length} selected / ` : ""}{tree.entries.size}</span>
+        <span className="text-[11px] text-muted-foreground">
+          {selected.length ? `${selected.length} selected / ` : ""}
+          {tree.entries.size}
+        </span>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon-sm" className="size-6" aria-label="Scene visibility actions" disabled={locked}><Ellipsis className="size-4" /></Button></DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6"
+              aria-label="Scene visibility actions"
+              disabled={locked}
+            >
+              <Ellipsis className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem disabled={!selected.length} onSelect={() => changeVisibility("selected")}>Hide selected</DropdownMenuItem>
-            <DropdownMenuItem disabled={!selected.length} onSelect={() => changeVisibility("unselected")}>Hide unselected</DropdownMenuItem>
+            <DropdownMenuItem disabled={!selected.length} onSelect={() => changeVisibility("selected")}>
+              Hide selected
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!selected.length} onSelect={() => changeVisibility("unselected")}>
+              Hide unselected
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => changeVisibility("reveal")}>Reveal all</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -345,7 +428,11 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
           size="icon-sm"
           className="size-6 [&_svg]:size-3.5"
           aria-label="New collection"
-          title={chosenRow !== null && rowTarget(chosenRow).kind === "collection" ? "New collection inside the chosen one" : "New collection"}
+          title={
+            chosenRow !== null && rowTarget(chosenRow).kind === "collection"
+              ? "New collection inside the chosen one"
+              : "New collection"
+          }
           disabled={locked}
           onClick={makeCollection}
         >
@@ -371,7 +458,15 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
               const isRoot = row.kind === "root";
               const isCollection = row.kind === "collection";
               const isSelected = isCollection || isRoot ? chosenRow === row.id : selectedSet.has(row.id);
-              const Icon = isRoot ? Layers3 : isCollection ? (row.hasChildren && !row.collapsed ? FolderOpen : Folder) : row.kind === "mesh" ? Box : Group;
+              const Icon = isRoot
+                ? Layers3
+                : isCollection
+                  ? row.hasChildren && !row.collapsed
+                    ? FolderOpen
+                    : Folder
+                  : row.kind === "mesh"
+                    ? Box
+                    : Group;
               const hiddenAbove = row.visible && !row.effectiveVisible;
               return (
                 <div
@@ -426,7 +521,11 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
                       onClick={(event) => event.stopPropagation()}
                     />
                   ) : (
-                    <span className="min-w-0 flex-1 truncate" title={row.name || row.id} onDoubleClick={() => beginRename(row)}>
+                    <span
+                      className="min-w-0 flex-1 truncate"
+                      title={row.name || row.id}
+                      onDoubleClick={() => beginRename(row)}
+                    >
                       {row.name || row.id}
                     </span>
                   )}
@@ -481,7 +580,11 @@ export function SceneOutliner({ scene, saves, disabled }: SceneOutlinerProps) {
           Drop here to take it out of its parent
         </div>
       )}
-      {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
     </section>
   );
 }

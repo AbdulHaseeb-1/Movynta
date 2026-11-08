@@ -9,6 +9,7 @@ import { loadViewportDisplay, type ViewportDisplay } from "./viewportStorage";
  */
 export type ViewportTool = "select" | "pan" | "move" | "rotate" | "scale";
 
+/** The viewport's state: its grid, tool, shading and display. */
 export interface ViewportState {
   tool: ViewportTool;
   display: ViewportDisplay;
@@ -35,7 +36,10 @@ const viewportSlice = createSlice({
     },
     /** Shift+Z: into Wireframe, or back to the shading used before it. */
     toggleWireframe(state) {
-      applyShadingMode(state.display, state.display.shadingMode === "wireframe" ? state.display.lastShadedMode : "wireframe");
+      applyShadingMode(
+        state.display,
+        state.display.shadingMode === "wireframe" ? state.display.lastShadedMode : "wireframe",
+      );
     },
     setXray(state, action: PayloadAction<boolean>) {
       state.display.xray = action.payload;
@@ -58,5 +62,8 @@ const viewportSlice = createSlice({
   },
 });
 
-export const { setShowGrid, setViewportTool, setShadingMode, setXray, toggleWireframe, toggleXray } = viewportSlice.actions;
+/** The actions that change the viewport's grid, tool, shading and display. */
+export const { setShowGrid, setViewportTool, setShadingMode, setXray, toggleWireframe, toggleXray } =
+  viewportSlice.actions;
+/** The reducer for the viewport state. */
 export const viewportReducer = viewportSlice.reducer;

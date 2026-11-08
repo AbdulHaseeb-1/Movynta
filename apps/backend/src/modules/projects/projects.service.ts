@@ -42,10 +42,14 @@ function hasExpectedHeader(format: string, content: Uint8Array): boolean {
 
 /** Collapses whitespace and strips control characters, so text stays on one tidy line. */
 export function tidyText(input: string): string {
-  // eslint-disable-next-line no-control-regex -- control characters are exactly what is being removed.
-  return input.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  return input
+    // eslint-disable-next-line no-control-regex -- control characters are exactly what is being removed.
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
+/** Tidies a project name and refuses one that is longer than the limit. */
 export function normalizeProjectName(input: string): string {
   const name = tidyText(input);
   if (name.length > PROJECT_NAME_MAX_LENGTH) {
@@ -87,7 +91,8 @@ export class ProjectsService {
     this.owned(userId, projectId);
     const parsed = saveMeasurementsSchema.safeParse(input);
     if (!parsed.success) throw new ValidationFailedError("Invalid measurement units or annotations");
-    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before changing project measurements");
+    if (this.repository.hasActiveRun(projectId))
+      throw new ConflictError("Wait for the assistant to finish before changing project measurements");
     if (!this.repository.saveMeasurements(projectId, parsed.data.expectedVersion, parsed.data.value))
       throw new ConflictError("Project measurements changed. Reload the project before saving again.");
     return this.repository.measurements(projectId);
@@ -121,7 +126,9 @@ export class ProjectsService {
   remove(userId: string, projectId: string): void {
     this.owned(userId, projectId);
     if (this.repository.hasActiveRun(projectId)) {
-      throw new ConflictError("The assistant is still working in this project. Stop it first, then delete the project.");
+      throw new ConflictError(
+        "The assistant is still working in this project. Stop it first, then delete the project.",
+      );
     }
     this.repository.purge(projectId);
   }
@@ -131,18 +138,27 @@ export class ProjectsService {
     return this.scenes.list(projectId);
   }
   recoveryRequired(userId: string, projectId: string): boolean {
-    this.owned(userId, projectId); return this.scenes.recoveryRequired(projectId);
+    this.owned(userId, projectId);
+    return this.scenes.recoveryRequired(projectId);
   }
 
   previewHistory(userId: string, projectId: string, direction: "undo" | "redo") {
     this.owned(userId, projectId);
-    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before changing history");
+    if (this.repository.hasActiveRun(projectId))
+      throw new ConflictError("Wait for the assistant to finish before changing history");
     return this.scenes.previewHistory(projectId, direction);
   }
 
-  commitHistory(userId: string, projectId: string, direction: "undo" | "redo", version: number, operationId: string): void {
+  commitHistory(
+    userId: string,
+    projectId: string,
+    direction: "undo" | "redo",
+    version: number,
+    operationId: string,
+  ): void {
     this.owned(userId, projectId);
-    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before changing history");
+    if (this.repository.hasActiveRun(projectId))
+      throw new ConflictError("Wait for the assistant to finish before changing history");
     this.scenes.commitHistory(projectId, direction, version, operationId);
     this.repository.touch(projectId, new Date().toISOString());
   }
@@ -153,7 +169,8 @@ export class ProjectsService {
    */
   importModel(userId: string, projectId: string, upload: ModelUpload): SceneImport {
     this.owned(userId, projectId);
-    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before importing");
+    if (this.repository.hasActiveRun(projectId))
+      throw new ConflictError("Wait for the assistant to finish before importing");
     if (!isOneOf(ASSET_FORMATS, upload.format)) {
       throw new ValidationFailedError(`Models can be imported as ${ASSET_FORMATS.join(", ")} files`);
     }
@@ -197,18 +214,29 @@ export class ProjectsService {
       projectId,
       parsed.data.flatMap((command) => {
         const keys: string[] = [];
-        if (command.type === "scene.duplicate_hierarchy") keys.push(command.sourceId, ...command.copies.flatMap((copy) => [copy.objectId, ...copy.descendants.flatMap((entry) => [entry.sourceId, entry.objectId])]));
+        if (command.type === "scene.duplicate_hierarchy")
+          keys.push(
+            command.sourceId,
+            ...command.copies.flatMap((copy) => [
+              copy.objectId,
+              ...copy.descendants.flatMap((entry) => [entry.sourceId, entry.objectId]),
+            ]),
+          );
         if ("objectId" in command) keys.push(command.objectId);
         if (command.type === "geometry.separate_faces") keys.push(command.newObjectId);
         if ("parentId" in command && typeof command.parentId === "string") keys.push(command.parentId);
-        for (const id of [("collectionId" in command ? command.collectionId : undefined), ("parentCollectionId" in command ? command.parentCollectionId : undefined)]) {
+        for (const id of [
+          "collectionId" in command ? command.collectionId : undefined,
+          "parentCollectionId" in command ? command.parentCollectionId : undefined,
+        ]) {
           if (typeof id === "string") keys.push(collectionKey(id));
         }
         return keys;
       }),
     );
     const requireCollection = (id: string | null | undefined) => {
-      if (typeof id === "string" && !known.has(collectionKey(id))) throw new ValidationFailedError(`Collection "${id}" is not in this project`);
+      if (typeof id === "string" && !known.has(collectionKey(id)))
+        throw new ValidationFailedError(`Collection "${id}" is not in this project`);
     };
     for (const command of parsed.data) {
       // A parent is an object of the project, or one this batch added earlier. Moving to the top level names none.
@@ -217,18 +245,25 @@ export class ProjectsService {
         throw new ValidationFailedError(`Object "${parentId}" is not in this project`);
       }
       if (command.type === "geometry.create_primitive") {
-        if (command.replaceExisting || known.has(command.objectId)) throw new ValidationFailedError("Add shapes with a new object id; replacing existing objects is not allowed here");
+        if (command.replaceExisting || known.has(command.objectId))
+          throw new ValidationFailedError(
+            "Add shapes with a new object id; replacing existing objects is not allowed here",
+          );
         requireCollection(command.collectionId);
         known.add(command.objectId);
         continue;
       }
       if (!USER_EDIT_TYPES.has(command.type)) {
-        throw new ValidationFailedError("Only new primitives, transforms, renaming, re-parenting, collections, visibility, modifier stacks, extrusion and deletion can be recorded here");
+        throw new ValidationFailedError(
+          "Only new primitives, transforms, renaming, re-parenting, collections, visibility, modifier stacks, extrusion and deletion can be recorded here",
+        );
       }
       if (command.type === "scene.duplicate_hierarchy") {
         if (!known.has(command.sourceId)) throw new ValidationFailedError("Source object is not in this project");
         for (const copy of command.copies) {
-          for (const entry of copy.descendants) if (!known.has(entry.sourceId)) throw new ValidationFailedError("A source descendant is not in this project");
+          for (const entry of copy.descendants)
+            if (!known.has(entry.sourceId))
+              throw new ValidationFailedError("A source descendant is not in this project");
           for (const id of [copy.objectId, ...copy.descendants.map((entry) => entry.objectId)]) {
             if (known.has(id)) throw new ValidationFailedError("Copy IDs must be new");
             known.add(id);
@@ -237,7 +272,10 @@ export class ProjectsService {
         continue;
       }
       if (command.type === "scene.create_collection") {
-        if (known.has(collectionKey(command.collectionId))) throw new ValidationFailedError(`Collection "${command.collectionId}" is already in this project; use a new id`);
+        if (known.has(collectionKey(command.collectionId)))
+          throw new ValidationFailedError(
+            `Collection "${command.collectionId}" is already in this project; use a new id`,
+          );
         requireCollection(command.parentCollectionId);
         known.add(collectionKey(command.collectionId));
         continue;
@@ -250,11 +288,14 @@ export class ProjectsService {
         continue;
       }
       if (!("objectId" in command) || !known.has(command.objectId)) {
-        throw new ValidationFailedError(`Object "${"objectId" in command ? command.objectId : ""}" is not in this project`);
+        throw new ValidationFailedError(
+          `Object "${"objectId" in command ? command.objectId : ""}" is not in this project`,
+        );
       }
       if (command.type === "geometry.separate_faces") {
         // The new object takes an id of its own, which later commands of this batch can name.
-        if (known.has(command.newObjectId)) throw new ValidationFailedError(`Object "${command.newObjectId}" is already in this project; use a new id`);
+        if (known.has(command.newObjectId))
+          throw new ValidationFailedError(`Object "${command.newObjectId}" is already in this project; use a new id`);
         known.add(command.newObjectId);
       }
       if (command.type === "scene.move_to_collection") requireCollection(command.collectionId);
@@ -275,7 +316,8 @@ export class ProjectsService {
   /** Clears the saved conversation while retaining scene edits and undo history. */
   clearConversation(userId: string, projectId: string): void {
     this.owned(userId, projectId);
-    if (this.repository.hasActiveRun(projectId)) throw new ConflictError("Wait for the assistant to finish before clearing the chat.");
+    if (this.repository.hasActiveRun(projectId))
+      throw new ConflictError("Wait for the assistant to finish before clearing the chat.");
     this.repository.clearConversation(projectId, new Date().toISOString());
   }
 

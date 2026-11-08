@@ -6,8 +6,7 @@ import { assertManifold, channels, faceNormal, point, topology, type HalfEdge, t
 import { basis, type Weights } from "./meshWeights";
 
 function assertSimple(points: readonly Vector2[]): void {
-  const turn = (a: Vector2, b: Vector2, c: Vector2) =>
-    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const turn = (a: Vector2, b: Vector2, c: Vector2) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
   const overlaps = (a: number, b: number, c: number, d: number) =>
     Math.max(Math.min(a, b), Math.min(c, d)) <= Math.min(Math.max(a, b), Math.max(c, d));
   for (let i = 0; i < points.length; i++) {
@@ -18,8 +17,14 @@ function assertSimple(points: readonly Vector2[]): void {
       if (i === 0 && j === points.length - 1) continue;
       const c = points[j];
       const d = points[(j + 1) % points.length];
-      if (c && d && overlaps(a.x, b.x, c.x, d.x) && overlaps(a.y, b.y, c.y, d.y) &&
-        turn(a, b, c) * turn(a, b, d) <= 0 && turn(c, d, a) * turn(c, d, b) <= 0) {
+      if (
+        c &&
+        d &&
+        overlaps(a.x, b.x, c.x, d.x) &&
+        overlaps(a.y, b.y, c.y, d.y) &&
+        turn(a, b, c) * turn(a, b, d) <= 0 &&
+        turn(c, d, a) * turn(c, d, b) <= 0
+      ) {
         throw new Error("The hole boundary intersects itself");
       }
     }
@@ -81,7 +86,8 @@ export function fillHole(mesh: PolygonMesh, ids: readonly string[]): ExtrudeResu
   const capFaces: number[][] = [];
   const capCorners: Weights[][] = [];
   if (planar) {
-    if (triangulate(mesh, cap).length !== cap.length - 2) throw new Error("The hole boundary could not be triangulated");
+    if (triangulate(mesh, cap).length !== cap.length - 2)
+      throw new Error("The hole boundary could not be triangulated");
     capFaces.push(cap);
     capCorners.push(weights);
   } else {
@@ -112,7 +118,8 @@ export function fillHole(mesh: PolygonMesh, ids: readonly string[]): ExtrudeResu
     positions: mesh.positions,
     faces: [...mesh.faces, ...capFaces],
     channels: {
-      positions: data.positions, corners: [...data.corners, ...capCorners],
+      positions: data.positions,
+      corners: [...data.corners, ...capCorners],
       materials: [...data.materials, ...capFaces.map(() => data.materials[start.face] ?? 0)],
     },
   };

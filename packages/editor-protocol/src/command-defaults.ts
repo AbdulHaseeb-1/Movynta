@@ -11,6 +11,8 @@ import type { EditorCommand } from "./editor-command.schema.js";
  */
 export function withAssistantDefaults(commands: readonly EditorCommand[]): EditorCommand[] {
   return commands.map((command) =>
-    command.type === "geometry.bevel_edges" && command.trimEndFaces === undefined ? { ...command, trimEndFaces: true } : command,
+    command.type === "geometry.bevel_edges" && command.trimEndFaces === undefined
+      ? { ...command, trimEndFaces: true }
+      : command,
   );
 }

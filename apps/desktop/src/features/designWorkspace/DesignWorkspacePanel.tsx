@@ -10,6 +10,7 @@ interface DesignWorkspacePanelProps {
   disabled: boolean;
 }
 
+/** The Edit-mode side panel: the scene outliner and the controls for the current mode. */
 export function DesignWorkspacePanel({ scene, saves, disabled }: DesignWorkspacePanelProps) {
   return (
     <div className="pointer-events-auto w-full space-y-3">

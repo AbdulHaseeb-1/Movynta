@@ -10,6 +10,7 @@ import { DisabledBlenderWorker } from "./disabled-blender-worker.js";
  * this release, so enabling BLENDER_ENABLED only logs a warning and keeps the
  * worker unavailable.
  */
+/** The Blender worker interface. Its implementation is disabled. */
 @Module({
   providers: [
     {

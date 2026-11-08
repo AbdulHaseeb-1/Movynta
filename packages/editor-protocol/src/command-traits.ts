@@ -63,16 +63,21 @@ export const MODIFIER_COMMAND_TYPES: ReadonlySet<string> = new Set([
   "geometry.set_modifiers",
 ]);
 
-interface TypedCommand { readonly type: string }
+interface TypedCommand {
+  readonly type: string;
+}
 
+/** Whether a command edits the base cage of a mesh, the shape that its modifiers are applied to. */
 export function isCageEditCommand(command: TypedCommand): boolean {
   return CAGE_EDIT_COMMAND_TYPES.has(command.type);
 }
 
+/** Whether a command changes a mesh's topology, its faces and edges. Such edits are proposed alone, with modifiers off. */
 export function isTopologyEditCommand(command: TypedCommand): boolean {
   return TOPOLOGY_EDIT_COMMAND_TYPES.has(command.type);
 }
 
+/** Whether a command sets a mesh's modifier stack. */
 export function isModifierCommand(command: TypedCommand): boolean {
   return MODIFIER_COMMAND_TYPES.has(command.type);
 }
@@ -84,6 +89,11 @@ export function usesBaseIds(command: TypedCommand): boolean {
 
 /** Commands that change geometry or materials of an object that already exists, so they create nothing. */
 export function editsExistingGeometry(command: TypedCommand): boolean {
-  return isCageEditCommand(command) || isModifierCommand(command) || command.type === "material.add_slot" ||
-    command.type === "material.replace_slot" || command.type === "material.set_properties";
+  return (
+    isCageEditCommand(command) ||
+    isModifierCommand(command) ||
+    command.type === "material.add_slot" ||
+    command.type === "material.replace_slot" ||
+    command.type === "material.set_properties"
+  );
 }

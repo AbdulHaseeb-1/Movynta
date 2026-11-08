@@ -19,18 +19,8 @@ const badgeVariants = cva(
   },
 );
 
-function Badge({
-  className,
-  variant,
-  ...props
-}: ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
-  return (
-    <span
-      data-slot="badge"
-      className={cn(badgeVariants({ variant }), className)}
-      {...props}
-    />
-  );
+function Badge({ className, variant, ...props }: ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
+  return <span data-slot="badge" className={cn(badgeVariants({ variant }), className)} {...props} />;
 }
 
 export { Badge, badgeVariants };

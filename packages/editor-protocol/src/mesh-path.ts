@@ -13,8 +13,11 @@ import { z } from "zod";
  * `editor.inspect_mesh` and the editor's context give names wherever a part has one.
  */
 export const meshStepSchema = z.union([z.number().int().nonnegative().max(100_000), z.string().min(1).max(130)]);
+/** The schema for a path to a mesh inside an object. */
 export const meshPathSchema = z.array(meshStepSchema).max(32);
+/** One step of a mesh path: a part name, a repeat, or a child index. */
 export type MeshStep = z.infer<typeof meshStepSchema>;
+/** A path to a mesh inside an object. */
 export type MeshPath = readonly MeshStep[];
 
 /** What a part must have for a path to go through it. A three.js object has these. */

@@ -8,9 +8,12 @@ import type { ReasoningEffort } from "../providers/model-capabilities.js";
 import type { ProviderId } from "../providers/providers.types.js";
 import type { RunProgress } from "./run-progress.js";
 import type { RunClock } from "./run-clock.js";
+import type { AttachmentSummary } from "@movynta/contracts";
 
+/** The status of a run, as defined by the state machine. */
 export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 
+/** The kinds of event a run can publish to its event stream. */
 export type AgentRunEventType = (typeof AGENT_RUN_EVENT_TYPES)[number];
 
 /**
@@ -107,6 +110,7 @@ export type AgentRunEventPayloads = {
   readonly "run.cancelled": { readonly runId: string };
 };
 
+/** The payload of an event, whose shape depends on its type. */
 export type AgentRunEventPayload = AgentRunEventPayloads[AgentRunEventType];
 
 /** Client-facing envelope. `seq` orders events and is sent as the SSE `id`. */
@@ -121,12 +125,10 @@ export interface AgentRunEvent {
 
 /** Narrow sink given to tools so they can report progress without knowing about storage. */
 export interface AgentRunEventSink {
-  emit<T extends AgentRunEventType>(
-    type: T,
-    payload: AgentRunEventPayloads[T],
-  ): void;
+  emit<T extends AgentRunEventType>(type: T, payload: AgentRunEventPayloads[T]): void;
 }
 
+/** A run as it is stored, including its server-side state. */
 export interface AgentRunRecord {
   readonly reasoningEffort?: ReasoningEffort | undefined;
   readonly providerBaseUrl?: string | undefined;
@@ -146,12 +148,15 @@ export interface AgentRunRecord {
   readonly errorCode: string | undefined;
   readonly errorMessage: string | undefined;
   readonly usage: Readonly<Record<string, number>> | undefined;
+  /** The pictures the user attached to the request. Their pixels are not stored. */
+  readonly attachments: readonly AttachmentSummary[];
   /** Plans and unfinished work saved when the run paused for an approval. Server-side only. */
   readonly progress?: RunProgress | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
 
+/** What is needed to create a run record. */
 export interface NewAgentRun {
   readonly reasoningEffort?: ReasoningEffort | undefined;
   readonly providerBaseUrl?: string | undefined;
@@ -166,9 +171,11 @@ export interface NewAgentRun {
   readonly dimension: ModelingDimension | undefined;
   readonly selectedSkillIds: readonly string[];
   readonly input: string;
+  readonly attachments?: readonly AttachmentSummary[];
   readonly now: string;
 }
 
+/** The fields that a status change may update on a run. */
 export interface RunUpdate {
   readonly status?: AgentRunStatus;
   readonly finalOutput?: string;
@@ -179,6 +186,7 @@ export interface RunUpdate {
   readonly progressJson?: string | null;
 }
 
+/** The answer to starting a run. */
 export interface AgentRunAccepted {
   readonly runId: string;
   readonly sessionId: string;
@@ -186,6 +194,7 @@ export interface AgentRunAccepted {
   readonly eventsUrl: string;
 }
 
+/** A run as the API returns it, without server-side state. */
 export interface AgentRunView {
   readonly id: string;
   readonly sessionId: string;
@@ -193,13 +202,13 @@ export interface AgentRunView {
   readonly agentId: string;
   readonly status: AgentRunStatus;
   readonly finalOutput: string | undefined;
-  readonly error:
-    { readonly code: string; readonly message: string } | undefined;
+  readonly error: { readonly code: string; readonly message: string } | undefined;
   readonly usage: Readonly<Record<string, number>> | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
 
+/** An approval as the API returns it. */
 export interface ApprovalView {
   readonly id: string;
   readonly runId: string;
@@ -212,13 +221,16 @@ export interface ApprovalView {
   readonly decidedAt: string | undefined;
 }
 
+/** The answer to deciding one approval. */
 export interface ApprovalDecisionResult {
   readonly approvalId: string;
   readonly approvalStatus: string;
   readonly runStatus: AgentRunStatus;
 }
 
+/** The result of one streamed model turn. */
 export type RunResult = StreamedRunResult<AgentRunContext, AppAgent>;
+/** The serialisable state of a run's model turn, which is kept while it waits for approval. */
 export type RunStateOf = RunState<AgentRunContext, AppAgent>;
 
 /** A run that is executing now: its abort handle, its clock, and the subscription that feeds the clock. */

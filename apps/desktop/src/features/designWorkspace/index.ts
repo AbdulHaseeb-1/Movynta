@@ -7,8 +7,4 @@ export { useComponentSelection } from "./useComponentSelection";
 export { useKnife } from "./useKnife";
 export { useExtrude } from "./useExtrude";
 export { useDesignFocus } from "./useDesignFocus";
-export {
-  designWorkspaceReducer,
-  setDesignMode,
-  setPanelOpen,
-} from "./workspaceSlice";
+export { designWorkspaceReducer, setDesignMode, setPanelOpen } from "./workspaceSlice";

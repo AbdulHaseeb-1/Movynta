@@ -2,11 +2,7 @@ import { useRef, type ChangeEvent } from "react";
 import { FileInput, LoaderCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  MODEL_FILE_ACCEPT,
-  MODEL_FORMATS,
-  MODEL_FORMAT_NAMES,
-} from "./modelFormats";
+import { MODEL_FILE_ACCEPT, MODEL_FORMATS, MODEL_FORMAT_NAMES } from "./modelFormats";
 import type { ModelImport } from "./useModelImport";
 
 interface ImportButtonProps {
@@ -19,11 +15,7 @@ interface ImportButtonProps {
 const formatList = MODEL_FORMATS.map((format) => MODEL_FORMAT_NAMES[format]).join(", ");
 
 /** Opens the file dialog for a 3D model and reports how the import went. */
-export function ImportButton({
-  importer,
-  disabled = false,
-  className,
-}: ImportButtonProps) {
+export function ImportButton({ importer, disabled = false, className }: ImportButtonProps) {
   const input = useRef<HTMLInputElement>(null);
 
   function onPick(event: ChangeEvent<HTMLInputElement>) {
@@ -66,13 +58,16 @@ export function ImportButton({
         {importer.importing ? "Importing…" : "Import"}
       </Button>
       {importer.error && <Message kind="alert" text={importer.error} onDismiss={importer.dismissError} />}
-      {!importer.error && importer.notice && <Message kind="status" text={importer.notice} onDismiss={importer.dismissNotice} />}
+      {!importer.error && importer.notice && (
+        <Message kind="status" text={importer.notice} onDismiss={importer.dismissNotice} />
+      )}
     </div>
   );
 }
 
 function Message({ kind, text, onDismiss }: { kind: "alert" | "status"; text: string; onDismiss: () => void }) {
-  const className = "flex w-[min(320px,calc(100vw-32px))] items-start gap-2.5 rounded-xl bg-popover p-3.5 text-xs leading-5 text-popover-foreground shadow-xl ring-1 ring-border";
+  const className =
+    "flex w-[min(320px,calc(100vw-32px))] items-start gap-2.5 rounded-xl bg-popover p-3.5 text-xs leading-5 text-popover-foreground shadow-xl ring-1 ring-border";
   const Box = kind === "alert" ? "div" : "output";
   return (
     <Box role={kind === "alert" ? "alert" : undefined} className={className}>

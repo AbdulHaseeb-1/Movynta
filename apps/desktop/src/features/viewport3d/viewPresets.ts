@@ -1,7 +1,9 @@
 import { MathUtils, Vector3 } from "three";
 
+/** The id of a view preset: front, back, right, left, top or bottom. */
 export type ViewPresetId = "front" | "back" | "right" | "left" | "top" | "bottom" | "isometric";
 
+/** A preset view of the scene, with its key. */
 export interface ViewPreset {
   id: ViewPresetId;
   label: string;
@@ -13,8 +15,13 @@ export interface ViewPreset {
 }
 
 const ISOMETRIC_ELEVATION = MathUtils.degToRad(35.264);
-const isometric = [Math.sin(Math.PI / 4) * Math.cos(ISOMETRIC_ELEVATION), Math.sin(ISOMETRIC_ELEVATION), Math.cos(Math.PI / 4) * Math.cos(ISOMETRIC_ELEVATION)] as const;
+const isometric = [
+  Math.sin(Math.PI / 4) * Math.cos(ISOMETRIC_ELEVATION),
+  Math.sin(ISOMETRIC_ELEVATION),
+  Math.cos(Math.PI / 4) * Math.cos(ISOMETRIC_ELEVATION),
+] as const;
 
+/** The preset views of the scene. */
 export const VIEW_PRESETS: readonly ViewPreset[] = [
   { id: "front", label: "Front", direction: [0, 0, 1], code: "Numpad1" },
   { id: "back", label: "Back", direction: [0, 0, -1], code: "Numpad1", withCtrl: true },

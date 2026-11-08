@@ -131,5 +131,8 @@ describe("applyRunEvent", () => {
 
   it("humanizes unknown tool names", () => {
     expect(toolLabel("custom.make_thing")).toBe("Custom make thing");
+    expect(toolLabel("editor.read_branch")).toBe("Opening part of the scene");
+    expect(toolLabel("editor.find_repeats")).toBe("Looking for repeated parts");
+    expect(toolLabel("editor.query_objects")).toBe("Selecting objects");
   });
 });

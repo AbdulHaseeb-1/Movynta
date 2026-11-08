@@ -1,6 +1,15 @@
 import { Vector3 } from "three";
 import { triangulate } from "./meshOutput";
-import { assertManifold, channels, edgeKey, faceNormal, point, topology, type ContinuityChannel, type PolygonMesh } from "./meshTopology";
+import {
+  assertManifold,
+  channels,
+  edgeKey,
+  faceNormal,
+  point,
+  topology,
+  type ContinuityChannel,
+  type PolygonMesh,
+} from "./meshTopology";
 import { blend, evaluate, mean, type Weights } from "./meshWeights";
 
 /** Original Loop vertex weight. Valence 3 is exactly 3/16. */
@@ -15,16 +24,20 @@ function average(values: readonly Vector3[]): Vector3 {
   return result.multiplyScalar(1 / values.length);
 }
 function samplesMatch(sources: readonly ContinuityChannel[], left: Weights, right: Weights): boolean {
-  for (const source of sources) for (let component = 0; component < source.itemSize; component += 1)
-    if (Math.abs(evaluate(source, left, component) - evaluate(source, right, component)) > 1e-5) return false;
+  for (const source of sources)
+    for (let component = 0; component < source.itemSize; component += 1)
+      if (Math.abs(evaluate(source, left, component) - evaluate(source, right, component)) > 1e-5) return false;
   return true;
 }
 /** A face is convex when every corner turns the same way as its normal. */
 export function isConvex(mesh: PolygonMesh, face: readonly number[]): boolean {
   const normal = faceNormal(mesh, face);
   for (let i = 0; i < face.length; i += 1) {
-    const a = point(mesh, face[i]); const b = point(mesh, face[(i + 1) % face.length]); const c = point(mesh, face[(i + 2) % face.length]);
-    const first = b.clone().sub(a); const second = c.clone().sub(b);
+    const a = point(mesh, face[i]);
+    const b = point(mesh, face[(i + 1) % face.length]);
+    const c = point(mesh, face[(i + 2) % face.length]);
+    const first = b.clone().sub(a);
+    const second = c.clone().sub(b);
     const scale = first.length() * second.length();
     if (scale > 0 && first.cross(second).dot(normal) < -1e-9 * scale) return false;
   }
@@ -45,7 +58,9 @@ function splitFaces(mesh: PolygonMesh, shouldSplit: (face: readonly number[]) =>
     const samples = data.corners[faceIndex];
     if (!samples || samples.length !== face.length) throw new Error("Missing corner attributes");
     if (!shouldSplit(face)) {
-      faces.push([...face]); corners.push(samples); materials.push(data.materials[faceIndex] ?? 0);
+      faces.push([...face]);
+      corners.push(samples);
+      materials.push(data.materials[faceIndex] ?? 0);
       faceSources?.push(mesh.faceSources?.[faceIndex] ?? -1);
       return;
     }
@@ -59,14 +74,20 @@ function splitFaces(mesh: PolygonMesh, shouldSplit: (face: readonly number[]) =>
       const sampleA = a === undefined ? undefined : samples[a];
       const sampleB = b === undefined ? undefined : samples[b];
       const sampleC = c === undefined ? undefined : samples[c];
-      if (idA === undefined || idB === undefined || idC === undefined || !sampleA || !sampleB || !sampleC) throw new Error("Invalid triangle");
+      if (idA === undefined || idB === undefined || idC === undefined || !sampleA || !sampleB || !sampleC)
+        throw new Error("Invalid triangle");
       faces.push([idA, idB, idC]);
       faceSources?.push(mesh.faceSources?.[faceIndex] ?? -1);
       corners.push([sampleA, sampleB, sampleC]);
       materials.push(data.materials[faceIndex] ?? 0);
     }
   });
-  return { positions: mesh.positions, faces, channels: { positions: data.positions, corners, materials }, ...(faceSources ? { faceSources } : {}) };
+  return {
+    positions: mesh.positions,
+    faces,
+    channels: { positions: data.positions, corners, materials },
+    ...(faceSources ? { faceSources } : {}),
+  };
 }
 
 function asTriangles(mesh: PolygonMesh): PolygonMesh {
@@ -122,8 +143,16 @@ export function subdivideLinear(input: PolygonMesh): PolygonMesh {
       const next = face[(i + 1) % face.length];
       const previous = face[(i + face.length - 1) % face.length];
       const towardNext = vertex === undefined || next === undefined ? undefined : edgeIds.get(edgeKey(vertex, next));
-      const towardPrevious = vertex === undefined || previous === undefined ? undefined : edgeIds.get(edgeKey(previous, vertex));
-      if (vertex === undefined || next === undefined || previous === undefined || towardNext === undefined || towardPrevious === undefined) throw new Error("Invalid subdivision topology");
+      const towardPrevious =
+        vertex === undefined || previous === undefined ? undefined : edgeIds.get(edgeKey(previous, vertex));
+      if (
+        vertex === undefined ||
+        next === undefined ||
+        previous === undefined ||
+        towardNext === undefined ||
+        towardPrevious === undefined
+      )
+        throw new Error("Invalid subdivision topology");
       faces.push([vertex, towardNext, center, towardPrevious]);
       faceSources?.push(mesh.faceSources?.[index] ?? -1);
       cornerWeights.push([
@@ -135,7 +164,12 @@ export function subdivideLinear(input: PolygonMesh): PolygonMesh {
       materials.push(data.materials[index] ?? 0);
     }
   });
-  return { positions, faces, channels: { positions: positionWeights, corners: cornerWeights, materials }, ...(faceSources ? { faceSources } : {}) };
+  return {
+    positions,
+    faces,
+    channels: { positions: positionWeights, corners: cornerWeights, materials },
+    ...(faceSources ? { faceSources } : {}),
+  };
 }
 
 /** Loop subdivision. Faces with more than three corners are triangulated first. */
@@ -143,7 +177,8 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
   const triangles = asTriangles(mesh);
   const graph = topology(triangles);
   assertManifold(triangles, graph);
-  if (graph.vertexFaces.some((faces) => faces.length > 64)) throw new Error("Subdivision supports vertex valence up to 64; simplify extraordinary vertices first");
+  if (graph.vertexFaces.some((faces) => faces.length > 64))
+    throw new Error("Subdivision supports vertex valence up to 64; simplify extraordinary vertices first");
   const data = channels(triangles);
   const weightsAt = (id: number): Weights => data.positions[id] ?? new Map();
   const cornerOn = (faceIndex: number, vertexId: number): Weights => {
@@ -152,18 +187,20 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
     if (!sample) throw new Error("Missing corner attributes");
     return sample;
   };
-  const neighborsOf = (id: number): number[] => (graph.vertexEdges[id] ?? []).flatMap((key) => {
-    const half = graph.edges.get(key)?.[0];
-    if (!half) return [];
-    return [half.from === id ? half.to : half.from];
-  });
-  const boundaryNeighbors = (id: number): number[] => (graph.vertexEdges[id] ?? []).flatMap((key) => {
-    const incident = graph.edges.get(key) ?? [];
-    if (incident.length !== 1) return [];
-    const half = incident[0];
-    if (!half) return [];
-    return [half.from === id ? half.to : half.from];
-  });
+  const neighborsOf = (id: number): number[] =>
+    (graph.vertexEdges[id] ?? []).flatMap((key) => {
+      const half = graph.edges.get(key)?.[0];
+      if (!half) return [];
+      return [half.from === id ? half.to : half.from];
+    });
+  const boundaryNeighbors = (id: number): number[] =>
+    (graph.vertexEdges[id] ?? []).flatMap((key) => {
+      const incident = graph.edges.get(key) ?? [];
+      if (incident.length !== 1) return [];
+      const half = incident[0];
+      if (!half) return [];
+      return [half.from === id ? half.to : half.from];
+    });
   const cornerFromNeighbor = (faceIndex: number, vertex: number, neighbor: number): Weights => {
     const face = triangles.faces[faceIndex];
     if (face?.includes(neighbor)) return cornerOn(faceIndex, neighbor);
@@ -189,18 +226,29 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
     if (boundary.length === 2) {
       const [first, second] = boundary;
       if (first === undefined || second === undefined) throw new Error("Missing boundary edge");
-      positions[id] = position.clone().multiplyScalar(0.75).add(point(triangles, first).clone().add(point(triangles, second)).multiplyScalar(0.125));
-      positionWeights[id] = blend([[weightsAt(id), 0.75], [weightsAt(first), 0.125], [weightsAt(second), 0.125]]);
+      positions[id] = position
+        .clone()
+        .multiplyScalar(0.75)
+        .add(point(triangles, first).clone().add(point(triangles, second)).multiplyScalar(0.125));
+      positionWeights[id] = blend([
+        [weightsAt(id), 0.75],
+        [weightsAt(first), 0.125],
+        [weightsAt(second), 0.125],
+      ]);
       return;
     }
     const neighbors = neighborsOf(id);
     const valence = neighbors.length;
-    if (valence < 3 || valence > 64) throw new Error("Subdivision supports vertex valence up to 64; simplify extraordinary vertices first");
+    if (valence < 3 || valence > 64)
+      throw new Error("Subdivision supports vertex valence up to 64; simplify extraordinary vertices first");
     const beta = loopBeta(valence);
     const next = position.clone().multiplyScalar(1 - valence * beta);
     for (const neighbor of neighbors) next.addScaledVector(point(triangles, neighbor), beta);
     positions[id] = next;
-    positionWeights[id] = blend([[weightsAt(id), 1 - valence * beta], ...neighbors.map((neighbor): [Weights, number] => [weightsAt(neighbor), beta])]);
+    positionWeights[id] = blend([
+      [weightsAt(id), 1 - valence * beta],
+      ...neighbors.map((neighbor): [Weights, number] => [weightsAt(neighbor), beta]),
+    ]);
   });
   const edgeIds = new Map<string, number>();
   for (const [key, incident] of graph.edges) {
@@ -216,8 +264,18 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
     } else {
       const left = opposite(triangles.faces[first.face], first.from, first.to);
       const right = opposite(triangles.faces[second.face], first.from, first.to);
-      position = start.clone().multiplyScalar(3 / 8).addScaledVector(end, 3 / 8).addScaledVector(point(triangles, left), 1 / 8).addScaledVector(point(triangles, right), 1 / 8);
-      weights = blend([[weightsAt(first.from), 3 / 8], [weightsAt(first.to), 3 / 8], [weightsAt(left), 1 / 8], [weightsAt(right), 1 / 8]]);
+      position = start
+        .clone()
+        .multiplyScalar(3 / 8)
+        .addScaledVector(end, 3 / 8)
+        .addScaledVector(point(triangles, left), 1 / 8)
+        .addScaledVector(point(triangles, right), 1 / 8);
+      weights = blend([
+        [weightsAt(first.from), 3 / 8],
+        [weightsAt(first.to), 3 / 8],
+        [weightsAt(left), 1 / 8],
+        [weightsAt(right), 1 / 8],
+      ]);
     }
     edgeIds.set(key, positions.push(position) - 1);
     positionWeights.push(weights);
@@ -228,12 +286,19 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
     if (boundary.length === 2 && continuous(id)) {
       const [first, second] = boundary;
       if (first === undefined || second === undefined) throw new Error("Missing boundary edge");
-      return blend([[here, 0.75], [cornerFromNeighbor(faceIndex, id, first), 0.125], [cornerFromNeighbor(faceIndex, id, second), 0.125]]);
+      return blend([
+        [here, 0.75],
+        [cornerFromNeighbor(faceIndex, id, first), 0.125],
+        [cornerFromNeighbor(faceIndex, id, second), 0.125],
+      ]);
     }
     const neighbors = neighborsOf(id);
     if (boundary.length === 0 && continuous(id) && neighbors.length >= 3) {
       const beta = loopBeta(neighbors.length);
-      return blend([[here, 1 - neighbors.length * beta], ...neighbors.map((neighbor): [Weights, number] => [cornerFromNeighbor(faceIndex, id, neighbor), beta])]);
+      return blend([
+        [here, 1 - neighbors.length * beta],
+        ...neighbors.map((neighbor): [Weights, number] => [cornerFromNeighbor(faceIndex, id, neighbor), beta]),
+      ]);
     }
     const face = triangles.faces[faceIndex];
     if (!face) throw new Error("Missing face");
@@ -241,15 +306,25 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
     const previous = face[(at + face.length - 1) % face.length];
     const next = face[(at + 1) % face.length];
     if (previous === undefined || next === undefined) throw new Error("Missing corner attributes");
-    return blend([[here, 0.75], [cornerOn(faceIndex, previous), 0.125], [cornerOn(faceIndex, next), 0.125]]);
+    return blend([
+      [here, 0.75],
+      [cornerOn(faceIndex, previous), 0.125],
+      [cornerOn(faceIndex, next), 0.125],
+    ]);
   };
   const edgeAttribute = (faceIndex: number, from: number, to: number): Weights => {
     const hereFrom = cornerOn(faceIndex, from);
     const hereTo = cornerOn(faceIndex, to);
     const other = (graph.edges.get(edgeKey(from, to)) ?? []).find((half) => half.face !== faceIndex);
-    if (!other || !samplesMatch(sources, hereFrom, cornerOn(other.face, from)) || !samplesMatch(sources, hereTo, cornerOn(other.face, to))) return mean([hereFrom, hereTo]);
+    if (
+      !other ||
+      !samplesMatch(sources, hereFrom, cornerOn(other.face, from)) ||
+      !samplesMatch(sources, hereTo, cornerOn(other.face, to))
+    )
+      return mean([hereFrom, hereTo]);
     return blend([
-      [hereFrom, 3 / 8], [hereTo, 3 / 8],
+      [hereFrom, 3 / 8],
+      [hereTo, 3 / 8],
       [cornerOn(faceIndex, opposite(triangles.faces[faceIndex], from, to)), 1 / 8],
       [cornerOn(other.face, opposite(triangles.faces[other.face], from, to)), 1 / 8],
     ]);
@@ -279,7 +354,12 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
       if (id === edge12) return edgeAttribute(index, corner1, corner2);
       return edgeAttribute(index, corner2, corner0);
     };
-    const split: readonly (readonly [number, number, number])[] = [[corner0, edge01, edge20], [edge01, corner1, edge12], [edge20, edge12, corner2], [edge01, edge12, edge20]];
+    const split: readonly (readonly [number, number, number])[] = [
+      [corner0, edge01, edge20],
+      [edge01, corner1, edge12],
+      [edge20, edge12, corner2],
+      [edge01, edge12, edge20],
+    ];
     for (const [a, b, c] of split) {
       faces.push([a, b, c]);
       faceSources?.push(triangles.faceSources?.[index] ?? -1);
@@ -287,7 +367,12 @@ export function subdivideLoop(mesh: PolygonMesh, sources: readonly ContinuityCha
       materials.push(data.materials[index] ?? 0);
     }
   });
-  return { positions, faces, channels: { positions: positionWeights, corners: cornerWeights, materials }, ...(faceSources ? { faceSources } : {}) };
+  return {
+    positions,
+    faces,
+    channels: { positions: positionWeights, corners: cornerWeights, materials },
+    ...(faceSources ? { faceSources } : {}),
+  };
 }
 function opposite(face: readonly number[] | undefined, from: number, to: number): number {
   const vertex = face?.find((id) => id !== from && id !== to);

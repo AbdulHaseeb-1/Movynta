@@ -2,12 +2,7 @@ import { useState, type ComponentProps } from "react";
 import { Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { projectCategories } from "./projectCategories";
 import type { ProjectCategoryId } from "./projectTypes";
@@ -18,16 +13,10 @@ type NewProjectButtonProps = Omit<ComponentProps<typeof Button>, "onClick">;
  * Starts a new project. With one category it goes straight to that workspace; with several it asks
  * which kind first. The project itself is created on the first prompt, not here.
  */
-export function NewProjectButton({
-  className,
-  children,
-  ...props
-}: NewProjectButtonProps) {
+export function NewProjectButton({ className, children, ...props }: NewProjectButtonProps) {
   const navigate = useNavigate();
   const [picking, setPicking] = useState(false);
-  const [choice, setChoice] = useState<ProjectCategoryId>(
-    projectCategories[0]?.id ?? "design",
-  );
+  const [choice, setChoice] = useState<ProjectCategoryId>(projectCategories[0]?.id ?? "design");
 
   function open(category: ProjectCategoryId) {
     const info = projectCategories.find((item) => item.id === category);
@@ -55,12 +44,9 @@ export function NewProjectButton({
       </Button>
       <Dialog open={picking} onOpenChange={setPicking}>
         <DialogContent className="z-[100] w-[min(460px,calc(100vw-32px))] p-6">
-          <DialogTitle className="pr-6 text-base font-semibold">
-            New project
-          </DialogTitle>
+          <DialogTitle className="pr-6 text-base font-semibold">New project</DialogTitle>
           <DialogDescription className="text-xs leading-5 text-muted-foreground">
-            Choose what you want to make. The project is saved when you send
-            your first prompt.
+            Choose what you want to make. The project is saved when you send your first prompt.
           </DialogDescription>
           <fieldset className="flex flex-col gap-2">
             <legend className="sr-only">Project category</legend>
@@ -84,9 +70,7 @@ export function NewProjectButton({
                 <category.icon className="size-5 shrink-0" aria-hidden="true" />
                 <span className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium">{category.label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {category.description}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{category.description}</span>
                 </span>
               </label>
             ))}
@@ -100,11 +84,7 @@ export function NewProjectButton({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={() => open(choice)}
-              className="h-9 rounded-lg px-4 text-[13px]"
-            >
+            <Button type="button" onClick={() => open(choice)} className="h-9 rounded-lg px-4 text-[13px]">
               Continue
             </Button>
           </div>

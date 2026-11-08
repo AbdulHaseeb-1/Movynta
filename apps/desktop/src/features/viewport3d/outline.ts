@@ -70,6 +70,7 @@ const FRAGMENT_SHADER = /* glsl */ `
   }
 `;
 
+/** Draws the outline around the selected objects. */
 export interface OutlineRenderer {
   /** The objects to outline. An empty list switches the outline, and its cost, off. */
   setObjects: (objects: readonly Object3D[]) => void;
@@ -85,8 +86,7 @@ function cornersOf(box: Box3, into: Vector3[]) {
   const { min, max } = box;
   let index = 0;
   for (const x of [min.x, max.x])
-    for (const y of [min.y, max.y])
-      for (const z of [min.z, max.z]) into[index++]?.set(x, y, z);
+    for (const y of [min.y, max.y]) for (const z of [min.z, max.z]) into[index++]?.set(x, y, z);
 }
 
 interface PixelRect {
@@ -118,18 +118,20 @@ function containsSkinnedMesh(object: Object3D): boolean {
  * are drawn white into a half-size mask, and a thin edge shader paints the ring around that mask. The
  * extra cost follows the selected object, not the scene, and no full-size intermediate image is made.
  */
-export function createOutlineRenderer(
-  renderer: WebGLRenderer,
-  scene: Scene,
-  camera: Camera,
-): OutlineRenderer {
+export function createOutlineRenderer(renderer: WebGLRenderer, scene: Scene, camera: Camera): OutlineRenderer {
   let targets: readonly Object3D[] = [];
   /** Each target's box in its own space, taken once, so a frame never walks the object's parts. */
   let localBoxes: Box3[] = [];
   const corners = Array.from({ length: 8 }, () => new Vector3());
   const mask = new WebGLRenderTarget(1, 1, { depthBuffer: true });
   const maskMaterial = new MeshBasicMaterial({ color: 0xffffff, side: DoubleSide });
-  const occluderMaterial = new MeshBasicMaterial({ colorWrite: false, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  const occluderMaterial = new MeshBasicMaterial({
+    colorWrite: false,
+    side: DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
+  });
   // Held directly, so a frame can update them without looking them up by name.
   const texel = { value: new Vector2(1, 1) };
   const radius = { value: THICKNESS_PIXELS };
@@ -215,9 +217,16 @@ export function createOutlineRenderer(
     try {
       renderer.setRenderTarget(mask);
       mask.scissorTest = rect !== undefined;
-      if (rect) mask.scissor.set(Math.floor(rect.x * MASK_SCALE), Math.floor(rect.y * MASK_SCALE), Math.ceil(rect.width * MASK_SCALE), Math.ceil(rect.height * MASK_SCALE));
+      if (rect)
+        mask.scissor.set(
+          Math.floor(rect.x * MASK_SCALE),
+          Math.floor(rect.y * MASK_SCALE),
+          Math.ceil(rect.width * MASK_SCALE),
+          Math.ceil(rect.height * MASK_SCALE),
+        );
       renderer.setClearColor(0x000000, 0);
-      renderer.clear(); renderer.autoClear = false;
+      renderer.clear();
+      renderer.autoClear = false;
       scene.background = null;
       // Populate depth with all visible scene geometry before drawing selected pixels.
       scene.overrideMaterial = occluderMaterial;
@@ -246,9 +255,7 @@ export function createOutlineRenderer(
         if (containsSkinnedMesh(object)) return new Box3();
         object.updateWorldMatrix(true, true);
         // Measured in the object's own space: the box then stays right as the object moves.
-        return new Box3()
-          .setFromObject(object)
-          .applyMatrix4(object.matrixWorld.clone().invert());
+        return new Box3().setFromObject(object).applyMatrix4(object.matrixWorld.clone().invert());
       });
     },
     get active() {

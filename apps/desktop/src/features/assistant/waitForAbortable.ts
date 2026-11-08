@@ -5,7 +5,9 @@ export async function waitForAbortable<T>(signal: AbortSignal, start: () => Prom
     const onAbort = () => reject(signal.reason);
     signal.addEventListener("abort", onAbort, { once: true });
     try {
-      void start().then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+      void start()
+        .then(resolve, reject)
+        .finally(() => signal.removeEventListener("abort", onAbort));
     } catch (error) {
       signal.removeEventListener("abort", onAbort);
       reject(error);

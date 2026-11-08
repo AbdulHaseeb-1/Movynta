@@ -6,6 +6,7 @@ import { defineTool, type ToolDefinition } from "../tool.types.js";
 import { RichToolResult } from "../tool-result.js";
 import { newId } from "../../../common/ids/index.js";
 
+/** The name of the viewport capture tool. */
 export const VIEWPORT_CAPTURE_TOOL_NAME = "viewport.capture";
 
 const AXES_NOTE =
@@ -38,7 +39,11 @@ function describeCapture(result: ViewCaptureResult, imagesSent: boolean) {
   };
 }
 
-export function createViewportTools({ bridge, proposals }: {
+/** Builds viewport.capture, which asks the editor to draw the scene, or a candidate proposal, from chosen viewpoints. */
+export function createViewportTools({
+  bridge,
+  proposals,
+}: {
   readonly bridge: EditorBridge;
   readonly proposals: Pick<CommandProposalService, "require">;
 }): ToolDefinition[] {
@@ -62,7 +67,12 @@ export function createViewportTools({ bridge, proposals }: {
         // The editor files the pictures it draws under this id, and the chat finds them there to show the user.
         const captureId = newId("cap");
         const proposal = request.proposalId ? proposals.require(context.runId, request.proposalId) : undefined;
-        if (proposal && (proposal.status !== "proposed" || proposal.clientId !== context.clientId || proposal.projectId !== context.projectId)) {
+        if (
+          proposal &&
+          (proposal.status !== "proposed" ||
+            proposal.clientId !== context.clientId ||
+            proposal.projectId !== context.projectId)
+        ) {
           throw new ConflictError("Only a pending proposal for this editor can be previewed.");
         }
         const candidate = proposal
@@ -70,12 +80,19 @@ export function createViewportTools({ bridge, proposals }: {
           : undefined;
         // A quality review needs live image evidence from one unchanged scene revision. Candidate previews and
         // measurement-only responses must never satisfy it. Other captures avoid the extra context requests.
-        const trackQuality = context.progress.quality.required && context.progress.quality.changes > 0 && !candidate && withImages && (request.mode ?? "solid") === "solid";
+        const trackQuality =
+          context.progress.quality.required &&
+          context.progress.quality.changes > 0 &&
+          !candidate &&
+          withImages &&
+          (request.mode ?? "solid") === "solid";
         const before = trackQuality ? await bridge.getContext(context.clientId) : undefined;
         let result: Awaited<ReturnType<typeof bridge.captureViews>>;
         try {
           result = await bridge.captureViews(context.clientId, request, {
-            withImages, captureId, ...(candidate ? { candidate } : {}),
+            withImages,
+            captureId,
+            ...(candidate ? { candidate } : {}),
           });
         } catch (error) {
           // A viewport that cannot draw leaves nothing to look at. The reviewer is told, not left to retry for ever.
@@ -94,7 +111,12 @@ export function createViewportTools({ bridge, proposals }: {
               quality.summary = "";
             }
             quality.captureRevision = after.revision;
-            quality.viewpoints = [...new Set([...quality.viewpoints, ...images.map((image) => image.camera.position.map((n) => n.toFixed(3)).join(","))])].slice(0, 12);
+            quality.viewpoints = [
+              ...new Set([
+                ...quality.viewpoints,
+                ...images.map((image) => image.camera.position.map((n) => n.toFixed(3)).join(",")),
+              ]),
+            ].slice(0, 12);
           } else {
             quality.captureRevision = null;
             quality.viewpoints = [];
@@ -107,7 +129,10 @@ export function createViewportTools({ bridge, proposals }: {
           views: result.images.map((image) => ({ label: image.label, width: image.width, height: image.height })),
           imagesSent: images.length > 0,
         });
-        const description = { ...describeCapture(result, images.length > 0), ...(candidate ? { proposalId: candidate.proposalId } : {}) };
+        const description = {
+          ...describeCapture(result, images.length > 0),
+          ...(candidate ? { proposalId: candidate.proposalId } : {}),
+        };
         if (images.length === 0) return description;
         return new RichToolResult(
           JSON.stringify(description),

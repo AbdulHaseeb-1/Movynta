@@ -97,6 +97,7 @@ flowchart LR
 
 - Same sandbox limits as modeling.generate_commands.
 - At most 200 commands per proposal. Programs cannot reach files, the network or the host.
+- Refused like editor.propose_commands once three batches have been applied without a validation.check_scene. A generated batch is not held to the 40-command limit.
 
 ## Related
 

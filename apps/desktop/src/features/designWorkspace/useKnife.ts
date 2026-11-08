@@ -6,28 +6,21 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { errorMessage, type SerialQueue } from "@/lib";
 import { KnifeGesture, type KnifeTarget } from "./KnifeGesture";
 import { saveCageEdit } from "./saveCageEdit";
-import {
-  setComponentError,
-  setKnifeActive,
-  setKnifeSettings,
-} from "./workspaceSlice";
+import { setComponentError, setKnifeActive, setKnifeSettings } from "./workspaceSlice";
 
 /** Do not silently choose a part in a multi-mesh hierarchy. */
 export function singleVisibleMesh(node: Object3D): number[] | null {
   const found: number[][] = [];
-  const visit=(part: Object3D,path: number[]) => {
-    if(!part.visible || found.length>1) return;
-    if(part instanceof Mesh) found.push(path);
-    part.children.forEach((child,i)=>visit(child,[...path,i]));
+  const visit = (part: Object3D, path: number[]) => {
+    if (!part.visible || found.length > 1) return;
+    if (part instanceof Mesh) found.push(path);
+    part.children.forEach((child, i) => visit(child, [...path, i]));
   };
-  visit(node,[]); return found.length===1 ? found[0] ?? null : null;
+  visit(node, []);
+  return found.length === 1 ? (found[0] ?? null) : null;
 }
-export function useKnife(
-  viewport: Viewport | null,
-  scene: EditorScene | null,
-  disabled: boolean,
-  saves: SerialQueue,
-) {
+/** Runs the Knife tool: starts a stroke, previews the cut, and applies it as one saved edit. */
+export function useKnife(viewport: Viewport | null, scene: EditorScene | null, disabled: boolean, saves: SerialQueue) {
   const dispatch = useAppDispatch(),
     workspace = useAppSelector((state) => state.designWorkspace);
   const current = useRef({ workspace, disabled });
@@ -37,10 +30,7 @@ export function useKnife(
   const [hint, setHint] = useState("");
   const gesture = useRef<KnifeGesture | null>(null),
     saving = useRef(false);
-  const start = useCallback(
-    (onlySelected = false) => gesture.current?.start(onlySelected),
-    [],
-  );
+  const start = useCallback((onlySelected = false) => gesture.current?.start(onlySelected), []);
   useEffect(() => {
     if (!viewport || !scene) return undefined;
     const target = (): KnifeTarget | null => {
@@ -49,15 +39,13 @@ export function useKnife(
       if (!objectId) return null;
       const root = scene.getObject(objectId);
       if (!root) return null;
-      const meshPath =
-        choice?.objectId === objectId ? choice.meshPath : singleVisibleMesh(root);
+      const meshPath = choice?.objectId === objectId ? choice.meshPath : singleVisibleMesh(root);
       if (!meshPath) return null;
       return {
         objectId,
         meshPath: [...meshPath],
         selectedFaces:
-          choice?.objectId === objectId &&
-          current.current.workspace.componentKind === "face"
+          choice?.objectId === objectId && current.current.workspace.componentKind === "face"
             ? choice.ids.map(Number)
             : [],
       };

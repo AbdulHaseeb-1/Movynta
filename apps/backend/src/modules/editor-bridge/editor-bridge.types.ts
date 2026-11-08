@@ -1,11 +1,19 @@
 import type { z } from "zod";
-import type { MeasurementRequest, MeshInspectionRequest, ViewCaptureRequest, ViewCaptureResult, EditorCommand, EditorContext } from "@movynta/editor-protocol";
-
+import type {
+  MeasurementRequest,
+  MeshInspectionRequest,
+  ViewCaptureRequest,
+  ViewCaptureResult,
+  EditorCommand,
+  EditorContext,
+} from "@movynta/editor-protocol";
 
 import type { EDITOR_INBOUND_EVENTS, commandResultSchema } from "./editor-protocol.js";
 
+/** How the editor answered a batch: applied, failed, or refused because the revision changed. */
 export type CommandExecutionStatus = "applied" | "failed" | "revision_conflict";
 
+/** The result of one command in a batch. */
 export interface EditorCommandResult {
   readonly commandId: string;
   readonly status: "applied" | "failed";
@@ -14,6 +22,7 @@ export interface EditorCommandResult {
   readonly name?: string;
 }
 
+/** The editor's answer to a whole batch. */
 export interface CommandExecutionResult {
   readonly proposalId: string;
   readonly status: CommandExecutionStatus;
@@ -33,6 +42,7 @@ export interface CommandProposalView {
   readonly commands: readonly EditorCommand[];
 }
 
+/** A batch sent to the editor to run. */
 export interface CommandExecutionRequest {
   readonly phase?: "prepare" | "commit" | "discard";
   readonly proposalId: string;
@@ -42,6 +52,7 @@ export interface CommandExecutionRequest {
   readonly commands: readonly EditorCommand[];
 }
 
+/** Which user, project and run an editor connection belongs to. */
 export interface EditorConnectionScope {
   readonly clientId: string;
   readonly userId: string;
@@ -55,7 +66,11 @@ export interface EditorConnectionScope {
 export interface EditorBridge {
   /** Throws unless `clientId` is a live editor connection for this user and project. */
   assertConnection(userId: string, projectId: string, clientId: string): EditorConnectionScope;
-  getContext(clientId: string, inspection?: MeshInspectionRequest, measurement?: MeasurementRequest): Promise<EditorContext>;
+  getContext(
+    clientId: string,
+    inspection?: MeshInspectionRequest,
+    measurement?: MeasurementRequest,
+  ): Promise<EditorContext>;
   proposeCommands(clientId: string, proposal: CommandProposalView): Promise<void>;
   executeCommands(clientId: string, request: CommandExecutionRequest): Promise<CommandExecutionResult>;
   /** Asks the editor to draw the scene from the requested points of view. Nothing in the scene changes. */
@@ -82,10 +97,12 @@ export interface EditorSocket {
   close(code?: number, reason?: string): void;
 }
 
+/** An open connection to a desktop editor. */
 export interface EditorConnection extends EditorConnectionScope {
   readonly socket: EditorSocket;
 }
 
+/** A request sent to the editor and not yet answered. */
 export type PendingRequest =
   | {
       readonly kind: "context";
@@ -110,14 +127,17 @@ export type PendingRequest =
       readonly reject: (error: Error) => void;
     };
 
+/** The state of one editor WebSocket connection. */
 export interface SocketState {
   authenticated: boolean;
   clientId: string | undefined;
   authTimer: NodeJS.Timeout | undefined;
 }
 
+/** The message the editor sends back with a batch's result. */
 export type CommandResultMessage = z.infer<typeof commandResultSchema>;
 
+/** The events the editor may send to the backend. */
 export type EditorInboundEvent = (typeof EDITOR_INBOUND_EVENTS)[number];
 
 /** Data for `commands.execute`: the execution request plus the id the editor must echo back. */
@@ -131,9 +151,19 @@ export type ViewRequestData = ViewCaptureOptions & {
 
 /** Outbound messages. The gateway serializes each one as JSON text; every event has its own data shape. */
 export type EditorOutboundMessage =
-  | { readonly event: "auth.ok"; readonly data: { readonly clientId: string; readonly projectId: string; readonly recoveryRequired?: boolean } }
+  | {
+      readonly event: "auth.ok";
+      readonly data: { readonly clientId: string; readonly projectId: string; readonly recoveryRequired?: boolean };
+    }
   | { readonly event: "error"; readonly data: { readonly code: string; readonly message: string } }
-  | { readonly event: "context.request"; readonly data: { readonly requestId: string; readonly inspection?: MeshInspectionRequest | undefined; readonly measurement?: MeasurementRequest | undefined } }
+  | {
+      readonly event: "context.request";
+      readonly data: {
+        readonly requestId: string;
+        readonly inspection?: MeshInspectionRequest | undefined;
+        readonly measurement?: MeasurementRequest | undefined;
+      };
+    }
   | { readonly event: "proposal.created"; readonly data: { readonly proposal: CommandProposalView } }
   | { readonly event: "commands.execute"; readonly data: CommandsExecuteData }
   | { readonly event: "view.request"; readonly data: ViewRequestData };

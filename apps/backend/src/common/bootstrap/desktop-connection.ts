@@ -16,18 +16,9 @@ export async function prepareDesktopConnection(): Promise<{
   if (!process.env["AUTH_SECRET"]) {
     const path = join(folder, "auth.dpapi");
     try {
-      process.env["AUTH_SECRET"] = await vault.unprotect(
-        await readFile(path, "utf8"),
-        "movynta:auth",
-      );
+      process.env["AUTH_SECRET"] = await vault.unprotect(await readFile(path, "utf8"), "movynta:auth");
     } catch (error) {
-      if (!(
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "ENOENT"
-      ))
-        throw error;
+      if (!(typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT")) throw error;
       const secret = randomBytes(48).toString("base64url");
       await writeFile(path, await vault.protect(secret, "movynta:auth"), {
         flag: "wx",
@@ -41,11 +32,9 @@ export async function prepareDesktopConnection(): Promise<{
     publish: async (secret: string) => {
       if (!secret) throw new Error("Backend authentication is unavailable");
       const token = signToken("desktop-local", secret, 8 * 60 * 60);
-      await writeFile(
-        join(folder, "connection.dpapi"),
-        await vault.protect(token, "movynta:desktop-connection"),
-        { mode: 0o600 },
-      );
+      await writeFile(join(folder, "connection.dpapi"), await vault.protect(token, "movynta:desktop-connection"), {
+        mode: 0o600,
+      });
     },
   };
 }

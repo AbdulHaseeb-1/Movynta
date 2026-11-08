@@ -6,11 +6,7 @@ import { cn } from "@/lib/utils";
 const Select = SelectPrimitive.Root;
 const SelectValue = SelectPrimitive.Value;
 
-function SelectTrigger({
-  className,
-  children,
-  ...props
-}: ComponentProps<typeof SelectPrimitive.Trigger>) {
+function SelectTrigger({ className, children, ...props }: ComponentProps<typeof SelectPrimitive.Trigger>) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
@@ -41,18 +37,13 @@ function SelectContent({
         position={position}
         className={cn(
           "relative z-[60] max-h-72 min-w-[8rem] overflow-hidden rounded-md bg-popover text-popover-foreground shadow-md data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
-          position === "popper" &&
-            "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
+          position === "popper" && "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
           className,
         )}
         {...props}
       >
         <SelectPrimitive.Viewport
-          className={cn(
-            "p-1",
-            position === "popper" &&
-              "w-full min-w-[var(--radix-select-trigger-width)]",
-          )}
+          className={cn("p-1", position === "popper" && "w-full min-w-[var(--radix-select-trigger-width)]")}
         >
           {children}
         </SelectPrimitive.Viewport>
@@ -61,11 +52,7 @@ function SelectContent({
   );
 }
 
-function SelectItem({
-  className,
-  children,
-  ...props
-}: ComponentProps<typeof SelectPrimitive.Item>) {
+function SelectItem({ className, children, ...props }: ComponentProps<typeof SelectPrimitive.Item>) {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"

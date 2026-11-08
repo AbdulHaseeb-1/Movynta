@@ -26,7 +26,9 @@ export class RichToolResult {
   parts(): ToolOutputPart[] {
     return [
       { type: "text", text: this.text },
-      ...this.images.map((image): ToolOutputPart => ({ type: "image", image: { data: image.data, mediaType: image.mediaType } })),
+      ...this.images.map(
+        (image): ToolOutputPart => ({ type: "image", image: { data: image.data, mediaType: image.mediaType } }),
+      ),
     ];
   }
 }

@@ -16,6 +16,10 @@ interface Gesture {
   initial: number;
   current: number;
   moved: boolean;
+  /** The value and pointer position the drag is measured from; they move on when Shift is pressed or released. */
+  base: number;
+  baseX: number;
+  fine: boolean;
 }
 /** Pure calculation shared by text and modifier inputs. Shift makes dragging ten times finer. */
 export function scrubValue(
@@ -28,11 +32,10 @@ export function scrubValue(
 ): number {
   const next = initial + (pixels * step) / (fine ? 50 : 5);
   const rounded = Number(next.toFixed(6));
-  const stepped = Number.isInteger(step)
-    ? Math.round(rounded / step) * step
-    : rounded;
+  const stepped = Number.isInteger(step) ? Math.round(rounded / step) * step : rounded;
   return Math.min(max, Math.max(min, stepped));
 }
+/** Lets a number value change while its label is dragged. Holding Shift changes the speed, and the value is rebased where Shift changes. */
 export function useNumberScrub(options: ScrubOptions) {
   const gesture = useRef<Gesture | null>(null);
   const suppressClick = useRef(false);
@@ -51,30 +54,21 @@ export function useNumberScrub(options: ScrubOptions) {
     if (gesture.current?.moved) preview.current(gesture.current.current);
   }
   function clearEscapeListener() {
-    if (escapeListener.current)
-      window.removeEventListener("keydown", escapeListener.current, true);
+    if (escapeListener.current) window.removeEventListener("keydown", escapeListener.current, true);
     escapeListener.current = null;
-    if (blurListener.current)
-      window.removeEventListener("blur", blurListener.current);
+    if (blurListener.current) window.removeEventListener("blur", blurListener.current);
     blurListener.current = null;
   }
   useEffect(
     () => () => {
-      if (escapeListener.current)
-        window.removeEventListener("keydown", escapeListener.current, true);
-      if (blurListener.current)
-        window.removeEventListener("blur", blurListener.current);
+      if (escapeListener.current) window.removeEventListener("keydown", escapeListener.current, true);
+      if (blurListener.current) window.removeEventListener("blur", blurListener.current);
       if (frame.current !== null) window.cancelAnimationFrame(frame.current);
     },
     [],
   );
   function onPointerDown(event: PointerEvent<HTMLElement>) {
-    if (
-      options.disabled ||
-      event.button !== 0 ||
-      !Number.isFinite(options.value)
-    )
-      return;
+    if (options.disabled || event.button !== 0 || !Number.isFinite(options.value)) return;
     event.preventDefault();
     suppressClick.current = false;
     clearEscapeListener();
@@ -94,19 +88,27 @@ export function useNumberScrub(options: ScrubOptions) {
       initial: options.value,
       current: options.value,
       moved: false,
+      base: options.value,
+      baseX: event.clientX,
+      fine: event.shiftKey,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function onPointerMove(event: PointerEvent<HTMLElement>) {
     const drag = gesture.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const pixels = event.clientX - drag.startX;
-    if (!drag.moved && Math.abs(pixels) < 4) return;
+    if (!drag.moved && Math.abs(event.clientX - drag.startX) < 4) return;
     drag.moved = true;
     event.preventDefault();
+    // Pressing or releasing Shift mid-drag carries on from the value reached, instead of rescaling the whole drag.
+    if (event.shiftKey !== drag.fine) {
+      drag.base = drag.current;
+      drag.baseX = event.clientX;
+      drag.fine = event.shiftKey;
+    }
     drag.current = scrubValue(
-      drag.initial,
-      pixels,
+      drag.base,
+      event.clientX - drag.baseX,
       options.step,
       event.shiftKey,
       options.min,

@@ -40,7 +40,7 @@ export class AppExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const response = exception.getResponse();
-      const message = typeof response === "string" ? response : extractMessage(response) ?? exception.message;
+      const message = typeof response === "string" ? response : (extractMessage(response) ?? exception.message);
       return {
         status,
         payload: { error: { code: httpCode(status), message, requestId } },

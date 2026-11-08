@@ -27,6 +27,7 @@ export function liftChatCompletionReasoning(part: Record<string, unknown>): void
   if (extra.length > 0) part["reasoning"] = extra;
 }
 
+/** Moves reasoning text that some compatible endpoints send under another key into the field the SDK reads. Edits the body in place. */
 export function normalizeChatCompletionBody(body: unknown): void {
   if (!isRecord(body) || !Array.isArray(body["choices"])) return;
   for (const choice of body["choices"]) {

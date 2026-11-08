@@ -1,19 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { z } from "zod";
 import { DatabaseService } from "../persistence/database.service.js";
-import {
-  integerColumn,
-  optionalTextColumn,
-  textColumn,
-} from "../persistence/row.js";
+import { integerColumn, optionalTextColumn, textColumn } from "../persistence/row.js";
 import type { SqlRow } from "../persistence/persistence.types.js";
 import { MODELING_DIMENSIONS } from "../../shared/schemas/modeling-plan.schema.js";
 import { requireOneOf } from "../../shared/guards/enum.guard.js";
+import { parseAttachmentSummaries } from "../../shared/schemas/attachments.schema.js";
 import { NotFoundError } from "../../common/errors/app-error.js";
-import {
-  AGENT_RUN_STATUSES,
-  transitionRun,
-} from "./agent-run.state-machine.js";
+import { AGENT_RUN_STATUSES, transitionRun } from "./agent-run.state-machine.js";
 import { AGENT_RUN_EVENT_TYPES } from "./agent-run.events.js";
 import type {
   AgentRunEvent,
@@ -37,44 +31,29 @@ function toRecord(row: SqlRow): AgentRunRecord {
   const providerId = optionalTextColumn(row, "provider_id");
   const reasoningEffort = optionalTextColumn(row, "reasoning_effort");
   const progressJson = optionalTextColumn(row, "progress_json");
+  const attachmentsJson = optionalTextColumn(row, "attachments_json");
   return {
+    attachments: parseAttachmentSummaries(attachmentsJson),
     progress: progressJson === undefined ? undefined : parseRunProgress(progressJson),
     providerBaseUrl: optionalTextColumn(row, "provider_base_url"),
-    providerId:
-      providerId === undefined
-        ? undefined
-        : requireOneOf(PROVIDER_IDS, providerId, "provider"),
+    providerId: providerId === undefined ? undefined : requireOneOf(PROVIDER_IDS, providerId, "provider"),
     providerModel: optionalTextColumn(row, "provider_model"),
     reasoningEffort:
-      reasoningEffort === undefined
-        ? undefined
-        : requireOneOf(REASONING_EFFORTS, reasoningEffort, "reasoning effort"),
+      reasoningEffort === undefined ? undefined : requireOneOf(REASONING_EFFORTS, reasoningEffort, "reasoning effort"),
     id: textColumn(row, "id"),
     sessionId: textColumn(row, "session_id"),
     userId: textColumn(row, "user_id"),
     projectId: textColumn(row, "project_id"),
     agentId: textColumn(row, "agent_id"),
     editorClientId: optionalTextColumn(row, "editor_client_id"),
-    dimension:
-      dimension === undefined
-        ? undefined
-        : requireOneOf(MODELING_DIMENSIONS, dimension, "dimension"),
-    selectedSkillIds: skillIdsSchema.parse(
-      JSON.parse(textColumn(row, "selected_skill_ids_json")),
-    ),
-    status: requireOneOf(
-      AGENT_RUN_STATUSES,
-      textColumn(row, "status"),
-      "run status",
-    ),
+    dimension: dimension === undefined ? undefined : requireOneOf(MODELING_DIMENSIONS, dimension, "dimension"),
+    selectedSkillIds: skillIdsSchema.parse(JSON.parse(textColumn(row, "selected_skill_ids_json"))),
+    status: requireOneOf(AGENT_RUN_STATUSES, textColumn(row, "status"), "run status"),
     input: textColumn(row, "input"),
     finalOutput: optionalTextColumn(row, "final_output"),
     errorCode: optionalTextColumn(row, "error_code"),
     errorMessage: optionalTextColumn(row, "error_message"),
-    usage:
-      usageJson === undefined
-        ? undefined
-        : usageSchema.parse(JSON.parse(usageJson)),
+    usage: usageJson === undefined ? undefined : usageSchema.parse(JSON.parse(usageJson)),
     createdAt: textColumn(row, "created_at"),
     updatedAt: textColumn(row, "updated_at"),
   };
@@ -88,8 +67,8 @@ export class AgentRunRepository {
   insert(run: NewAgentRun): void {
     this.database.db
       .prepare(
-        `INSERT INTO agent_runs (id, session_id, user_id, project_id, agent_id, editor_client_id, dimension, selected_skill_ids_json, status, input, created_at, updated_at, provider_id, provider_model, provider_base_url, reasoning_effort)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO agent_runs (id, session_id, user_id, project_id, agent_id, editor_client_id, dimension, selected_skill_ids_json, status, input, created_at, updated_at, provider_id, provider_model, provider_base_url, reasoning_effort, attachments_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         run.id,
@@ -107,23 +86,17 @@ export class AgentRunRepository {
         run.providerModel ?? null,
         run.providerBaseUrl ?? null,
         run.reasoningEffort ?? null,
+        run.attachments && run.attachments.length > 0 ? JSON.stringify(run.attachments) : null,
       );
   }
 
   find(runId: string): AgentRunRecord | undefined {
-    const row = this.database.db
-      .prepare("SELECT * FROM agent_runs WHERE id = ?")
-      .get(runId);
+    const row = this.database.db.prepare("SELECT * FROM agent_runs WHERE id = ?").get(runId);
     return row ? toRecord(row) : undefined;
   }
 
   /** Moves a run to `to` after validating the transition, then applies the update. */
-  transition(
-    runId: string,
-    to: AgentRunStatus,
-    update: RunUpdate,
-    now: string,
-  ): void {
+  transition(runId: string, to: AgentRunStatus, update: RunUpdate, now: string): void {
     const current = this.find(runId);
     if (!current) throw new NotFoundError("Agent run not found");
     transitionRun(current.status, to);
@@ -163,16 +136,12 @@ export class AgentRunRepository {
       values.push(update.progressJson);
     }
     values.push(runId);
-    this.database.db
-      .prepare(`UPDATE agent_runs SET ${assignments.join(", ")} WHERE id = ?`)
-      .run(...values);
+    this.database.db.prepare(`UPDATE agent_runs SET ${assignments.join(", ")} WHERE id = ?`).run(...values);
   }
 
   /** Stores the serialized SDK run state. Read only by the server when resuming. */
   readRunState(runId: string): string | undefined {
-    const row = this.database.db
-      .prepare("SELECT run_state FROM agent_runs WHERE id = ?")
-      .get(runId);
+    const row = this.database.db.prepare("SELECT run_state FROM agent_runs WHERE id = ?").get(runId);
     return row ? optionalTextColumn(row, "run_state") : undefined;
   }
 
@@ -186,9 +155,7 @@ export class AgentRunRepository {
 
   listRunningOrWaiting(): AgentRunRecord[] {
     return this.database.db
-      .prepare(
-        "SELECT * FROM agent_runs WHERE status IN ('created', 'running')",
-      )
+      .prepare("SELECT * FROM agent_runs WHERE status IN ('created', 'running')")
       .all()
       .map(toRecord);
   }
@@ -203,9 +170,7 @@ export class AgentRunRepository {
   ): AgentRunEvent {
     return this.database.transaction((db) => {
       const current = db
-        .prepare(
-          "SELECT COALESCE(MAX(seq), 0) AS max_seq FROM agent_run_events WHERE run_id = ?",
-        )
+        .prepare("SELECT COALESCE(MAX(seq), 0) AS max_seq FROM agent_run_events WHERE run_id = ?")
         .get(runId);
       if (!current) throw new Error("Failed to read event sequence");
       const seq = integerColumn(current, "max_seq") + 1;
@@ -225,26 +190,17 @@ export class AgentRunRepository {
 
   listEvents(runId: string, afterSeq: number): AgentRunEvent[] {
     return this.database.db
-      .prepare(
-        "SELECT * FROM agent_run_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC",
-      )
+      .prepare("SELECT * FROM agent_run_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC")
       .all(runId, afterSeq)
       .map((row): AgentRunEvent => {
-        const type = requireOneOf(
-          AGENT_RUN_EVENT_TYPES,
-          textColumn(row, "type"),
-          "event type",
-        );
+        const type = requireOneOf(AGENT_RUN_EVENT_TYPES, textColumn(row, "type"), "event type");
         return {
           id: textColumn(row, "event_id"),
           runId,
           seq: integerColumn(row, "seq"),
           type,
           timestamp: textColumn(row, "timestamp"),
-          payload: parseEventPayload(
-            type,
-            JSON.parse(textColumn(row, "payload_json")),
-          ),
+          payload: parseEventPayload(type, JSON.parse(textColumn(row, "payload_json"))),
         };
       });
   }

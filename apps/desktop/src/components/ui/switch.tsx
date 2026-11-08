@@ -6,12 +6,7 @@ type SwitchProps = Omit<ComponentProps<"button">, "role" | "onChange"> & {
   onCheckedChange: (checked: boolean) => void;
 };
 
-function Switch({
-  checked,
-  onCheckedChange,
-  className,
-  ...props
-}: SwitchProps) {
+function Switch({ checked, onCheckedChange, className, ...props }: SwitchProps) {
   return (
     <button
       type="button"
@@ -28,9 +23,7 @@ function Switch({
       <span
         className={cn(
           "pointer-events-none block size-4 rounded-full shadow-sm transition-[transform,background-color] motion-reduce:transition-none",
-          checked
-            ? "translate-x-4 bg-background"
-            : "translate-x-0 bg-foreground",
+          checked ? "translate-x-4 bg-background" : "translate-x-0 bg-foreground",
         )}
       />
     </button>

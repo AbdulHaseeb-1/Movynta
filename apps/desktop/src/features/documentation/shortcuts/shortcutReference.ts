@@ -1,5 +1,6 @@
 import { chordsOf } from "./keys";
 
+/** One shortcut or control in the reference. */
 export interface ShortcutControl {
   readonly action: string;
   /** Written in the key grammar of `keys.ts`, so it can be drawn as key caps and found from a key press. */
@@ -9,6 +10,7 @@ export interface ShortcutControl {
   readonly guide?: string;
 }
 
+/** A group of shortcuts in the reference, such as the viewport's. */
 export interface ShortcutGroup {
   readonly id: string;
   readonly name: string;
@@ -60,14 +62,14 @@ export const shortcutGroups: readonly ShortcutGroup[] = [
       { action: "Constrain transform", keys: "X / Y / Z", detail: "During a keyboard transform, constrain it to an axis. Press the same key again to release it.", guide: "transform" },
       { action: "Exact object transform", keys: "Type a number / Backspace", detail: "During G, R or S, type a signed distance, rotation in degrees, or scale factor from 0.001 to 100. Without an axis, movement follows camera-right and rotation uses the view axis. Backspace edits the value.", guide: "numeric-transform" },
       { action: "Confirm / cancel transform", keys: "Enter / Click · Esc / Right-click", detail: "Confirm the preview or restore the original transforms.", guide: "transform" },
-      { action: "Snap gizmo", keys: "Shift+Drag", detail: "Hold Shift while dragging a transform handle to snap its movement.", guide: "transform" },
+      { action: "Snap gizmo", keys: "Shift+Drag", detail: "Hold Shift while dragging a transform handle to snap its movement. Esc while dragging puts the object back.", guide: "transform" },
       { action: "Delete selected object", keys: "Delete / X", detail: "Delete the selected objects at once. There is no confirmation; use Undo to bring them back. Delete does nothing in Edit mode.", guide: "delete" },
       { action: "Deselect", keys: "Esc", detail: "Clear the object selection, or cancel an active selection rectangle.", guide: "select" },
       { action: "Add shape", keys: "Add shape menu", detail: "Add a cube, sphere, cylinder, cone, torus, plane, tetrahedron, octahedron or icosahedron.", guide: "add" },
       { action: "Duplicate object", keys: "Shift+D", detail: "Duplicate the selected object and its registered children in place, then move the selected copy.", guide: "duplicate-object" },
       { action: "Mirror controls", keys: "Ctrl+M", detail: "Open Modifiers, then add Mirror / symmetry and choose its settings.", guide: "mirror-modifier" },
       { action: "Import model", keys: "Import button", detail: "Choose a supported 3D model file to add it to the project.", guide: "import" },
-      { action: "Export for Blender", keys: "Export button", detail: "Save the selected objects as one .glb file for Blender, with their names, placement, materials and size.", guide: "export-selection" },
+      { action: "Export for Blender", keys: "Export button", detail: "Save the selected objects as one .glb file for Blender, with their names, placement, materials and size. A Save dialog lets you choose where.", guide: "export-selection" },
     ],
   },
   {
@@ -180,6 +182,7 @@ export const shortcutGroups: readonly ShortcutGroup[] = [
       { action: "New line", keys: "Shift+Enter", detail: "Add a line in the assistant composer.", guide: "assistant-chat" },
       { action: "Clear chat", keys: "Assistant header", detail: "Clear the saved conversation and start a new session while keeping the scene and undo history.", guide: "clear-chat" },
       { action: "Stop assistant", keys: "Esc", detail: "Stop the current run while the assistant composer has focus.", guide: "assistant-chat" },
+      { action: "Attach images", keys: "Attach button · Ctrl+V · Drop", detail: "Add up to 8 pictures to a message from the file picker, by pasting, or by dropping them on the composer.", guide: "attach-images" },
       { action: "Model and reasoning", keys: "Composer menus", detail: "Choose the provider, model and available reasoning effort for the assistant.", guide: "assistant-chat" },
       { action: "Approve or reject", keys: "Approval card", detail: "Review an assistant proposal and choose whether to apply it.", guide: "assistant-chat" },
       { action: "Copy or retry response", keys: "Message actions", detail: "Copy a response or retry an eligible message from its actions.", guide: "assistant-chat" },
@@ -219,6 +222,7 @@ export function filterShortcutGroups(
     .filter((group) => group.controls.length > 0);
 }
 
+/** A shortcut that matches a search or a key press. */
 export interface ShortcutMatch {
   readonly group: ShortcutGroup;
   readonly control: ShortcutControl;

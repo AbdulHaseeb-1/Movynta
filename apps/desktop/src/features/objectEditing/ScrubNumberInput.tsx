@@ -16,6 +16,7 @@ interface ScrubNumberInputProps {
   disabled: boolean;
   onChange: (value: number) => void;
 }
+/** A number field that can be typed in, and also changed by dragging its label. */
 export function ScrubNumberInput({
   id,
   label,
@@ -52,10 +53,7 @@ export function ScrubNumberInput({
         aria-valuemin={min}
         aria-valuemax={max}
         aria-disabled={disabled}
-        className={cn(
-          "shrink-0 touch-none select-none",
-          !disabled && "cursor-ew-resize",
-        )}
+        className={cn("shrink-0 touch-none select-none", !disabled && "cursor-ew-resize")}
         title="Drag left or right to adjust; hold Shift for precision. Click the number to type."
         onPointerDown={scrub.onPointerDown}
         onPointerMove={scrub.onPointerMove}
@@ -65,7 +63,8 @@ export function ScrubNumberInput({
         onClick={scrub.onClick}
         onKeyDown={(event) => {
           if (disabled || !["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp"].includes(event.key)) return;
-          event.preventDefault(); event.stopPropagation();
+          event.preventDefault();
+          event.stopPropagation();
           const sign = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : -1;
           onChange(Math.max(min, Math.min(max, Number((value + sign * step).toFixed(6)))));
         }}
@@ -82,8 +81,12 @@ export function ScrubNumberInput({
         value={Number.isFinite(value) ? value : ""}
         disabled={disabled}
         className="h-6 min-w-0 flex-1 px-1.5 text-xs"
-        onFocus={() => { focusValue.current = value; }}
-        onBlur={() => { focusValue.current = null; }}
+        onFocus={() => {
+          focusValue.current = value;
+        }}
+        onBlur={() => {
+          focusValue.current = null;
+        }}
         onChange={(event) => onChange(event.target.valueAsNumber)}
         onKeyDown={(event) => {
           if (event.key === "Escape") {

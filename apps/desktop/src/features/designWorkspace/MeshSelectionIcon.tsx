@@ -14,29 +14,9 @@ export function MeshSelectionIcon({ kind }: { kind: ComponentKind }) {
         strokeOpacity="0.5"
         strokeWidth="1.25"
       />
-      {kind === "vertex" && (
-        <rect
-          x="1.25"
-          y="1.25"
-          width="4"
-          height="4"
-          rx="0.5"
-          fill="currentColor"
-        />
-      )}
-      {kind === "edge" && (
-        <path d="M13.5 4v9" stroke="currentColor" strokeWidth="2.5" />
-      )}
-      {kind === "face" && (
-        <rect
-          x="4.5"
-          y="4.5"
-          width="8"
-          height="8"
-          rx="0.5"
-          fill="currentColor"
-        />
-      )}
+      {kind === "vertex" && <rect x="1.25" y="1.25" width="4" height="4" rx="0.5" fill="currentColor" />}
+      {kind === "edge" && <path d="M13.5 4v9" stroke="currentColor" strokeWidth="2.5" />}
+      {kind === "face" && <rect x="4.5" y="4.5" width="8" height="8" rx="0.5" fill="currentColor" />}
     </svg>
   );
 }

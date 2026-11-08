@@ -1,19 +1,9 @@
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { projectCategories } from "./projectCategories";
-import type {
-  ProjectFilters,
-  ProjectSort,
-  ProjectView,
-} from "./projectTypes";
+import type { ProjectFilters, ProjectSort, ProjectView } from "./projectTypes";
 
 const VIEWS: readonly { id: ProjectView; label: string }[] = [
   { id: "all", label: "All" },
@@ -35,15 +25,10 @@ interface ProjectsToolbarProps {
   onFiltersChange: (filters: ProjectFilters) => void;
 }
 
-const selectTriggerClass =
-  "h-9 w-[160px] rounded-lg bg-card text-[13px] shadow-none";
+const selectTriggerClass = "h-9 w-[160px] rounded-lg bg-card text-[13px] shadow-none";
 
-export function ProjectsToolbar({
-  search,
-  onSearchChange,
-  filters,
-  onFiltersChange,
-}: ProjectsToolbarProps) {
+/** The library toolbar: search, the category and view filters, and sorting. */
+export function ProjectsToolbar({ search, onSearchChange, filters, onFiltersChange }: ProjectsToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="relative min-w-[220px] flex-1 basis-64">
@@ -71,17 +56,13 @@ export function ProjectsToolbar({
           </button>
         )}
       </div>
-      <div
-        role="tablist"
-        aria-label="Project view"
-        className="flex h-9 items-center rounded-lg bg-card p-0.5"
-      >
+      <fieldset className="m-0 flex h-9 min-w-0 items-center rounded-lg border-0 bg-card p-0.5">
+        <legend className="sr-only">Project view</legend>
         {VIEWS.map(({ id, label }) => (
           <button
             key={id}
             type="button"
-            role="tab"
-            aria-selected={filters.view === id}
+            aria-pressed={filters.view === id}
             onClick={() => onFiltersChange({ ...filters, view: id })}
             className={cn(
               "h-8 rounded-md px-3.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
@@ -91,7 +72,7 @@ export function ProjectsToolbar({
             {label}
           </button>
         ))}
-      </div>
+      </fieldset>
       <Select
         value={filters.category}
         onValueChange={(category) => {

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
+/** A PKCE verifier and the challenge derived from it, for the sign-in. */
 export interface PkcePair {
   verifier: string;
   challenge: string;

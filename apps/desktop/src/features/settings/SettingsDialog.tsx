@@ -1,10 +1,6 @@
 import { useState, type ComponentType } from "react";
 import { Boxes, Keyboard, Settings } from "lucide-react";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ProvidersSettings } from "./ProvidersSettings";
 import { BackendConnection } from "./BackendConnection";
 import { ControlsSettings } from "./ControlsSettings";
@@ -23,31 +19,21 @@ const navigation: NavigationItem[] = [
   { id: "controls", label: "Shortcuts", icon: Keyboard },
 ];
 
-export function SettingsDialog({
-  initialTab = "general",
-}: {
-  initialTab?: SettingsTab;
-}) {
+/** The Settings dialog and its tabs. initialTab opens a given tab directly, for links into it. */
+export function SettingsDialog({ initialTab = "general" }: { initialTab?: SettingsTab }) {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
 
   return (
     <DialogContent className="flex h-[min(650px,calc(100vh-48px))] w-[min(960px,calc(100vw-32px))] flex-col gap-0 overflow-hidden rounded-xl p-0">
       <div className="flex h-14 shrink-0 items-center border-b px-5 pr-12">
-        <DialogTitle className="text-[15px] font-semibold">
-          Settings
-        </DialogTitle>
+        <DialogTitle className="text-[15px] font-semibold">Settings</DialogTitle>
       </div>
       <DialogDescription className="sr-only">
         Manage application settings, model providers, and control references.
       </DialogDescription>
       <div className="flex min-h-0 flex-1">
-        <nav
-          aria-label="Settings categories"
-          className="w-48 shrink-0 border-r bg-card p-3 max-sm:w-16 max-sm:px-2"
-        >
-          <p className="px-2 pt-2 pb-3 text-[11px] text-muted-foreground max-sm:sr-only">
-            Preferences
-          </p>
+        <nav aria-label="Settings categories" className="w-48 shrink-0 border-r bg-card p-3 max-sm:w-16 max-sm:px-2">
+          <p className="px-2 pt-2 pb-3 text-[11px] text-muted-foreground max-sm:sr-only">Preferences</p>
           {navigation.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -66,8 +52,11 @@ export function SettingsDialog({
         </nav>
         <section
           aria-labelledby={
-            tab === "general" ? "general-settings-heading"
-              : tab === "controls" ? "controls-settings-heading" : "settings-section-heading"
+            tab === "general"
+              ? "general-settings-heading"
+              : tab === "controls"
+                ? "controls-settings-heading"
+                : "settings-section-heading"
           }
           className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8"
         >

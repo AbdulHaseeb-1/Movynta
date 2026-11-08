@@ -3,9 +3,9 @@ import { z } from "zod";
 import { describeIssues } from "../tool-input-issues.js";
 import { editorCommandListSchema, type EditorCommand, type EditorContext } from "@movynta/editor-protocol";
 
-
-
+/** The longest program the procedural tools accept, in characters. */
 export const MAX_PROGRAM_CHARACTERS = 16_000;
+/** How long a program may run before it is stopped, in milliseconds. */
 export const PROGRAM_TIME_LIMIT_MS = 250;
 const MEMORY_LIMIT_BYTES = 16 * 1024 * 1024;
 const MAX_OUTPUT_CHARACTERS = 256_000;
@@ -28,14 +28,22 @@ function commandsFrom(decoded: unknown, offset: number): EditorCommand[] {
   }
   const parsed = editorCommandListSchema.safeParse(outcome.commands);
   if (parsed.success) return parsed.data;
-  const issues = describeIssues(parsed.error, outcome.commands, "commands").map((issue) => `${issue.path}: ${issue.message}`);
-  const more = parsed.error.issues.length > issues.length ? `; and ${parsed.error.issues.length - issues.length} more` : "";
+  const issues = describeIssues(parsed.error, outcome.commands, "commands").map(
+    (issue) => `${issue.path}: ${issue.message}`,
+  );
+  const more =
+    parsed.error.issues.length > issues.length ? `; and ${parsed.error.issues.length - issues.length} more` : "";
   throw new Error(`The returned commands do not match the command schema: ${issues.join("; ")}${more}`);
 }
 
 /** A fresh WebAssembly interpreter per call. No host functions or module loader are installed. */
-export async function generateCommands(source: string, scene: EditorContext, signal?: AbortSignal): Promise<EditorCommand[]> {
-  if (source.length === 0 || source.length > MAX_PROGRAM_CHARACTERS) throw new Error("Program must contain 1–16000 characters");
+export async function generateCommands(
+  source: string,
+  scene: EditorContext,
+  signal?: AbortSignal,
+): Promise<EditorCommand[]> {
+  if (source.length === 0 || source.length > MAX_PROGRAM_CHARACTERS)
+    throw new Error("Program must contain 1–16000 characters");
   signal?.throwIfAborted();
   const quickjs = await getQuickJS();
   signal?.throwIfAborted();
@@ -60,7 +68,8 @@ export async function generateCommands(source: string, scene: EditorContext, sig
       let commands;
       try {
         commands = (function(scene, mesh) { "use strict";\n`;
-    const result = vm.evalCode(`${prefix}${source}
+    const result = vm.evalCode(
+      `${prefix}${source}
         })(scene, mesh);
       } catch (error) {
         let reason = "The program threw a value that cannot be read";
@@ -76,11 +85,15 @@ export async function generateCommands(source: string, scene: EditorContext, sig
       const output = stringify({ commands });
       if (output.length > ${MAX_OUTPUT_CHARACTERS}) return stringify({ failed: "Program output is too large: return fewer or smaller commands", line: null });
       return output;
-    })()`, "scene-program.js");
+    })()`,
+      "scene-program.js",
+    );
     if (result.error) {
       // Reading error properties from the host can invoke guest getters. Keep errors bounded and do not dump them.
       result.error.dispose();
-      throw new Error(`Scene program stopped: it ran past ${PROGRAM_TIME_LIMIT_MS}ms, ran out of memory, or has a syntax error. Shorten loops, return fewer vertices, or check the syntax`);
+      throw new Error(
+        `Scene program stopped: it ran past ${PROGRAM_TIME_LIMIT_MS}ms, ran out of memory, or has a syntax error. Shorten loops, return fewer vertices, or check the syntax`,
+      );
     }
     let output: string;
     try {

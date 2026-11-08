@@ -16,7 +16,10 @@ const LIST_KEYS = [
 
 const frontmatterSchema = z
   .object({
-    name: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,63}$/).refine((value) => !value.includes(".."), "Skill names cannot contain '..'"),
+    name: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9.-]{1,63}$/)
+      .refine((value) => !value.includes(".."), "Skill names cannot contain '..'"),
     version: z.string().regex(/^\d+\.\d+\.\d+$/),
     description: z.string().min(10).max(300),
     dimensions: z.array(z.enum(MODELING_DIMENSIONS)).min(1),
@@ -83,7 +86,10 @@ export function parseSkillDocument(source: string, folderName: string): SkillMan
   const meta = frontmatterSchema.parse(parseFrontmatter(lines.slice(1, closing).join("\n")));
   if (meta.name !== folderName) throw new Error(`Skill name "${meta.name}" must match its folder "${folderName}"`);
 
-  const instructions = lines.slice(closing + 1).join("\n").trim();
+  const instructions = lines
+    .slice(closing + 1)
+    .join("\n")
+    .trim();
   if (instructions.length === 0) throw new Error(`Skill "${meta.name}" has no workflow instructions`);
 
   return {

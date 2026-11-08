@@ -1,4 +1,5 @@
 import { selectionOperation } from "@/features/viewport3d/selectionOperation";
+import { isShortcutBlocked } from "@/lib/dom";
 import type { Viewport } from "@/features/viewport3d";
 
 /** Drag to box-select, or click to select one component. Space-drag remains available for panning. */
@@ -26,15 +27,24 @@ export class ComponentBoxSelection {
       frame = undefined;
     };
     const key = (event: KeyboardEvent) => {
-      const target = event.target;
-      if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      if (isShortcutBlocked(event.target)) return;
       if (event.code === "Space") navigationHeld = true;
       if (blocked()) return;
       if (event.key === "Escape" && armed) {
-        event.preventDefault(); event.stopImmediatePropagation(); cancel();
-      } else if (event.key.toLowerCase() === "b" && !event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat) {
-        event.preventDefault(); event.stopImmediatePropagation();
-        armed = true; dom.style.cursor = "crosshair";
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        cancel();
+      } else if (
+        event.key.toLowerCase() === "b" &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        !event.repeat
+      ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        armed = true;
+        dom.style.cursor = "crosshair";
       }
     };
     const down = (event: PointerEvent) => {
@@ -43,8 +53,12 @@ export class ComponentBoxSelection {
         armed = true;
         automatic = true;
       }
-      event.preventDefault(); event.stopImmediatePropagation();
-      if (event.button !== 0) { cancel(); return; }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.button !== 0) {
+        cancel();
+        return;
+      }
       start = { x: event.clientX, y: event.clientY };
       dom.setPointerCapture(event.pointerId);
     };
@@ -53,7 +67,8 @@ export class ComponentBoxSelection {
       if (!frame && Math.abs(start.x - event.clientX) < 4 && Math.abs(start.y - event.clientY) < 4) return;
       if (!frame) {
         frame = document.createElement("div");
-        frame.style.cssText = "position:fixed;pointer-events:none;z-index:40;border:1px solid var(--foreground);background:color-mix(in srgb,var(--foreground) 10%,transparent)";
+        frame.style.cssText =
+          "position:fixed;pointer-events:none;z-index:40;border:1px solid var(--foreground);background:color-mix(in srgb,var(--foreground) 10%,transparent)";
         document.body.appendChild(frame);
       }
       frame.textContent = ` ${selectionOperation(event)} `;
@@ -66,15 +81,21 @@ export class ComponentBoxSelection {
     };
     const up = (event: PointerEvent) => {
       if (!start) return;
-      event.preventDefault(); event.stopImmediatePropagation();
+      event.preventDefault();
+      event.stopImmediatePropagation();
       const origin = start;
       if (dom.hasPointerCapture(event.pointerId)) dom.releasePointerCapture(event.pointerId);
       if (Math.abs(origin.x - event.clientX) >= 4 || Math.abs(origin.y - event.clientY) >= 4) select(origin, event);
       else if (automatic) click(event);
       cancel();
     };
-    const keyUp = (event: KeyboardEvent) => { if (event.code === "Space") navigationHeld = false; };
-    const blur = () => { navigationHeld = false; cancel(); };
+    const keyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") navigationHeld = false;
+    };
+    const blur = () => {
+      navigationHeld = false;
+      cancel();
+    };
     window.addEventListener("keydown", key, true);
     window.addEventListener("keyup", keyUp);
     window.addEventListener("blur", blur);
@@ -93,5 +114,7 @@ export class ComponentBoxSelection {
       cancel();
     };
   }
-  dispose() { this.cleanup(); }
+  dispose() {
+    this.cleanup();
+  }
 }

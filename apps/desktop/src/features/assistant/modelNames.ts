@@ -16,11 +16,7 @@ export function formatModelName(id: string): string {
   for (const token of base.split(/[-_]/).filter(Boolean)) {
     const previous = tokens[tokens.length - 1];
     // Versions are split on dashes ("4-5"); join them back as "4.5".
-    if (
-      previous !== undefined &&
-      SINGLE_NUMBER.test(token) &&
-      VERSION.test(previous)
-    )
+    if (previous !== undefined && SINGLE_NUMBER.test(token) && VERSION.test(previous))
       tokens[tokens.length - 1] = `${previous}.${token}`;
     else tokens.push(token);
   }
@@ -32,7 +28,6 @@ export function formatModelName(id: string): string {
   if (!words.length) return id;
   const [first, second, ...rest] = words;
   // "GPT-5 Mini" keeps its dash after the family name.
-  if (first === "GPT" && second !== undefined)
-    return [`GPT-${second}`, ...rest].join(" ");
+  if (first === "GPT" && second !== undefined) return [`GPT-${second}`, ...rest].join(" ");
   return words.join(" ");
 }

@@ -14,6 +14,7 @@ export interface ViewportDisplay {
 
 const KEY = "movynta.viewport.display.v1";
 
+/** The display options used before the user changes them. */
 export const DEFAULT_VIEWPORT_DISPLAY: ViewportDisplay = {
   shadingMode: "default",
   xray: false,
@@ -34,6 +35,7 @@ export function loadViewportDisplay(): ViewportDisplay {
   return { ...DEFAULT_VIEWPORT_DISPLAY, ...readStored(KEY, displaySchema) };
 }
 
+/** Remembers the viewport's display options, so they survive a reload. */
 export function saveViewportDisplay(display: ViewportDisplay): void {
   writeStored(KEY, display);
 }

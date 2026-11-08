@@ -2,9 +2,20 @@ import { Triangle, Vector3 } from "three";
 import { MAX_MESH_OUTPUT_TRIANGLES } from "@movynta/editor-protocol";
 import { parseFaces, type ExtrudeResult } from "./meshExtrude";
 import { triangulate } from "./meshOutput";
-import { assertManifold, channels, edgeKey, faceAreaNormal, point, topology, type HalfEdge, type PolygonMesh, type Topology } from "./meshTopology";
+import {
+  assertManifold,
+  channels,
+  edgeKey,
+  faceAreaNormal,
+  point,
+  topology,
+  type HalfEdge,
+  type PolygonMesh,
+  type Topology,
+} from "./meshTopology";
 import { basis, blend, type Weights } from "./meshWeights";
 
+/** The options of an inset: its thickness, depth and how it treats each face. */
 export interface InsetOptions {
   thickness: number;
   depth?: number | undefined;
@@ -50,8 +61,14 @@ function patches(mesh: PolygonMesh, graph: Topology, selected: Set<number>, indi
 }
 
 function rimOffset(
-  mesh: PolygonMesh, graph: Topology, patch: Set<number>, vertex: number,
-  edges: RimEdge[], thickness: number, even: boolean, edgeRail: boolean,
+  mesh: PolygonMesh,
+  graph: Topology,
+  patch: Set<number>,
+  vertex: number,
+  edges: RimEdge[],
+  thickness: number,
+  even: boolean,
+  edgeRail: boolean,
 ): Vector3 {
   const [a, b] = edges.filter((edge) => edge.split);
   if (!a || thickness === 0) return new Vector3();
@@ -93,26 +110,49 @@ function rimOffset(
 }
 
 /** Find weights on the original face before depth is applied, keeping each UV seam independent. */
-function faceSample(mesh: PolygonMesh, face: number[], triangles: number[][], position: Vector3, fallback: number): Weights {
+function faceSample(
+  mesh: PolygonMesh,
+  face: number[],
+  triangles: number[][],
+  position: Vector3,
+  fallback: number,
+): Weights {
   const weights = new Vector3();
   let best = -Infinity;
   let sample = basis(fallback);
   for (const [i, j, k] of triangles) {
     if (i === undefined || j === undefined || k === undefined) continue;
-    if (!Triangle.getBarycoord(position, point(mesh, face[i]), point(mesh, face[j]), point(mesh, face[k]), weights)) continue;
+    if (!Triangle.getBarycoord(position, point(mesh, face[i]), point(mesh, face[j]), point(mesh, face[k]), weights))
+      continue;
     const score = Math.min(weights.x, weights.y, weights.z);
     if (score <= best) continue;
     best = score;
     const sum = Math.max(0, weights.x) + Math.max(0, weights.y) + Math.max(0, weights.z);
-    if (sum > 0) sample = new Map([[i, Math.max(0, weights.x) / sum], [j, Math.max(0, weights.y) / sum], [k, Math.max(0, weights.z) / sum]]);
+    if (sum > 0)
+      sample = new Map([
+        [i, Math.max(0, weights.x) / sum],
+        [j, Math.max(0, weights.y) / sum],
+        [k, Math.max(0, weights.z) / sum],
+      ]);
     if (score >= -1e-9) break;
   }
   return sample;
 }
 
+/** Insets the given faces: makes a smaller copy of each region inside it, optionally sunk or raised by a depth. */
 export function insetFaces(mesh: PolygonMesh, ids: readonly string[], options: InsetOptions): ExtrudeResult {
-  const { thickness, depth = 0, individual = false, outset = false, boundary = true, offsetEven = true,
-    offsetRelative = false, edgeRail = false, interpolate = true, selectOuter = false } = options;
+  const {
+    thickness,
+    depth = 0,
+    individual = false,
+    outset = false,
+    boundary = true,
+    offsetEven = true,
+    offsetRelative = false,
+    edgeRail = false,
+    interpolate = true,
+    selectOuter = false,
+  } = options;
   if (!Number.isFinite(thickness) || thickness < 0 || !Number.isFinite(depth) || (thickness === 0 && depth === 0)) {
     throw new Error("Inset needs a nonnegative thickness and a finite depth, with at least one nonzero value");
   }
@@ -148,7 +188,16 @@ export function insetFaces(mesh: PolygonMesh, ids: readonly string[], options: I
         direction.normalize();
         // Blender's individual inset always builds a complete border around each face.
         const split = individual || sides.length === 2 || (boundary && !outset);
-        const edge = { face: index, from, to, corner, length, direction, inward: normal.clone().cross(direction).normalize(), split };
+        const edge = {
+          face: index,
+          from,
+          to,
+          corner,
+          length,
+          direction,
+          inward: normal.clone().cross(direction).normalize(),
+          split,
+        };
         rim.push(edge);
         for (const vertex of [from, to]) {
           const existing = atVertex.get(vertex);
@@ -167,7 +216,11 @@ export function insetFaces(mesh: PolygonMesh, ids: readonly string[], options: I
       for (const [vertex, edges] of atVertex) {
         const insetEdges = edges.filter((edge) => edge.split);
         if (insetEdges.length === 0) continue;
-        relativeDepth.set(vertex, { distance: 0, total: insetEdges.reduce((sum, edge) => sum + edge.length, 0), count: insetEdges.length });
+        relativeDepth.set(vertex, {
+          distance: 0,
+          total: insetEdges.reduce((sum, edge) => sum + edge.length, 0),
+          count: insetEdges.length,
+        });
         queue.push(vertex);
       }
       for (let i = 0; i < queue.length; i += 1) {
@@ -193,12 +246,24 @@ export function insetFaces(mesh: PolygonMesh, ids: readonly string[], options: I
     }
     for (const [vertex, normal] of vertexNormals) {
       const edges = atVertex.get(vertex) ?? [];
-      if (edges.length > 2) throw new Error("Inset region touches itself at a vertex. Use Individual or split the selection.");
+      if (edges.length > 2)
+        throw new Error("Inset region touches itself at a vertex. Use Individual or split the selection.");
       const insetEdges = edges.filter((edge) => edge.split);
-      const relative = offsetRelative && insetEdges.length
-        ? insetEdges.reduce((sum, edge) => sum + edge.length, 0) / insetEdges.length : 1;
+      const relative =
+        offsetRelative && insetEdges.length
+          ? insetEdges.reduce((sum, edge) => sum + edge.length, 0) / insetEdges.length
+          : 1;
       const original = point(mesh, vertex);
-      const offset = rimOffset(mesh, graph, patch, vertex, edges, thickness * relative, offsetEven, edgeRail && !individual);
+      const offset = rimOffset(
+        mesh,
+        graph,
+        patch,
+        vertex,
+        edges,
+        thickness * relative,
+        offsetEven,
+        edgeRail && !individual,
+      );
       const onSurface = original.clone().add(offset);
       const propagated = relativeDepth.get(vertex);
       const depthScale = propagated ? propagated.total / propagated.count : relative;
@@ -222,24 +287,32 @@ export function insetFaces(mesh: PolygonMesh, ids: readonly string[], options: I
       const face = original.map((vertex) => remap.get(vertex) ?? vertex);
       const area = faceAreaNormal(mesh, original);
       const nextArea = faceAreaNormal(flat, face);
-      if (nextArea.dot(area) <= 1e-8 * area.lengthSq() || original.some((vertex, corner) => {
-        const next = (corner + 1) % original.length;
-        const before = point(mesh, original[next]).clone().sub(point(mesh, vertex));
-        return point(flat, face[next]).clone().sub(point(flat, face[corner])).dot(before) <= 1e-8 * before.lengthSq();
-      })) throw new Error("Inset is too large for this selection");
+      if (
+        nextArea.dot(area) <= 1e-8 * area.lengthSq() ||
+        original.some((vertex, corner) => {
+          const next = (corner + 1) % original.length;
+          const before = point(mesh, original[next]).clone().sub(point(mesh, vertex));
+          return point(flat, face[next]).clone().sub(point(flat, face[corner])).dot(before) <= 1e-8 * before.lengthSq();
+        })
+      )
+        throw new Error("Inset is too large for this selection");
       result.faces[index] = face;
       const corners = data.corners[index] ?? [];
       let sourceTriangles: number[][] | undefined;
       const weights = original.map((vertex, corner) => {
         const onSurface = surface.get(vertex);
-        if (!interpolate || !onSurface || onSurface.equals(point(mesh, vertex))) return corners[corner] ?? basis(vertex);
+        if (!interpolate || !onSurface || onSurface.equals(point(mesh, vertex)))
+          return corners[corner] ?? basis(vertex);
         sourceTriangles ??= triangulate(mesh, original);
         const terms = [...faceSample(mesh, original, sourceTriangles, onSurface, corner)];
         const target = remap.get(vertex);
-        if (target !== undefined) output.positions[target] = blend(terms.map(([i, weight]) => {
-          const source = original[i] ?? vertex;
-          return [data.positions[source] ?? basis(source), weight];
-        }));
+        if (target !== undefined)
+          output.positions[target] = blend(
+            terms.map(([i, weight]) => {
+              const source = original[i] ?? vertex;
+              return [data.positions[source] ?? basis(source), weight];
+            }),
+          );
         return blend(terms.map(([i, weight]) => [corners[i] ?? basis(original[i] ?? vertex), weight]));
       });
       sample.set(index, weights);
@@ -260,12 +333,18 @@ export function insetFaces(mesh: PolygonMesh, ids: readonly string[], options: I
       result.faces.push(ring);
       const before = data.corners[edge.face] ?? [];
       const after = sample.get(edge.face) ?? [];
-      output.corners.push([before[from] ?? basis(edge.from), before[to] ?? basis(edge.to), after[to] ?? basis(edge.to), after[from] ?? basis(edge.from)]);
+      output.corners.push([
+        before[from] ?? basis(edge.from),
+        before[to] ?? basis(edge.to),
+        after[to] ?? basis(edge.to),
+        after[from] ?? basis(edge.from),
+      ]);
       output.materials.push(data.materials[edge.face] ?? 0);
     }
     changed = true;
   }
-  if (!changed) throw new Error(outset ? "Outset needs faces next to the selection" : "Inset needs a border or a nonzero depth");
+  if (!changed)
+    throw new Error(outset ? "Outset needs faces next to the selection" : "Inset needs a border or a nonzero depth");
   result.channels = output;
   assertManifold(result, topology(result));
   return { mesh: result, selection: (selectOuter && rings.length ? rings : [...selected]).map(String), walls: [] };

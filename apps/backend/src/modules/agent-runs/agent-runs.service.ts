@@ -1,11 +1,7 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import type { MessageEvent } from "@nestjs/common";
 import { Observable } from "rxjs";
-import {
-  ConflictError,
-  NotFoundError,
-  ValidationFailedError,
-} from "../../common/errors/app-error.js";
+import { ConflictError, NotFoundError, ValidationFailedError } from "../../common/errors/app-error.js";
 import type { AuthUser } from "../auth/auth.types.js";
 import { AgentRegistry } from "../agents/agent.registry.js";
 import { MODELING_COORDINATOR_ID } from "../agents/definitions/modeling-coordinator.agent.js";
@@ -17,10 +13,7 @@ import { ProjectAccessService } from "../projects/project-access.service.js";
 import { SessionsService } from "../sessions/sessions.service.js";
 import type { SessionRecord } from "../sessions/sessions.types.js";
 import { SkillsRegistry } from "../skills/skills.registry.js";
-import type {
-  CreateAgentRunDto,
-  DecideApprovalDto,
-} from "./dto/agent-run.dto.js";
+import type { CreateAgentRunDto, DecideApprovalDto } from "./dto/agent-run.dto.js";
 import { AgentRunProcessor } from "./agent-run.processor.js";
 import { AgentRunEventsService } from "./agent-run-events.service.js";
 import { AgentRunRepository } from "./agent-run.repository.js";
@@ -38,14 +31,12 @@ import type {
   ApprovalView,
 } from "./agent-runs.types.js";
 import { newId } from "../../common/ids/index.js";
+import { checkAttachments, summarizeAttachments } from "./run-attachments.js";
 
+/** How often the event stream sends a heartbeat, so idle connections are kept open. */
 export const HEARTBEAT_INTERVAL_MS = 15_000;
 
-const TERMINAL_EVENTS: readonly AgentRunEventType[] = [
-  "run.completed",
-  "run.failed",
-  "run.cancelled",
-];
+const TERMINAL_EVENTS: readonly AgentRunEventType[] = ["run.completed", "run.failed", "run.cancelled"];
 
 function toEnvelope(event: AgentRunEvent): Readonly<Record<string, unknown>> {
   return {
@@ -70,10 +61,7 @@ function toRunView(run: AgentRunRecord): AgentRunView {
     agentId: run.agentId,
     status: run.status,
     finalOutput: run.finalOutput,
-    error:
-      run.errorCode === undefined
-        ? undefined
-        : { code: run.errorCode, message: run.errorMessage ?? "" },
+    error: run.errorCode === undefined ? undefined : { code: run.errorCode, message: run.errorMessage ?? "" },
     usage: run.usage,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
@@ -124,9 +112,11 @@ export class AgentRunsService implements OnModuleInit {
   }
 
   create(user: AuthUser, dto: CreateAgentRunDto): AgentRunAccepted {
-    const provider = dto.providerId ? this.providers.configured(user.id, dto.providerId) : dto.useConfiguredProvider
-      ? this.providers.active(user.id)
-      : undefined;
+    const provider = dto.providerId
+      ? this.providers.configured(user.id, dto.providerId)
+      : dto.useConfiguredProvider
+        ? this.providers.active(user.id)
+        : undefined;
     if (dto.model && !provider) throw new ValidationFailedError("Select a configured provider when choosing a model");
     const providerModel = dto.model ?? provider?.model;
     if (dto.reasoningEffort !== undefined) {
@@ -134,11 +124,18 @@ export class AgentRunsService implements OnModuleInit {
       if (!supported.includes(dto.reasoningEffort))
         throw new ValidationFailedError("The selected model does not support that reasoning effort");
     }
+    const attachments = checkAttachments(dto.attachments ?? []);
+    if (attachments.length > 0 && !this.providers.picturesAllowed(user.id, provider?.id))
+      throw new ValidationFailedError(
+        "The selected model connection is set not to receive pictures. Turn on Send pictures for it in Settings, or remove the images.",
+      );
     this.projects.assertOwner(user.id, dto.projectId);
     this.failAbandonedRuns(dto.projectId);
     // Two runs on one project would interleave the conversation and edit the same scene at once.
     if (this.projects.hasActiveRun(dto.projectId))
-      throw new ConflictError("The assistant is already working on this project. Wait for it to finish or stop it first.");
+      throw new ConflictError(
+        "The assistant is already working on this project. Wait for it to finish or stop it first.",
+      );
     const agentId = dto.agentId ?? MODELING_COORDINATOR_ID;
     this.agents.summary(agentId);
 
@@ -171,6 +168,7 @@ export class AgentRunsService implements OnModuleInit {
       dimension: dto.dimension,
       selectedSkillIds,
       input: dto.message,
+      attachments: summarizeAttachments(attachments),
       now,
     });
     this.projects.recordActivity(dto.projectId);
@@ -183,7 +181,7 @@ export class AgentRunsService implements OnModuleInit {
     });
 
     const record = this.requireRun(user.id, runId);
-    this.processor.start(record);
+    this.processor.start(record, attachments);
     this.logger.log(`started run ${runId} for project ${dto.projectId}`);
 
     return {
@@ -202,11 +200,7 @@ export class AgentRunsService implements OnModuleInit {
    * Streams run events as SSE. `Last-Event-ID` resumes after a known sequence
    * number. Events are replayed from storage, then followed live, with duplicates removed.
    */
-  stream(
-    user: AuthUser,
-    runId: string,
-    lastEventId: string | undefined,
-  ): Observable<MessageEvent> {
+  stream(user: AuthUser, runId: string, lastEventId: string | undefined): Observable<MessageEvent> {
     this.requireRun(user.id, runId);
     const afterSeq = parseLastEventId(lastEventId);
 
@@ -256,10 +250,7 @@ export class AgentRunsService implements OnModuleInit {
     });
   }
 
-  cancel(
-    user: AuthUser,
-    runId: string,
-  ): { runId: string; status: AgentRunStatus } {
+  cancel(user: AuthUser, runId: string): { runId: string; status: AgentRunStatus } {
     const run = this.requireRun(user.id, runId);
     if (isTerminal(run.status))
       throw new ConflictError("Agent run has already finished", {
@@ -292,12 +283,7 @@ export class AgentRunsService implements OnModuleInit {
    * Records an approve/reject decision. Each approval can be decided once. When
    * the last pending approval is decided, the run resumes with those decisions.
    */
-  decide(
-    user: AuthUser,
-    runId: string,
-    approvalId: string,
-    dto: DecideApprovalDto,
-  ): ApprovalDecisionResult {
+  decide(user: AuthUser, runId: string, approvalId: string, dto: DecideApprovalDto): ApprovalDecisionResult {
     const run = this.requireRun(user.id, runId);
     if (run.status !== "waiting_approval")
       throw new ConflictError("Agent run is not waiting for approval", {
@@ -335,8 +321,7 @@ export class AgentRunsService implements OnModuleInit {
     }
     if (!approved && approval.toolName === "editor.apply_proposal") {
       const proposalId = approval.preview.proposalId;
-      if (typeof proposalId === "string")
-        this.proposals.reject(runId, proposalId);
+      if (typeof proposalId === "string") this.proposals.reject(runId, proposalId);
     }
     this.events.publish(runId, "approval.resolved", {
       approvalId,
@@ -393,19 +378,13 @@ export class AgentRunsService implements OnModuleInit {
 
   private requireRun(userId: string, runId: string): AgentRunRecord {
     const run = this.runs.find(runId);
-    if (!run || run.userId !== userId)
-      throw new NotFoundError("Agent run not found");
+    if (!run || run.userId !== userId) throw new NotFoundError("Agent run not found");
     return run;
   }
 
-  private requireSession(
-    userId: string,
-    sessionId: string,
-    projectId: string,
-  ): SessionRecord {
+  private requireSession(userId: string, sessionId: string, projectId: string): SessionRecord {
     const session = this.sessions.getOwned(userId, sessionId);
-    if (session.projectId !== projectId)
-      throw new ValidationFailedError("Session belongs to a different project");
+    if (session.projectId !== projectId) throw new ValidationFailedError("Session belongs to a different project");
     return session;
   }
 }

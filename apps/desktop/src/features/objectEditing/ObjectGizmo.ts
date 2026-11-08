@@ -1,19 +1,7 @@
-import {
-  BufferGeometry,
-  Float32BufferAttribute,
-  Object3D,
-  Points,
-  PointsMaterial,
-  Vector3,
-  type Matrix4,
-} from "three";
+import { BufferGeometry, Float32BufferAttribute, Object3D, Points, PointsMaterial, Vector3, type Matrix4 } from "three";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import type { EditorScene, ObjectTransform } from "@/features/assistant";
-import {
-  watchClicks,
-  type Viewport,
-  type ViewportTool,
-} from "@/features/viewport3d";
+import { watchClicks, type Viewport, type ViewportTool } from "@/features/viewport3d";
 import { GroupTransform, medianPosition, topLevel } from "./groupTransform";
 import { assignLocalMatrix, correctWorldRotation, hasNonUniformWorldScale } from "./shearFit";
 import { HANDLE_MODES, isHandleTool, type HandleMode } from "./handleModes";
@@ -51,6 +39,7 @@ export interface ObjectChange {
   after: ObjectTransform;
 }
 
+/** The events the transform gizmo reports: a drag starting, changing and ending. */
 export interface GizmoEvents {
   /** The user is dragging a handle: the active object's current transform. */
   onLiveChange: (id: string, transform: ObjectTransform) => void;
@@ -97,12 +86,7 @@ export class ObjectGizmo {
   /** World matrix of a single object when its drag began, so a world rotation can be rebuilt exactly. */
   private dragWorld: Matrix4 | undefined;
 
-  constructor(
-    viewport: Viewport,
-    editor: EditorScene,
-    events: GizmoEvents,
-    view: GizmoView,
-  ) {
+  constructor(viewport: Viewport, editor: EditorScene, events: GizmoEvents, view: GizmoView) {
     this.viewport = viewport;
     this.editor = editor;
     this.events = events;
@@ -168,15 +152,11 @@ export class ObjectGizmo {
       ignore: () => this.controls.axis !== null,
       onClick: (event) => {
         if (this.view.tool() === "pan" || this.view.objectMode?.() === false) return;
-        const ndc = toNdc(
-          event.clientX,
-          event.clientY,
-          dom.getBoundingClientRect(),
-        );
+        const ndc = toNdc(event.clientX, event.clientY, dom.getBoundingClientRect());
         if (event.altKey && !event.shiftKey) {
           const hits = pickObjectIds(this.editor, viewport.camera, ndc);
           const index = hits.findIndex((id) => id === this.editor.selection);
-          this.editor.select(hits.length ? hits[(index + 1) % hits.length] ?? null : null);
+          this.editor.select(hits.length ? (hits[(index + 1) % hits.length] ?? null) : null);
           return;
         }
         const hit = pickObjectId(this.editor, viewport.camera, ndc);
@@ -190,6 +170,15 @@ export class ObjectGizmo {
       this.sync();
     });
 
+    // Escape puts a handle drag back, as in Blender, instead of also clearing the selection behind it.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !this.controls.dragging) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.abortDrag();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+
     this.cleanups.push(
       () => this.cancelDrag(),
       () => this.controls.removeEventListener("dragging-changed", onDragging),
@@ -198,6 +187,7 @@ export class ObjectGizmo {
       this.editor.onBeforeChange(() => this.cancelDrag()),
       bindShiftSnap(this.controls),
       removeFrameListener,
+      () => window.removeEventListener("keydown", onKeyDown, true),
     );
   }
 
@@ -238,6 +228,17 @@ export class ObjectGizmo {
     this.editor.previewBooleans();
   }
 
+  /**
+   * Ends a handle drag that is still held, putting everything back. The handles ignore the release of the
+   * button once they are disabled, so a drag that outlives its selection would otherwise never end: the
+   * camera would stay locked and the object would follow the pointer without a button pressed.
+   */
+  private abortDrag() {
+    if (!this.controls.dragging) return;
+    this.cancelDrag();
+    this.controls.pointerUp(null);
+  }
+
   /** Remembers where everything is before a handle moves it. */
   private beginDrag() {
     const target = this.controls.object;
@@ -273,8 +274,7 @@ export class ObjectGizmo {
     if (this.dragged.length > 0) {
       for (const { id, before } of this.dragged) {
         const after = this.editor.transformOf(id);
-        if (after && !sameTransform(before, after))
-          changes.push({ id, before, after });
+        if (after && !sameTransform(before, after)) changes.push({ id, before, after });
       }
       this.dragged = [];
       this.group.end();
@@ -305,8 +305,7 @@ export class ObjectGizmo {
   /** Puts the pivot at the median point of what a drag would move, upright and unscaled. */
   private placePivot() {
     const { selectedIds: ids, currentRevision: revision } = this.editor;
-    if (this.pivotFor?.ids === ids && this.pivotFor.revision === revision)
-      return;
+    if (this.pivotFor?.ids === ids && this.pivotFor.revision === revision) return;
     this.pivotFor = { ids, revision };
     const objects = ids.flatMap((id) => this.editor.getObject(id) ?? []);
     medianPosition(topLevel(objects), this.pivot.position);
@@ -344,6 +343,7 @@ export class ObjectGizmo {
       this.controls.setMode(this.mode);
     }
     const showGizmo = Boolean(target) && enabled && isHandleTool(tool);
+    if (!showGizmo) this.abortDrag();
     this.controls.getHelper().visible = showGizmo;
     this.controls.enabled = showGizmo;
     if (this.controls.dragging) return;

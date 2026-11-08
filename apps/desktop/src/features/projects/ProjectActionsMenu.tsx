@@ -1,14 +1,5 @@
-import type { ReactNode } from "react";
-import {
-  Archive,
-  ArchiveRestore,
-  Copy,
-  FolderOpen,
-  Pencil,
-  Star,
-  StarOff,
-  Trash2,
-} from "lucide-react";
+import { useRef, type ReactNode } from "react";
+import { Archive, ArchiveRestore, Copy, FolderOpen, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,11 +7,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Project, ProjectAction } from "./projectTypes";
+import type { Project, ProjectActionHandler } from "./projectTypes";
 
 interface ProjectActionsMenuProps {
   project: Project;
-  onAction: (action: ProjectAction, project: Project) => void;
+  onAction: ProjectActionHandler;
   /** The button that opens the menu. */
   children: ReactNode;
   align?: "start" | "end";
@@ -36,43 +27,46 @@ export function ProjectActionsMenu({
   align = "end",
   hideOpen = false,
 }: ProjectActionsMenuProps) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const choose = (action: Parameters<ProjectActionHandler>[0]) => onAction(action, project, trigger.current);
   return (
     <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild ref={trigger}>
+        {children}
+      </DropdownMenuTrigger>
       <DropdownMenuContent
         align={align}
         sideOffset={6}
         className="z-[60] w-52 p-1.5"
         onCloseAutoFocus={(event) => {
           // Rename and delete open a dialog from the menu; focus belongs to the dialog, not the button.
-          if (document.querySelector('[role="dialog"][data-state="open"]'))
-            event.preventDefault();
+          if (document.querySelector('[role="dialog"][data-state="open"]')) event.preventDefault();
         }}
       >
         {!hideOpen && (
-          <DropdownMenuItem onSelect={() => onAction("open", project)}>
+          <DropdownMenuItem onSelect={() => choose("open")}>
             <FolderOpen />
             Open
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onAction("rename", project)}>
+        <DropdownMenuItem onSelect={() => choose("rename")}>
           <Pencil />
           Rename
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onAction("star", project)}>
+        <DropdownMenuItem onSelect={() => choose("star")}>
           {project.starred ? <StarOff /> : <Star />}
           {project.starred ? "Remove star" : "Add star"}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onAction("duplicate", project)}>
+        <DropdownMenuItem onSelect={() => choose("duplicate")}>
           <Copy />
           Duplicate
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onAction("archive", project)}>
+        <DropdownMenuItem onSelect={() => choose("archive")}>
           {project.archived ? <ArchiveRestore /> : <Archive />}
           {project.archived ? "Restore" : "Archive"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem destructive onSelect={() => onAction("delete", project)}>
+        <DropdownMenuItem destructive onSelect={() => choose("delete")}>
           <Trash2 />
           Delete
         </DropdownMenuItem>

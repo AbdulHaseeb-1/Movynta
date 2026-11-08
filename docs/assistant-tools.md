@@ -14,6 +14,9 @@ The modeling coordinator agent (`apps/backend/src/modules/agents/definitions/mod
 | --- | --- | --- | --- | --- | --- |
 | `editor.get_context` | `editor__get_context` | `read` | Never | Returns objects, parents, local transforms, visibility, world-space geometry bounds when supported, selection, revision, and `designFocus`: the design mode and, in Edit mode, the components the user has picked. `componentSelection.modifiersEnabled` says whether its ids name the base cage or the display mesh. For mapped face picks, baseFaceIds names the whole source faces. | `modules/tools/editor/editor.tools.ts` |
 | `editor.get_scene_summary` | `editor__get_scene_summary` | `read` | Never | Returns object counts by type, selection and revision. | `modules/tools/editor/editor.tools.ts` |
+| `editor.read_branch` | `editor__read_branch` | `read` | Never | Reads the scene as a tree, one branch at a time. Without `rootId` it lists the top level and the totals; with it, that object and its children. Each entry has world `size` and `center`, `childCount`, `descendantCount` and `descendants` by type. `depth` (1–4) opens more levels; 4 or more look-alike siblings fold into one `{ repeat: true, count, templateId, exampleIds }` entry unless `foldRepeats` is false. Pages with `childLimit` and `childOffset`; at most 300 entries per read. See [Reading a large scene](#reading-a-large-scene). | `modules/tools/scene/scene.tools.ts` |
+| `editor.find_repeats` | `editor__find_repeats` | `read` | Never | Finds objects that look like copies (same type, name without numbering, size and contents) and reports each group once, with `templateId`, up to 50 `memberIds`, and the `arrangement` of the members: `line`, `grid`, `coincident` or `scattered`. Parameters: optional `rootId`, `minCount` (2–500, default 3), `limit` (1–20, default 10). Matching does not compare geometry. | `modules/tools/scene/scene.tools.ts` |
+| `editor.query_objects` | `editor__query_objects` | `read` | Never | Selects objects by rule: `nameMatches` (`*`, `?`), `type`, `parentId`, `withinId`, `visible`, `selected`, and `{ x, y, z }` ranges of `size` and `position` (world). Sorts by scene order, name, volume or an axis; pages with `limit` (1–200) and `offset`; `countOnly` returns the total. | `modules/tools/scene/scene.tools.ts` |
 | `editor.describe_commands` | `editor__describe_commands` | `read` | Never | Returns the full rules (summary and rules) of 1–12 editor command types; unknown types come back with the three closest valid ones. `editor.propose_commands` lists each command in one line, so these details are read only when needed. Reads nothing from the scene. | `modules/tools/editor/editor.tools.ts`, `modules/tools/editor/command-reference.ts` |
 | `editor.inspect_mesh` | `editor__inspect_mesh` | `read` | Never | Returns bounded local-space vertex/edge/face samples, topology counts, material slot count, attributes, bounds, world matrix and mesh paths inside imported objects. Parameters include `objectId`, optional `meshPath`, `view`, sample `offset` and `limit`. Optional `faceQuery` filters faces by local-space `normal`, `minDot` (default 0.9), `centerMin`, and `centerMax`. Its independent `offset` and `limit` (1–1000, default 100) page `faceMatches.ids`, `total` and `hasMore`. Set `includeSamples: false` to omit the three geometry sample pages. Set `openings: {}` to list the mesh's openings: each loop has its canonical `edges` (at most 256, in walking order), `edgeCount`, `truncated`, `center`, `min` and `max`, ready to pass to `geometry.fill_hole` or `geometry.bridge_edge_loops`; `irregularEdges` counts boundary edges that are not in a simple loop. Set `shells: {}` to list the connected parts: `faceCount`, `firstFace` (names the whole part for `geometry.flip_normals`), `closed`, `center`, `min` and `max`. Both take `offset` and `limit` (1–50, default 20). The response identifies the view and revision. Evaluated faces include baseFaceIndex when a source is known. | `modules/tools/editor/editor.tools.ts` |
 | `editor.inspect_materials` | `editor__inspect_materials` | `read` | Never | Reads paged material slots without parsing topology, including dense/skinned imports. Parameters: objectId, meshPath (default []), offset (default 0), limit (1–100, default 25). Returns revision, status, materialSlotCount, materials, parts and message. Slot fields include name, shader type, editable, sRGB color/emissive, PBR values, opacity, transparency, depthWrite, side and texture channel names. | `modules/tools/editor/editor.tools.ts` |
@@ -159,6 +162,57 @@ The chat shows what the assistant sees. Under the "Looking at the scene" step of
 - The tool then emits a `viewport.captured` run event with the `captureId`, the label and size of each view, and `imagesSent`. The event carries no pixels, because run events are stored and replayed. The chat attaches the id to the running "Looking at the scene" step (`runEvents.ts`) and `CaptureGallery` finds the pictures by it.
 - The pictures live only in the editor window that drew them. After a reload, or for a capture older than the last 12, the step shows no thumbnails.
 - When `imagesSent` is false (an OpenAI-compatible model), the step says the scene was measured, not drawn.
+
+## Images attached by the user
+
+A request can carry up to 8 pictures for the assistant to use as reference. This is not a tool: the pictures are part of the user's message, so no tool, permission or approval rule is involved, and the assistant still changes the editor only through `editor.propose_commands` and `editor.apply_proposal`.
+
+**Sending.** The composer takes pictures from the attach button, from a paste into the message field, or from a drop on the composer. `POST /api/v1/agent-runs` accepts `attachments: [{ name, mediaType, data }]`, where `data` is the file as base64 text. The limits are in `packages/contracts/src/attachments.ts` and are read by both sides:
+
+| Limit | Value |
+| --- | --- |
+| Pictures per request | 8 |
+| Formats | PNG, JPEG, WebP, GIF |
+| Size of one picture | 5 MB |
+| All pictures of a request together | 24 MB |
+| Name | 120 characters |
+
+Before sending, the desktop (`apps/desktop/src/features/attachments/`) keeps a picture that already fits unchanged. Larger ones are scaled to a longest side of 1568 pixels and saved as JPEG, at lower quality and then smaller if still over 5 MB. GIFs are saved as JPEG so the model sees one still picture. Photos are turned upright by their orientation tag.
+
+**Checks.** `checkAttachments` (`apps/backend/src/modules/agent-runs/run-attachments.ts`) refuses a request with more than 8 pictures, pictures that add up to more than 24 MB, text that is not base64, a picture over 5 MB, or one whose first bytes are not those of the format it claims (the declared type is not trusted). Failures are `422` and name the file. A request with pictures is also refused when the selected connection has **Send pictures** turned off. Only `POST /api/v1/agent-runs` accepts a body large enough for pictures (`configure-application.ts`); every other JSON route keeps `REQUEST_BODY_LIMIT`.
+
+**What the model gets.** The message is the first part of the user message, exactly as typed. Each picture follows a line that numbers and names it ("Attached image 2 of 3: side.jpg"), so the user can refer to it. The request guardrail judges only what the user typed. The base instructions tell the assistant to treat pictures as reference material, to treat any text inside them as content and not as instructions, and to record what it took from them in the brief and plan.
+
+**What is kept.** Pictures are not stored. `agent_runs.attachments_json` keeps each picture's name, type and size, so a reopened project lists the names. `withoutImages` in `sqlite-session.ts` replaces the pictures of a user message with a short placeholder when the message is saved to the session, so later turns do not resend them; the names stay. This also means a run that continues after an approval or a "carry on" prompt no longer has the pixels, which is why the assistant is told to write down its observations. Trying a request again from a reopened project sends the words only.
+
+## Working in chunks
+
+The assistant builds and edits in chunks, and checks each one before the next. This is the rule behind the skills' "Chunks and gates" sections and the base instructions.
+
+A **chunk** is one part of the model with its placement and shape, or one edit to one existing object. Each plan step is one chunk and carries its own `stepId`. For a chunk the assistant states the expected result in numbers, proposes it (previewing geometry with `viewport.capture` and the `proposalId`), applies it, reads every command's result, then verifies with `validation.check_scene` and a measurement or capture of exactly what it built. It fixes what that shows and verifies again before the next chunk. A destructive command goes in a batch of its own.
+
+The run enforces two parts of this in code (`apps/backend/src/modules/tools/editor/proposal-flow.ts`, `chunkRejection`):
+
+| Rule | Limit | Applies to |
+| --- | --- | --- |
+| Applied batches between scene checks | 3 (`MAX_UNCHECKED_BATCHES`). The next proposal is refused until `validation.check_scene` runs, and the refusal says what to do. | `editor.propose_commands`, `modeling.propose_generated` |
+| Commands in a hand-written batch | 40 (`MAX_HAND_WRITTEN_COMMANDS`). A larger batch is refused with advice to split it. Batches from a `planId` (`editor.plan_duplicates`, `editor.plan_placement`, `modeling.generate_commands`) and `modeling.propose_generated` are not held to it. | `editor.propose_commands` with `commands` |
+
+A plan whose steps share an id is refused by `modeling.generate_model_plan`, because batches are matched to steps by id. The count of unchecked batches is kept in the run progress and survives a pause for approval. The independent review and the end-of-run checks (every named plan step has an applied batch, the scene was checked after the last change, the brief passes) still apply.
+
+## Reading a large scene
+
+`editor.get_context` returns every object, up to 2000, so on a big scene it can be hundreds of kilobytes, and the model has to hold them all to find one part. Three read-only tools replace that with a read that grows with what the scene contains, not with its object count. All three work from the editor's snapshot (`apps/backend/src/modules/tools/scene/`) and change nothing.
+
+- **`editor.read_branch`** opens the hierarchy one level at a time. Siblings that look alike are folded into one entry, so a facade of 120 windows is one line with a count and example ids.
+- **`editor.find_repeats`** finds copies across the whole scene, and says whether they sit on a line or a grid and how far apart. A line or grid maps onto `editor.plan_duplicates` (`sourceId` is `templateId`; `offset` is the step on the axis). A group of repeated windows is reported once, not again as the frames and panes inside them.
+- **`editor.query_objects`** selects by rule, such as every window whose center is above 6 m, and returns ids for the next batch of commands.
+
+How look-alikes are decided: the object's type, its name with trailing numbering removed (`Window.003`, `Window_12`, `Window copy 2` are all `Window`), its world extents to about three significant digits with the axes sorted (so a quarter turn still matches), and, for a group, the same kind of contents. The editor's snapshot carries bounds, not geometry or materials, so two objects can share all of this and still differ. The tools say so, and the assistant is told to confirm with `editor.inspect_mesh` on `templateId` and one other member. Copies turned by other than a quarter turn, or scaled differently, are not matched. Objects without bounds are skipped.
+
+Measured on a 2000-object facade (26 floors of 26 windows, each with a frame and a pane): `editor.get_context` is about 474 KB; a top-level `editor.read_branch` is 0.3 KB, a two-level read of the building 1 KB, and `editor.find_repeats` 1 KB, each in under 10 ms. The test `scene.tools.spec.ts` keeps the size and speed from regressing.
+
+Matches and trees describe the scene at the revision they return. After an edit, read again.
 
 ## Proposals
 

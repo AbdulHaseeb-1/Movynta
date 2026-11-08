@@ -1,12 +1,7 @@
 import type { ReactNode } from "react";
 import type { ObjectTransform } from "@/features/assistant";
 import { NumberField } from "./NumberField";
-import {
-  AXES,
-  degreesToRadians,
-  radiansToDegrees,
-  withAxis,
-} from "./transformMath";
+import { AXES, degreesToRadians, radiansToDegrees, withAxis } from "./transformMath";
 
 interface TransformFieldsProps {
   transform: ObjectTransform;
@@ -49,9 +44,7 @@ export function TransformFields({ transform, disabled, onChange, onPreview, onPr
             value={degrees[index]}
             step={1}
             disabled={disabled}
-            onCommit={(value) =>
-              onChange({ rotation: degreesToRadians(withAxis(degrees, index, value)) })
-            }
+            onCommit={(value) => onChange({ rotation: degreesToRadians(withAxis(degrees, index, value)) })}
             onPreview={(value) => onPreview({ rotation: degreesToRadians(withAxis(degrees, index, value)) })}
             onPreviewEnd={onPreviewEnd}
           />

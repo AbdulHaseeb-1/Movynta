@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { EventStream, StreamedEvent } from "./testing.types.js";
 
+/** The schema for the envelope of one event on a test event stream. */
 export const envelopeSchema = z.object({
   id: z.string(),
   runId: z.string(),

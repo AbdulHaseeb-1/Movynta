@@ -9,6 +9,7 @@ export {
   type ProviderId,
 } from "@movynta/contracts";
 
+/** A provider's settings as the API returns them, without its key. */
 export interface ProviderView {
   id: ProviderId;
   model: string;
@@ -18,6 +19,7 @@ export interface ProviderView {
   /** False when the endpoint's model cannot read pictures, so tools return measurements only. */
   acceptsImages: boolean;
 }
+/** What a model client needs to reach a provider: its key, model and endpoint. */
 export interface ProviderCredentials {
   id: ProviderId;
   model: string;

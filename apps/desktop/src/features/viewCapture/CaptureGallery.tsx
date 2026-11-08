@@ -14,7 +14,8 @@ export function CaptureGallery({ captureId }: { captureId: string }) {
   if (!images || images.length === 0) return null;
 
   const shown = selected === null ? undefined : images[selected];
-  const step = (by: number) => setSelected((current) => (current === null ? current : (current + by + images.length) % images.length));
+  const step = (by: number) =>
+    setSelected((current) => (current === null ? current : (current + by + images.length) % images.length));
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "ArrowLeft") step(-1);
     else if (event.key === "ArrowRight") step(1);
@@ -43,7 +44,13 @@ export function CaptureGallery({ captureId }: { captureId: string }) {
         <DialogContent onKeyDown={onKeyDown} className="z-[100] w-[min(880px,calc(100vw-32px))] gap-3 p-4">
           <DialogTitle className="pr-6 text-sm font-semibold">{shown?.label}</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">{shown?.camera}</DialogDescription>
-          {shown && <img src={shown.src} alt={`${shown.label} view of the scene`} className="max-h-[70vh] w-full rounded-md object-contain" />}
+          {shown && (
+            <img
+              src={shown.src}
+              alt={`${shown.label} view of the scene`}
+              className="max-h-[70vh] w-full rounded-md object-contain"
+            />
+          )}
           {images.length > 1 && (
             <div className="flex items-center justify-between">
               <Button variant="ghost" size="icon-sm" onClick={() => step(-1)} aria-label="Previous view">

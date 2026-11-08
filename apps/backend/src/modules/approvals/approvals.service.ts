@@ -6,6 +6,7 @@ import { ApprovalsRepository } from "./approvals.repository.js";
 import type { ApprovalDecision, ApprovalRecord, NewApproval } from "./approvals.types.js";
 import { newId } from "../../common/ids/index.js";
 
+/** How long an approval waits for a decision before it expires, in milliseconds. */
 export const APPROVAL_TTL_MS = 10 * 60 * 1000;
 
 /** Creates approval requests and exposes ownership-checked reads. Decisions run in AgentRunsService. */

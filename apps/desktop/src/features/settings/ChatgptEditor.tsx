@@ -1,24 +1,9 @@
 import type { ReactNode } from "react";
-import {
-  ExternalLink,
-  LoaderCircle,
-  LogIn,
-  LogOut,
-  ShieldCheck,
-} from "lucide-react";
+import { ExternalLink, LoaderCircle, LogIn, LogOut, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  daysUntil,
-  formatPlan,
-  ProviderIcon,
-  type ChatgptSession,
-} from "@/features/providers";
+import { DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { daysUntil, formatPlan, ProviderIcon, type ChatgptSession } from "@/features/providers";
 import { settingsButtonClass } from "./styles";
 import type { ChatgptSignIn } from "./useChatgptSignIn";
 
@@ -85,23 +70,15 @@ export function ChatgptEditor({ signIn, onClose }: ChatgptEditorProps) {
   const pending = state === "pending";
   return (
     <DialogContent className="z-[100] max-h-[calc(100vh-48px)] w-[min(460px,calc(100vw-32px))] overflow-y-auto p-6">
-      <DialogTitle className="pr-6 text-base font-semibold">
-        ChatGPT subscription
-      </DialogTitle>
+      <DialogTitle className="pr-6 text-base font-semibold">ChatGPT subscription</DialogTitle>
       <DialogDescription className="text-xs leading-5 text-muted-foreground">
         Use the models included in your ChatGPT plan. No API key is needed.
       </DialogDescription>
       <div className="flex flex-col gap-5">
-        <section
-          aria-label="Sign-in status"
-          className="rounded-xl bg-foreground/[0.04] p-4"
-        >
+        <section aria-label="Sign-in status" className="rounded-xl bg-foreground/[0.04] p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <ProviderIcon
-                id="chatgpt"
-                className={connected ? "size-6" : "size-6 text-muted-foreground/60"}
-              />
+              <ProviderIcon id="chatgpt" className={connected ? "size-6" : "size-6 text-muted-foreground/60"} />
               <h3 className="text-sm font-medium">ChatGPT</h3>
             </div>
             <StatusBadge state={state} />
@@ -109,33 +86,22 @@ export function ChatgptEditor({ signIn, onClose }: ChatgptEditorProps) {
           {connected && session && <ConnectedDetails session={session} />}
           {pending && (
             <div className="mt-3 flex items-start gap-2.5 border-t border-border pt-3 text-xs leading-5 text-muted-foreground">
-              <LoaderCircle
-                size={14}
-                className="mt-0.5 shrink-0 animate-spin"
-                aria-hidden
-              />
-              <p>
-                Finish signing in on the ChatGPT page in your browser. This
-                window updates automatically.
-              </p>
+              <LoaderCircle size={14} className="mt-0.5 shrink-0 animate-spin" aria-hidden />
+              <p>Finish signing in on the ChatGPT page in your browser. This window updates automatically.</p>
             </div>
           )}
           {state === "expired" && (
             <p className="mt-3 border-t border-border pt-3 text-xs leading-5 text-muted-foreground">
-              This sign-in reached its 30-day limit. Sign in again to keep
-              using ChatGPT models.
+              This sign-in reached its 30-day limit. Sign in again to keep using ChatGPT models.
             </p>
           )}
         </section>
         <p className="flex items-start gap-2.5 text-xs leading-5 text-muted-foreground">
           <ShieldCheck size={14} className="mt-0.5 shrink-0" aria-hidden />
-          Your sign-in is encrypted by Windows on the backend, stays on this
-          computer, and expires 30 days after you sign in. It is never sent to
-          this app.
+          Your sign-in is encrypted by Windows on the backend, stays on this computer, and expires 30 days after you
+          sign in. It is never sent to this app.
         </p>
-        <output className="min-h-4 text-xs text-muted-foreground">
-          {message}
-        </output>
+        <output className="min-h-4 text-xs text-muted-foreground">{message}</output>
         <div className="flex flex-wrap justify-between gap-3 border-t pt-4">
           {connected ? (
             <Button
@@ -186,12 +152,7 @@ export function ChatgptEditor({ signIn, onClose }: ChatgptEditorProps) {
               </Button>
             ) : (
               <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={onClose}
-                  className={settingsButtonClass}
-                >
+                <Button type="button" variant="ghost" onClick={onClose} className={settingsButtonClass}>
                   {connected ? "Done" : "Cancel"}
                 </Button>
                 {!connected && (
@@ -202,11 +163,7 @@ export function ChatgptEditor({ signIn, onClose }: ChatgptEditorProps) {
                     className={settingsButtonClass}
                   >
                     {busy ? (
-                      <LoaderCircle
-                        size={14}
-                        className="animate-spin"
-                        aria-hidden
-                      />
+                      <LoaderCircle size={14} className="animate-spin" aria-hidden />
                     ) : (
                       <LogIn size={14} aria-hidden />
                     )}

@@ -21,10 +21,13 @@ import { createShadingRenderer, type ShadingMode } from "./shading";
 import { framePose } from "./framing";
 import { viewPosition, type ViewPreset } from "./viewPresets";
 import { createOutlineRenderer } from "./outline";
+import { createCameraEase } from "./cameraEase";
 import { isTypingTarget } from "@/lib/dom";
 
+/** A function run on every animation frame, with the time since the last frame. */
 export type FrameListener = (deltaSeconds: number) => void;
 
+/** The options a viewport is created with. */
 export interface ViewportOptions {
   // Omit to keep the canvas transparent so the page behind it shows through.
   background?: ColorRepresentation;
@@ -34,8 +37,10 @@ export interface ViewportOptions {
 // "select" is the default tool: dragging orbits the camera. "pan" makes dragging move the view instead.
 export type NavigationTool = "select" | "pan";
 
+/** Which part of the camera a navigation changes: the rotation, or everything. */
 export type NavigationScope = "rotate" | "full";
 
+/** The viewport: its renderer, camera and scene, with the operations that move the camera. */
 export interface Viewport {
   scene: Scene;
   setShadingMode: (mode: ShadingMode, xray: boolean) => void;
@@ -76,7 +81,6 @@ const ORBIT_DAMPING = 0.08;
 const EASE_SECONDS = 0.35;
 const ASSISTANT_PANEL_SHIFT_FRACTION = 0.12;
 
-
 interface SpacePanCallbacks {
   // Called when Space is pressed or released outside a text field.
   onHeldChange: (held: boolean) => void;
@@ -86,10 +90,7 @@ interface SpacePanCallbacks {
 
 // Holding Space temporarily switches dragging from orbit to pan, so the view can be moved in every direction.
 // Space is ignored while typing in a field. Returns a function that removes the listeners.
-function enableSpacePan(
-  element: HTMLElement,
-  { onHeldChange, onDragChange }: SpacePanCallbacks,
-): () => void {
+function enableSpacePan(element: HTMLElement, { onHeldChange, onDragChange }: SpacePanCallbacks): () => void {
   let held = false;
 
   const release = () => {
@@ -99,8 +100,7 @@ function enableSpacePan(
   };
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.code !== "Space" || isTypingTarget(event.target)) return;
-    if (event.target === document.body || event.target === element)
-      event.preventDefault();
+    if (event.target === document.body || event.target === element) event.preventDefault();
     if (held) return;
     held = true;
     onHeldChange(true);
@@ -130,17 +130,12 @@ type GeometryObject = Mesh | Line | Points;
 
 // `instanceof` narrows generic classes to `Mesh<any>`, so a typed predicate keeps the types strict.
 function hasGeometry(object: Object3D): object is GeometryObject {
-  return (
-    object instanceof Mesh || object instanceof Line || object instanceof Points
-  );
+  return object instanceof Mesh || object instanceof Line || object instanceof Points;
 }
 
 // Creates a Three.js renderer, scene, camera, lights, and orbit controls inside `container`,
 // and keeps the canvas sized to the container. Call `dispose` to stop the loop and release GPU resources.
-export function createViewport(
-  container: HTMLElement,
-  options: ViewportOptions = {},
-): Viewport {
+export function createViewport(container: HTMLElement, options: ViewportOptions = {}): Viewport {
   const { background, maxPixelRatio = DEFAULT_MAX_PIXEL_RATIO } = options;
 
   const renderer = new WebGLRenderer({ antialias: true, alpha: true });
@@ -177,11 +172,7 @@ export function createViewport(
     controls.enableZoom = fullNavigation;
     const panning = fullNavigation && (tool === "pan" || spaceHeld);
     controls.mouseButtons.LEFT = panning ? MOUSE.PAN : MOUSE.ROTATE;
-    renderer.domElement.style.cursor = panning
-      ? dragging
-        ? "grabbing"
-        : "grab"
-      : "";
+    renderer.domElement.style.cursor = panning ? (dragging ? "grabbing" : "grab") : "";
   };
   const disableSpacePan = enableSpacePan(renderer.domElement, {
     onHeldChange: (held) => {
@@ -222,41 +213,19 @@ export function createViewport(
   };
 
   // Eases the camera to a new position and target. Grabbing the view with the mouse cancels the move.
-  let stopEase: (() => void) | undefined;
   let assistantPanelOffset: Vector3 | null = null;
-  const easeTo = (position: Vector3, target: Vector3) => {
-    stopEase?.();
-    const fromPosition = camera.position.clone();
-    const fromTarget = controls.target.clone();
-    let elapsed = 0;
-    const removeListener = addFrameListener((delta) => {
-      elapsed += delta;
-      const progress = Math.min(elapsed / EASE_SECONDS, 1);
-      const eased = 1 - (1 - progress) ** 3;
-      camera.position.lerpVectors(fromPosition, position, eased);
-      controls.target.lerpVectors(fromTarget, target, eased);
-      if (progress >= 1) stopEase?.();
-    });
-    stopEase = () => {
-      removeListener();
-      stopEase = undefined;
-    };
-  };
-  controls.addEventListener("start", () => stopEase?.());
+  const ease = createCameraEase(camera, controls.target, addFrameListener, EASE_SECONDS);
+  const { easeTo } = ease;
+  controls.addEventListener("start", ease.stop);
 
   const zoomBy = (factor: number) => {
     if (!(factor > 0)) return;
     if (!fullNavigation) return;
-    const offset = camera.position.clone().sub(controls.target);
-    const distance = MathUtils.clamp(
-      offset.length() / factor,
-      ORBIT_MIN_DISTANCE,
-      ORBIT_MAX_DISTANCE,
-    );
-    easeTo(
-      controls.target.clone().add(offset.setLength(distance)),
-      controls.target.clone(),
-    );
+    // From where an earlier step is heading, so quick steps add up instead of each starting half way.
+    const rest = ease.restPose();
+    const offset = rest.position.clone().sub(rest.target);
+    const distance = MathUtils.clamp(offset.length() / factor, ORBIT_MIN_DISTANCE, ORBIT_MAX_DISTANCE);
+    easeTo(rest.target.clone().add(offset.setLength(distance)), rest.target);
   };
   const resetView = () => {
     if (!fullNavigation) return;
@@ -265,7 +234,7 @@ export function createViewport(
   };
   const setView = (preset: ViewPreset) => {
     if (!fullNavigation) return;
-    stopEase?.();
+    ease.stop();
     const distance = Math.max(camera.position.distanceTo(controls.target), ORBIT_MIN_DISTANCE);
     camera.position.copy(viewPosition(controls.target, preset.direction, distance));
     controls.update();
@@ -284,28 +253,22 @@ export function createViewport(
     easeTo(pose.position, pose.target);
   };
   const setAssistantPanelOpen = (open: boolean) => {
+    // The shift is added to where the view is heading, so opening and closing the panel within one ease cancel out.
+    const rest = ease.restPose();
     if (open) {
       if (assistantPanelOffset) return;
       camera.updateMatrixWorld();
       const right = new Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
       const viewWidth =
-        2 *
-        controls.getDistance() *
-        Math.tan(MathUtils.degToRad(camera.fov / 2)) *
-        camera.aspect;
-      assistantPanelOffset = right.multiplyScalar(
-        -viewWidth * ASSISTANT_PANEL_SHIFT_FRACTION,
-      );
-      easeTo(
-        camera.position.clone().add(assistantPanelOffset),
-        controls.target.clone().add(assistantPanelOffset),
-      );
+        2 * rest.position.distanceTo(rest.target) * Math.tan(MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+      assistantPanelOffset = right.multiplyScalar(-viewWidth * ASSISTANT_PANEL_SHIFT_FRACTION);
+      easeTo(rest.position.clone().add(assistantPanelOffset), rest.target.clone().add(assistantPanelOffset));
       return;
     }
     if (!assistantPanelOffset) return;
     const restore = assistantPanelOffset.clone().negate();
     assistantPanelOffset = null;
-    easeTo(camera.position.clone().add(restore), controls.target.clone().add(restore));
+    easeTo(rest.position.clone().add(restore), rest.target.clone().add(restore));
   };
   const setNavigationTool = (next: NavigationTool) => {
     tool = next;
@@ -315,7 +278,7 @@ export function createViewport(
     fullNavigation = scope === "full";
     if (!fullNavigation) {
       // A rotate-only view always starts from the default framing.
-      stopEase?.();
+      ease.stop();
       camera.position.copy(CAMERA_START);
       controls.target.set(0, 0, 0);
       controls.update();
@@ -340,7 +303,7 @@ export function createViewport(
     renderer.setAnimationLoop(null);
     timer.disconnect();
     resizeObserver.disconnect();
-    stopEase?.();
+    ease.stop();
     disableSpacePan();
     outline.dispose();
     shading.dispose();
@@ -350,9 +313,7 @@ export function createViewport(
     scene.traverse((object) => {
       if (!hasGeometry(object)) return;
       object.geometry.dispose();
-      const materials = Array.isArray(object.material)
-        ? object.material
-        : [object.material];
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
       materials.forEach((material) => material.dispose());
     });
 
@@ -369,7 +330,9 @@ export function createViewport(
     renderer,
     controls,
     setNavigationTool,
-    setEditNavigation: (enabled) => { controls.mouseButtons.RIGHT = enabled ? MOUSE.ROTATE : MOUSE.PAN; },
+    setEditNavigation: (enabled) => {
+      controls.mouseButtons.RIGHT = enabled ? MOUSE.ROTATE : MOUSE.PAN;
+    },
     setNavigationScope,
     zoomBy,
     resetView,

@@ -10,6 +10,7 @@ import { isWithinBranch, resolveSiblingName } from "./scene-graph.js";
  * two cannot disagree about what is allowed. Methods that can fail return the reason, which says how to fix it.
  */
 
+/** A collection as the editor lists it. */
 export interface CollectionEntry {
   readonly id: string;
   readonly name: string;
@@ -25,17 +26,22 @@ interface Node {
 }
 
 /** The outcome of a change that may rename: the name the collection ended up with, or why it cannot be done. */
-export type CollectionResult = { readonly ok: true; readonly name: string } | { readonly ok: false; readonly message: string };
+export type CollectionResult =
+  | { readonly ok: true; readonly name: string }
+  | { readonly ok: false; readonly message: string };
 
 const fail = (message: string): CollectionResult => ({ ok: false, message });
 
+/** The collections of a scene, as a graph. It checks that each collection's parent exists and that no collection sits inside itself, and says how to fix each problem. */
 export class CollectionModel {
   private readonly nodes = new Map<string, Node>();
   private readonly membership = new Map<string, string>();
 
   constructor(collections: Iterable<CollectionEntry> = [], members: Iterable<readonly [string, string | null]> = []) {
-    for (const entry of collections) this.nodes.set(entry.id, { name: entry.name, parentId: entry.parentId, visible: entry.visible });
-    for (const [objectId, collectionId] of members) if (collectionId !== null) this.membership.set(objectId, collectionId);
+    for (const entry of collections)
+      this.nodes.set(entry.id, { name: entry.name, parentId: entry.parentId, visible: entry.visible });
+    for (const [objectId, collectionId] of members)
+      if (collectionId !== null) this.membership.set(objectId, collectionId);
   }
 
   clone(): CollectionModel {
@@ -102,7 +108,10 @@ export class CollectionModel {
   /** Adds a collection. A name that a collection in the same place already has is made unique with a number. */
   create(id: string, name: string, parentId: string | null): CollectionResult {
     if (this.nodes.has(id)) return fail(`collectionId "${id}" already exists; use a fresh id for the collection`);
-    if (parentId !== null && !this.nodes.has(parentId)) return fail(`parentCollectionId "${parentId}" does not exist; create that collection first or use an id from editor.get_context`);
+    if (parentId !== null && !this.nodes.has(parentId))
+      return fail(
+        `parentCollectionId "${parentId}" does not exist; create that collection first or use an id from editor.get_context`,
+      );
     const resolved = resolveSiblingName(name, this.siblingNames(parentId));
     if (!resolved.ok) return fail(resolved.message);
     this.nodes.set(id, { name: resolved.name, parentId, visible: true });
@@ -131,7 +140,9 @@ export class CollectionModel {
     if (!node) return fail(`collectionId "${id}" does not exist`);
     if (parentId !== null && !this.nodes.has(parentId)) return fail(`parentCollectionId "${parentId}" does not exist`);
     if (parentId !== null && isWithinBranch(parentId, id, (above) => this.nodes.get(above)?.parentId)) {
-      return fail(`collection "${id}" cannot be placed inside "${parentId}": that would put it inside itself or inside something it contains`);
+      return fail(
+        `collection "${id}" cannot be placed inside "${parentId}": that would put it inside itself or inside something it contains`,
+      );
     }
     const resolved = resolveSiblingName(node.name, this.siblingNames(parentId, id));
     if (!resolved.ok) return fail(resolved.message);
@@ -157,7 +168,8 @@ export class CollectionModel {
       this.membership.delete(objectId);
       return undefined;
     }
-    if (!this.nodes.has(collectionId)) return `collectionId "${collectionId}" does not exist; create it first or use an id from editor.get_context`;
+    if (!this.nodes.has(collectionId))
+      return `collectionId "${collectionId}" does not exist; create it first or use an id from editor.get_context`;
     this.membership.set(objectId, collectionId);
     return undefined;
   }

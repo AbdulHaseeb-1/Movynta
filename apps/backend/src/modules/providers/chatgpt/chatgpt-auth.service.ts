@@ -8,11 +8,7 @@ import { ChatgptLoginRepository } from "./chatgpt-login.repository.js";
 import { ChatgptOAuthClient } from "./chatgpt-oauth.client.js";
 import { generatePkce, generateState } from "./chatgpt-pkce.js";
 import { readTokenClaims } from "./chatgpt-token-claims.js";
-import {
-  CHATGPT_LOGIN_TIMEOUT_MS,
-  CHATGPT_LOGIN_TTL_MS,
-  CHATGPT_REFRESH_MARGIN_MS,
-} from "./chatgpt.constants.js";
+import { CHATGPT_LOGIN_TIMEOUT_MS, CHATGPT_LOGIN_TTL_MS, CHATGPT_REFRESH_MARGIN_MS } from "./chatgpt.constants.js";
 import type {
   ChatgptAccessCredentials,
   ChatgptLoginStart,
@@ -36,8 +32,7 @@ interface PendingLogin {
   cancelled: boolean;
 }
 
-const EXPIRED_MESSAGE =
-  "Your ChatGPT sign-in expired. Sign in again in Settings > Providers.";
+const EXPIRED_MESSAGE = "Your ChatGPT sign-in expired. Sign in again in Settings > Providers.";
 
 /**
  * Owns the ChatGPT subscription sign-in: the browser flow, encrypted token storage, refresh, and the
@@ -130,8 +125,7 @@ export class ChatgptAuthService implements OnModuleDestroy {
     if (!stored) throw new ChatgptSignInRequiredError("Sign in with ChatGPT in Settings first.");
     if (!stored.encryptedTokens) throw new ChatgptSignInRequiredError(EXPIRED_MESSAGE);
     let tokens = await this.decrypt(userId, stored.encryptedTokens);
-    if (tokens.accessExpiresAt - Date.now() < CHATGPT_REFRESH_MARGIN_MS)
-      tokens = await this.refresh(userId);
+    if (tokens.accessExpiresAt - Date.now() < CHATGPT_REFRESH_MARGIN_MS) tokens = await this.refresh(userId);
     return { accessToken: tokens.accessToken, accountId: tokens.accountId };
   }
 
@@ -156,12 +150,8 @@ export class ChatgptAuthService implements OnModuleDestroy {
       await this.connectedListener?.(userId);
     } catch (error) {
       if (login.cancelled) return;
-      this.failures.set(
-        userId,
-        error instanceof AppError ? error.message : "The ChatGPT sign-in failed.",
-      );
-      if (!(error instanceof AppError))
-        this.logger.warn("ChatGPT sign-in failed unexpectedly");
+      this.failures.set(userId, error instanceof AppError ? error.message : "The ChatGPT sign-in failed.");
+      if (!(error instanceof AppError)) this.logger.warn("ChatGPT sign-in failed unexpectedly");
     } finally {
       if (this.pending.get(userId) === login) this.pending.delete(userId);
     }

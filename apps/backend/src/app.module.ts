@@ -20,6 +20,7 @@ import { SkillsModule } from "./modules/skills/skills.module.js";
 import { ToolsModule } from "./modules/tools/tools.module.js";
 import { ProvidersModule } from "./modules/providers/providers.module.js";
 
+/** The root module. It wires configuration, persistence and every feature module, and sets up the request middleware. */
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),

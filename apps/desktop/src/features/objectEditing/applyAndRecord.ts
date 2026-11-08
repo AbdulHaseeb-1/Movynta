@@ -1,6 +1,7 @@
 import type { EditorScene, UserEdit } from "@/features/assistant";
 import { recordSceneEdit } from "./sceneEditApi";
 
+/** The message shown when a change needs the project saved first. */
 export const SAVE_FIRST = "Save the project first by sending a prompt or importing a model.";
 
 /** A change the user made by hand, and how to take it back. */

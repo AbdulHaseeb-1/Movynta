@@ -7,11 +7,11 @@ import { ProjectActionsMenu } from "./ProjectActionsMenu";
 import { projectPath } from "./projectCategories";
 import { displayName, isUntitled } from "./projectName";
 import { ProjectThumbnail } from "./ProjectThumbnail";
-import type { Project, ProjectAction } from "./projectTypes";
+import type { Project, ProjectActionHandler } from "./projectTypes";
 
 interface ProjectCardProps {
   project: Project;
-  onAction: (action: ProjectAction, project: Project) => void;
+  onAction: ProjectActionHandler;
 }
 
 /**
@@ -40,14 +40,14 @@ export function ProjectCard({ project, onAction }: ProjectCardProps) {
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label={project.starred ? "Remove star" : "Add star"}
+        // A toggle keeps its name and reports its state, so a screen reader does not announce "Remove star, pressed".
+        aria-label={`Star ${title}`}
         aria-pressed={project.starred}
+        title={project.starred ? "Remove star" : "Add star"}
         onClick={() => onAction("star", project)}
         className={cn(
           "absolute top-2.5 right-2.5 z-10 rounded-full text-muted-foreground transition-opacity hover:bg-transparent hover:text-foreground focus-visible:bg-transparent focus-visible:opacity-100",
-          project.starred
-            ? "text-foreground"
-            : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
+          project.starred ? "text-foreground" : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
         )}
       >
         <Star className={cn("size-3.5", project.starred && "fill-current")} />
@@ -56,17 +56,12 @@ export function ProjectCard({ project, onAction }: ProjectCardProps) {
         <div className="min-w-0">
           <h3
             title={title}
-            className={cn(
-              "truncate text-sm leading-5 font-semibold",
-              untitled && "font-medium text-muted-foreground",
-            )}
+            className={cn("truncate text-sm leading-5 font-semibold", untitled && "font-medium text-muted-foreground")}
           >
             {title}
           </h3>
           <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground">
-            <time dateTime={project.updatedAt}>
-              Updated {formatRelativeTime(project.updatedAt)}
-            </time>
+            <time dateTime={project.updatedAt}>Updated {formatRelativeTime(project.updatedAt)}</time>
           </p>
         </div>
         <ProjectActionsMenu project={project} onAction={onAction}>

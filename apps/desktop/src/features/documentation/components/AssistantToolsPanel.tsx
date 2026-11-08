@@ -1,8 +1,20 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 import { assistantToolDocument, matchesTool, toolAnchor, toolsOfType } from "../assistantTools/assistantTools";
-import { assistantToolTypeSchema, type AssistantTool, type AssistantToolType } from "../assistantTools/assistantTools.schema";
+import {
+  assistantToolTypeSchema,
+  type AssistantTool,
+  type AssistantToolType,
+} from "../assistantTools/assistantTools.schema";
 import { AssistantToolCard } from "./AssistantToolCard";
 
 interface AssistantToolsPanelProps {
@@ -41,25 +53,31 @@ export function AssistantToolsPanel({ query }: AssistantToolsPanelProps) {
     toolsOfType(reference, type).filter((tool) => term === "" || matchesTool(tool, term));
 
   const selectType = (type: string) => {
-    setParams((previous) => {
-      const next = new URLSearchParams(previous);
-      next.set("area", "assistant");
-      next.set("type", type);
-      next.delete("tool");
-      return next;
-    }, { replace: true });
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        next.set("area", "assistant");
+        next.set("type", type);
+        next.delete("tool");
+        return next;
+      },
+      { replace: true },
+    );
   };
 
   const openTool = (name: string) => {
     const target = reference.tools.find((tool) => tool.name === name);
     if (!target) return;
-    setParams((previous) => {
-      const next = new URLSearchParams(previous);
-      next.set("area", "assistant");
-      next.set("type", target.type);
-      next.set("tool", name);
-      return next;
-    }, { replace: true });
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        next.set("area", "assistant");
+        next.set("type", target.type);
+        next.set("tool", name);
+        return next;
+      },
+      { replace: true },
+    );
   };
 
   return (
@@ -67,7 +85,9 @@ export function AssistantToolsPanel({ query }: AssistantToolsPanelProps) {
       <Collapsible className="rounded-xl border border-border bg-card">
         <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-medium transition-colors hover:text-brand">
           About this reference: rules and conventions
-          <span aria-hidden className="text-xs text-muted-foreground">Show or hide</span>
+          <span aria-hidden className="text-xs text-muted-foreground">
+            Show or hide
+          </span>
         </CollapsibleTrigger>
         <CollapsibleContent className="px-5 pb-5 sm:px-6 sm:pb-6">
           <p className="text-sm leading-6 text-muted-foreground">{reference.intro}</p>
@@ -75,7 +95,9 @@ export function AssistantToolsPanel({ query }: AssistantToolsPanelProps) {
             <div>
               <h2 className="text-sm font-semibold">Rules</h2>
               <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-6 text-foreground/90">
-                {reference.rules.map((rule) => <li key={rule}>{rule}</li>)}
+                {reference.rules.map((rule) => (
+                  <li key={rule}>{rule}</li>
+                ))}
               </ol>
             </div>
             <div>
@@ -132,7 +154,13 @@ export function AssistantToolsPanel({ query }: AssistantToolsPanelProps) {
                       ))}
                     </nav>
                     {members.map((tool) => (
-                      <AssistantToolCard key={tool.name} tool={tool} scene={reference.scene} typeLabel={type.label} onOpenTool={openTool} />
+                      <AssistantToolCard
+                        key={tool.name}
+                        tool={tool}
+                        scene={reference.scene}
+                        typeLabel={type.label}
+                        onOpenTool={openTool}
+                      />
                     ))}
                   </div>
                 );

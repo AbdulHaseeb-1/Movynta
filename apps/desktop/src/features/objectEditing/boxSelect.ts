@@ -15,22 +15,24 @@ const point = new Vector3();
 /**
  * Select objects whose world bounding-box centers project inside the rectangle.
  */
-export function idsInRect(
-  objects: Iterable<readonly [string, Object3D]>,
-  camera: Camera,
-  rect: NdcRect,
-): string[] {
+export function idsInRect(objects: Iterable<readonly [string, Object3D]>, camera: Camera, rect: NdcRect): string[] {
   camera.updateMatrixWorld();
   const found: string[] = [];
   for (const [id, object] of objects) {
     let visible = true;
     for (let node: Object3D | null = object; node; node = node.parent) {
-      if (!node.visible) { visible = false; break; }
+      if (!node.visible) {
+        visible = false;
+        break;
+      }
     }
     if (!visible) continue;
     object.updateWorldMatrix(true, false);
     visibleBounds(object, box.makeEmpty());
-    if (box.isEmpty()) { object.getWorldPosition(box.min); box.max.copy(box.min); }
+    if (box.isEmpty()) {
+      object.getWorldPosition(box.min);
+      box.max.copy(box.min);
+    }
     box.getCenter(point);
     point.applyMatrix4(camera.matrixWorldInverse);
     if (point.z >= -1e-6) continue;

@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
+/** The state of the shortcuts dialog: whether it is open. */
 export interface HelpState {
   /** Whether the keyboard shortcuts dialog is open. */
   shortcutsOpen: boolean;
@@ -17,5 +18,7 @@ const helpSlice = createSlice({
   },
 });
 
+/** The action that opens or closes the shortcuts dialog. */
 export const { setShortcutsOpen } = helpSlice.actions;
+/** The reducer for the shortcuts dialog state. */
 export const helpReducer = helpSlice.reducer;

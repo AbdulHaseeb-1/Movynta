@@ -8,6 +8,7 @@ import { CHATGPT_MODEL_SETTINGS } from "./chatgpt/chatgpt.constants.js";
  * translates it here.
  */
 export const REASONING_EFFORTS = ["minimal", "low", "medium", "high"] as const;
+/** How hard a model should think: minimal, low, medium or high. */
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 const LOW_MEDIUM_HIGH: readonly ReasoningEffort[] = ["low", "medium", "high"];
@@ -26,18 +27,12 @@ function openaiEfforts(model: string): readonly ReasoningEffort[] {
 
 function chatgptEfforts(model: string): readonly ReasoningEffort[] {
   // The subscription backend accepts the shared subset on every reasoning model, but not "minimal".
-  return /^(gpt-([5-9]|\d{2,})|o\d)|codex/.test(model) && !/chat|-pro/.test(model)
-    ? LOW_MEDIUM_HIGH
-    : [];
+  return /^(gpt-([5-9]|\d{2,})|o\d)|codex/.test(model) && !/chat|-pro/.test(model) ? LOW_MEDIUM_HIGH : [];
 }
 
 function anthropicEfforts(model: string): readonly ReasoningEffort[] {
   // Extended thinking: Claude 3.7 Sonnet, the 4 family, and the 5 family.
-  return /^claude-(3-7-sonnet|(opus|sonnet|haiku)-4|(fable|opus|sonnet|haiku)-5)/.test(
-    model,
-  )
-    ? LOW_MEDIUM_HIGH
-    : [];
+  return /^claude-(3-7-sonnet|(opus|sonnet|haiku)-4|(fable|opus|sonnet|haiku)-5)/.test(model) ? LOW_MEDIUM_HIGH : [];
 }
 
 function googleEfforts(model: string): readonly ReasoningEffort[] {
@@ -51,10 +46,7 @@ function googleEfforts(model: string): readonly ReasoningEffort[] {
  * should be offered or sent. Endpoints behind the "compatible" providers are unknown, so they never
  * get one. Only values every model of a family accepts are listed, so a listed value never errors.
  */
-export function reasoningEffortsFor(
-  providerId: ProviderId,
-  model: string,
-): readonly ReasoningEffort[] {
+export function reasoningEffortsFor(providerId: ProviderId, model: string): readonly ReasoningEffort[] {
   const name = model.toLowerCase();
   if (providerId === "openai") return openaiEfforts(name);
   if (providerId === "chatgpt") return chatgptEfforts(name);
@@ -78,13 +70,8 @@ const GOOGLE_BUDGET: Readonly<Record<ReasoningEffort, number>> = {
 };
 
 /** Model settings that apply `effort` for the provider. Call only with a value from `reasoningEffortsFor`. */
-export function reasoningModelSettings(
-  providerId: ProviderId,
-  model: string,
-  effort: ReasoningEffort,
-): ModelSettings {
-  if (providerId === "openai" || providerId === "chatgpt")
-    return { reasoning: { effort } };
+export function reasoningModelSettings(providerId: ProviderId, model: string, effort: ReasoningEffort): ModelSettings {
+  if (providerId === "openai" || providerId === "chatgpt") return { reasoning: { effort } };
   if (providerId === "anthropic")
     return {
       providerData: {

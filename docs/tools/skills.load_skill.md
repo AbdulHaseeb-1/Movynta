@@ -56,10 +56,13 @@ Result:
 {
   "status": "loaded",
   "skillId": "mesh-editing",
-  "version": "1.9.0",
+  "version": "1.11.0",
   "instructions": "# Mesh editing workflow\n\n1. Call `editor.get_context` and confirm every target object exists.\n2. Describe the change in plain language, then build the smallest set of commands that achieves it.\n… (the rest of the workflow is in skills/mesh-editing/SKILL.md)",
   "toolNames": [
     "editor.get_context",
+    "editor.read_branch",
+    "editor.find_repeats",
+    "editor.query_objects",
     "editor.inspect_mesh",
     "editor.inspect_materials",
     "editor.measure",
@@ -75,12 +78,16 @@ Result:
   "validation": [
     "Each target object id exists in the latest editor context.",
     "Transforms use finite numbers, and scale values are positive.",
-    "Replacing geometry is an explicit destructive command and applies automatically through a proposal."
+    "Replacing geometry is an explicit destructive command and applies automatically through a proposal.",
+    "Each proposal edits one object with one kind of operation. Several objects or several kinds of change are several chunks, each applied and checked before the next.",
+    "Before an edit the target is inspected, and after it the same property is measured or inspected again and compared with what the request asked for."
   ],
   "errorHandling": [
     "If a target object is missing, stop and ask the user which object to change.",
     "If the user rejects a destructive proposal, do not retry it. Propose a non-destructive alternative instead.",
-    "Report revision conflicts, read the current context, and recalculate before proposing corrected commands."
+    "Report revision conflicts, read the current context, and recalculate before proposing corrected commands.",
+    "If an edit does not give the expected result, do not stack another edit on it. Read the result, undo or correct that edit, and check it again.",
+    "If the same command is refused twice, change the cause (ids, revision, modifiers, geometry limits) or report that it cannot be done; do not resend it."
   ]
 }
 ```

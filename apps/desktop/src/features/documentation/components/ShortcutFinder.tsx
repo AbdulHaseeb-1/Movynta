@@ -72,12 +72,18 @@ export function ShortcutFinder() {
         {chord ? (
           chordKeys(chord).map((key, index) => (
             <span key={key} className="inline-flex items-center gap-1.5">
-              {index > 0 && <span aria-hidden className="text-xs text-muted-foreground">+</span>}
+              {index > 0 && (
+                <span aria-hidden className="text-xs text-muted-foreground">
+                  +
+                </span>
+              )}
               <Kbd className="h-7 min-w-7 px-2 text-sm">{key}</Kbd>
             </span>
           ))
         ) : (
-          <span className="text-xs text-muted-foreground">{focused ? "Press a key…" : "Click here, then press a key"}</span>
+          <span className="text-xs text-muted-foreground">
+            {focused ? "Press a key…" : "Click here, then press a key"}
+          </span>
         )}
       </button>
 
@@ -94,14 +100,28 @@ export function ShortcutFinder() {
             </p>
             <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
               {matches.map(({ group, control }) => (
-                <li key={`${group.id}-${control.action}`} className="grid gap-x-4 gap-y-0.5 px-3 py-2 sm:grid-cols-[11rem_minmax(0,1fr)]">
-                  <p className="text-[11px] text-muted-foreground">{group.name}<span className="block text-[10px] opacity-80">{group.context}</span></p>
+                <li
+                  key={`${group.id}-${control.action}`}
+                  className="grid gap-x-4 gap-y-0.5 px-3 py-2 sm:grid-cols-[11rem_minmax(0,1fr)]"
+                >
+                  <p className="text-[11px] text-muted-foreground">
+                    {group.name}
+                    <span className="block text-[10px] opacity-80">{group.context}</span>
+                  </p>
                   <div className="min-w-0">
                     <p className="text-xs font-medium">{control.action}</p>
                     <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
                       {control.detail}
                       {control.guide && (
-                        <> <Link to={guidePath(control.guide)} className="whitespace-nowrap text-foreground/80 underline-offset-2 hover:text-foreground hover:underline">Learn more</Link></>
+                        <>
+                          {" "}
+                          <Link
+                            to={guidePath(control.guide)}
+                            className="whitespace-nowrap text-foreground/80 underline-offset-2 hover:text-foreground hover:underline"
+                          >
+                            Learn more
+                          </Link>
+                        </>
                       )}
                     </p>
                   </div>

@@ -2,12 +2,7 @@ import { Vector2, type Vector3 } from "three";
 import { faceNormal, point, type PolygonMesh } from "./meshTopology";
 
 /** A cut must stay inside its planar face without touching another boundary in between. */
-export function validateKnifeChord(
-  mesh: PolygonMesh,
-  face: number[],
-  a: Vector3,
-  b: Vector3,
-): void {
+export function validateKnifeChord(mesh: PolygonMesh, face: number[], a: Vector3, b: Vector3): void {
   const normal = faceNormal(mesh, face);
   const axis =
     Math.abs(normal.x) > Math.abs(normal.y)
@@ -18,11 +13,7 @@ export function validateKnifeChord(
         ? 1
         : 2;
   const project = (p: Vector3) =>
-    axis === 0
-      ? new Vector2(p.y, p.z)
-      : axis === 1
-        ? new Vector2(p.x, p.z)
-        : new Vector2(p.x, p.y);
+    axis === 0 ? new Vector2(p.y, p.z) : axis === 1 ? new Vector2(p.x, p.z) : new Vector2(p.x, p.y);
   const start = project(a),
     end = project(b),
     direction = end.clone().sub(start);
@@ -45,8 +36,7 @@ export function validateKnifeChord(
     }
     if (
       from.y > midpoint.y !== to.y > midpoint.y &&
-      midpoint.x <
-        ((to.x - from.x) * (midpoint.y - from.y)) / (to.y - from.y) + from.x
+      midpoint.x < ((to.x - from.x) * (midpoint.y - from.y)) / (to.y - from.y) + from.x
     )
       inside = !inside;
   }

@@ -28,6 +28,29 @@ describe("session history and tool pictures", () => {
     expect(serialized).toContain("capture the view again");
   });
 
+  it("keeps what a user typed and the names of attached images, and drops the images", () => {
+    const message = {
+      role: "user",
+      content: [
+        { type: "input_text", text: "Build it like this" },
+        { type: "input_text", text: "Attached image 1 of 1: robot.png" },
+        { type: "input_image", image: "data:image/png;base64,CCCC" },
+      ],
+    } as AgentInputItem;
+    const serialized = JSON.stringify(withoutImages(message));
+
+    expect(serialized).not.toContain("CCCC");
+    expect(serialized).not.toContain("input_image");
+    expect(serialized).toContain("Build it like this");
+    expect(serialized).toContain("robot.png");
+    expect(serialized).toContain("attach it again");
+  });
+
+  it("leaves a user message without images as it is", () => {
+    const message = { role: "user", content: [{ type: "input_text", text: "hello" }] } as AgentInputItem;
+    expect(withoutImages(message)).toBe(message);
+  });
+
   it("leaves other items as they are", () => {
     const message = { role: "user", content: "Look at the torso" } as AgentInputItem;
     const textResult = { type: "function_call_result", name: "editor__get_context", callId: "c", status: "completed", output: "{}" } as AgentInputItem;

@@ -40,44 +40,30 @@ export class ChatgptModelCatalog {
   async list(userId: string): Promise<readonly string[]> {
     const { accessToken, accountId } = await this.auth.credentials(userId);
     const cached = this.cache.get(accountId);
-    if (cached && Date.now() - cached.fetchedAt < CHATGPT_CATALOG_TTL_MS)
-      return cached.models;
+    if (cached && Date.now() - cached.fetchedAt < CHATGPT_CATALOG_TTL_MS) return cached.models;
     const models = await this.fetchModels(accessToken, accountId);
     this.cache.set(accountId, { fetchedAt: Date.now(), models });
     return models;
   }
 
-  private async fetchModels(
-    accessToken: string,
-    accountId: string,
-  ): Promise<readonly string[]> {
+  private async fetchModels(accessToken: string, accountId: string): Promise<readonly string[]> {
     let response: Response;
     try {
-      response = await fetch(
-        `${CHATGPT_BASE_URL}/models?client_version=${CHATGPT_CLIENT_VERSION}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "chatgpt-account-id": accountId,
-            originator: CHATGPT_ORIGINATOR,
-            Accept: "application/json",
-          },
-          redirect: "error",
-          signal: AbortSignal.timeout(CHATGPT_REQUEST_TIMEOUT_MS),
+      response = await fetch(`${CHATGPT_BASE_URL}/models?client_version=${CHATGPT_CLIENT_VERSION}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "chatgpt-account-id": accountId,
+          originator: CHATGPT_ORIGINATOR,
+          Accept: "application/json",
         },
-      );
+        redirect: "error",
+        signal: AbortSignal.timeout(CHATGPT_REQUEST_TIMEOUT_MS),
+      });
     } catch {
-      throw new ServiceUnavailableError(
-        "Could not load ChatGPT models. Check your network and try again.",
-      );
+      throw new ServiceUnavailableError("Could not load ChatGPT models. Check your network and try again.");
     }
-    const parsed = response.ok
-      ? catalogSchema.safeParse(await response.json())
-      : undefined;
-    if (!parsed?.success)
-      throw new ServiceUnavailableError(
-        "Could not load ChatGPT models. Try signing in again.",
-      );
+    const parsed = response.ok ? catalogSchema.safeParse(await response.json()) : undefined;
+    if (!parsed?.success) throw new ServiceUnavailableError("Could not load ChatGPT models. Try signing in again.");
     return parsed.data.models
       .filter((model) => model.visibility === "list")
       .sort((a, b) => (a.priority ?? Infinity) - (b.priority ?? Infinity))

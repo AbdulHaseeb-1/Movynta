@@ -10,7 +10,10 @@ export type ViewportShortcut =
   | { kind: "toggle-xray" };
 
 /** The parts of a key press the mapping reads, so it can be tested without a DOM event. */
-export type ShortcutKey = Pick<KeyboardEvent, "key" | "code" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "repeat">;
+export type ShortcutKey = Pick<
+  KeyboardEvent,
+  "key" | "code" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "repeat"
+>;
 
 /**
  * The viewport action a key press stands for, or undefined. The keys follow Blender: numpad 1, 3 and 7
@@ -31,7 +34,8 @@ export function viewportShortcut(event: ShortcutKey): ViewportShortcut | undefin
   const key = event.key.toLowerCase();
   if (key === "=" || key === "+") return { kind: "zoom", direction: "in" };
   if (key === "-" || key === "_") return { kind: "zoom", direction: "out" };
-  if (key === "0") return { kind: "reset" };
+  // The top-row zero is a shifted key on AZERTY layouts, so it is matched by its position as well as by its character.
+  if (key === "0" || event.code === "Digit0") return { kind: "reset" };
   if (key === ".") return { kind: "frame", scope: "selection" };
   if (event.key === "Home") return { kind: "frame", scope: "all" };
   return undefined;

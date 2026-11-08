@@ -3,7 +3,8 @@ import type { PolygonMesh } from "./meshTopology";
 
 /** Total surface area and enclosed volume of a cage, from its triangulation. */
 export function measureSurface(mesh: PolygonMesh): { area: number; volume: number } {
-  let area = 0, volume = 0;
+  let area = 0,
+    volume = 0;
   for (const face of mesh.faces) {
     for (const triangle of triangulate(mesh, face)) {
       const [a, b, c] = triangle.map((corner) => mesh.positions[face[corner] ?? -1]);

@@ -5,6 +5,7 @@ import { measurementAnnotationSchema, measurementResultSchema, measurementUnitsS
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const vector3 = z.tuple([z.number().finite(), z.number().finite(), z.number().finite()]);
 
+/** The schema for one object of the scene snapshot. */
 export const editorObjectSchema = z.object({
   id: identifier,
   name: z.string().max(120),
@@ -44,7 +45,11 @@ export const designFocusSchema = z
         kind: z.enum(["vertex", "edge", "face"]),
         ids: z.array(z.string().regex(/^\d{1,10}(_\d{1,10})?$/)).max(4096),
         modifiersEnabled: z.boolean(),
-        baseFaceIds: z.array(z.string().regex(/^\d{1,10}$/)).min(1).max(4096).optional(),
+        baseFaceIds: z
+          .array(z.string().regex(/^\d{1,10}$/))
+          .min(1)
+          .max(4096)
+          .optional(),
       })
       .strict()
       .nullable(),

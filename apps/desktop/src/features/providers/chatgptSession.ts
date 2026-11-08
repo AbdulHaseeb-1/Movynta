@@ -4,6 +4,7 @@ import { backendDisconnected } from "./providersSlice";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** The schema for the ChatGPT sign-in session. */
 export const chatgptSessionSchema = z.object({
   state: z.enum(["disconnected", "pending", "connected", "expired"]),
   email: z.string().nullable(),
@@ -12,8 +13,10 @@ export const chatgptSessionSchema = z.object({
   expiresAt: z.string().nullable(),
   error: z.string().nullable(),
 });
+/** The ChatGPT sign-in session as the app knows it. */
 export type ChatgptSession = z.infer<typeof chatgptSessionSchema>;
 
+/** The schema for the reply that starts a ChatGPT sign-in. */
 export const chatgptLoginStartSchema = z.object({
   authorizationUrl: z.url(),
   expiresAt: z.string(),
@@ -23,8 +26,10 @@ interface ChatgptSessionState {
   session: ChatgptSession | null;
   /** The backend reports a failed sign-in once, so it is kept here until the user dismisses it. */
   error: string | null;
+  /** The ChatGPT page of the sign-in in progress, kept for as long as it lasts so the page can be opened again. */
+  authorizationUrl: string | null;
 }
-const initialState: ChatgptSessionState = { session: null, error: null };
+const initialState: ChatgptSessionState = { session: null, error: null, authorizationUrl: null };
 
 const slice = createSlice({
   name: "chatgptSession",
@@ -33,6 +38,10 @@ const slice = createSlice({
     chatgptSessionLoaded(state, action: PayloadAction<ChatgptSession>) {
       state.session = action.payload;
       if (action.payload.error) state.error = action.payload.error;
+      if (action.payload.state !== "pending") state.authorizationUrl = null;
+    },
+    chatgptLoginStarted(state, action: PayloadAction<string>) {
+      state.authorizationUrl = action.payload;
     },
     chatgptErrorDismissed(state) {
       state.error = null;
@@ -43,7 +52,9 @@ const slice = createSlice({
   },
 });
 
-export const { chatgptSessionLoaded, chatgptErrorDismissed } = slice.actions;
+/** The actions that record the ChatGPT sign-in session and its errors. */
+export const { chatgptSessionLoaded, chatgptLoginStarted, chatgptErrorDismissed } = slice.actions;
+/** The reducer for the ChatGPT sign-in session. */
 export const chatgptSessionReducer = slice.reducer;
 
 /** Whole days left before the sign-in must be renewed; never negative. */
@@ -66,10 +77,7 @@ export function describeChatgptSession(session: ChatgptSession | null): string {
   if (session?.state === "expired") return "Sign-in expired";
   if (session?.state !== "connected") return "";
   const days = session.expiresAt ? daysUntil(session.expiresAt) : null;
-  return [
-    session.email,
-    days === null ? null : `${days} ${days === 1 ? "day" : "days"} left`,
-  ]
+  return [session.email, days === null ? null : `${days} ${days === 1 ? "day" : "days"} left`]
     .filter(Boolean)
     .join(" · ");
 }

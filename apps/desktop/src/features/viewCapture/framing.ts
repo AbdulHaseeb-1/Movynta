@@ -1,6 +1,7 @@
 import { MathUtils, Vector3, type Box3 } from "three";
 import type { ViewSpec } from "@movynta/editor-protocol";
 
+/** How the camera projects the scene: perspective or orthographic. */
 export type Projection = "perspective" | "orthographic";
 
 /** Where a camera stands and what it looks at, in world space. */
@@ -65,7 +66,11 @@ export function subjectOf(box: Box3 | null): Subject {
 export function orbitDirection(azimuthDegrees: number, elevationDegrees: number): Vector3 {
   const azimuth = MathUtils.degToRad(azimuthDegrees);
   const elevation = MathUtils.degToRad(elevationDegrees);
-  return new Vector3(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), Math.cos(azimuth) * Math.cos(elevation));
+  return new Vector3(
+    Math.sin(azimuth) * Math.cos(elevation),
+    Math.sin(elevation),
+    Math.cos(azimuth) * Math.cos(elevation),
+  );
 }
 
 /**
@@ -92,7 +97,12 @@ export function captureNear(distance: number): number {
 }
 
 /** Where the capture grid and axes sit so they appear with the framed subject, not at the world origin. */
-export function guidePlacement(subject: Subject): { origin: Vector3; floor: Vector3; size: number; axisLength: number } {
+export function guidePlacement(subject: Subject): {
+  origin: Vector3;
+  floor: Vector3;
+  size: number;
+  axisLength: number;
+} {
   return {
     origin: subject.center.clone(),
     floor: new Vector3(subject.center.x, subject.center.y - subject.radius, subject.center.z),

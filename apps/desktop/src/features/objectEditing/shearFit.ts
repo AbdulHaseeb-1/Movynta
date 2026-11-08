@@ -15,7 +15,6 @@ import { isMesh } from "@/lib/three";
 const SHEAR_LIMIT = 1e-5;
 type Attribute = BufferAttribute | InterleavedBufferAttribute;
 
-
 /** World position of one vertex, after any shear baked into the geometry. */
 export function meshVertexWorld(object: Object3D, index: number): Vector3 {
   if (!isMesh(object)) throw new Error("Expected a mesh");
@@ -121,7 +120,8 @@ export function assignLocalMatrix(object: Object3D, local: Matrix4, bake: boolea
   if (shear && bake) {
     if (isMesh(object)) bakeMesh(object, residual);
     const carried = new Matrix4();
-    for (const child of object.children) assignLocalMatrix(child, residual.clone().multiply(childMatrix(child, carried)), true);
+    for (const child of object.children)
+      assignLocalMatrix(child, residual.clone().multiply(childMatrix(child, carried)), true);
     object.matrixAutoUpdate = true;
     object.updateMatrix();
     return;
@@ -166,7 +166,9 @@ export function hasNonUniformWorldScale(object: Object3D): boolean {
   const scale = new Vector3();
   parent.matrixWorld.decompose(new Vector3(), new Quaternion(), scale);
   const limit = 1e-4 * Math.max(1, Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
-  return Math.abs(Math.abs(scale.x) - Math.abs(scale.y)) > limit || Math.abs(Math.abs(scale.y) - Math.abs(scale.z)) > limit;
+  return (
+    Math.abs(Math.abs(scale.x) - Math.abs(scale.y)) > limit || Math.abs(Math.abs(scale.y) - Math.abs(scale.z)) > limit
+  );
 }
 
 /**
@@ -174,7 +176,12 @@ export function hasNonUniformWorldScale(object: Object3D): boolean {
  * `axisInParentSpace` is the axis after the parent's rotation has been removed, which is how the
  * handles report it.
  */
-export function correctWorldRotation(object: Object3D, startWorld: Matrix4, axisInParentSpace: Vector3, angle: number): void {
+export function correctWorldRotation(
+  object: Object3D,
+  startWorld: Matrix4,
+  axisInParentSpace: Vector3,
+  angle: number,
+): void {
   const axis = axisInParentSpace.clone();
   const parent = object.parent;
   if (parent) {

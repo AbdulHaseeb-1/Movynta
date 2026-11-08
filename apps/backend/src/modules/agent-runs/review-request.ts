@@ -14,19 +14,28 @@ export function buildReviewRequest(request: string, progress: RunProgress): stri
   if (brief.current === null) {
     lines.push("The builder recorded no brief, so there are no checks of its own. Judge against the request.");
   } else {
-    lines.push(`The builder's brief: ${brief.current.subject}${brief.current.style ? ` (${brief.current.style})` : ""}`);
-    if (brief.current.assumptions.length > 0) lines.push("Assumptions it made:", ...brief.current.assumptions.map((assumption) => `- ${assumption}`));
+    lines.push(
+      `The builder's brief: ${brief.current.subject}${brief.current.style ? ` (${brief.current.style})` : ""}`,
+    );
+    if (brief.current.assumptions.length > 0)
+      lines.push("Assumptions it made:", ...brief.current.assumptions.map((assumption) => `- ${assumption}`));
     const measured = brief.last !== null && !brief.stale;
     lines.push(
-      measured ? "Its checks, all measured and passing:" : "Its checks (not measured on this scene; measure them yourself):",
+      measured
+        ? "Its checks, all measured and passing:"
+        : "Its checks (not measured on this scene; measure them yourself):",
       ...brief.current.checks.map((check) => `- ${check.label ?? check.kind}`),
     );
-    if (brief.revisions > 0) lines.push(`The brief was rewritten ${brief.revisions} time${brief.revisions === 1 ? "" : "s"} during the work, so check that it still asks for the right things.`);
+    if (brief.revisions > 0)
+      lines.push(
+        `The brief was rewritten ${brief.revisions} time${brief.revisions === 1 ? "" : "s"} during the work, so check that it still asks for the right things.`,
+      );
   }
 
   if (quality.findings.length > 0) {
     lines.push("", "A previous review asked for these fixes. Check that each one was done:");
-    for (const finding of quality.findings) lines.push(`- ${finding.aspect}: ${finding.observation}${finding.fix ? ` Fix: ${finding.fix}` : ""}`);
+    for (const finding of quality.findings)
+      lines.push(`- ${finding.aspect}: ${finding.observation}${finding.fix ? ` Fix: ${finding.fix}` : ""}`);
   }
   lines.push("", "Review the scene as it is now.");
   return lines.join("\n");

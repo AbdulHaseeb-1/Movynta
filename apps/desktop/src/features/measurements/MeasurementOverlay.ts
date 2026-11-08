@@ -35,12 +35,20 @@ function angleArc(points: readonly number[][]): Vector3[] {
   const second = new Vector3().fromArray(c).sub(center);
   const radius = Math.min(first.length(), second.length()) * 0.25;
   if (radius === 0) return [];
-  first.normalize(); second.normalize();
+  first.normalize();
+  second.normalize();
   const angle = first.angleTo(second);
   const axis = first.clone().cross(second);
-  if (axis.lengthSq() < 1e-12) axis.crossVectors(first, Math.abs(first.y) < 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0));
+  if (axis.lengthSq() < 1e-12)
+    axis.crossVectors(first, Math.abs(first.y) < 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0));
   axis.normalize();
-  return Array.from({ length: 17 }, (_, i) => first.clone().applyAxisAngle(axis, angle * i / 16).multiplyScalar(radius).add(center));
+  return Array.from({ length: 17 }, (_, i) =>
+    first
+      .clone()
+      .applyAxisAngle(axis, (angle * i) / 16)
+      .multiplyScalar(radius)
+      .add(center),
+  );
 }
 
 /** Dimension lines and true 3D angle arcs remain attached to their world points as the camera moves. */
@@ -48,38 +56,68 @@ export class MeasurementOverlay {
   private readonly element: SVGSVGElement;
   private readonly stop: () => void;
 
-  constructor(viewport: Viewport, annotations: readonly MeasurementAnnotation[], label: (annotation: MeasurementAnnotation) => string) {
+  constructor(
+    viewport: Viewport,
+    annotations: readonly MeasurementAnnotation[],
+    label: (annotation: MeasurementAnnotation) => string,
+  ) {
     const ns = "http://www.w3.org/2000/svg";
     this.element = document.createElementNS(ns, "svg");
     this.element.setAttribute("aria-hidden", "true");
-    this.element.setAttribute("class", "pointer-events-none absolute inset-0 h-full w-full overflow-hidden text-foreground");
+    this.element.setAttribute(
+      "class",
+      "pointer-events-none absolute inset-0 h-full w-full overflow-hidden text-foreground",
+    );
     const rows = annotations.map((annotation) => {
       const group = document.createElementNS(ns, "g");
       const title = document.createElementNS(ns, "title");
       title.textContent = annotation.name;
       const halo = document.createElementNS(ns, "path");
-      halo.setAttribute("fill", "none"); halo.setAttribute("stroke", "var(--background)"); halo.setAttribute("stroke-width", "3.5"); halo.setAttribute("stroke-opacity", "0.7");
+      halo.setAttribute("fill", "none");
+      halo.setAttribute("stroke", "var(--background)");
+      halo.setAttribute("stroke-width", "3.5");
+      halo.setAttribute("stroke-opacity", "0.7");
       const line = document.createElementNS(ns, "path");
-      line.setAttribute("fill", "none"); line.setAttribute("stroke", "currentColor"); line.setAttribute("stroke-width", "1");
+      line.setAttribute("fill", "none");
+      line.setAttribute("stroke", "currentColor");
+      line.setAttribute("stroke-width", "1");
       if (annotation.id === "pending") line.setAttribute("stroke-dasharray", "3 3");
       const badge = document.createElementNS(ns, "g");
       const background = document.createElementNS(ns, "rect");
-      background.setAttribute("rx", "4"); background.setAttribute("height", "23");
-      background.setAttribute("fill", "var(--popover)"); background.setAttribute("stroke", "var(--border)");
+      background.setAttribute("rx", "4");
+      background.setAttribute("height", "23");
+      background.setAttribute("fill", "var(--popover)");
+      background.setAttribute("stroke", "var(--border)");
       const text = document.createElementNS(ns, "text");
-      text.setAttribute("fill", "currentColor"); text.setAttribute("font-size", "11");
-      text.setAttribute("text-anchor", "middle"); text.setAttribute("dominant-baseline", "central");
+      text.setAttribute("fill", "currentColor");
+      text.setAttribute("font-size", "11");
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("dominant-baseline", "central");
       text.setAttribute("class", "font-mono tabular-nums");
       text.textContent = label(annotation);
       badge.append(background, text);
       const dots = annotation.points.map(() => {
         const dot = document.createElementNS(ns, "circle");
-        dot.setAttribute("r", "2.5"); dot.setAttribute("fill", "var(--popover)");
-        dot.setAttribute("stroke", "currentColor"); dot.setAttribute("stroke-width", "1.5");
+        dot.setAttribute("r", "2.5");
+        dot.setAttribute("fill", "var(--popover)");
+        dot.setAttribute("stroke", "currentColor");
+        dot.setAttribute("stroke-width", "1.5");
         return dot;
       });
-      group.append(title, halo, line, ...dots, badge); this.element.append(group);
-      return { annotation, group, halo, line, badge, background, text, dots, arc: angleArc(annotation.points), width: 0 };
+      group.append(title, halo, line, ...dots, badge);
+      this.element.append(group);
+      return {
+        annotation,
+        group,
+        halo,
+        line,
+        badge,
+        background,
+        text,
+        dots,
+        arc: angleArc(annotation.points),
+        width: 0,
+      };
     });
     viewport.renderer.domElement.parentElement?.append(this.element);
     for (const row of rows) {
@@ -89,11 +127,12 @@ export class MeasurementOverlay {
     const position = new Vector3();
     const project = (point: Vector3, width: number, height: number) => {
       position.copy(point).project(viewport.camera);
-      return new Vector2((position.x + 1) * width / 2, (1 - position.y) * height / 2);
+      return new Vector2(((position.x + 1) * width) / 2, ((1 - position.y) * height) / 2);
     };
     const update = () => {
       const dom = viewport.renderer.domElement;
-      const width = dom.clientWidth, height = dom.clientHeight;
+      const width = dom.clientWidth,
+        height = dom.clientHeight;
       viewport.camera.updateMatrixWorld();
       for (const row of rows) {
         let visible = true;
@@ -107,12 +146,18 @@ export class MeasurementOverlay {
         if (!visible) continue;
         let drawing = dimensionPath(projected);
         if (row.annotation.id === "pending" && row.annotation.name === "Angle" && projected.length === 2) {
-          drawing = { path: "M " + projected.map((point) => point.x + " " + point.y).join(" L "), anchor: projected[1]?.clone() ?? new Vector2() };
+          drawing = {
+            path: "M " + projected.map((point) => point.x + " " + point.y).join(" L "),
+            anchor: projected[1]?.clone() ?? new Vector2(),
+          };
         }
         if (row.arc.length && projected.length === 3) {
           const arc = row.arc.map((point) => project(point, width, height));
-          const path = "M " + projected.map((point) => point.x + " " + point.y).join(" L ") +
-            " M " + arc.map((point) => point.x + " " + point.y).join(" L ");
+          const path =
+            "M " +
+            projected.map((point) => point.x + " " + point.y).join(" L ") +
+            " M " +
+            arc.map((point) => point.x + " " + point.y).join(" L ");
           drawing = { path, anchor: arc[8]?.clone() ?? projected[1]?.clone() ?? new Vector2() };
         }
         row.line.setAttribute("d", drawing?.path ?? "");
@@ -131,7 +176,11 @@ export class MeasurementOverlay {
         row.text.setAttribute("y", String(y));
       }
     };
-    update(); this.stop = viewport.addFrameListener(update);
+    update();
+    this.stop = viewport.addFrameListener(update);
   }
-  dispose() { this.stop(); this.element.remove(); }
+  dispose() {
+    this.stop();
+    this.element.remove();
+  }
 }

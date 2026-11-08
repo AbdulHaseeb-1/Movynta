@@ -6,7 +6,9 @@ import type { ToolRegistry } from "../../tools/tool.registry.js";
 import type { AgentDefinition, AppAgent } from "./definitions.types.js";
 import { QUALITY_REVIEWER_INSTRUCTIONS } from "./quality-reviewer.instructions.js";
 
+/** The id of the independent quality reviewer agent. */
 export const QUALITY_REVIEWER_ID = "quality-reviewer";
+/** The version of the quality reviewer's instructions. */
 export const QUALITY_REVIEWER_VERSION = "1.0.0";
 
 /**
@@ -29,7 +31,10 @@ export const QUALITY_REVIEWER_TOOL_NAMES: readonly string[] = [
  * An agent that did not build the result and judges it with fresh context. It is internal: the run loop starts it when the
  * builder has finished, and it is neither listed nor runnable through the API.
  */
-export function createQualityReviewerDefinition(deps: { readonly model: string | undefined; readonly tools: ToolRegistry }): AgentDefinition {
+export function createQualityReviewerDefinition(deps: {
+  readonly model: string | undefined;
+  readonly tools: ToolRegistry;
+}): AgentDefinition {
   const tools = QUALITY_REVIEWER_TOOL_NAMES.map((name) => {
     const tool = deps.tools.get(name);
     if (!tool) throw new Error(`The reviewer needs the tool "${name}", which is not registered`);

@@ -1,3 +1,4 @@
+/** The JSON body of every error reply: a stable code, a message and the request id. */
 export interface ErrorResponseBody {
   readonly error: {
     readonly code: string;

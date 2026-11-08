@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiTags } from "@nes
 import { AgentRegistry } from "./agent.registry.js";
 import type { AgentSummary } from "./definitions/definitions.types.js";
 
+/** HTTP endpoints for the agents a run can use. */
 @ApiTags("agents")
 @ApiBearerAuth()
 @Controller({ path: "agents", version: "1" })

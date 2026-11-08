@@ -17,7 +17,9 @@ function Kbd({ className, ...props }: ComponentProps<"kbd">) {
 
 /** Key caps pressed together or in sequence. */
 function KbdGroup({ className, ...props }: ComponentProps<"span">) {
-  return <span data-slot="kbd-group" className={cn("inline-flex flex-wrap items-center gap-1", className)} {...props} />;
+  return (
+    <span data-slot="kbd-group" className={cn("inline-flex flex-wrap items-center gap-1", className)} {...props} />
+  );
 }
 
 export { Kbd, KbdGroup };

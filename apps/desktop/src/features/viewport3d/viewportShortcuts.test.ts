@@ -31,6 +31,12 @@ describe("viewport shortcuts", () => {
     expect(viewportShortcut(press("Home", "Home"))).toEqual({ kind: "frame", scope: "all" });
   });
 
+  it("resets the view from the top-row zero on a layout where it is a shifted key", () => {
+    // On AZERTY the unshifted key prints "à", or "0" only with Shift; both are the same physical key.
+    expect(viewportShortcut(press("à", "Digit0"))).toEqual({ kind: "reset" });
+    expect(viewportShortcut(press("à", "Digit0", { ctrlKey: true }))).toBeUndefined();
+  });
+
   it("ignores held keys and other modifiers", () => {
     expect(viewportShortcut(press("1", "Numpad1", { repeat: true }))).toBeUndefined();
     expect(viewportShortcut(press("0", "Digit0", { ctrlKey: true }))).toBeUndefined();

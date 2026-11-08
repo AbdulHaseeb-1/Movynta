@@ -206,7 +206,8 @@ export const MIGRATIONS: readonly Migration[] = [
     statements: [`ALTER TABLE editor_proposals ADD COLUMN strict_revision INTEGER NOT NULL DEFAULT 0`],
   },
   {
-    version: 11, name: "scene_undo_history",
+    version: 11,
+    name: "scene_undo_history",
     statements: [
       `ALTER TABLE project_scene_batches ADD COLUMN history_state INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE project_assets ADD COLUMN history_state INTEGER NOT NULL DEFAULT 0`,
@@ -214,7 +215,11 @@ export const MIGRATIONS: readonly Migration[] = [
       `CREATE TABLE scene_history_requests (project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, operation_id TEXT NOT NULL, PRIMARY KEY(project_id, operation_id))`,
     ],
   },
-  { version: 12, name: "manual_history_actions", statements: [`ALTER TABLE project_scene_batches ADD COLUMN action_id TEXT`] },
+  {
+    version: 12,
+    name: "manual_history_actions",
+    statements: [`ALTER TABLE project_scene_batches ADD COLUMN action_id TEXT`],
+  },
   {
     // This column was first added to version 11 after that version had already run on existing databases, which
     // then skipped it. It is a version of its own now, and skips itself on a database that did get the column.
@@ -224,9 +229,16 @@ export const MIGRATIONS: readonly Migration[] = [
     run: (db) => addColumnIfMissing(db, "editor_proposals", "delivery_pending", "INTEGER NOT NULL DEFAULT 0"),
   },
   {
-    version: 14, name: "project_measurements", statements: [],
+    version: 14,
+    name: "project_measurements",
+    statements: [],
     run: (db) => {
-      addColumnIfMissing(db, "projects", "measurements_json", "TEXT NOT NULL DEFAULT '{\"units\":null,\"annotations\":[]}'");
+      addColumnIfMissing(
+        db,
+        "projects",
+        "measurements_json",
+        'TEXT NOT NULL DEFAULT \'{"units":null,"annotations":[]}\'',
+      );
       addColumnIfMissing(db, "projects", "measurements_version", "INTEGER NOT NULL DEFAULT 0");
     },
   },
@@ -239,5 +251,13 @@ export const MIGRATIONS: readonly Migration[] = [
       `ALTER TABLE agent_runs ADD COLUMN progress_json TEXT`,
       `ALTER TABLE model_providers ADD COLUMN accepts_images INTEGER NOT NULL DEFAULT 1`,
     ],
+  },
+  {
+    // The pictures a user attached to a request: only their names, types and sizes. The pixels are sent to the
+    // model with the request and are never stored.
+    version: 16,
+    name: "run_attachments",
+    statements: [],
+    run: (db) => addColumnIfMissing(db, "agent_runs", "attachments_json", "TEXT"),
   },
 ];

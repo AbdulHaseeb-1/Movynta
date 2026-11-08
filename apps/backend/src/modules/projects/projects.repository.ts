@@ -4,6 +4,7 @@ import { DatabaseService } from "../persistence/database.service.js";
 import type { SqlRow } from "../persistence/persistence.types.js";
 import { integerColumn, optionalTextColumn, textColumn } from "../persistence/row.js";
 import { requireOneOf } from "../../shared/guards/enum.guard.js";
+import { parseAttachmentSummaries } from "../../shared/schemas/attachments.schema.js";
 import {
   PROJECT_CATEGORIES,
   type ProjectConversation,
@@ -57,7 +58,8 @@ function toView(row: SqlRow): ProjectView {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     runCount: integerColumn(row, "run_count"),
-    firstPrompt: prompt.length > PROMPT_PREVIEW_LENGTH ? `${prompt.slice(0, PROMPT_PREVIEW_LENGTH).trimEnd()}…` : prompt,
+    firstPrompt:
+      prompt.length > PROMPT_PREVIEW_LENGTH ? `${prompt.slice(0, PROMPT_PREVIEW_LENGTH).trimEnd()}…` : prompt,
   };
 }
 
@@ -78,14 +80,24 @@ export class ProjectsRepository {
   constructor(private readonly database: DatabaseService) {}
 
   measurements(projectId: string) {
-    const row = this.database.db.prepare("SELECT measurements_json, measurements_version FROM projects WHERE id = ?").get(projectId);
+    const row = this.database.db
+      .prepare("SELECT measurements_json, measurements_version FROM projects WHERE id = ?")
+      .get(projectId);
     if (!row) throw new Error("Project does not exist");
-    return { version: integerColumn(row, "measurements_version"), value: projectMeasurementsSchema.parse(JSON.parse(textColumn(row, "measurements_json"))) };
+    return {
+      version: integerColumn(row, "measurements_version"),
+      value: projectMeasurementsSchema.parse(JSON.parse(textColumn(row, "measurements_json"))),
+    };
   }
 
   saveMeasurements(projectId: string, version: number, value: ProjectMeasurements): boolean {
-    return this.database.db.prepare("UPDATE projects SET measurements_json = ?, measurements_version = measurements_version + 1 WHERE id = ? AND measurements_version = ?")
-      .run(JSON.stringify(value), projectId, version).changes === 1;
+    return (
+      this.database.db
+        .prepare(
+          "UPDATE projects SET measurements_json = ?, measurements_version = measurements_version + 1 WHERE id = ? AND measurements_version = ?",
+        )
+        .run(JSON.stringify(value), projectId, version).changes === 1
+    );
   }
 
   insert(project: Omit<ProjectRecord, "archivedAt" | "starred">): void {
@@ -195,7 +207,7 @@ export class ProjectsRepository {
           };
     const messages = this.database.db
       .prepare(
-        "SELECT id, input, final_output, status, error_message, created_at FROM agent_runs WHERE session_id = ? ORDER BY created_at ASC",
+        "SELECT id, input, final_output, status, error_message, created_at, attachments_json FROM agent_runs WHERE session_id = ? ORDER BY created_at ASC",
       )
       .all(sessionId)
       .map(
@@ -203,6 +215,7 @@ export class ProjectsRepository {
           runId: textColumn(row, "id"),
           prompt: textColumn(row, "input"),
           reply: optionalTextColumn(row, "final_output"),
+          attachments: parseAttachmentSummaries(optionalTextColumn(row, "attachments_json")),
           status: requireOneOf(RUN_STATUSES, textColumn(row, "status"), "run status"),
           error: optionalTextColumn(row, "error_message"),
           createdAt: textColumn(row, "created_at"),
@@ -214,10 +227,16 @@ export class ProjectsRepository {
   /** Clears every chat session for a project, without deleting the runs and proposals needed by scene history. */
   clearConversation(projectId: string, now: string): void {
     this.database.transaction((db) => {
-      db.prepare("DELETE FROM session_items WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)").run(projectId);
+      db.prepare("DELETE FROM session_items WHERE session_id IN (SELECT id FROM sessions WHERE project_id = ?)").run(
+        projectId,
+      );
       db.prepare("UPDATE sessions SET deleted_at = COALESCE(deleted_at, ?) WHERE project_id = ?").run(now, projectId);
-      db.prepare("DELETE FROM agent_run_events WHERE run_id IN (SELECT id FROM agent_runs WHERE project_id = ?)").run(projectId);
-      db.prepare("UPDATE agent_runs SET input = '', final_output = NULL, error_message = NULL, run_state = NULL WHERE project_id = ?").run(projectId);
+      db.prepare("DELETE FROM agent_run_events WHERE run_id IN (SELECT id FROM agent_runs WHERE project_id = ?)").run(
+        projectId,
+      );
+      db.prepare(
+        "UPDATE agent_runs SET input = '', final_output = NULL, error_message = NULL, run_state = NULL WHERE project_id = ?",
+      ).run(projectId);
     });
   }
 

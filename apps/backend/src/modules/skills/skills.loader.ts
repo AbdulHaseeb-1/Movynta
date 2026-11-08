@@ -3,12 +3,15 @@ import { join, sep } from "node:path";
 import { parseSkillDocument } from "./skill-document.parser.js";
 import type { SkillManifest } from "./skills.types.js";
 
+/** The name of the file that holds a skill. */
 export const SKILL_FILE_NAME = "SKILL.md";
 /** Ids may contain dots (e.g. `hero.v2`) but never `..`, so they cannot escape the root. */
 export const SKILL_ID_PATTERN = /^[a-z0-9][a-z0-9.-]{1,63}$/;
+/** Whether an id is a safe skill folder name: no path separators and no parent-directory parts. */
 export function isValidSkillId(id: string): boolean {
   return SKILL_ID_PATTERN.test(id) && !id.includes("..");
 }
+/** The largest skill file the loader reads, in bytes. */
 export const MAX_SKILL_FILE_BYTES = 64 * 1024;
 
 /**

@@ -1,7 +1,6 @@
 import { Box3, type BufferGeometry, type Object3D } from "three";
 import { isMesh } from "@/lib/three";
 
-
 /** One bottom-up pass, including imported subtrees, rather than traversing each parent's subtree again. */
 export function sceneBounds(roots: Iterable<Object3D>): ReadonlyMap<Object3D, Box3> {
   const bounds = new Map<Object3D, Box3>();

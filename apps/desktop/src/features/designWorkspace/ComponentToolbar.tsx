@@ -3,14 +3,14 @@ import { useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { EditorScene } from "@/features/assistant";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { FaceTool } from "@/features/objectEditing/ExtrudeGesture";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { FaceTool } from "@/features/objectEditing/ExtrudeGesture";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { errorMessage, type SerialQueue } from "@/lib";
 import { requestComponentSelection, setComponentError, setComponentKind } from "./workspaceSlice";
 import { MeshSelectionIcon } from "./MeshSelectionIcon";
@@ -26,6 +26,7 @@ interface ComponentToolbarProps {
   disabled: boolean;
 }
 
+/** The toolbar for the selected components in Edit mode: operations on faces, edges and vertices. */
 export function ComponentToolbar({ scene, saves, start, startKnife, disabled }: ComponentToolbarProps) {
   const dispatch = useAppDispatch();
   const [extrudeTooltip, setExtrudeTooltip] = useState(false);
@@ -40,10 +41,19 @@ export function ComponentToolbar({ scene, saves, start, startKnife, disabled }: 
     dispatch(setComponentError(""));
     start(tool);
   };
+  // A second click before the first is saved would be refused as stale, so it is ignored while one is on its way.
+  const [subdividing, setSubdividing] = useState(false);
   const subdivide = () => {
-    if (!scene || !componentSelection) return;
+    if (!scene || !componentSelection || subdividing) return;
     dispatch(setComponentError(""));
-    subdivideSelectedFaces(scene, componentSelection, saves, (failure) => dispatch(setComponentError(errorMessage(failure))));
+    setSubdividing(true);
+    subdivideSelectedFaces(
+      scene,
+      componentSelection,
+      saves,
+      (failure) => dispatch(setComponentError(errorMessage(failure))),
+      () => setSubdividing(false),
+    );
   };
   return (
     <div className="relative">
@@ -73,47 +83,94 @@ export function ComponentToolbar({ scene, saves, start, startKnife, disabled }: 
                   <MeshSelectionIcon kind={kind} />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                {label} · Shift-click to add or remove · drag or press B to box select
-              </TooltipContent>
+              <TooltipContent>{label} · Shift-click to add or remove · drag or press B to box select</TooltipContent>
             </Tooltip>
           ))}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button size="icon-sm" variant="ghost" className="size-7 rounded-sm" aria-label="Expand or reduce selection" disabled={!selected}><SquareDashed className="size-4" /></Button></DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="size-7 rounded-sm"
+                aria-label="Expand or reduce selection"
+                disabled={!selected}
+              >
+                <SquareDashed className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem disabled={componentKind !== "edge"} onSelect={() => dispatch(requestComponentSelection("loop"))}>Select edge loop</DropdownMenuItem>
-              <DropdownMenuItem disabled={componentKind !== "edge"} onSelect={() => dispatch(requestComponentSelection("ring"))}>Select edge ring</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => dispatch(requestComponentSelection("connected"))}>Select connected</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => dispatch(requestComponentSelection("grow"))}>Grow selection</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => dispatch(requestComponentSelection("shrink"))}>Shrink selection</DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={componentKind !== "edge"}
+                onSelect={() => dispatch(requestComponentSelection("loop"))}
+              >
+                Select edge loop
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={componentKind !== "edge"}
+                onSelect={() => dispatch(requestComponentSelection("ring"))}
+              >
+                Select edge ring
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => dispatch(requestComponentSelection("connected"))}>
+                Select connected
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => dispatch(requestComponentSelection("grow"))}>
+                Grow selection
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => dispatch(requestComponentSelection("shrink"))}>
+                Shrink selection
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {selected && <span className="px-1 text-[10px] text-muted-foreground" aria-label={`${componentSelection?.ids.length ?? 0} components selected`}>{componentSelection?.ids.length}</span>}
+          {selected && (
+            <span
+              className="px-1 text-[10px] text-muted-foreground"
+              aria-label={`${componentSelection?.ids.length ?? 0} components selected`}
+            >
+              {componentSelection?.ids.length}
+            </span>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4"
-                aria-label="Move selected components" disabled={!selected}
-                onClick={() => startTool("move")}>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="size-7 rounded-sm [&_svg]:size-4"
+                aria-label="Move selected components"
+                disabled={!selected}
+                onClick={() => startTool("move")}
+              >
                 <Move />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Move selected components · G (R rotates, S scales)</TooltipContent>
           </Tooltip>
-          <DropdownMenu onOpenChange={(open) => {
-            extrudeMenuOpen.current = open;
-            if (open) suppressExtrudeTooltip.current = true;
-            setExtrudeTooltip(false);
-          }}>
-            <Tooltip open={extrudeTooltip} onOpenChange={(open) => setExtrudeTooltip(open && !suppressExtrudeTooltip.current)}>
+          <DropdownMenu
+            onOpenChange={(open) => {
+              extrudeMenuOpen.current = open;
+              if (open) suppressExtrudeTooltip.current = true;
+              setExtrudeTooltip(false);
+            }}
+          >
+            <Tooltip
+              open={extrudeTooltip}
+              onOpenChange={(open) => setExtrudeTooltip(open && !suppressExtrudeTooltip.current)}
+            >
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
-                  <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4" aria-label="Extrusion tools" disabled={!selected}
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="size-7 rounded-sm [&_svg]:size-4"
+                    aria-label="Extrusion tools"
+                    disabled={!selected}
                     onPointerEnter={() => {
                       if (!extrudeMenuOpen.current) suppressExtrudeTooltip.current = false;
                     }}
                     onBlur={() => {
                       if (!extrudeMenuOpen.current) suppressExtrudeTooltip.current = false;
-                    }}>
+                    }}
+                  >
                     <BoxSelect />
                   </Button>
                 </DropdownMenuTrigger>
@@ -121,17 +178,30 @@ export function ComponentToolbar({ scene, saves, start, startKnife, disabled }: 
               <TooltipContent>Extrusion tools · E</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={() => startTool("extrude")}>Extrude region <span className="ml-auto text-muted-foreground">E</span></DropdownMenuItem>
-              <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("normals")}>Extrude along vertex normals</DropdownMenuItem>
-              <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("individual")}>Extrude individual faces</DropdownMenuItem>
-              <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("solid")}>Extrude planar sheet as solid</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => startTool("extrude")}>
+                Extrude region <span className="ml-auto text-muted-foreground">E</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("normals")}>
+                Extrude along vertex normals
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("individual")}>
+                Extrude individual faces
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={componentKind !== "face"} onSelect={() => startTool("solid")}>
+                Extrude planar sheet as solid
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4"
-                aria-label="Inset selected faces" disabled={!selected || componentKind !== "face"}
-                onClick={() => startTool("inset")}>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="size-7 rounded-sm [&_svg]:size-4"
+                aria-label="Inset selected faces"
+                disabled={!selected || componentKind !== "face"}
+                onClick={() => startTool("inset")}
+              >
                 <SquareDashed />
               </Button>
             </TooltipTrigger>
@@ -139,9 +209,14 @@ export function ComponentToolbar({ scene, saves, start, startKnife, disabled }: 
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="icon-sm" variant="ghost" className="size-7 rounded-sm [&_svg]:size-4"
-                aria-label="Bevel selected edges" disabled={!selected || componentKind !== "edge"}
-                onClick={() => startTool("bevel")}>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="size-7 rounded-sm [&_svg]:size-4"
+                aria-label="Bevel selected edges"
+                disabled={!selected || componentKind !== "edge"}
+                onClick={() => startTool("bevel")}
+              >
                 <Blend />
               </Button>
             </TooltipTrigger>
@@ -154,15 +229,13 @@ export function ComponentToolbar({ scene, saves, start, startKnife, disabled }: 
                 variant="ghost"
                 className="size-7 rounded-sm [&_svg]:size-4"
                 aria-label="Subdivide selected faces"
-                disabled={!scene || !canSubdivide}
+                disabled={!scene || !canSubdivide || subdividing}
                 onClick={subdivide}
               >
                 <Grid2x2 />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {canSubdivide ? "Subdivide selected faces" : "Select faces to subdivide"}
-            </TooltipContent>
+            <TooltipContent>{canSubdivide ? "Subdivide selected faces" : "Select faces to subdivide"}</TooltipContent>
           </Tooltip>
           <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
           <KnifeToolMenu start={startKnife} disabled={!scene} />

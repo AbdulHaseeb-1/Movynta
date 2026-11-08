@@ -1,3 +1,4 @@
+/** A chat session as it is stored. */
 export interface SessionRecord {
   readonly id: string;
   readonly userId: string;

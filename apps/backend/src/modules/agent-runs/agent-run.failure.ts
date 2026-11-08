@@ -1,9 +1,7 @@
-import {
-  InputGuardrailTripwireTriggered,
-  MaxTurnsExceededError,
-} from "@openai/agents";
+import { InputGuardrailTripwireTriggered, MaxTurnsExceededError } from "@openai/agents";
 import type { RunStop } from "./run-clock.js";
 
+/** Why a run failed: a stable code and a message that is safe to show. */
 export interface RunFailure {
   readonly code: string;
   /** Safe to show to the user. */
@@ -66,7 +64,14 @@ function shorten(text: string): string {
   return clean.length > MAX_DETAIL_LENGTH ? `${clean.slice(0, MAX_DETAIL_LENGTH)}…` : clean;
 }
 
-const NETWORK_CODES = new Set(["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "ETIMEDOUT", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT"]);
+const NETWORK_CODES = new Set([
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ENOTFOUND",
+  "ETIMEDOUT",
+  "EAI_AGAIN",
+  "UND_ERR_CONNECT_TIMEOUT",
+]);
 
 /**
  * Describes an error and its causes for the server log: names, HTTP status, provider codes and messages.
@@ -76,7 +81,8 @@ export function describeError(error: unknown): string {
   const parts = chainOf(error).map((link) => {
     const name = typeof link["name"] === "string" ? link["name"] : "Error";
     const status = statusOf(link);
-    const code = typeof link["code"] === "string" || typeof link["code"] === "number" ? ` code=${String(link["code"])}` : "";
+    const code =
+      typeof link["code"] === "string" || typeof link["code"] === "number" ? ` code=${String(link["code"])}` : "";
     const type = typeof link["type"] === "string" ? ` type=${link["type"]}` : "";
     const message = providerMessageOf(link);
     return `${name}${status === undefined ? "" : ` status=${status}`}${code}${type}${message ? `: ${shorten(message)}` : ""}`;
@@ -86,7 +92,12 @@ export function describeError(error: unknown): string {
 
 /** Maps failures to stable codes and messages that are safe to show to clients. */
 export function classifyFailure(error: unknown, stop?: RunStop): RunFailure {
-  if (stop === "timeout") return { code: "run_timeout", message: "The agent run reached its configured time limit. Some changes may already be saved; check the scene before continuing. The backend setting AGENT_RUN_TIMEOUT_MS controls this limit." };
+  if (stop === "timeout")
+    return {
+      code: "run_timeout",
+      message:
+        "The agent run reached its configured time limit. Some changes may already be saved; check the scene before continuing. The backend setting AGENT_RUN_TIMEOUT_MS controls this limit.",
+    };
   if (stop === "stalled") return { code: "run_stalled", message: "The agent stopped making progress and was stopped" };
   if (error instanceof InputGuardrailTripwireTriggered)
     return { code: "guardrail_blocked", message: "This request cannot be processed" };
@@ -101,9 +112,15 @@ export function classifyFailure(error: unknown, stop?: RunStop): RunFailure {
   if (status === 401 || status === 403)
     return { code: "provider_auth", message: "The provider rejected the API key. Check it in provider settings." };
   if (status === 404)
-    return { code: "provider_model_not_found", message: "The provider could not find the selected model for this account." };
+    return {
+      code: "provider_model_not_found",
+      message: "The provider could not find the selected model for this account.",
+    };
   if (status === 429)
-    return { code: "provider_rate_limited", message: "The provider is rate limiting requests or the account is out of quota. Try again shortly." };
+    return {
+      code: "provider_rate_limited",
+      message: "The provider is rate limiting requests or the account is out of quota. Try again shortly.",
+    };
   if (status === 400 || status === 422)
     return {
       code: "provider_bad_request",
@@ -111,7 +128,14 @@ export function classifyFailure(error: unknown, stop?: RunStop): RunFailure {
     };
   if (status !== undefined && status >= 500)
     return { code: "provider_unavailable", message: "The provider had an error. Try again shortly." };
-  if (chain.some((item) => typeof item["message"] === "string" && item["message"].includes("finish_reason='length'") && item["message"].includes("produced no assistant text")))
+  if (
+    chain.some(
+      (item) =>
+        typeof item["message"] === "string" &&
+        item["message"].includes("finish_reason='length'") &&
+        item["message"].includes("produced no assistant text"),
+    )
+  )
     return {
       code: "model_output_truncated",
       message: "The model stopped before it could reply because the response hit its output limit. Try again.",
