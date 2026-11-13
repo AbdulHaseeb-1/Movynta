@@ -135,4 +135,39 @@ describe("applyRunEvent", () => {
     expect(toolLabel("editor.find_repeats")).toBe("Looking for repeated parts");
     expect(toolLabel("editor.query_objects")).toBe("Selecting objects");
   });
+
+  it("takes the kept output of a tool call from its completion event, and of a failed call from its failure", () => {
+    const done = [
+      { type: "tool.started", payload: { toolName: "editor.get_context", permission: "read" } },
+      { type: "tool.completed", payload: { toolName: "editor.get_context", durationMs: 84, outputId: "out_1" } },
+    ].reduce(applyRunEvent, empty);
+    expect(done.activity[0]).toMatchObject({ status: "done", durationMs: 84, outputId: "out_1" });
+
+    const failed = [
+      { type: "tool.started", payload: { toolName: "modeling.record_brief", permission: "read" } },
+      { type: "tool.failed", payload: { toolName: "modeling.record_brief", message: "Invalid", outputId: "out_2" } },
+    ].reduce(applyRunEvent, empty);
+    expect(failed.activity[0]).toMatchObject({ status: "failed", outputId: "out_2" });
+  });
+
+  it("leaves a step without an output id for runs made before outputs were kept", () => {
+    const done = [
+      { type: "tool.started", payload: { toolName: "editor.get_context", permission: "read" } },
+      { type: "tool.completed", payload: { toolName: "editor.get_context", durationMs: 84 } },
+    ].reduce(applyRunEvent, empty);
+    expect(done.activity[0]?.outputId).toBeUndefined();
+  });
+
+  it("gives a loaded skill's step the output of the call that loaded it", () => {
+    const loaded = [
+      { type: "tool.started", payload: { toolName: "skills.load_skill", permission: "read" } },
+      { type: "skill.loaded", payload: { skillId: "model-design-principles", version: "2" } },
+      { type: "tool.completed", payload: { toolName: "skills.load_skill", durationMs: 22, outputId: "out_skill" } },
+    ].reduce(applyRunEvent, empty);
+
+    const skill = loaded.activity.find((step) => step.kind === "skill");
+    const tool = loaded.activity.find((step) => step.kind === "tool");
+    expect(skill).toMatchObject({ label: "Loaded Model design principles skill", outputId: "out_skill" });
+    expect(tool).toMatchObject({ label: "Skills load skill", outputId: "out_skill" });
+  });
 });

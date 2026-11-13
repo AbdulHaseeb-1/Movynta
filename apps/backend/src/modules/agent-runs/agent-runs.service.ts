@@ -29,6 +29,7 @@ import type {
   AgentRunView,
   ApprovalDecisionResult,
   ApprovalView,
+  ToolOutputView,
 } from "./agent-runs.types.js";
 import { newId } from "../../common/ids/index.js";
 import { checkAttachments, summarizeAttachments } from "./run-attachments.js";
@@ -263,6 +264,14 @@ export class AgentRunsService implements OnModuleInit {
     this.processor.abort(runId);
     this.events.publish(runId, "run.cancelled", { runId });
     return { runId, status: "cancelled" };
+  }
+
+  /** What one tool call of the run received and returned, kept whole. Only the run's owner can read it. */
+  toolOutput(user: AuthUser, runId: string, outputId: string): ToolOutputView {
+    this.requireRun(user.id, runId);
+    const output = this.runs.findToolOutput(runId, outputId);
+    if (!output) throw new NotFoundError("Tool output not found");
+    return output;
   }
 
   listApprovals(user: AuthUser, runId: string): ApprovalView[] {

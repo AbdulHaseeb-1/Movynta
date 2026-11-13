@@ -74,6 +74,7 @@ function contextWith(supportsToolImages: boolean): AgentRunContext {
     dimension: undefined,
     selectedSkillIds: [],
     events: { emit: (type: string, payload: unknown) => emitted.push({ type, payload }) } as never,
+    toolOutputs: { save: () => "out_test" } as never,
     signal: new AbortController().signal,
     progress: emptyRunProgress(),
     supportsToolImages,

@@ -101,8 +101,8 @@ export function useAssistantRun(
   }
 
   /**
-   * Sends one request. `images` travel with it to the model; they are kept in the chat for this session, and
-   * the backend stores only their names.
+   * Sends one request. `images` travel with it to the model; the backend keeps the newest of them in the chat's
+   * history for later messages, and only the names of the rest.
    */
   async function submit(message: string, images: readonly ComposerImage[] = [], onAccepted?: () => void) {
     const lease = slot.acquire();
@@ -177,6 +177,7 @@ export function useAssistantRun(
         return;
       }
       runId.current = accepted.runId;
+      patchMessage(reply.id, (current) => ({ ...current, runId: accepted.runId }));
       onAccepted?.();
       session.current = accepted.sessionId;
       setPhase("running");

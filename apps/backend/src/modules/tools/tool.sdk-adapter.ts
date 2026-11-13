@@ -3,7 +3,7 @@ import { Logger } from "@nestjs/common";
 import { z } from "zod";
 import { AppError } from "../../common/errors/app-error.js";
 import { isAgentRunContext } from "../agent-runs/agent-run.context.js";
-import type { AgentRunContext } from "../agent-runs/agent-runs.types.js";
+import type { AgentRunContext, ToolOutputEntry } from "../agent-runs/agent-runs.types.js";
 import { RichToolResult, type ToolOutputPart } from "./tool-result.js";
 import { describeIssues, invalidInputResult } from "./tool-input-issues.js";
 import { toProviderToolName, type ToolDefinition } from "./tool.types.js";
@@ -82,9 +82,22 @@ function errorDetails(error: unknown): { details?: Readonly<Record<string, unkno
 }
 
 /**
+ * Keeps what a call received and returned, so the chat can show the step in full. Keeping it is not part of the work:
+ * if it fails, the model still gets its result and the event simply has no output id.
+ */
+function keepOutput(context: AgentRunContext, entry: ToolOutputEntry): string | undefined {
+  try {
+    return context.toolOutputs.save(entry);
+  } catch (error) {
+    logger.warn(`${entry.toolName} output was not kept: ${describeError(error)}`);
+    return undefined;
+  }
+}
+
+/**
  * Runs one tool with progress events and timing. Failures are returned to the
  * model as `{ error }` so it can recover; the run itself keeps going. Arguments
- * are never logged.
+ * are never logged; the chat's step keeps them with the result, for the user.
  */
 async function runTool(
   definition: ToolDefinition,
@@ -92,36 +105,42 @@ async function runTool(
   context: AgentRunContext,
 ): Promise<string | ToolOutputPart[]> {
   const startedAt = Date.now();
+  const requestText = JSON.stringify(input ?? null);
   context.events.emit("tool.started", { toolName: definition.name, permission: definition.permission });
   const refusal = refusalOf(input);
   if (refusal) {
     const first = refusal.issues[0];
-    context.events.emit("tool.failed", {
-      toolName: definition.name,
-      message: first ? `Invalid arguments: ${first.path}: ${first.message}`.slice(0, 500) : "Invalid arguments",
-    });
+    const message = first ? `Invalid arguments: ${first.path}: ${first.message}`.slice(0, 500) : "Invalid arguments";
+    const output = JSON.stringify(refusal);
+    const outputId = keepOutput(context, { toolName: definition.name, input: requestText, output });
+    context.events.emit("tool.failed", { toolName: definition.name, message, outputId });
     logger.warn(
       `${definition.name} refused invalid arguments (${refusal.issues.length + (refusal.moreIssues ?? 0)} issue(s))`,
     );
-    return JSON.stringify(refusal);
+    return output;
   }
   try {
     const result = await definition.execute(input, context);
     const durationMs = Date.now() - startedAt;
-    context.events.emit("tool.completed", { toolName: definition.name, durationMs });
+    // Pictures go to the model as structured parts; everything else is JSON text. The chat keeps the text.
+    const output = result instanceof RichToolResult ? result.text : JSON.stringify(result ?? null);
+    const outputId = keepOutput(context, { toolName: definition.name, input: requestText, output });
+    context.events.emit("tool.completed", { toolName: definition.name, durationMs, outputId });
     logger.log(`${definition.name} completed in ${durationMs}ms`);
-    // Pictures go to the model as structured parts; everything else is JSON text.
     if (result instanceof RichToolResult) return result.parts();
-    return JSON.stringify(result ?? null);
+    return output;
   } catch (error) {
     const message = describeError(error);
     const issue = firstIssue(error);
+    const output = JSON.stringify({ error: message, ...errorDetails(error) });
+    const outputId = keepOutput(context, { toolName: definition.name, input: requestText, output });
     context.events.emit("tool.failed", {
       toolName: definition.name,
       message: issue ? `${message}: ${issue}` : message,
+      outputId,
     });
     logger.warn(`${definition.name} failed: ${message}`);
-    return JSON.stringify({ error: message, ...errorDetails(error) });
+    return output;
   }
 }
 

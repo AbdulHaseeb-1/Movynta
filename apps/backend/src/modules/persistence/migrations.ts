@@ -260,4 +260,23 @@ export const MIGRATIONS: readonly Migration[] = [
     statements: [],
     run: (db) => addColumnIfMissing(db, "agent_runs", "attachments_json", "TEXT"),
   },
+  {
+    // What each tool call of a run returned, kept whole so its step can be opened later. The run events carry only
+    // the id. Removing a run removes its outputs.
+    version: 17,
+    name: "agent_tool_outputs",
+    statements: [
+      `CREATE TABLE agent_tool_outputs (
+         id TEXT PRIMARY KEY,
+         run_id TEXT NOT NULL REFERENCES agent_runs (id) ON DELETE CASCADE,
+         tool_name TEXT NOT NULL,
+         input_json TEXT NOT NULL,
+         output_text TEXT NOT NULL,
+         output_bytes INTEGER NOT NULL,
+         truncated INTEGER NOT NULL DEFAULT 0,
+         created_at TEXT NOT NULL
+       )`,
+      "CREATE INDEX agent_tool_outputs_run ON agent_tool_outputs (run_id)",
+    ],
+  },
 ];

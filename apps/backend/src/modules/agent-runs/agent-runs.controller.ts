@@ -14,14 +14,21 @@ import { ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiTags } from "@nes
 import type { Observable } from "rxjs";
 import { CurrentUser } from "../../common/decorators/current-user.decorator.js";
 import { ResourceIdPipe } from "../../common/pipes/resource-id.pipe.js";
-import { APPROVAL_ID_PATTERN, RUN_ID_PATTERN } from "../../shared/constants/resource-ids.js";
+import { APPROVAL_ID_PATTERN, RUN_ID_PATTERN, TOOL_OUTPUT_ID_PATTERN } from "../../shared/constants/resource-ids.js";
 import type { AuthUser } from "../auth/auth.types.js";
 import { AgentRunsService } from "./agent-runs.service.js";
-import type { AgentRunAccepted, AgentRunView, ApprovalDecisionResult, ApprovalView } from "./agent-runs.types.js";
+import type {
+  AgentRunAccepted,
+  AgentRunView,
+  ApprovalDecisionResult,
+  ApprovalView,
+  ToolOutputView,
+} from "./agent-runs.types.js";
 import { AgentRunAcceptedDto, CreateAgentRunDto, DecideApprovalDto } from "./dto/agent-run.dto.js";
 
 const runIdPipe = new ResourceIdPipe(RUN_ID_PATTERN);
 const approvalIdPipe = new ResourceIdPipe(APPROVAL_ID_PATTERN);
+const toolOutputIdPipe = new ResourceIdPipe(TOOL_OUTPUT_ID_PATTERN);
 
 /** HTTP endpoints for agent runs: start, read, stream events, cancel and decide approvals. The logic lives in AgentRunsService. */
 @ApiTags("agent-runs")
@@ -59,6 +66,18 @@ export class AgentRunsController {
   @HttpCode(HttpStatus.ACCEPTED)
   cancel(@CurrentUser() user: AuthUser, @Param("runId", runIdPipe) runId: string): { runId: string; status: string } {
     return this.runs.cancel(user, runId);
+  }
+
+  /** The arguments and the full result of one tool call of the run, named by the `outputId` of its tool event. */
+  @Get(":runId/tool-outputs/:outputId")
+  @ApiOkResponse({ description: "What one tool call of the run received and returned." })
+  @ApiNotFoundResponse({ description: "Run or tool output not found for this user." })
+  toolOutput(
+    @CurrentUser() user: AuthUser,
+    @Param("runId", runIdPipe) runId: string,
+    @Param("outputId", toolOutputIdPipe) outputId: string,
+  ): ToolOutputView {
+    return this.runs.toolOutput(user, runId, outputId);
   }
 
   @Get(":runId/approvals")

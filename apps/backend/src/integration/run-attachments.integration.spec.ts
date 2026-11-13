@@ -70,7 +70,7 @@ function lastUserParts(input: string | AgentInputItem[]): readonly { type: strin
 }
 
 describe("images attached to a request", () => {
-  it("reach the model with the message, are listed in the saved chat, and are not replayed later", async () => {
+  it("reach the model with the message, are listed in the saved chat, and stay available to later messages of the chat", async () => {
     const user = "alice-pictures";
     const project = await http<{ id: string }>("POST", "/api/v1/projects", user, {});
     expect(project.status).toBe(201);
@@ -83,7 +83,9 @@ describe("images attached to a request", () => {
       }),
       modelResponder((call) => {
         seen.push(lastUserParts(call.request.input));
-        expect(JSON.stringify(call.request.input)).not.toContain("data:image/png");
+        // The reference pictures of the first message are still in the chat's history, so the model can compare with them.
+        expect(JSON.stringify(call.request.input)).toContain(`data:image/png;base64,${front.data}`);
+        expect(JSON.stringify(call.request.input)).toContain(`data:image/jpeg;base64,${side.data}`);
         expect(JSON.stringify(call.request.input)).toContain("Attached image 1 of 2: front.png");
         return [assistantMessage("Understood.")];
       }),

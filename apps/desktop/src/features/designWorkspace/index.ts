@@ -3,6 +3,7 @@ export { DesignModeMenu } from "./DesignModeMenu";
 export { ComponentToolbar } from "./ComponentToolbar";
 export { MeshCleanupMenu } from "./MeshCleanupMenu";
 export { AddShapeMenu } from "./AddShapeMenu";
+export { ScriptEditor } from "./ScriptEditor";
 export { useComponentSelection } from "./useComponentSelection";
 export { useKnife } from "./useKnife";
 export { useExtrude } from "./useExtrude";

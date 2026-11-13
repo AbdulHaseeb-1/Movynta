@@ -28,8 +28,8 @@ const eventPayloadSchemas: { readonly [K in AgentRunEventType]: z.ZodType<AgentR
   }),
   "skill.loaded": z.object({ skillId: z.string(), version: z.string() }),
   "tool.started": z.object({ toolName: z.string(), permission: z.string() }),
-  "tool.completed": z.object({ toolName: z.string(), durationMs: z.number() }),
-  "tool.failed": z.object({ toolName: z.string(), message: z.string() }),
+  "tool.completed": z.object({ toolName: z.string(), durationMs: z.number(), outputId: z.string().optional() }),
+  "tool.failed": z.object({ toolName: z.string(), message: z.string(), outputId: z.string().optional() }),
   "editor.proposal.created": z.object({
     proposalId: z.string(),
     summary: z.string(),

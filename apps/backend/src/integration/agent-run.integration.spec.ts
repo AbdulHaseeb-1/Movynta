@@ -317,6 +317,19 @@ describe("agent run: propose, approve-free apply, and streaming", () => {
     const finished = await http<RunRow>("GET", run.eventsUrl.replace("/events", ""), { token });
     expect(finished.body.status).toBe("completed");
     expect(finished.body.finalOutput).toBe("The torso is in the scene.");
+
+    // Each completed call names its kept output. The owner reads it in full; another user finds nothing.
+    const check = stream.events.find(
+      (event: StreamedEvent) => event.envelope.type === "tool.completed" && event.envelope.payload["toolName"] === "validation.check_scene",
+    );
+    const outputId = String(check?.envelope.payload["outputId"]);
+    const outputPath = `${run.eventsUrl.replace("/events", "")}/tool-outputs/${outputId}`;
+    const kept = await http<{ toolName: string; input: string; output: string; truncated: boolean }>("GET", outputPath, { token });
+    expect(kept.status).toBe(200);
+    expect(kept.body).toMatchObject({ toolName: "validation.check_scene", input: "{}", truncated: false });
+    expect(JSON.parse(kept.body.output)).toEqual(expect.any(Object));
+    const stranger = await http("GET", outputPath, { token: server.token("mallory") });
+    expect(stranger.status).toBe(404);
     editor.close();
   }, 30_000);
 

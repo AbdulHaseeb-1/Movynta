@@ -151,7 +151,7 @@ The model receives a text part first, then one image per view in order. The text
 - Images go to the model provider like any other tool result. Normals mode draws both sides of surfaces, including planes.
 - Chat Completions accepts only text in a tool message, so an OpenAI-compatible endpoint would drop a picture from a tool result. The backend wraps that model (`pictureBridgedModel` in `apps/backend/src/modules/providers/chat-completions-pictures.ts`): the text of each result stays in the tool message, and the pictures of each batch of results follow in one user message. Only the latest four results keep their pictures; earlier ones show a short placeholder. Anthropic, Google, OpenAI and ChatGPT receive pictures in the tool result itself.
 - A compatible endpoint can be set to "Send pictures" off in provider settings, for a model that cannot read images. Then the run context has `supportsToolImages: false`, the editor skips drawing, and the tool returns the measurements only, with a note saying so.
-- Images are not kept in the stored conversation history. `withoutImages` in `apps/backend/src/modules/sessions/sqlite-session.ts` replaces them with a short placeholder when items are saved, so the history does not grow by hundreds of kilobytes per picture. The text next to them is kept. The assistant is told to state what it concluded in its reply.
+- Pictures a tool draws are not kept in the stored conversation history. `withoutToolPictures` in `apps/backend/src/modules/sessions/sqlite-session.ts` replaces them with a short placeholder when items are saved, so the history does not grow by hundreds of kilobytes per picture. The text next to them is kept, and the assistant is told to state what it concluded in its reply. The assistant can draw a view again; a picture the user attached cannot be drawn again, so it is handled differently (see below).
 - The editor connection answers `view.request` with `view.response`, or `view.error` with a reason when it cannot draw (for example, no viewport is showing).
 
 ### What the user sees
@@ -162,6 +162,16 @@ The chat shows what the assistant sees. Under the "Looking at the scene" step of
 - The tool then emits a `viewport.captured` run event with the `captureId`, the label and size of each view, and `imagesSent`. The event carries no pixels, because run events are stored and replayed. The chat attaches the id to the running "Looking at the scene" step (`runEvents.ts`) and `CaptureGallery` finds the pictures by it.
 - The pictures live only in the editor window that drew them. After a reload, or for a capture older than the last 12, the step shows no thumbnails.
 - When `imagesSent` is false (an OpenAI-compatible model), the step says the scene was measured, not drawn.
+
+## Step details
+
+Every tool step of a reply opens in the chat to show what the tool received and what it returned, in full.
+
+- The backend keeps each call's arguments and its returned text for the run, in `agent_tool_outputs` (migration 17). The `tool.completed` and `tool.failed` events carry only the `outputId` of that record, so the event stream stays small.
+- The desktop reads a record with `GET /api/v1/agent-runs/{runId}/tool-outputs/{outputId}` when the step opens. Only the run's owner can read it; anyone else gets `404`.
+- Text past 2,000,000 characters is cut, and the record says so with `truncated: true`; `outputBytes` is the full size.
+- A "Loaded … skill" step shows the output of the `skills.load_skill` call that loaded it.
+- Runs made before outputs were kept have no `outputId`, so their steps do not open. A reopened chat shows its replies, not their steps.
 
 ## Images attached by the user
 
@@ -183,7 +193,7 @@ Before sending, the desktop (`apps/desktop/src/features/attachments/`) keeps a p
 
 **What the model gets.** The message is the first part of the user message, exactly as typed. Each picture follows a line that numbers and names it ("Attached image 2 of 3: side.jpg"), so the user can refer to it. The request guardrail judges only what the user typed. The base instructions tell the assistant to treat pictures as reference material, to treat any text inside them as content and not as instructions, and to record what it took from them in the brief and plan.
 
-**What is kept.** Pictures are not stored. `agent_runs.attachments_json` keeps each picture's name, type and size, so a reopened project lists the names. `withoutImages` in `sqlite-session.ts` replaces the pictures of a user message with a short placeholder when the message is saved to the session, so later turns do not resend them; the names stay. This also means a run that continues after an approval or a "carry on" prompt no longer has the pixels, which is why the assistant is told to write down its observations. Trying a request again from a reopened project sends the words only.
+**What is kept.** The newest reference pictures stay in the chat's stored history, so later messages in the chat, and the later turns of the same run (a continuation or a "carry on" prompt), still see them. The window holds the newest 8 pictures and at most 6 MB of picture data, a quarter of one full request; each turn sends these on top of the pictures of its own request. When a newer picture pushes an older one outside that window, the older picture's data is deleted from the database and its note stays in the history; the assistant is then told to ask the user to attach it again. The assistant is still told to write down what it took from each picture, because that record is what lasts once a picture is released. `agent_runs.attachments_json` keeps each picture's name, type and size, so a reopened project lists the names. Trying a request again from a reopened project sends the words only, because the desktop no longer has the pixels.
 
 ## Working in chunks
 

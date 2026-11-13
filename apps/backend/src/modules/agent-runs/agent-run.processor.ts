@@ -113,7 +113,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
   start(run: AgentRunRecord, attachments: readonly RunAttachment[] = []): void {
     const progress = emptyRunProgress();
     progress.quality.required = requiresQualityReview(run.input, run.dimension, this.config.agents.reviewMode);
-    // The pictures go to the model with this first turn only; the stored history keeps their names, not their pixels.
+    // The pictures go to the model in this first turn; the stored history keeps the newest of them for later turns and messages.
     const input = attachments.length > 0 ? messageWithAttachments(run.input, attachments) : run.input;
     this.launch(run, progress, (context, signal) => this.turn(run, context, signal, input));
   }
@@ -219,6 +219,7 @@ export class AgentRunProcessor implements OnModuleDestroy {
       dimension: run.dimension,
       selectedSkillIds: run.selectedSkillIds,
       events: this.events.sinkFor(run.id),
+      toolOutputs: { save: (entry) => this.runs.saveToolOutput(run.id, entry) },
       signal: controller.signal,
       progress,
       supportsToolImages: this.providers.picturesAllowed(run.userId, run.providerId),

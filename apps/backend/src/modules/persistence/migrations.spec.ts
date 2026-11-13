@@ -52,6 +52,17 @@ function appliedVersions(service: DatabaseService): number[] {
 }
 
 describe("schema migrations", () => {
+  it("adds tool output storage to a database at version 16, which starts with no outputs", () => {
+    const service = newDatabaseService();
+    service.open(databaseAt(16));
+    expect(columnsOf(service, "agent_tool_outputs")).toEqual(
+      expect.arrayContaining(["id", "run_id", "tool_name", "input_json", "output_text", "output_bytes", "truncated"]),
+    );
+    expect(service.db.prepare("SELECT COUNT(*) AS count FROM agent_tool_outputs").get()?.["count"]).toBe(0);
+    expect(appliedVersions(service)).toContain(17);
+    service.close();
+  });
+
   it("adds attachment storage to a database at version 15, and reads runs stored before it as having none", () => {
     const path = databaseAt(15);
     const raw = new DatabaseSync(path);

@@ -6,7 +6,7 @@ import { createProceduralTools } from "./procedural/index.js";
 import { createViewportTools } from "./viewport/index.js";
 import { z } from "zod";
 import { editorCommandListSchema } from "@movynta/editor-protocol";
-import type { AgentRunContext } from "../agent-runs/agent-runs.types.js";
+import type { AgentRunContext, ToolOutputEntry } from "../agent-runs/agent-runs.types.js";
 import { emptyRunProgress } from "../agent-runs/run-progress.js";
 import { ValidationFailedError } from "../../common/errors/app-error.js";
 import { closestValues, formatIssuePath } from "./tool-input-issues.js";
@@ -18,7 +18,7 @@ interface Emitted {
   readonly payload: Record<string, unknown>;
 }
 
-function contextFor(emitted: Emitted[]): AgentRunContext {
+function contextFor(emitted: Emitted[], kept: ToolOutputEntry[] = []): AgentRunContext {
   return {
     runId: "run_test",
     userId: "user_test",
@@ -28,6 +28,12 @@ function contextFor(emitted: Emitted[]): AgentRunContext {
     dimension: "3d",
     selectedSkillIds: [],
     events: { emit: (type: string, payload: Record<string, unknown>) => emitted.push({ type, payload }) },
+    toolOutputs: {
+      save: (entry: ToolOutputEntry) => {
+        kept.push(entry);
+        return `out_${kept.length}`;
+      },
+    },
     signal: new AbortController().signal,
     progress: emptyRunProgress(),
     supportsToolImages: false,
@@ -42,9 +48,14 @@ const proposeLike = defineTool({
   execute: (input) => ({ received: input.commands.length, note: input.note ?? null }),
 });
 
-async function invoke(definition: ReturnType<typeof defineTool>, args: unknown, emitted: Emitted[] = []) {
+async function invoke(
+  definition: ReturnType<typeof defineTool>,
+  args: unknown,
+  emitted: Emitted[] = [],
+  kept: ToolOutputEntry[] = [],
+) {
   const sdkTool = toSdkTool(definition);
-  const output = await sdkTool.invoke(new RunContext<AgentRunContext>(contextFor(emitted)), JSON.stringify(args));
+  const output = await sdkTool.invoke(new RunContext<AgentRunContext>(contextFor(emitted, kept)), JSON.stringify(args));
   return JSON.parse(String(output)) as Record<string, unknown>;
 }
 
@@ -103,6 +114,58 @@ describe("tool calls the schema refuses", () => {
       },
     });
     expect(await invoke(failing, {})).toEqual({ error: "Supply objects in increasing spatial order on the chosen axis" });
+  });
+
+  const echo = defineTool({
+    name: "test.echo",
+    description: "Returns the word it is given.",
+    permission: "read",
+    parameters: z.object({ word: z.string() }).strict(),
+    execute: (input) => ({ echoed: input.word }),
+  });
+
+  it("keep what a call received and returned, and name the kept output in the completion event", async () => {
+    const emitted: Emitted[] = [];
+    const kept: ToolOutputEntry[] = [];
+    expect(await invoke(echo, { word: "hi" }, emitted, kept)).toEqual({ echoed: "hi" });
+
+    expect(kept).toEqual([{ toolName: "test.echo", input: '{"word":"hi"}', output: '{"echoed":"hi"}' }]);
+    expect(emitted.find((event) => event.type === "tool.completed")?.payload).toEqual({
+      toolName: "test.echo",
+      durationMs: expect.any(Number),
+      outputId: "out_1",
+    });
+  });
+
+  it("keep a failed call's result too, so its failed step can show what went wrong", async () => {
+    const emitted: Emitted[] = [];
+    const kept: ToolOutputEntry[] = [];
+    const failing = defineTool({
+      name: "test.refuses",
+      description: "x",
+      permission: "read",
+      parameters: z.object({}).strict(),
+      execute: () => {
+        throw new ValidationFailedError("No such object");
+      },
+    });
+    await invoke(failing, {}, emitted, kept);
+
+    expect(kept).toEqual([{ toolName: "test.refuses", input: "{}", output: '{"error":"No such object"}' }]);
+    expect(emitted.at(-1)).toMatchObject({ type: "tool.failed", payload: { outputId: "out_1" } });
+  });
+
+  it("still answer the model when its output cannot be kept", async () => {
+    const context = {
+      ...contextFor([]),
+      toolOutputs: {
+        save: () => {
+          throw new Error("disk full");
+        },
+      },
+    } as AgentRunContext;
+    const output = await toSdkTool(echo).invoke(new RunContext<AgentRunContext>(context), '{"word":"hi"}');
+    expect(JSON.parse(String(output))).toEqual({ echoed: "hi" });
   });
 });
 

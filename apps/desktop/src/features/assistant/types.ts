@@ -24,6 +24,8 @@ export interface ActivityStep {
   durationMs?: number;
   /** Names the pictures the assistant looked at in this step, which the chat shows under it. */
   captureId?: string;
+  /** Names what the tool call received and returned, kept by the backend; opening the step fetches it. */
+  outputId?: string | undefined;
   /** Character position in the streamed reply when this step started. */
   contentOffset?: number;
 }
@@ -37,6 +39,8 @@ export interface ChatMessage {
   activity: ActivityStep[];
   /** The pictures sent with a request. A reopened project lists their names only. */
   attachments?: MessageAttachment[];
+  /** The run that wrote this reply, which holds the outputs of its steps. Set once the backend accepts the request. */
+  runId?: string | undefined;
   /** Set when the reply ended in an error; shown apart from the reply text. */
   error?: string;
   /** When the message was created, in epoch milliseconds. */

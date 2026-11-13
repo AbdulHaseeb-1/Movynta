@@ -5,7 +5,7 @@ export interface SavedExchange {
   runId: string;
   prompt: string;
   reply?: string | undefined;
-  /** The pictures sent with the request, by name; the backend does not keep their pixels. */
+  /** The pictures sent with the request, by name. The backend keeps the newest of their pixels in the chat's history. */
   attachments?: readonly { name: string }[] | undefined;
   status: "created" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled";
   error?: string | undefined;

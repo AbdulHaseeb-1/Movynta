@@ -53,6 +53,7 @@ import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { ObjectActions } from "@/features/objectEditing/ObjectActions";
 import {
   AddShapeMenu,
+  ScriptEditor,
   ComponentToolbar,
   useComponentSelection,
   useDesignFocus,
@@ -402,6 +403,7 @@ function StudioWorkspace({ openProjectId, onProjectCreated }: WorkspaceProps) {
           onBusyChange={setModifierBusy}
           onAdded={() => setSubmitted(true)}
         />
+        <ScriptEditor scene={editorScene} ensureProject={ensureProject} saves={saves} disabled={run.busy || modifierBusy || opening !== "ready"} onBusyChange={setModifierBusy} onAdded={() => setSubmitted(true)} />
       </div>
       {designMode === "edit" && (
         <div

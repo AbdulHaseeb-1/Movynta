@@ -40,7 +40,7 @@ function AssistantMessage({ message, onRetry }: MessageBubbleProps) {
             <Markdown>{part.text}</Markdown>
           </div>
         ) : (
-          <StepRow key={part.id} step={part.step} />
+          <StepRow key={part.id} step={part.step} runId={message.runId} />
         ),
       )}
       {waiting && <PendingIndicator label={parts.length === 0 ? "Thinking" : "Working"} />}

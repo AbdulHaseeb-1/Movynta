@@ -9,6 +9,7 @@ import { parseAttachmentSummaries } from "../../shared/schemas/attachments.schem
 import { NotFoundError } from "../../common/errors/app-error.js";
 import { AGENT_RUN_STATUSES, transitionRun } from "./agent-run.state-machine.js";
 import { AGENT_RUN_EVENT_TYPES } from "./agent-run.events.js";
+import { newId } from "../../common/ids/index.js";
 import type {
   AgentRunEvent,
   AgentRunEventType,
@@ -16,11 +17,16 @@ import type {
   AgentRunStatus,
   NewAgentRun,
   RunUpdate,
+  ToolOutputEntry,
+  ToolOutputView,
 } from "./agent-runs.types.js";
 import { parseEventPayload } from "./agent-run-event-payload.schema.js";
 import { REASONING_EFFORTS } from "../providers/model-capabilities.js";
 import { PROVIDER_IDS } from "../providers/providers.types.js";
 import { parseRunProgress } from "./run-progress.js";
+
+/** The most characters of one tool output (and of its input) that are kept. Longer text is cut and marked. */
+export const TOOL_OUTPUT_LIMIT_CHARS = 2_000_000;
 
 const usageSchema = z.record(z.string(), z.number());
 const skillIdsSchema = z.array(z.string());
@@ -203,5 +209,47 @@ export class AgentRunRepository {
           payload: parseEventPayload(type, JSON.parse(textColumn(row, "payload_json"))),
         };
       });
+  }
+
+  /**
+   * Keeps what a tool call received and returned, so its step can be opened later. Text past the storage limit is cut
+   * and marked as cut, so one very large result cannot fill the database. Returns the id the run's events carry.
+   */
+  saveToolOutput(runId: string, entry: ToolOutputEntry): string {
+    const id = newId("out");
+    this.database.db
+      .prepare(
+        `INSERT INTO agent_tool_outputs (id, run_id, tool_name, input_json, output_text, output_bytes, truncated, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        runId,
+        entry.toolName,
+        entry.input.slice(0, TOOL_OUTPUT_LIMIT_CHARS),
+        entry.output.slice(0, TOOL_OUTPUT_LIMIT_CHARS),
+        Buffer.byteLength(entry.output),
+        entry.output.length > TOOL_OUTPUT_LIMIT_CHARS ? 1 : 0,
+        new Date().toISOString(),
+      );
+    return id;
+  }
+
+  /** The output a tool call of this run kept, or undefined when the run has none under that id. */
+  findToolOutput(runId: string, id: string): ToolOutputView | undefined {
+    const row = this.database.db
+      .prepare("SELECT * FROM agent_tool_outputs WHERE id = ? AND run_id = ?")
+      .get(id, runId);
+    if (!row) return undefined;
+    return {
+      id: textColumn(row, "id"),
+      runId: textColumn(row, "run_id"),
+      toolName: textColumn(row, "tool_name"),
+      input: textColumn(row, "input_json"),
+      output: textColumn(row, "output_text"),
+      outputBytes: integerColumn(row, "output_bytes"),
+      truncated: integerColumn(row, "truncated") === 1,
+      createdAt: textColumn(row, "created_at"),
+    };
   }
 }

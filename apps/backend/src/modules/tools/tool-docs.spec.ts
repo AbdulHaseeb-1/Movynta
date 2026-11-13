@@ -121,6 +121,7 @@ function runContext(scene: EditorContext): AgentRunContext {
     dimension: "3d",
     selectedSkillIds: ["mesh-editing"],
     events: { emit: () => undefined },
+    toolOutputs: { save: () => "out_test" },
     signal: new AbortController().signal,
     progress: emptyRunProgress(),
     supportsToolImages: false,

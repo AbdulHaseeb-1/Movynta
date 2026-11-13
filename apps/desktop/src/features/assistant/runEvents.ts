@@ -76,6 +76,24 @@ function updateLastRunning(
   };
 }
 
+/** The tool that loads a skill's instructions. Its result is the text a "Loaded ... skill" step shows. */
+const SKILL_LOAD_TOOL = "skills.load_skill";
+
+/** Gives the most recent skill step that has no output yet the output of the call that loaded that skill. */
+function attachOutputToLastSkill(message: ChatMessage, outputId: string): ChatMessage {
+  let index = message.activity.length - 1;
+  while (index >= 0) {
+    const step = message.activity[index];
+    if (step?.kind === "skill" && step.outputId === undefined) break;
+    index -= 1;
+  }
+  if (index < 0) return message;
+  return {
+    ...message,
+    activity: message.activity.map((step, at) => (at === index ? { ...step, outputId } : step)),
+  };
+}
+
 /** Settles any step still marked as running once the run has ended. */
 export function settleActivity(message: ChatMessage): ChatMessage {
   if (message.activity.every((step) => step.status !== "running")) return message;
@@ -136,19 +154,24 @@ function applyEvent(message: ChatMessage, event: RunEvent): ChatMessage {
     case "tool.completed": {
       const toolName = readString(payload, "toolName");
       const durationMs = readNumber(payload, "durationMs");
-      return updateLastRunning(
+      const outputId = readString(payload, "outputId");
+      const updated = updateLastRunning(
         message,
         (step) => step.kind === "tool" && step.toolName === toolName,
         (step) => ({
           ...step,
           status: "done",
           ...(durationMs === undefined ? {} : { durationMs }),
+          ...(outputId === undefined ? {} : { outputId }),
         }),
       );
+      // The text of a loaded skill is the result of the call that loaded it, so its "Loaded" step opens that result.
+      return toolName === SKILL_LOAD_TOOL && outputId !== undefined ? attachOutputToLastSkill(updated, outputId) : updated;
     }
     case "tool.failed": {
       const toolName = readString(payload, "toolName");
       const detail = readString(payload, "message");
+      const outputId = readString(payload, "outputId");
       return updateLastRunning(
         message,
         (step) => step.kind === "tool" && step.toolName === toolName,
@@ -156,6 +179,7 @@ function applyEvent(message: ChatMessage, event: RunEvent): ChatMessage {
           ...step,
           status: "failed",
           ...(detail === undefined ? {} : { detail }),
+          ...(outputId === undefined ? {} : { outputId }),
         }),
       );
     }

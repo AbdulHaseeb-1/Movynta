@@ -38,6 +38,7 @@ function setup(options: { requiresApproval?: boolean; applyStatus?: "applied" | 
     runId: "run", userId: "u", projectId: "p", clientId: "c", sessionId: "s", dimension: "3d", selectedSkillIds: [],
     progress: emptyRunProgress(), supportsToolImages: false, signal: new AbortController().signal,
     events: { emit: (type: string) => events.push(type) },
+    toolOutputs: { save: () => "out_test" },
   } as unknown as AgentRunContext;
   const tools = new Map(createEditorTools({ bridge, proposals }).map((tool) => [tool.name, tool]));
   const tool = (name: string) => {

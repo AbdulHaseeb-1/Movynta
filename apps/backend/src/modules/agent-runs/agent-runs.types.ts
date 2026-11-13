@@ -31,11 +31,40 @@ export interface AgentRunContext {
   /** Skill ids selected for this request. `skills.load_skill` only loads these. */
   readonly selectedSkillIds: readonly string[];
   readonly events: AgentRunEventSink;
+  /** Keeps what each tool call returned, so the chat can show the step in full later. */
+  readonly toolOutputs: ToolOutputSink;
   readonly signal: AbortSignal;
   /** Plans, batches and verification state, updated by the tools as the run goes. */
   readonly progress: RunProgress;
   /** False when pictures must not be sent to this run's model, so tools return measurements only. */
   readonly supportsToolImages: boolean;
+}
+
+/** What one tool call received and returned, kept whole for the run's chat step. */
+export interface ToolOutputEntry {
+  readonly toolName: string;
+  /** The arguments as the tool received them, as JSON text. */
+  readonly input: string;
+  /** The text the model received back for this call. */
+  readonly output: string;
+}
+
+/** Keeps a tool call's entry for its run and returns the id that the run's tool events carry. */
+export interface ToolOutputSink {
+  save(entry: ToolOutputEntry): string;
+}
+
+/** A stored tool output as the desktop reads it. Output past the storage limit is cut, and `truncated` says so. */
+export interface ToolOutputView {
+  readonly id: string;
+  readonly runId: string;
+  readonly toolName: string;
+  readonly input: string;
+  readonly output: string;
+  /** The full size of the output in UTF-8 bytes, which can be larger than `output` when it was cut. */
+  readonly outputBytes: number;
+  readonly truncated: boolean;
+  readonly createdAt: string;
 }
 
 /** Payload shape for each event type. Clients receive these as JSON, so each shape is part of the stream contract. */
@@ -57,13 +86,16 @@ export type AgentRunEventPayloads = {
     readonly toolName: string;
     readonly permission: string;
   };
+  /** `outputId` names what the tool returned, kept in full; it is absent on runs made before outputs were kept. */
   readonly "tool.completed": {
     readonly toolName: string;
     readonly durationMs: number;
+    readonly outputId?: string | undefined;
   };
   readonly "tool.failed": {
     readonly toolName: string;
     readonly message: string;
+    readonly outputId?: string | undefined;
   };
   readonly "editor.proposal.created": {
     readonly proposalId: string;

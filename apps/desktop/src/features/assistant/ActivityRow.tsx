@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import { CaptureGallery } from "@/features/viewCapture";
 import type { ActivityStep } from "./types";
+import { ToolOutputView } from "./ToolOutputView";
 
 function formatDuration(durationMs: number): string {
   return durationMs < 1000 ? `${Math.round(durationMs)} ms` : `${(durationMs / 1000).toFixed(1)} s`;
@@ -26,9 +27,13 @@ function StatusGlyph({ status }: { status: ActivityStep["status"] }) {
   );
 }
 
-/** One inline tool call or agent action. Steps with extra detail expand smoothly on click. */
-export function StepRow({ step }: { step: ActivityStep }) {
-  const hasDetail = Boolean(step.detail);
+/**
+ * One inline tool call or agent action. A step with detail, or with an output the backend kept for its run, expands
+ * smoothly on click; the output itself is fetched only when the step opens.
+ */
+export function StepRow({ step, runId }: { step: ActivityStep; runId?: string | undefined }) {
+  const output = runId !== undefined && step.outputId !== undefined ? { runId, outputId: step.outputId } : undefined;
+  const hasDetail = Boolean(step.detail) || output !== undefined;
   const [override, setOverride] = useState<boolean | undefined>(undefined);
   const open = hasDetail && (override ?? step.status === "failed");
 
@@ -59,7 +64,8 @@ export function StepRow({ step }: { step: ActivityStep }) {
         )}
       </CollapsibleTrigger>
       <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down motion-reduce:animate-none">
-        <p className="pb-1.5 pl-6 text-xs leading-relaxed break-words text-muted-foreground">{step.detail}</p>
+        {step.detail && <p className="pb-1.5 pl-6 text-xs leading-relaxed break-words text-muted-foreground">{step.detail}</p>}
+        {output && <ToolOutputView key={output.outputId} runId={output.runId} outputId={output.outputId} />}
       </CollapsibleContent>
       {step.captureId && <CaptureGallery captureId={step.captureId} />}
     </Collapsible>

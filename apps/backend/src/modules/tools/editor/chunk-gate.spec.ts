@@ -28,7 +28,7 @@ function setup() {
   } as unknown as CommandProposalService;
   const context = {
     runId: "run", userId: "u", projectId: "p", clientId: "c", sessionId: "s", dimension: "3d", selectedSkillIds: [],
-    progress: emptyRunProgress(), supportsToolImages: false, signal: new AbortController().signal, events: { emit: () => undefined },
+    progress: emptyRunProgress(), supportsToolImages: false, signal: new AbortController().signal, events: { emit: () => undefined }, toolOutputs: { save: () => "out_test" },
   } as unknown as AgentRunContext;
   const tools = [...createEditorTools({ bridge, proposals }), ...createValidationTools({ bridge }), ...createModelingTools({ knownToolNames: ["editor.propose_commands"] })];
   const tool = (name: string) => {

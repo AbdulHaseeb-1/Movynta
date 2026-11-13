@@ -25,6 +25,7 @@ import {
   UpdateProjectDto,
 } from "./dto/index.js";
 import { ProjectsService } from "./projects.service.js";
+import { SceneScriptService } from "./scene-script.service.js";
 import type { ProjectConversation, ProjectView, SceneImport, SceneStep } from "./projects.types.js";
 import { SceneHistoryDto, CommitSceneHistoryDto } from "./dto/index.js";
 
@@ -36,7 +37,7 @@ const assetIdPipe = new ResourceIdPipe(ASSET_RESOURCE_ID_PATTERN);
 @ApiBearerAuth()
 @Controller({ path: "projects", version: "1" })
 export class ProjectsController {
-  constructor(private readonly projects: ProjectsService) {}
+  constructor(private readonly projects: ProjectsService, private readonly scripts: SceneScriptService) {}
 
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListProjectsQueryDto): ProjectView[] {
@@ -133,6 +134,12 @@ export class ProjectsController {
     @Body() dto: RecordSceneEditDto,
   ): { proposalId: string } {
     return this.projects.recordSceneEdit(user.id, projectId, dto.commands, dto.actionId);
+  }
+
+  @Post(":projectId/scene/script")
+  generateScript(@CurrentUser() user: AuthUser, @Param("projectId", projectIdPipe) projectId: string, @Body() input: unknown) {
+    this.projects.get(user.id, projectId);
+    return this.scripts.generate(projectId, input);
   }
 
   /** Imports a model: the file is the request body (application/octet-stream), described by the query. */

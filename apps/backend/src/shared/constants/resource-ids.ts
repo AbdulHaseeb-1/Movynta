@@ -1,5 +1,7 @@
 /** Shapes of server-generated identifiers. Validated at the HTTP edge before any lookup. */
 export const RUN_ID_PATTERN = /^run_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** The allowed form of a stored tool output id, which a run's tool events carry. */
+export const TOOL_OUTPUT_ID_PATTERN = /^out_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** The allowed form of an approval id. */
 export const APPROVAL_ID_PATTERN = /^apr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** The allowed form of a UUID. */

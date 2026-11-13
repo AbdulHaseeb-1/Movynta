@@ -37,6 +37,7 @@ it("proposes generated face edits at the inspection revision without echoing com
     dimension: undefined, selectedSkillIds: [], progress: emptyRunProgress(), supportsToolImages: false,
     signal: new AbortController().signal,
     events: { emit: (_type: string, payload: unknown) => events.push(payload) } as never,
+    toolOutputs: { save: () => "out_test" } as never,
   };
   const tool = createProceduralTools({ bridge, proposals }).find((entry) => entry.name === "modeling.propose_generated");
   if (!tool) throw new Error("Missing generated proposal tool");
